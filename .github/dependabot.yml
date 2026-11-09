@@ -1,0 +1,11 @@
+# Keeps the workflow actions current. Python tools come from nixpkgs and three.js from a pinned CDN URL
+# in viewer/index.html; Dependabot tracks neither.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
