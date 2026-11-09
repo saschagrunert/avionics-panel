@@ -1,0 +1,14 @@
+# Python lint for the generators (pcb/, mech/) and the firmware. `ruff check` in CI.
+line-length = 120
+target-version = "py312"
+
+[lint]
+select = ["E", "W", "F", "I", "B", "UP", "SIM", "C4"]
+ignore = [
+    "E702",   # short geometry statements share a line on purpose (seg(...); via(...))
+    "C408",   # dict(key=value) reads better for the stack and part tables
+]
+
+[lint.per-file-ignores]
+# CircuitPython: no zip(strict=), keep the code to what the firmware runtime supports
+"firmware/*" = ["B905", "UP"]

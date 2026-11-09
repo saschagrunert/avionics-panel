@@ -1,0 +1,8 @@
+# markdownlint for README.md and docs/; run as `markdownlint-cli2` in CI.
+config:
+  MD013:
+    line_length: 110
+    tables: false
+    code_blocks: false
+globs:
+  - "**/*.md"
