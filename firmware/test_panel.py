@@ -7,10 +7,11 @@ class Sim:
     def __init__(self):
         self.p, self.t, self.seen = P.Panel(), 0, []
         self.prev = {1: set(), 2: set()}
+        self.names = {d: {v: k for k, v in BM.BUTTON[d].items()} for d in (1, 2)}
 
     def run(self, ms):
         """advance time, record every button press edge as (device, name)"""
-        names = {d: {v: k for k, v in BM.BUTTON[d].items()} for d in (1, 2)}
+        names = self.names
         for _ in range(ms):
             self.t += 1
             self.p.tick(self.t)
@@ -35,12 +36,12 @@ class Sim:
 def test_shift_one_shot():
     s = Sim()
     s.key("AP"); assert s.take() == [(1, "AP")]
-    s.key("SHIFT"); assert s.p.shift_light
-    s.key("AP"); assert s.take() == [(1, "TEST")] and not s.p.shift_light
+    s.key("SHIFT"); assert s.p.shift_active(s.t)
+    s.key("AP"); assert s.take() == [(1, "TEST")] and not s.p.shift_active(s.t)
     s.key("AP"); assert s.take() == [(1, "AP")]
     s.key("SHIFT"); s.key("VS"); assert s.take() == [(1, "S_VS")]      # no amber legend: own shifted button
     s.key("SHIFT"); s.key("SHIFT"); s.key("AP"); assert s.take() == [(1, "AP")]   # second tap cancels
-    s.key("SHIFT"); s.run(3100); assert not s.p.shift_light; s.key("AP"); assert s.take() == [(1, "AP")]
+    s.key("SHIFT"); s.run(3100); assert not s.p.shift_active(s.t); s.key("AP"); assert s.take() == [(1, "AP")]
     s.key("SHIFT"); s.turn("FREQ_OUTER", 1); s.take()                   # squawk set, light still on
     s.key("SHIFT"); s.key("IDENT"); assert s.take() == [(1, "VFR")]       # one tap arms SHIFT for the key
 
@@ -50,11 +51,85 @@ def test_knob_keeps_shift():
     s.key("SHIFT")
     s.turn("FREQ_OUTER", 2, every=500); s.turn("FREQ_INNER", 1, every=500)   # whole squawk code
     assert [n for _, n in s.take()] == ["SQK_D2_UP", "SQK_D2_UP", "SQK_D4_UP"]
-    assert s.p.shift_light
-    s.run(3000); assert not s.p.shift_light
+    assert s.p.shift_active(s.t)
+    s.run(3000); assert not s.p.shift_active(s.t)
     s.turn("FREQ_OUTER", 1); assert s.take() == [(1, "COM_MHZ_UP")]
     s.key("SHIFT"); s.turn("ALTHDG_INNER", 1); s.key("AP")              # a key after a knob session: normal
     assert [n for _, n in s.take()] == ["BARO_UP", "AP"]
+
+
+def light_trace(s, end):
+    """(ms left, light level, SHIFT applies) every ms until shortly after SHIFT drops at `end`"""
+    out = []
+    while s.t < end + 50:
+        s.run(1)
+        out.append((end - s.t, s.p.shift_level(s.t), s.p.shift_active(s.t)))
+    return out
+
+
+def check_pulse(trace, warn=P.SHIFT_WARN_MS, pulse=P.SHIFT_PULSE_MS):
+    full, dim = P.LIGHT_FULL, P.LIGHT_DIM
+    assert all(v == full for left, v, _ in trace if left > warn)                # steady until the warning
+    assert [v for left, v, _ in trace if left == warn] == [dim]                 # which starts dim, on time
+    last = [v for left, v, _ in trace if 0 < left <= warn]
+    assert last.count(dim) == warn // 2                                         # half of it dim
+    assert sum(a != b for a, b in zip(last, last[1:])) == warn // pulse - 1     # one change per phase
+    assert all(v == full for left, v, _ in trace if 0 < left <= pulse)          # last phase bright
+    assert all(v != P.LIGHT_OFF for _, v, on in trace if on)                    # never dark while SHIFT applies
+    assert all(v == P.LIGHT_OFF and not on for left, v, on in trace if left <= 0)   # off once it dropped
+
+
+def test_shift_light_pulses_before_a_knob_drops_it():
+    s = Sim()
+    s.key("SHIFT"); s.turn("FREQ_OUTER", 1)              # a knob session: drops 3000 ms after this detent
+    check_pulse(light_trace(s, s.p.shift_until))
+
+
+def test_shift_light_pulses_before_an_armed_shift_drops():
+    s = Sim()
+    s.key("SHIFT")                                       # armed, no key follows: drops 3000 ms after the tap
+    check_pulse(light_trace(s, s.p.shift_until))
+
+
+def test_pulse_follows_other_timings(monkeypatch):
+    monkeypatch.setattr(P, "SHIFT_PULSE_MS", 100)        # 5 dim/bright pairs instead of 4
+    s = Sim()
+    s.key("SHIFT")
+    check_pulse(light_trace(s, s.p.shift_until), pulse=100)
+
+
+def test_pulse_timing_rules():
+    assert P.pulse_timing_ok(1000, 125, 3000) and P.pulse_timing_ok(1000, 100, 3000)
+    assert not P.pulse_timing_ok(1000, 150, 3000)       # would start with a bright partial phase
+    assert not P.pulse_timing_ok(3000, 125, 3000)       # would pulse for the whole SHIFT
+
+
+def test_bad_timing_raises(monkeypatch):
+    import pytest
+    monkeypatch.setattr(P, "SHIFT_PULSE_MS", 150)
+    with pytest.raises(ValueError):
+        P.check_timing()
+
+
+def test_light_is_off_once_shift_runs_out_even_before_tick():
+    s = Sim()
+    s.key("SHIFT")
+    end = s.p.shift_until
+    assert s.p.shift_level(end - 1) == P.LIGHT_FULL      # still applies: last phase bright
+    assert s.p.shift_level(end) == P.LIGHT_OFF and s.p.shift_level(end + 5) == P.LIGHT_OFF
+
+
+def test_inputs_after_a_stall_follow_the_dark_light():
+    # the loop stalls past the end of SHIFT: no tick() ran, but inputs must be plain, as the light says
+    s = Sim()
+    s.key("SHIFT"); s.turn("FREQ_OUTER", 1); s.take()
+    s.t = s.p.shift_until + 30                           # stalled: time passed, no tick() ran
+    s.turn("FREQ_OUTER", 1)                              # a late detent: plain, and no new 3 s session
+    assert s.take() == [(1, "COM_MHZ_UP")] and not s.p.shift_active(s.t)
+    s.key("SHIFT")
+    s.t = s.p.shift_until + 30
+    s.key("AP")                                          # a late key: plain
+    assert s.take() == [(1, "AP")]
 
 
 def test_acceleration():

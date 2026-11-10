@@ -10,7 +10,7 @@ What each key and knob does, and why it sits where it is. Button numbers for map
   beside the radio keys, FMS beside the FMS keys.
 - The left side does the autopilot work and the right side does radios and navigation.
 - White legends are primary functions, amber legends are SHIFT functions. All caps are black. Two
-  lights: amber while SHIFT is armed, white while unit 2 is selected.
+  lights: amber whenever SHIFT applies (pulsing in its last second), white while unit 2 is selected.
 - Everything behind SHIFT can wait until the autopilot flies. If both hands are needed, LVL first.
 
 ## SHIFT
@@ -22,9 +22,11 @@ SHIFT is tapped, never held. For keys it is one-shot; a knob keeps it while in u
 - A knob turned or pushed after SHIFT stays shifted while you keep using it, including moving between
   its outer and inner ring (for a whole squawk code), and returns to normal 3 s after the last detent.
   1 s was too short to move from one ring to the other or glance at the code.
-- Tapping SHIFT again cancels it. It also cancels itself after 3 s without input. While a knob still
-  keeps SHIFT (light on after a squawk entry), a tap arms SHIFT for the next key instead, so SHIFT, IDENT
-  gives VFR with one tap.
+- Tapping SHIFT again cancels it. It also cancels itself after 3 s without input. During the last second
+  the amber light pulses between bright and dim, so a knob never drops back to its plain function
+  unannounced in the middle of a turn (Reddit feedback). It never goes dark while SHIFT still applies:
+  lit, even dim, means shifted; dark means plain. While a knob still keeps SHIFT (light on after a squawk
+  entry), a tap arms SHIFT for the next key instead, so SHIFT, IDENT gives VFR with one tap.
 - Keys and knobs without an amber legend still send their own shifted button. The default profiles
   map it to the same function as the plain control, so a stray SHIFT before DN or ENT does no harm,
   and the slot stays free for personal mappings.

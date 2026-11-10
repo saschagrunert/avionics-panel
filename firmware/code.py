@@ -28,6 +28,11 @@ COL_PINS = (P.GPIO1, P.GPIO3, P.GPIO4, P.GPIO6, P.GPIO7, P.GPIO9, P.GPIO10)
 FREQ_PUSH = P.GPIO13               # direct input, switch to GND
 SHIFT_LED, UNIT_LED = P.GPIO12, P.GPIO15
 LED_DUTY = (0x6000, 0x3000)        # SHIFT (amber), UNIT (white) brightness, 0..0xFFFF
+# SHIFT light duty per panel level (off, dim, full). Dim starts at 1/4 of full: the eye is not linear, so it
+# looks like about half the brightness, a clear pulse that should stay visible through the light pipe in
+# daylight. Tune it on the first board with the amber LED behind its pipe: in PICO_TEST the SHIFT light is
+# the Pico's green onboard LED, which says nothing about the real one.
+SHIFT_DUTY = (0, LED_DUTY[0] // 4, LED_DUTY[0])
 
 # (ring, pin A, pin B, reverse). Ring 1 of a dual encoder = pins A/B/C, ring 2 = A'/B'/C'. If outer and
 # inner are swapped on the first board, swap the two ring names; if a direction is wrong, flip reverse.
@@ -52,6 +57,7 @@ encoders = [rotaryio.IncrementalEncoder(a, b, divisor=2) for _, a, b, _ in RINGS
 last = [e.position for e in encoders]
 leds = [pwmio.PWMOut(SHIFT_LED, frequency=1000), pwmio.PWMOut(UNIT_LED, frequency=1000) if UNIT_LED else None]
 unit_shown = None
+shift_shown = None
 NAMES = [n for row in BM.MATRIX for n in row]
 panel = Panel()
 reports = {1: bytearray(BM.SIZE[1] // 8), 2: bytearray(BM.SIZE[2] // 8)}
@@ -75,7 +81,10 @@ while True:
             last[i] = pos
             panel.turn(RINGS[i][0], -d if RINGS[i][3] else d, t)
     panel.tick(t)
-    leds[0].duty_cycle = LED_DUTY[0] if panel.shift_light else 0
+    level = panel.shift_level(t)                                     # pulses before SHIFT drops
+    if level != shift_shown:                                         # only writes on a change
+        shift_shown = level
+        leds[0].duty_cycle = SHIFT_DUTY[level]
     if leds[1]:
         leds[1].duty_cycle = LED_DUTY[1] if panel.unit_light else 0
     elif panel.unit_light != unit_shown:
