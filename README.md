@@ -45,15 +45,19 @@ Production files, by supplier (details in [Ordering](docs/ordering.md)):
   [BOM](production/avionics-panel-rev1-BOM.csv), [CPL](production/avionics-panel-rev1-CPL.csv)
 - LCSC: [through-hole parts](production/avionics-panel-rev1-THT-LCSC.csv)
 - JLCCNC: [plate STEP](production/avionics-panel-rev1-plate.step),
-  [thread drawing](production/avionics-panel-rev1-plate-drawing.pdf),
+  [drawing](production/avionics-panel-rev1-plate-drawing.pdf),
   [marking DXF](production/avionics-panel-rev1-plate.dxf)
 - JLC3DP: [body](production/avionics-panel-rev1-body.step),
-  [spacer](production/avionics-panel-rev1-spacer.step) (fallback for metal spacers),
-  [key caps](production/avionics-panel-rev1-caps.zip),
+  key caps in four fit sets ([A](production/avionics-panel-rev1-caps-A.zip),
+  [B](production/avionics-panel-rev1-caps-B.zip), [C](production/avionics-panel-rev1-caps-C.zip),
+  [D](production/avionics-panel-rev1-caps-D.zip); one file per cap in `caps-single-A.zip` etc.),
   [light pipes](production/avionics-panel-rev1-lightpipes.step), knobs
   ([outer](production/avionics-panel-rev1-knob-outer.step),
+  [outer FMS](production/avionics-panel-rev1-knob-outer-fms.step),
   [inner](production/avionics-panel-rev1-knob-inner.step),
   [RANGE](production/avionics-panel-rev1-knob-range.step), plus `-tight` and `-loose` fit variants)
+- Local: standoffs, screws, consumables (see [Ordering](docs/ordering.md)), optional
+  [steel plate](production/avionics-panel-rev1-steel.dxf)
 
 Renders: [hero](renders/1-hero.png), [top](renders/2-top.png), [exploded](renders/3-exploded.png),
 [seated view](renders/4-seated.png), [PCB top](renders/5-pcb-top.png),
@@ -62,33 +66,38 @@ Renders: [hero](renders/1-hero.png), [top](renders/2-top.png), [exploded](render
 
 ## Tooling
 
-The board and caps need numpy, scipy, matplotlib, scikit-image and pillow. On NixOS:
+The board and the plate artwork need numpy, scipy, matplotlib, scikit-image and pillow. On NixOS:
 
 ```sh
 nix-shell -p "python3.withPackages (ps: with ps; [ numpy scipy matplotlib scikit-image pillow ])"
 ```
 
-Inside `pcb/`: `python3 precheck.py` (placement clearances), `python3 run_route.py 14` (routing, writes
-`routed.json`; seed 14 routes every net, as do 19 of seeds 1 to 20; `run_route.py <seed> x` writes
-`routed_<seed>.json` instead, for trying seeds in parallel), `python3 make.py` (Gerbers),
-`python3 check.py` (electrical check, DRC, drills, paste, mask dams, decoupling and bottom-side pin order
-on the Gerbers), `python3 render.py`, `python3 make_bom.py`, `python3 make_schematic.py` (schematic PDF
-from the netlist).
+Inside `pcb/`: `python3 precheck.py` (placement clearances), `python3 run_route.py 3` (routing, writes
+`routed.json`; seed 3 routes every net without a detour and within the USB length limits, as do seeds 1,
+2, 4 and 9 of seeds 1 to 15; `run_route.py <seed> x` writes `routed_<seed>.json` instead, for trying
+seeds in parallel), `python3 make.py` (Gerbers), `python3 check.py` (electrical check, DRC, drills,
+paste, mask dams, decoupling, net lengths and USB, JLC footprints and CPL rotations, bottom-side pin
+order, on the Gerbers), `python3 render.py`, `python3 make_bom.py`, `python3 make_schematic.py`
+(schematic PDF from the netlist).
 `dbg.py` plots a region of the routed board.
-Inside `mech/`: `python3 make_caps.py`, `python3 make_plate_art.py`.
+Inside `mech/`: `python3 make_plate_art.py`.
 
-The body, plate, knobs and light pipes are exact solids (STEP + STL) built with OpenCascade:
+The caps, body, plate, knobs and light pipes are exact solids (STEP, STL or OBJ) built with OpenCascade:
 
 ```sh
 nix-shell -p "python3.withPackages (ps: with ps; [ pythonocc-core numpy matplotlib ])"
 ```
 
-Inside `mech/`: `python3 make_mech.py` (body, spacers), `python3 make_plate_step.py` (plate STEP and
-thread drawing), `python3 make_knobs.py` (knobs, light pipes), `python3 check_fit.py` (sections and
-clearances), `python3 make_viewer_data.py` (`viewer/geometry.js`, every dimension the 3D view uses).
+Inside `mech/`: `python3 make_caps.py` (key caps), `python3 make_mech.py` (body, steel plate DXF),
+`python3 make_plate_step.py` (plate STEP and drawing), `python3 make_knobs.py` (knobs, light pipes),
+`python3 check_fit.py` (sections and clearances), `python3 make_viewer_data.py` (`viewer/geometry.js`,
+every dimension the 3D view uses).
 
 The firmware tests run on the PC with `pytest` (from the repository root): `firmware/test_panel.py` covers
-the logic, `firmware/test_code.py` runs `code.py` against stub hardware modules.
+the logic, `firmware/test_code.py` runs `code.py` and `firmware/test_boot.py` runs `boot.py` against stub
+hardware modules, `tests/test_pins.py` checks the firmware pins against the board nets, and
+`tests/test_micropython.py` compiles the board files with MicroPython. That one skips when `micropython`
+is not on the PATH; `build.sh` provides it and sets `REQUIRE_MICROPYTHON=1`, which makes it fail instead.
 
 `./build.sh` does all of the above in one go (`--route` also re-runs the routing), stops at the first
 failed check and copies the results to `production/` and `renders/`. Renders 1 to 4 are screenshots of

@@ -30,6 +30,8 @@ import make_plate_step as PS  # noqa: E402
 import stack as S  # noqa: E402
 from occ_util import move  # noqa: E402
 
+assert S.PCB_HOLE == B.MOUNT_HOLE, "the board's mounting holes must be the ones the glued standoffs need"
+
 
 def section(shape, y):
     sec = BRepAlgoAPI_Section(shape, gp_Pln(gp_Pnt(0, y, 0), gp_Dir(0, 1, 0)))
@@ -67,7 +69,7 @@ part(ax, -S.OUTER_D / 2, S.SLEEVE_TOP, S.OUTER_D, S.OUTER_TOP - S.SLEEVE_TOP)
 part(ax, -S.SLOT_W / 2, S.OUTER_TOP - S.SLOT_LEN, S.SLOT_W, S.SLOT_LEN, fc="white")
 part(ax, -S.INNER_D / 2, S.OUTER_TOP, S.INNER_D, S.INNER_TOP - S.OUTER_TOP)
 part(ax, S.INNER_FLAT - S.INNER_D / 2, S.INNER_TOP - S.FLAT_LEN, S.INNER_D - S.INNER_FLAT, S.FLAT_LEN, fc="white")
-draw(ax, K.outer_knob(S.KNOB_D["ALTHDG"]), 0, "k", dz=S.PLATE_Z1 + S.OUTER_KNOB["z0"])
+draw(ax, K.outer_knob(), 0, "k", dz=S.PLATE_Z1 + S.OUTER_KNOB["z0"])
 draw(ax, K.inner_knob(), 0, "k", dz=S.PLATE_Z1 + S.INNER_KNOB["z0"])
 ax.set_title("ALT/HDG dual knob on PEC11D-4120F-S0015")
 
@@ -79,7 +81,8 @@ part(ax, -12, -S.PCB_T, 24, S.PCB_T, fc="#c8d8c0")
 part(ax, -14.5 / 2, 0, 14.5, S.RKJXT_BODY)
 part(ax, -2.0, S.RKJXT_BODY, 4.0, S.RKJXT_HUB_TOP - S.RKJXT_BODY)
 part(ax, -S.LEVER_D / 2, S.LEVER_Z0, S.LEVER_D, S.LEVER_Z1 - S.LEVER_Z0)
-draw(ax, K.range_knob(), 0, "k", dz=S.PLATE_Z1 + S.RANGE_KNOB["z0"])
+RANGE_SOLID = K.range_knob()
+draw(ax, RANGE_SOLID, 0, "k", dz=S.PLATE_Z1 + S.RANGE_KNOB["z0"])
 ax.set_title(f"RANGE knob on RKJXT1F42001 (tilt {S.RKJXT_TILT:.0f} deg not drawn)")
 
 # ---- SHIFT light pipe (section along board y, through the key above it) ----
@@ -96,7 +99,7 @@ draw(ax, rot, py, "#1f5fa0", dx=-px, dz=S.PLATE_Z0)
 part(ax, -6, -S.PCB_T, 12, S.PCB_T, fc="#c8d8c0")
 part(ax, -1.5, 0, 3.0, S.LED_TOP)                           # LED
 key_dy = ly - B.ROWS[3]                                     # key centre is this far towards the back
-part(ax, key_dy - S.CAP["h"] / 2, S.CAP["base"], S.CAP["h"], 6.0, fc="#555", ec="#222")   # key cap, plunger
+part(ax, key_dy - S.CAP["h"] / 2, S.CAP["base"], S.CAP["h"], S.CAP["height"], fc="#555", ec="#222")   # key cap, plunger
 pipe = move(K.light_pipe("SHIFT"), 0, 0, 0)
 tp = gp_Trsf(); tp.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1)), -math.pi / 2)
 draw(ax, BRepBuilderAPI_Transform(pipe, tp, True).Shape(), 0, "k", dx=0, dz=S.PIPE["z0"])
@@ -178,8 +181,9 @@ def mesh_triangles(shape, deflection=0.02):
     return np.concatenate(out)
 
 
-def raster_section(tri, axis, value, res):
-    """solid mask of a closed mesh cut by the plane coordinate[axis] = value (even-odd fill on a res grid)."""
+def raster_section(tri, axis, value, res, grid=False):
+    """solid mask of a closed mesh cut by the plane coordinate[axis] = value (even-odd fill on a res grid); with
+    grid, also the plane coordinates (u, v) of every pixel centre."""
     u_ax, v_ax = [a for a in range(3) if a != axis]
     d = tri[:, :, axis] - value
     d[np.abs(d) < 1e-7] = 1e-7                                   # no vertex exactly on the plane
@@ -206,7 +210,10 @@ def raster_section(tri, axis, value, res):
     c = np.clip(np.ceil((uc - u0) / res - 0.5).astype(int), 0, nu)
     tog = np.zeros((nv, nu + 1), np.int32)
     np.add.at(tog, (j, c), 1)
-    return (np.cumsum(tog, 1)[:, :nu] % 2) == 1
+    mask = (np.cumsum(tog, 1)[:, :nu] % 2) == 1
+    if grid:
+        return mask, np.meshgrid(u0 + (np.arange(nu) + 0.5) * res, v0 + (np.arange(nv) + 0.5) * res)
+    return mask
 
 
 def _shifted(mask, offs, erode, outside=False):
@@ -221,13 +228,16 @@ def _shifted(mask, offs, erode, outside=False):
     return out
 
 
-def thin_depth(mask, res, outside, gap=0.8):
+def thin_depth(mask, res, outside, gap=0.8, ignore=None):
     """deepest point of any part of mask narrower than gap: the pixels a disk of dia gap cannot reach, measured
-    along the mask to the nearest reachable pixel. A square corner gives about 0.2."""
+    along the mask to the nearest reachable pixel (pixels in ignore do not count). A square corner gives about
+    0.2."""
     r = int(round(gap / 2 / res))
     disk = [(dy, dx) for dy in range(-r, r + 1) for dx in range(-r, r + 1) if dy * dy + dx * dx <= r * r]
     opened = _shifted(_shifted(mask, disk, True, outside), disk, False) & mask
     thin = mask & ~opened
+    if ignore is not None:
+        thin &= ~ignore
     cross = [(dy, dx) for dy in (-1, 0, 1) for dx in (-1, 0, 1)]
     cover, steps = opened, 0
     while (thin & ~cover).any() and steps < 30:
@@ -237,176 +247,435 @@ def thin_depth(mask, res, outside, gap=0.8):
 
 
 def body_thin(res=0.1):
-    """deepest thin void and deepest thin wall over sections through the body (board frame), with where."""
+    """deepest thin void, deepest thin wall (0.8) and deepest wall under JLC3DP's 2.0 mm for large MJF parts
+    (1.9: a 2.0 wall is 20 pixels, which a 21 pixel disk does not fit) over sections through the body (board
+    frame), with where."""
     tri = body_triangles()
     ux = B.USB_X
     planes = [(2, z) for z in (-2.5, -4.0, -6.0, -6.5, -7.0, -7.7, -8.3, -9.0, -10.5, -12.0, -13.5)]
     planes += [(0, x) for x in (3.5, 9.0, 15.5, 22.5, 54.0, 85.0, 112.0, ux - 7.0, ux, ux + 7.0, B.BOOT[0],
                                 150.0, 156.5)]
     planes += [(1, y) for y in (-1.5, 0.5, 2.0, 3.5, 6.7, 20.0, 40.0, 47.8, 55.5, 57.0)]
-    void, wall = (0.0, "none"), (0.0, "none")
+    void, wall, wall2 = (0.0, "none"), (0.0, "none"), (0.0, "none")
+    keep_r = MM.BOSS_R_LOW + 0.5        # the screw bosses: fastener features, checked against 1.5 by their own rows
     for axis, value in planes:
-        solid = raster_section(tri, axis, value + 1e-3, res)
+        solid, (gu, gv) = raster_section(tri, axis, value + 1e-3, res, grid=True)
         where = f"{'xyz'[axis]} {value:g}"
         dv = thin_depth(~solid, res, True)
         # walls only in x and y sections: a z section cuts the 6 deg bottom faces at a slant, so their edges
         # look like slivers there that are not thin in 3D
         dw = thin_depth(solid, res, False) if axis != 2 else 0.0
+        boss = np.zeros(solid.shape, bool)
+        for mx, my in B.MOUNTS:
+            boss |= np.hypot(*((mx - value, my - gu) if axis == 0 else (mx - gu, my - value))) < keep_r
+        dw2 = thin_depth(solid, res, False, 1.9, boss) if axis != 2 else 0.0
         void = (dv, where) if dv > void[0] else void
         wall = (dw, where) if dw > wall[0] else wall
-    return void, wall
+        wall2 = (dw2, where) if dw2 > wall2[0] else wall2
+    return void, wall, wall2
+
+
+def solid_height(shape, x):
+    """how much of the vertical line at (x, 0) lies inside the solid: its XZ section crossed at x."""
+    zs = []
+    for px, pz in section(shape, 0.0):
+        for (x0, z0), (x1, z1) in zip(zip(px, pz, strict=True), zip(px[1:], pz[1:], strict=True), strict=False):
+            if (x0 - x) * (x1 - x) < 0:
+                zs.append(z0 + (z1 - z0) * (x - x0) / (x1 - x0))
+    zs.sort()
+    assert zs and len(zs) % 2 == 0, f"no clean section at x {x}"
+    return sum(b - a for a, b in zip(zs[0::2], zs[1::2], strict=True))
+
+
+def first_cap(name):
+    """triangles (n, 3, 3) of the first cap in the set's generated OBJ (caps-<set>.zip, as ordered); it sits at
+    the origin of the print grid, the next one 16 mm away."""
+    import zipfile
+    base = f"avionics-panel-rev1-caps-{name}"
+    with zipfile.ZipFile(HERE / f"{base}.zip") as z:
+        lines = z.read(f"{base}.obj").decode().splitlines()
+    V = np.array([[float(t) for t in ln.split()[1:4]] for ln in lines if ln.startswith("v ")])
+    F = np.array([[int(t.split("/")[0]) - 1 for t in ln.split()[1:4]] for ln in lines if ln.startswith("f ")])
+    near = np.all(np.abs(V[:, :2]) < 8.0, axis=1)
+    return V[F[near[F].all(axis=1)]]
+
+
+def ray_hit(tri, o, d):
+    """distance along the ray o + t d to the nearest triangle it crosses (Moller-Trumbore), or inf."""
+    e1, e2 = tri[:, 1] - tri[:, 0], tri[:, 2] - tri[:, 0]
+    pv = np.cross(d, e2)
+    det = np.einsum("ij,ij->i", e1, pv)
+    ok = np.abs(det) > 1e-12
+    inv = np.where(ok, 1 / np.where(ok, det, 1), 0)
+    tv = o - tri[:, 0]
+    u = np.einsum("ij,ij->i", tv, pv) * inv
+    qv = np.cross(tv, e1)
+    v = (qv @ d) * inv
+    t = np.einsum("ij,ij->i", e2, qv) * inv
+    hit = ok & (u >= 0) & (v >= 0) & (u + v <= 1) & (t > 1e-9)
+    return t[hit].min() if hit.any() else math.inf
+
+
+def rib_profile(name, dz=0.02):
+    """the generated cap's ribs, measured: (z, rib circle diameter) where all ribs touch the plunger's cone line,
+    and the largest deviation of the rib circle from the set's cone (stack.cap_rib_d) there."""
+    tri, sk = first_cap(name), S.CAP_SOCKET
+    hs, R = sk["depth"], sk["d"] / 2
+    zs, ds, dev = [], [], []
+    for z in np.arange(dz, hs - dz / 2, dz):
+        r = [ray_hit(tri, np.array([0.0, 0.0, z]), np.array([math.cos(a), math.sin(a), 0.0]))
+             for a in np.radians(sk["rib_angles"])]
+        if max(r) < R - 0.05 and z >= sk["lead"]:          # on every rib, above the lead-in
+            zs.append(z); ds.append(2 * np.mean(r))
+            dev.append(max(abs(2 * x - S.cap_rib_d(name, hs - z)) for x in r))
+    assert zs, f"cap set {name}: no ribs found in the generated socket"
+    return np.array(zs), np.array(ds), max(dev)
+
+
+def cap_texture():
+    """the caps' texture as ordered (caps-A.zip; every set has the same one), RGB array."""
+    import io
+    import zipfile
+
+    from PIL import Image
+    base = "avionics-panel-rev1-caps-A"
+    with zipfile.ZipFile(HERE / f"{base}.zip") as z:
+        return np.asarray(Image.open(io.BytesIO(z.read(f"{base}.png"))).convert("RGB"))
+
+
+def legend_strokes(gap=S.LEGEND_STROKE_MIN):
+    """Legend strokes on the generated texture: in each cap's cell, how far coloured ink that a disk of dia gap
+    cannot cover reaches (thin_depth): a stroke under gap shows up over its whole length, a corner or an arrow
+    tip only over a fraction of gap. The worst cap and that depth."""
+    tex = cap_texture()
+    cell = 512                                                     # make_caps.py: 8 x 8 cells of 512 px
+    res = max(S.CAP["w"], S.CAP["h"]) / cell                       # mm per pixel
+    labels = [label for row in S.KEY_LEGENDS for label, _ in row]
+    worst = (0.0, "none")
+    pad = int(gap / res) + 3
+    for k, label in enumerate(labels):
+        x0, y0 = (k % 8) * cell, (k // 8) * cell
+        ink = tex[y0:y0 + cell, x0:x0 + cell].max(axis=2) > 128
+        if not ink.any():
+            continue
+        ys, xs = np.nonzero(ink)
+        m = np.pad(ink[ys.min():ys.max() + 1, xs.min():xs.max() + 1], pad)
+        d = thin_depth(m, res, False, gap)
+        worst = max(worst, (d, label))
+    return worst
+
+
+def legend_front(label):
+    """how far the label's ink reaches from the cap centre towards the front edge (mm), on the generated texture
+    (texture rows run from the back edge down to the front edge)"""
+    tex, cell = cap_texture(), 512
+    res = max(S.CAP["w"], S.CAP["h"]) / cell
+    k = [lab for row in S.KEY_LEGENDS for lab, _ in row].index(label)
+    x0, y0 = (k % 8) * cell, (k // 8) * cell
+    ys = np.nonzero(tex[y0:y0 + cell, x0:x0 + cell].max(axis=2) > 128)[0]
+    return (ys.max() + 1 - cell / 2) * res
+
+
+def cap_rows(face_lo, back_hi):
+    """key cap rows: rigid ribs on the plunger cone measured on the generated caps, four fit sets against the
+    print tolerance, set marks, tactile bars and legends against JLC3DP's minimums."""
+    sk, c = S.CAP_SOCKET, S.CAP
+    hs = sk["depth"]
+    part_tol, hole_tol = 0.2, 0.3                                  # WJP: outline and holes, on the diameter
+    lo_i, hi_i = S.CAP_GRIP
+    sizes = sorted(S.CAP_SETS.values())
+    step = max(b - a for a, b in zip(sizes, sizes[1:], strict=False))   # the widest step between two sets
+    # interference on a true print (diametral) at the socket mouth, from the design: the sets' print coverage
+    fit = {n: S.plunger_d(hs) - S.cap_rib_d(n, hs) for n in S.CAP_SETS}
+    # set dimples: walls to the socket bore and to the cap outline, nominal and at the worst print
+    mk, bar = S.CAP_MARK, S.CAP_BAR
+    to_socket = min(math.hypot(x, y) - sk["d"] / 2 for x, y in mk["pos"]) - mk["d"] / 2
+    to_edge = min(-rrect_sd(np.array(x), np.array(y), c["w"], c["h"], c["r"]) for x, y in mk["pos"]) - mk["d"] / 2
+    dim_wall = min(to_socket, to_edge)
+    dim_worst = min(to_socket - hole_tol, to_edge - part_tol / 2 - hole_tol / 2)
+    ink_d, ink_at = legend_strokes()
+    rows = [
+        (f"cap socket ribs {sk['rib_w']} wide, on the socket wall over their length, beyond 1.0 (WJP)",
+         sk["rib_w"] - 1.0),
+        (f"cap wall round the {sk['d']} mm socket (narrow sides), outline -{part_tol}, bore +{hole_tol}, beyond 1.0 "
+         "(WJP)", (c["h"] - part_tol - sk["d"] - hole_tol) / 2 - 1.0),
+        (f"cap set dimples {mk['d']} across, {mk['depth']} deep, beyond 0.8 (JLC3DP engraved detail)",
+         min(mk["d"], mk["depth"]) - 0.8),
+        (f"cap set dimples: wall to the socket and the outline ({dim_wall:.2f}), beyond 1.0 (WJP)", dim_wall - 1.0),
+        (f"cap set dimples: wall at the worst print (outline -{part_tol}, socket and dimple +{hole_tol}), beyond "
+         "0.8", dim_worst - 0.8),
+        (f"tactile bars {bar['d']} wide, beyond 0.8 (JLC3DP embossed detail; only {bar['proud']} proud, see stack.py)",
+         bar["d"] - 0.8),
+        (f"front tactile bar ({bar['proud']} proud) hides none of the SHIFT and DN legends from "
+         f"{S.CAP_VIEW_DEG:.0f} deg",
+         min(S.CAP["h"] / 2 - S.CAP["cham"] - legend_front(lab) - bar["inset"] - bar["d"] / 2
+             for lab in ("SHIFT", "DN")) - bar["proud"] / math.tan(math.radians(S.CAP_VIEW_DEG))),
+        (f"cap legend strokes at least {S.LEGEND_STROKE_MIN} wide (WJP colour): thinner ink reaches {ink_d:.2f} "
+         f"(on {ink_at}), corners and tips only, within 0.25", 0.25 - ink_d),
+        (f"cap bore clears the plunger between the ribs (bore {sk['d']} -{hole_tol}, plunger {S.plunger_d(hs):.2f} "
+         "at the mouth)", (sk["d"] - hole_tol - S.plunger_d(hs)) / 2),
+        (f"cap seats on the plunger top: cap bottom over the switch body ({S.SWITCH_BODY_TOP:.1f}), pressed",
+         c["base"] - S.KEY_TRAVEL - S.PLUNGER_TOP_TOL - S.SWITCH_BODY_TOP),
+        (f"cap socket ceiling (on the plunger top, +{S.PLUNGER_TOP_TOL}) under the lowest plate face",
+         face_lo - (S.PLUNGER_TOP + S.PLUNGER_TOP_TOL)),
+        (f"pressed cap still inside its key hole (travel {S.KEY_TRAVEL}, plunger -{S.PLUNGER_TOP_TOL}, high plate)",
+         c["base"] - S.KEY_TRAVEL - S.PLUNGER_TOP_TOL - back_hi),
+        (f"cap sets' grip windows ({lo_i} to {hi_i} interference) overlap from one set to the next (step {step:.2f})",
+         (hi_i - lo_i) - step),
+    ]
+    # the generated caps (caps-<set>.zip), one per set, cut by rays from the socket axis along every rib
+    for n in S.CAP_SETS:
+        zs, ds, dev = rib_profile(n)
+        i = S.plunger_d(hs - zs[0]) - ds[0]                        # interference at the lowest contact
+        rows += [
+            (f"cap set {n} as built: ribs {ds[0]:.2f} to {ds[-1]:.2f} (interference {i:.2f}), off the set's cone "
+             f"by {dev:.3f}, within 0.01", 0.01 - dev),
+            (f"cap set {n} as built: ribs touch the cone over {zs[-1] - zs[0]:.2f} mm (cannot rock), beyond 2.0",
+             zs[-1] - zs[0] - 2.0),
+            (f"cap set {n} as built: ribs stop {hs - zs[-1]:.2f} under the ceiling, below the plunger's rounded "
+             f"edge ({S.PLUNGER['dz0']})", hs - zs[-1] - S.PLUNGER["dz0"]),
+        ]
+    # print error e (rib circle printed larger by e): interference i - e; the best set's margin to CAP_GRIP
+    e_lo, e_hi = S.CAP_PRINT
+    worst = min(max(min(f - e - lo_i, hi_i - (f - e)) for f in fit.values())
+                for e in np.linspace(e_lo, e_hi, 301))
+    rows.append((f"cap sets grip rib circles printed {-e_lo:.2f} small to {e_hi:.2f} large (one of {len(fit)} within "
+                 f"{lo_i} to {hi_i})", worst))
+    return rows
+
+
+def pocket_web():
+    """least plate left between a standoff pocket and any other plate feature or the plate edge."""
+    r = S.STANDOFF_POCKET["d"] / 2 + S.STANDOFF_POCKET["d_tol"] / 2
+    w, h, cr, _ = S.EC11_POCKET
+    webs = []
+    for mx, my in B.MOUNTS:
+        d = [rrect_sd(mx - x, my - y, *S.KEY_HOLE) for y in B.ROWS for x in B.COLS]
+        d += [rrect_sd(mx - x, my - y, w, h, cr) for x, y in (B.ALTHDG, B.FREQ, B.FMS)]
+        d += [math.hypot(mx - B.RANGE[0], my - B.RANGE[1]) - S.RANGE_POCKET[0] / 2]
+        d += [math.hypot(mx - lx, my - ly) - S.LIGHT_HOLES[n] / 2 for n, ((lx, ly), _g, _c) in B.LEDS.items()]
+        d += [-rrect_sd(mx - B.W / 2, my - B.H / 2, B.W + 2 * S.OVH, B.H + 2 * S.OVH, B.CORNER_R + S.OVH)]
+        webs.append(min(d) - r)
+    return min(webs)
 
 
 def clearances():
     """clearances that must stay positive, with the inner knob pushed down; each one can fail."""
     ok, ik, rk = S.OUTER_KNOB, S.INNER_KNOB, S.RANGE_KNOB
-    p = S.PUSH_TRAVEL
-    outer_grip = min(S.PLATE_Z1 + ok["neck_top"], S.OUTER_TOP) - (S.SLEEVE_TOP + S.SLEEVE_CLEAR)
-    # ---- knob walls: resin diameters (JLC3DP) +-0.2 outside, +-0.3 on holes; a bore at FIT 0 leaves up to 0.05
-    # radial play on its shaft, so the two knobs of a dual can sit that far off each other twice ----
-    part_tol, hole_tol, bore_play = 0.2, 0.3, 0.05
+    p, es = S.PUSH_TRAVEL, S.ENC_SPREAD
+    resin = 0.1                                         # resin knob, key to counterbore and bore depths (+-)
+    # ---- knob walls and radial clearances, worst case: resin diameters (JLC3DP) +-0.2 outside, +-0.3 on holes;
+    # a knob's bore on its shaft at the loose variant, a hole printed large and the shaft at its low limit
+    # (both shafts +0/-0.1 at most) can sit off centre by bore_play; the inner shaft off the outer one by ecc
+    # (assumed: the PEC11D datasheet gives no concentricity) ----
+    part_tol, hole_tol, shaft_tol, ecc = 0.2, 0.3, 0.1, 0.05
     loose = max(S.FIT, *S.FIT_VARIANTS.values())
-    fo, fi = K.OUTER_FLUTES, K.INNER_FLUTES
-    ring_r, cb_r = min(S.KNOB_D.values()) / 2, S.SLEEVE_D / 2 + S.SLEEVE_CLEAR
-    # flute bottoms where the walls are thinnest: the taper narrows the knobs towards the top of the
-    # recess (inner) and of the counterbore (outer)
-    rec_bot = ik["d"] / 2 * (1 - fi["taper"] * (ik["recess_top"] - ik["z0"]) / (ik["z1"] - ik["z0"])) - fi["depth"]
-    cb_bot = ring_r * (1 - fo["taper"] * K.outer_counterbore_top() / (ok["z1"] - ok["z0"])) - fo["depth"]
-    # ---- plate: thickness +-PLATE_T_TOL, back on the spacer (+-0.05 from the PCB top); depths from the back ----
-    sp_tol, t_tol = S.STACK_TOL["spacer"], S.PLATE_T_TOL
-    t_min = S.PLATE_T - t_tol
-    top_tol = sp_tol + t_tol                            # plate face against the PCB top
-    # ---- screws, shimmed to fit ----
-    T, sc, pt = S.TAP, S.SCREW, S.POS_TOL
-    floor_hi, floor_lo = T["hole_depth"], T["hole_depth"] - T["depth_tol"]
-    stop_lo = T["thread_depth"]                         # the screw may stop at the end of the full thread
-    seat_tol = S.STACK_TOL["counterbore"]
-    pb_tol = S.STACK_TOL["pcb"] + sp_tol                # plate back against the boss top (PCB, spacer)
-    wt = S.WASHER["t"]
-    # tip depth in the plate with the head washer alone, shortest and longest stack
-    d_lo = (S.SEAT_Z - seat_tol) - wt + (sc["L"] - sc["L_tol"]) - (S.PLATE_Z0 + pb_tol)
-    d_hi = (S.SEAT_Z + seat_tol) - wt + (sc["L"] + sc["L_tol"]) - (S.PLATE_Z0 - pb_tol)
-    n_lo = 1 + max(0, math.ceil(round((d_lo - stop_lo) / wt, 6)))     # washers the shortest stack needs
-    n_hi = 1 + max(0, math.ceil(round((d_hi - stop_lo) / wt, 6)))     # and the longest
-    tip_min = min(d_lo, stop_lo - wt)                                  # a shimmed tip ends within a washer
-    engaged = min(tip_min - sc["tip"], T["thread_depth"]) - T["entry"]
-    # head and washers recessed: the bottom plane rises to the front, so take its highest point under the
-    # counterbore (the washers stay inside it) at the front mounts, with MJF +0.3
-    cb_hi = MM.HEAD_R + pt["body_hole"]
-    boss_floor = max(MM.z_bottom(min(my + cb_hi, B.H + MM.o)) for _, my in B.MOUNTS) + seat_tol
-    head_lo = (S.SEAT_Z - seat_tol) - S.WASHERS_MAX * wt - sc["head_k"]
-    # ---- washer on the body: slides on the screw, held over the hole by the counterbore wall ----
-    r_hole_max = MM.SCREW_CLEAR + pt["body_hole"]
-    offset = MM.SCREW_OFFSET                            # screw against the widest body hole wall
-    r_w_min, r_w_max = S.WASHER["od_min"] / 2, S.WASHER["od"] / 2
-    w_off = min(offset + MM.WASHER_PLAY, cb_hi - r_w_min)   # washer centre off the body hole centre, worst
-    # ---- positions: board offset from the caps, screw in the PCB hole, spacer ----
+    bore_play = (loose + hole_tol + shaft_tol) / 2
+    fi, ring_r, cb_d = S.FLUTES["inner"], ok["d"] / 2, K.outer_counterbore_d()
+
+    def flute_bottom(f, r, z, h):
+        """radius of the flute bottoms z over the knob's bottom (the taper narrows the knob upwards)."""
+        return r * (1 - f["taper"] * z / h) - f["depth"]
+
+    def groove(f, r):
+        """flute width at half depth at the knob top (the narrowest): the printed detail."""
+        return math.pi * (r * (1 - f["taper"]) - f["depth"] / 2) / f["n"]
+
+    # thinnest walls: the inner knob at the top of its recess, the outer rings at the top of the counterbore
+    rec_bot = flute_bottom(fi, ik["d"] / 2, ik["recess_top"] - ik["z0"], ik["z1"] - ik["z0"])
+    rings = sorted(set(S.OUTER_FLUTES.values()))
+    cb_bot = {n: flute_bottom(S.FLUTES[n], ring_r, K.outer_counterbore_top(), ok["z1"] - ok["z0"]) for n in rings}
+    fp, ff = S.FLUTES["outer"], S.FLUTES["outer_fms"]
+    knurls = [(n, ring_r) for n in rings] + [("inner", ik["d"] / 2), ("range", rk["d"] / 2)]
+    # ---- plate: back on the standoffs (6.0 +0.2/-0.1 over the PCB top), thickness +-0.1; depths from the back
+    gap_up, gap_dn = S.GAP_TOL
+    t_min = S.PLATE_T - S.PLATE_T_TOL
+    back_lo, back_hi = S.PLATE_Z0 - gap_dn, S.PLATE_Z0 + gap_up
+    face_lo = back_lo + t_min
+    face_up = gap_up + S.PLATE_T_TOL                    # plate face over its nominal height, worst
+    # ---- positions: board offset from the caps, standoffs lined up with the PCB holes ----
+    pt, sc, so, sp = S.POS_TOL, S.SCREW, S.STANDOFF, S.STANDOFF_POCKET
     cap_err = math.sqrt(sum(v * v for v in S.CAP_TOL.values()))
     cap_room, cap_room_max = cap_shift_room()
     board = cap_room_max + pt["centring"]              # board offset the caps allow (the most, diagonally)
-    in_pcb = pt["plate"] + pt["pcb"] + pt["thread"] + board   # screw off the PCB hole centre, worst
-    pcb_r_lo, pcb_r_hi = (B.MOUNT_HOLE - pt["npth_d"]) / 2, (B.MOUNT_HOLE + pt["npth_d"]) / 2
-    sp = S.SPACER
-    sp_play = (sp["id_max"] - sc["d_min"]) / 2
+    hole = B.MOUNT_HOLE
+    hole_lo, hole_hi = (hole - pt["npth_d"]) / 2, (hole + pt["npth_d"]) / 2
+    off = hole_hi - sc["d_min"] / 2 + pt["thread"]     # standoff axis off the PCB hole axis: the screw's play
+    float_min = (sp["d"] - 0.05) / 2 - so["ac"] / 2    # standoff float in its pocket (anodising -0.05)
+    keepout = B.MOUNT_KEEPOUT                         # pcb/check.py checks the copper against the same radius
+    # ---- screws: head, one washer, counterbore seat, boss, PCB, standoff thread ----
+    seat_tol, pcb_tol = S.STACK_TOL["counterbore"], S.STACK_TOL["pcb"]
+    w, wt = S.WASHER, S.WASHER["t"]
+    seat_pcb = -S.SEAT_Z                                # counterbore seat to the PCB top (boss 1.6 + PCB 1.6)
+    tip_lo = (sc["L"] - sc["L_tol"]) - (wt + w["t_tol"]) - (seat_pcb + seat_tol + pcb_tol)
+    tip_hi = (sc["L"] + sc["L_tol"]) - (wt - w["t_tol"]) - (seat_pcb - seat_tol - pcb_tol)
+    engaged = tip_lo - sc["tip"] - so["chamfer"]
+    plug = so["L"] - so["L_tol"] - S.PLUG_DEPTH          # wax plug in the plate end while gluing: its bottom
+    # head and washer recessed: the bottom plane rises to the front, so take its highest point under the
+    # counterbore (the washer stays inside it) at the front mounts, with MJF +0.3
+    cb_hi = MM.HEAD_R + pt["body_hole"]
+    boss_floor = max(MM.z_bottom(min(my + cb_hi, B.H + MM.o)) for _, my in B.MOUNTS) + seat_tol
+    head_lo = (S.SEAT_Z - seat_tol) - (wt + w["t_tol"]) - sc["head_k"]
+    # ---- washer on the body: slides on the screw, held over the hole by the counterbore wall ----
+    r_hole_max = MM.SCREW_CLEAR + pt["body_hole"]
+    offset = MM.SCREW_OFFSET                            # screw against the widest body hole wall
+    r_w_min, r_w_max = w["od_min"] / 2, w["od"] / 2
+    w_off = min(offset + MM.WASHER_PLAY, cb_hi - r_w_min)   # washer centre off the body hole centre, worst
     corner = min(-rrect_sd(mx - B.W / 2, my - B.H / 2, B.W + 2 * MM.o, B.H + 2 * MM.o, B.CORNER_R + MM.o)
                  for mx, my in B.MOUNTS) - cb_hi       # counterbore to the outer body surface
     cav = MM.CLEAR - MM.PCB_OUTLINE_TOL / 2 - MM.BODY_SCALE_TOL * (B.W + 2 * MM.CLEAR) / 2
     # ---- assembly, body ----
     caps = [(x, y) for y in B.ROWS for x in B.COLS]
-    protrude = max(S.INNER_TOP, S.LEVER_Z1) - S.PLATE_Z1 + top_tol    # shafts past the plate face, face down
+    protrude = max(S.INNER_TOP + S.ENC_TOL["ge10"], S.LEVER_Z1 + S.LEVER_TOL) - face_lo   # face down
     edge = min([min(y - S.CAP["h"] / 2, B.H - y - S.CAP["h"] / 2) for _, y in caps] +
                [min(y - S.SLEEVE_D / 2, B.H - y - S.SLEEVE_D / 2) for y in (B.ALTHDG[1], B.RANGE[1])]) + S.OVH
     stl, x0 = MM.STEEL, MM.steel_x0()
     fx, fy = MM.FEET[0]
     notch = min(x0 + stl["notch"] - (fx + MM.FOOT_PAD / 2), stl["y0"] + stl["notch"] - (fy + MM.FOOT_PAD / 2))
-    (void, void_at), (wall, wall_at) = body_thin()
+    (void, void_at), (wall, wall_at), (wall2, wall2_at) = body_thin()
     # ---- light pipes glued flush, LEDs under them ----
     pp = S.PIPE
     led_hi = S.LED_TOP + S.LED_TOL[0]
-    face_lo = S.PLATE_Z0 - sp_tol + t_min               # lowest plate face over the PCB top
+    lt_up, lt_dn = S.LIGHT_HOLE_TOL
     pd = S.POCKET_TOL
-    back_hi = S.PLATE_Z0 + sp_tol                        # highest plate back (pocket ceilings start here)
-    wall_gap = S.WALL_GAP - (seat_tol + S.STACK_TOL["pcb"] + sp_tol)   # MJF wall height, PCB, spacer
+    wall_gap = S.WALL_GAP - (seat_tol + pcb_tol + gap_dn)   # MJF wall height, PCB, standoff gap
+    # ---- RANGE: knob height from the lever top (+-0.3) and its bore depth (resin) ----
+    rk_lo = S.PLATE_Z1 + rk["z0"] - S.LEVER_TOL - resin    # knob bottom, lowest
+    push_hi = S.RANGE_PUSH[0] + S.RANGE_PUSH[1]
+    a = math.radians(S.RKJXT_TILT)
+    pz = S.RKJXT_FULCRUM
+    skirt_low = pz + (rk_lo - pz) * math.cos(a) - rk["skirt_d"] / 2 * math.sin(a)
+    skirt_shift = (rk_lo - pz) * math.sin(a)            # skirt sideways at the plate face, full tilt
+    on_board = board + pt["plate"] + pt["pcb"] + S.ENC_ON_PINS   # a control's axis off its plate hole
+    gen = S.PLATE_GEN_TOL                               # ISO 2768-m on untoleranced plate sizes
+    # ---- outer knob, in its own frame from the slot floor its key rests on ----
+    slot_tol = S.ENC_TOL["lt10"]                        # slot width and depth, +-
+    key_rss = math.hypot(es["slot"], resin)            # slot floor over the PCB and the key's height in the knob
+    cb_top = K.outer_counterbore_top() - K.outer_key_z0() + resin   # counterbore top, highest
+    shaft_top = S.SLOT_LEN - slot_tol                   # 6 mm shaft top over the slot floor, shallow slot
+    knob_top = ok["z1"] - ok["z0"] - K.outer_key_z0()                # top of the knob's bore
+    key_resin = 0.2                                     # key printed up to 0.2 wide
+    # ---- RANGE skirt rim measured on the knob solid, just inside its edge ----
+    rim = solid_height(RANGE_SOLID, rk["skirt_d"] / 2 - 0.05)
     rows = [
-        (f"outer knob over plate (plate face +-{top_tol:.2f})", ok["z0"] - top_tol),
-        ("outer knob grip on the 6 mm shaft, beyond 4 mm", outer_grip - 4.0),
-        ("outer knob counterbore over the sleeve top",
-         (S.PLATE_Z1 + ok["z0"] + (S.SLEEVE_TOP - S.PLATE_Z1 - ok["z0"] + S.SLEEVE_CLEAR)) - S.SLEEVE_TOP),
-        ("inner knob over outer knob, pushed", ik["z0"] - p - ok["z1"]),
-        ("inner recess over outer neck, pushed", ik["recess_top"] - p - ok["neck_top"]),
-        ("inner recess over outer shaft top, pushed", ik["recess_top"] - p - (S.OUTER_TOP - S.PLATE_Z1)),
-        (f"inner recess ({ik['recess_d']}) round the outer neck ({ok['neck_d']}), radial: resin, bore play",
-         (ik["recess_d"] - hole_tol) / 2 - (ok["neck_d"] + part_tol) / 2 - 2 * bore_play),
-        (f"outer neck wall round the 6 mm bore, loose variant (+{loose}), beyond 1.0",
-         (ok["neck_d"] - S.OUTER_D - loose) / 2 - 1.0),
-        ("inner knob wall round the recess at the flute bottoms, beyond 1.0", rec_bot - ik["recess_d"] / 2 - 1.0),
-        ("outer knob wall round the counterbore at the flute bottoms, beyond 1.0", cb_bot - cb_r - 1.0),
-        ("outer ring beyond the inner knob, per side, beyond 2.0 (Garmin 2.5)",
-         ring_r - ik["d"] / 2 - 2.0),
-        ("RANGE knob over hub, pushed",
-         (S.LEVER_Z0 - 0.3) - S.RKJXT_HUB_TOP - (S.LEVER_Z0 - S.PLATE_Z1 - rk["z0"])),
-        (f"encoder pocket (-{pd}) over encoder body (8.0 +0.3), high plate",
-         S.PLATE_Z0 - sp_tol + S.EC11_POCKET[3] - pd - (S.EC11_BODY + 0.3)),
+        (f"outer knob over plate (face +{face_up:.1f}, slot floor +-{es['slot']:.2f} and key resin, RSS)",
+         ok["z0"] - face_up - key_rss),
+        (f"outer knob grip on the 6 mm shaft (slot depth -{slot_tol}, resin), beyond 3.5",
+         min(knob_top, shaft_top) - cb_top - 3.5),
+        (f"outer knob key ({S.KEY_W} +{key_resin} resin) in the narrowest shaft slot ({S.SLOT_W} -{slot_tol})",
+         S.SLOT_W - slot_tol - (S.KEY_W + key_resin)),
+        (f"outer knob key face ({S.KEY_R}) into the slot past the 6 mm shaft (-{shaft_tol}), face printed "
+         f"{hole_tol / 2} back, beyond 0.4", (S.OUTER_D - shaft_tol) / 2 - (S.KEY_R + hole_tol / 2) - 0.4),
+        (f"outer knob key face clear of the {S.INNER_D} inner shaft in the slot: face {hole_tol / 2} proud, "
+         f"loose knob {bore_play:.2f} off, shafts {ecc}", S.KEY_R - hole_tol / 2 - bore_play - ecc - S.INNER_D / 2),
+        (f"outer knob counterbore over the bushing, key on the slot floor (+-{es['slot_sleeve']:.2f}, resin)",
+         K.outer_counterbore_top() - K.outer_key_z0() + (S.OUTER_TOP - S.SLOT_LEN) - S.SLEEVE_TOP
+         - es["slot_sleeve"] - resin),
+        (f"inner knob over outer knob, pushed (shafts +-{es['inner_outer']:.2f})",
+         ik["z0"] - p - ok["z1"] - es["inner_outer"]),
+        ("inner recess over outer shaft top, pushed",
+         ik["recess_top"] - p - (S.OUTER_TOP - S.PLATE_Z1) - es["inner_shaft"]),
+        (f"inner recess ({ik['recess_d']}) round the 6 mm shaft, radial: recess -{hole_tol}, loose knob "
+         f"{bore_play:.2f} off, shafts {ecc}", (ik["recess_d"] - hole_tol) / 2 - S.OUTER_D / 2 - bore_play - ecc),
+        (f"outer counterbore ({cb_d:.1f}) round the bushing, radial: counterbore -{hole_tol}, bushing "
+         f"+{S.ENC_TOL['lt10']}, loose knob off by {bore_play:.2f}",
+         (cb_d - hole_tol) / 2 - (S.SLEEVE_D + S.ENC_TOL["lt10"]) / 2 - bore_play),
+        (f"inner knob wall round the recess at the flute bottoms, OD -{part_tol}, recess +{hole_tol}, beyond 1.0",
+         rec_bot - part_tol / 2 - (ik["recess_d"] + hole_tol) / 2 - 1.0),
+        *[(f"outer ring wall ({n}) round the counterbore at the flute bottoms, OD -{part_tol}, hole "
+           f"+{hole_tol}, beyond 1.0", cb_bot[n] - part_tol / 2 - (cb_d + hole_tol) / 2 - 1.0) for n in rings],
+        *[(f"{n} knob flutes: groove {groove(S.FLUTES[n], r):.2f} wide at half depth at the (tapered) top, beyond 0.8",
+           groove(S.FLUTES[n], r) - 0.8) for n, r in knurls],
+        (f"inner knurl finer than the outer: pitch {2 * math.pi * ik['d'] / 2 / fi['n']:.2f} vs "
+         f"{2 * math.pi * ring_r / fp['n']:.2f}, beyond 10 % (ratio)",
+         (2 * math.pi * ring_r / fp["n"]) / (2 * math.pi * ik["d"] / 2 / fi["n"]) - 1.1),
+        (f"FMS ring told apart by feel: flutes {ff['depth'] / fp['depth']:.1f} x as deep and "
+         f"{fp['n'] / ff['n']:.2f} x the pitch of the others, beyond 1.5 x (ratio)",
+         min(ff["depth"] / fp["depth"], fp["n"] / ff["n"]) - 1.5),
+        ("outer ring beyond the inner knob, per side, beyond 2.0 (Garmin 2.5)", ring_r - ik["d"] / 2 - 2.0),
+        (f"encoder bushing ({S.SLEEVE_D} +{S.ENC_TOL['lt10']}) in its {S.SHAFT_HOLE} plate hole (-{gen}), radial: "
+         f"board {board:.2f} off, plate, PCB, pins",
+         (S.SHAFT_HOLE - gen - S.SLEEVE_D - S.ENC_TOL["lt10"]) / 2 - on_board),
+        (f"RKJXT body ({S.RKJXT_ACROSS} across corners +{S.RKJXT_TOL}) in its {S.RANGE_POCKET[0]} pocket (-{gen}), "
+         "radial, same offsets", (S.RANGE_POCKET[0] - gen - S.RKJXT_ACROSS - S.RKJXT_TOL) / 2 - on_board),
+        (f"RANGE knob over hub, pushed {push_hi:.1f} (lever -{S.LEVER_TOL}, bore +{resin})",
+         rk_lo - push_hi - S.RKJXT_HUB_TOP),
+        (f"RANGE skirt over plate at {S.RKJXT_TILT:.0f} deg, fulcrum {pz}, low knob, high plate",
+         skirt_low - S.PLATE_Z1 - face_up),
+        ("RANGE skirt still covers its 12 mm plate hole at full tilt",
+         rk["skirt_d"] / 2 - S.RANGE_HOLE / 2 - skirt_shift - on_board),
+        (f"RANGE skirt rim ({rim:.2f} on the knob solid, resin -{resin}), beyond 1.0", rim - resin - 1.0),
+        (f"encoder pocket (-{pd}) over encoder body (8.0 +0.3), low plate",
+         back_lo + S.EC11_POCKET[3] - pd - (S.EC11_BODY + 0.3)),
         ("plate left over the encoder pockets, thin plate, beyond 1.0", t_min - S.EC11_POCKET[3] - 1.0),
         (f"RANGE pocket (-{pd}) over RKJXT body (8.6 +0.3), low plate",
-         S.PLATE_Z0 - sp_tol + S.RANGE_POCKET[1] - pd - (S.RKJXT_BODY + 0.3)),
+         back_lo + S.RANGE_POCKET[1] - pd - (S.RKJXT_BODY + 0.3)),
         ("plate left over the RANGE pocket, thin plate, beyond 0.6", t_min - S.RANGE_POCKET[1] - 0.6),
-        ("cap bottom under the lowest plate face", face_lo - S.CAP["base"]),
-        ("pressed cap bottom still inside the key hole (travel 0.35)", S.CAP["base"] - S.KEY_TRAVEL - back_hi),
+        *cap_rows(face_lo, back_hi),
         (f"cap shift room in its key hole ({cap_room:.2f}) over per-key RSS {cap_err:.2f}", cap_room - cap_err),
-        (f"PCB hole round the screw, board {board:.2f} off with the caps", pcb_r_lo - S.SCREW_D / 2 - in_pcb),
-        (f"metal spacer (play {sp_play:.2f}) inside the 3.6 mm copper keep-out",
-         3.6 - sp["od"] / 2 - in_pcb - sp_play),
-        ("spacer overlaps the PCB round its widest hole, centred", sp["od_min"] / 2 - pcb_r_hi),
+        (f"screw passes the narrowest PCB hole ({hole} -{pt['npth_d']})", hole_lo - S.SCREW_D / 2),
+        (f"standoff on the board enters its pocket (pocket {sp['d']}, board {board:.2f} off, screw play)",
+         float_min - (pt["plate"] + pt["pcb"] + board - (hole_lo - S.SCREW_D / 2))),
+        (f"standoff end (AF {so['af_min']} min, {off:.2f} off) covers the widest PCB hole all round",
+         so["af_min"] / 2 - off - hole_hi),
+        (f"standoff corners (AC {so['ac']}) inside the {keepout} mm copper keep-out", keepout - so["ac"] / 2 - off),
+        ("plate left in front of the standoff pockets, thin plate, beyond 1.0", t_min - sp["depth"] - 1.0),
+        ("standoff pocket to the nearest plate feature or edge, beyond 1.0", pocket_web() - 1.0),
         ("boss top bears on the PCB all round its hole (MJF -0.15)",
-         MM.BOSS_R - pt["body_hole"] - offset - in_pcb - pcb_r_hi),
+         MM.BOSS_R - pt["body_hole"] - offset - off - hole_hi),
         ("PCB fits the cavity (MJF -0.4 %, outline +0.2), per side", cav),
-        ("body screw hole round the screw, body and plate tolerance",
-         MM.SCREW_CLEAR - pt["body_hole"] - S.SCREW_D / 2 - pt["body"] - pt["plate"]),
+        ("body screw hole round the screw, body and PCB tolerance",
+         MM.SCREW_CLEAR - pt["body_hole"] - S.SCREW_D / 2 - pt["body"] - pt["pcb"]),
         (f"washer (OD {2 * r_w_min:.2f} min) bears all round the widest body hole", r_w_min - w_off - r_hole_max),
         ("washer lies flat in the counterbore wherever the screw sits",
          MM.HEAD_R - pt["body_hole"] - r_w_max - max(0.0, offset - MM.WASHER_PLAY)),
         ("pan head (dk 4.7 min) covers the washer bore",
-         sc["head_d_min"] / 2 - S.WASHER["bore_max"] / 2 - MM.WASHER_PLAY),
-        ("counterbore to the outer body wall (MJF), beyond 0.8", corner - 0.8),
-        ("body boss wall around the counterbore, beyond 0.8 (MJF)", MM.BOSS_R_LOW - MM.HEAD_R - 0.8),
-        ("boss above the counterbore seat, beyond 0.8", -S.PCB_T - S.SEAT_Z - 0.8),
-        ("body walls under the plate, worst (MJF, PCB, spacer), beyond 0.2", wall_gap - 0.2),
-        (f"full thread engaged, any stack ({n_lo} to {n_hi} washers), beyond 2 turns", engaged - S.ENGAGE_MIN),
-        (f"washers: longest stack, screw stopping at the thread end, needs {n_hi} of {S.WASHERS_MAX}",
-         (S.WASHERS_MAX - n_hi + 0.5) * wt),
-        (f"{S.WASHERS_MAX} washers and a pan head recessed, front mounts, deep seat", head_lo - boss_floor),
-        ("thread mill runout under the full thread, beyond 1 pitch", floor_lo - T["thread_depth"] - S.PITCH),
-        ("plate left in front of the deepest hole floor, thin plate, beyond 0.6", t_min - floor_hi - 0.6),
-        ("floor left over the steel plate recess, beyond 0.8",
-         MM.Z_FLOOR_TOP - MM.z_bottom(stl["y0"] + stl["d"]) - stl["depth"] - 0.8),
+         sc["head_d_min"] / 2 - w["bore_max"] / 2 - MM.WASHER_PLAY),
+        ("counterbore to the outer body wall (MJF), beyond 1.5 (JLC3DP fastener features)", corner - 1.5),
+        ("body boss wall around the counterbore, beyond 1.5 (JLC3DP fastener features)",
+         MM.BOSS_R_LOW - MM.HEAD_R - 1.5),
+        (f"PA12 between counterbore seat and PCB ({seat_pcb - S.PCB_T:.1f}), beyond 1.5 (JLC3DP fastener features)",
+         seat_pcb - S.PCB_T - 1.5),
+        (f"PA12 between counterbore seat and PCB ({seat_pcb - S.PCB_T:.1f}, MJF -{seat_tol}), beyond 1.2",
+         seat_pcb - S.PCB_T - seat_tol - 1.2),
+        ("body walls under the plate, worst (MJF, PCB, standoff gap), beyond 0.2", wall_gap - 0.2),
+        (f"M2.5 x {sc['L']:.0f} thread engaged in the standoff, shortest stack, beyond {S.ENGAGE_MIN}",
+         engaged - S.ENGAGE_MIN),
+        (f"screw tip short of the wax plug ({S.PLUG_DEPTH:.0f} deep) in the standoff's plate end, longest stack",
+         plug - tip_hi),
+        (f"epoxy band on the standoff sides (pocket -{sp['depth_tol']}, {sp['bare']} bare at the end), beyond 1.0",
+         sp["depth"] - sp["depth_tol"] - sp["bare"] - 1.0),
+        ("washer and pan head recessed, front mounts, deep seat", head_lo - boss_floor),
+        ("steel plate recess stays under the 2 mm floor (the floor is not thinned)",
+         MM.Z_FLOOR_BOT - MM.z_bottom(stl["y0"] + stl["d"]) - stl["depth"] / math.cos(math.atan(MM.SLOPE))),
+        ("steel plate recess rim at the back wall, beyond 2.0 (JLC3DP MJF over 100 mm)", stl["y0"] + MM.o - 2.0),
         ("foot pad inside the steel plate notch, beyond 0.5", notch - 0.5),
         (f"foot pad round a {MM.FOOT_D:.0f} mm foot, per side, beyond 0.5", (MM.FOOT_PAD - MM.FOOT_D) / 2 - 0.5),
         (f"body: no void under 0.8 mm deeper than 0.4 (worst at {void_at})", 0.4 - void),
         (f"body: no wall under 0.8 mm deeper than 0.4 (worst at {wall_at})", 0.4 - wall),
+        (f"body: no wall under 1.9 mm (JLC3DP MJF 2.0 over 100 mm, less the raster) deeper than 0.6 (square corners "
+         f"0.4) bar the screw bosses (worst at {wall2_at})", 0.6 - wall2),
         (f"assembly blocks ({S.ASSEMBLY_BLOCK:.0f}) over the shaft tips, beyond 3", S.ASSEMBLY_BLOCK - protrude - 3),
         ("plate edge strip free for the blocks, beyond 8", edge - 8),
-        ("highest LED (5.3 +0.4) under the lowest plate back", S.PLATE_Z0 - sp_tol - led_hi),
-        ("glued light pipe over the highest LED, thin plate, long pipe",
-         face_lo - (pp["len"] + pp["len_tol"]) - led_hi),
-        ("light pipe slip fit, beyond anodising (2 x 0.025)", pp["clear"] - 0.05),
+        (f"highest LED (5.3 +0.4) under the lowest plate back, PCB lifted {S.SUPPORT_LIFT:.2f} by a post",
+         back_lo - led_hi - S.SUPPORT_LIFT),
+        (f"glued light pipe over the highest LED, thin plate, long pipe, PCB lifted {S.SUPPORT_LIFT:.2f} by a post "
+         f"(posts {S.SUPPORT_SHORT} short, MJF 0.3)", face_lo - (pp["len"] + pp["len_tol"]) - led_hi - S.SUPPORT_LIFT),
+        (f"light pipe fits its hole ({pp['clear']} under, hole +{lt_up}/-{lt_dn:g}), beyond anodising "
+         f"({pp['anodise']}) and resin (+{pp['resin']})", pp["clear"] - lt_dn - pp["anodise"] - pp["resin"]),
     ]
     for name, d in S.LIGHT_HOLES.items():
         (lx, ly), _, _ = B.LEDS[name]
-        rows.append((f"{name} snap-off stub inside the hole", (d - pp["clear"]) / 2 - pp["neck_d"] / 2))
+        rows.append((f"{name} snap-off neck ({pp['neck_d']}) inside the pipe",
+                     (d - pp["clear"]) / 2 - pp["neck_d"] / 2))
         web = min(rrect_sd(lx - x, ly - y, *S.KEY_HOLE) for x, y in caps) - d / 2
-        rows.append((f"{name} light hole web to the next key hole, beyond 0.5", web - 0.5))
-    # RANGE tilted fully: the low edge of the skirt must stay above the plate. The pivot height is not in the
-    # datasheet, so check it anywhere between the body and the hub top.
-    edge_z = S.PLATE_Z1 + rk["z0"]
-    a = math.radians(S.RKJXT_TILT)
-    for pz in (6.0, S.RKJXT_BODY, S.RKJXT_HUB_TOP):
-        low = pz + (edge_z - pz) * math.cos(a) - rk["skirt_d"] / 2 * math.sin(a)
-        rows.append((f"RANGE skirt over plate at {S.RKJXT_TILT:.0f} deg, pivot z {pz}, high plate",
-                     low - S.PLATE_Z1 - top_tol))
-    for n, v in rows:
-        print(f"  {n:72s} {v:5.2f} mm {'OK' if v > 0 else 'FAIL'}")
-    assert all(v > 0 for _, v in rows)
+        rows.append((f"{name} light hole web to the next key hole ({web:.2f}), beyond 0.8 (JLCCNC recommended)",
+                     web - 0.8))
+        rows.append((f"{name} light hole web with the hole +{lt_up} ({web - lt_up / 2:.2f}), beyond 0.5 (JLCCNC "
+                     "minimum)", web - lt_up / 2 - 0.5))
+    for name, v in rows:
+        print(f"  {name:106s} {v:5.2f} mm {'OK' if v > 0 else 'FAIL'}")
+    assert all(v > 0 for _, v in rows), [n for n, v in rows if v <= 0]
 
 
 if __name__ == "__main__":

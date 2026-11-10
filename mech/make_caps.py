@@ -1,152 +1,174 @@
 """Labelled key caps for the Avionics Panel rev 1 (full-colour print: OBJ + MTL + PNG texture).
 
-rev 1: one label per cap in one size (the shift legends are engraved on the plate), amber SHIFT label.
+rev 1: one label per cap in one size (the shift legends are UV printed on the plate), amber SHIFT label.
 
-28 caps (9.6 x 6.4 mm, 6 mm tall) for 6x6 mm tactile switches, 9.5 mm high with a round 3.10 +-0.30 mm
-plunger (TE 1-1825910-4 = FSM8JH). The socket is a 3.6 mm bore with three ribs, 0.8 mm wide at the tip
-(the process's minimum detail), reaching in to 3.05 mm: see stack.CAP_SOCKET for the range it grips.
-Test-print one cap first: the cap sits 2.5 mm proud of the plate. Black caps, white printed labels, amber SHIFT.
-Exact (watertight) meshes, one shell per cap.
+28 caps (9.6 x 6.4 mm, 5.7 mm tall) for 6x6 mm tactile switches, 9.5 mm high with a round plunger that tapers
+from 3.12 mm near its top to 3.51 mm at the switch body (TE 1-1825910-4 = FSM8JH, TE's STEP model). The socket
+is a 3.8 mm bore with four rigid ribs 1.2 mm wide along its wall that follow the plunger's cone; its flat
+ceiling sits on the plunger top. A rigid fit needs better than the resin prints, so there are four full sets
+(stack.CAP_SETS: rib circles 3.15, 3.25, 3.35 and 3.05 mm at the socket mouth), marked with 1 to 4 dimples on
+the cap underside: the set that seats fully and holds is the one to fit. Black caps, white printed labels, amber
+SHIFT, every coloured stroke at least 0.4 mm wide (stack.LEGEND_*). Exact solids (OpenCascade), meshed
+watertight, one shell per cap.
+Writes caps-<set>.zip (OBJ, MTL and texture of the set's 28 caps) and caps-single-<set>.zip (one zip per cap,
+each with its own texture tile) for a shop that takes one part per file.
+Needs pythonocc-core (see make_plate_step.py) and pillow.
 """
+import io
 import math
+import re
 import zipfile
 from pathlib import Path
 
 import numpy as np
 import stack as S
+from OCC.Core.BRep import BRep_Tool
+from OCC.Core.BRepBuilderAPI import (
+    BRepBuilderAPI_MakeEdge,
+    BRepBuilderAPI_MakeFace,
+    BRepBuilderAPI_MakePolygon,
+    BRepBuilderAPI_MakeWire,
+    BRepBuilderAPI_Transform,
+)
+from OCC.Core.BRepCheck import BRepCheck_Analyzer
+from OCC.Core.BRepMesh import BRepMesh_IncrementalMesh
+from OCC.Core.BRepOffsetAPI import BRepOffsetAPI_ThruSections
+from OCC.Core.BRepPrimAPI import BRepPrimAPI_MakePrism
+from OCC.Core.GC import GC_MakeArcOfCircle
+from OCC.Core.gp import gp_Ax1, gp_Dir, gp_Pnt, gp_Trsf, gp_Vec
+from OCC.Core.TopAbs import TopAbs_FACE, TopAbs_REVERSED
+from OCC.Core.TopExp import TopExp_Explorer
+from OCC.Core.TopLoc import TopLoc_Location
+from OCC.Core.TopoDS import topods
+from occ_util import box, cut, cyl, fuse
 from PIL import Image, ImageDraw, ImageFont
 
 TEX = 4096
-# the plate's condensed face (Barlow Semi Condensed, OFL, in fonts/), weight 600 as in the 3D view
-FONT = str(Path(__file__).resolve().parent / "fonts/BarlowSemiCondensed-SemiBold.ttf")
+# the plate's condensed face (Barlow Semi Condensed, OFL, in fonts/), Bold on the caps (stack.LEGEND_WEIGHT)
+FONT = str(Path(__file__).resolve().parent / {700: "fonts/BarlowSemiCondensed-Bold.ttf"}[S.LEGEND_WEIGHT])
+SS = 4                            # legends are drawn 4x finer, then averaged down into the texture
 BLACK = (18, 18, 20)
 WHITE = (245, 245, 245)
 
 LABELS = [[label for label, _ in row] for row in S.KEY_LEGENDS]   # stack.py holds the legends
-AMBER = (217, 164, 65)
+AMBER = S.AMBER["rgb"]
 caps = [LABELS[r][c] for r in range(4) for c in range(7)]
 
-# low and wide, like the real boxes
-_SK = S.CAP_SOCKET
-KEY = dict(w=S.CAP["w"], h=S.CAP["h"], r=S.CAP["r"], height=S.CAP["height"], cham=S.CAP["cham"],
-           sock=(_SK["d"], _SK["rib_d"]), sock_d=_SK["depth"])
-RIB = dict(n=_SK["ribs"], tip_w=_SK["tip_w"], base_w=_SK["base_w"])   # socket ribs: flat tip, width at the wall
+KEY = dict(w=S.CAP["w"], h=S.CAP["h"], r=S.CAP["r"], height=S.CAP["height"], cham=S.CAP["cham"])
+SK = S.CAP_SOCKET
 
 CELL = 512                        # texture cell per cap (8 x 8 grid on a 4k texture)
 GRID = TEX // CELL
 
 
-def rrect_loop(w, h, r, n=8, seg=(7, 12)):
-    """Closed CCW loop of a rounded rectangle centred at 0 (fixed vertex count 4*(n+1) + 2*(seg[0]+seg[1]-2)).
-    The straight edges are split into seg (short, long) pieces, so the bottom ring to the socket stays local."""
-    pts = []
-    corners = ((w / 2 - r, -h / 2 + r, -90), (w / 2 - r, h / 2 - r, 0),
-               (-w / 2 + r, h / 2 - r, 90), (-w / 2 + r, -h / 2 + r, 180))
-    for k, (cx, cy, a0) in enumerate(corners):
-        for i in range(n + 1):
-            a = math.radians(a0 + 90 * i / n)
-            pts.append((cx + r * math.cos(a), cy + r * math.sin(a)))
-        nx, ny, na = corners[(k + 1) % 4]
-        nxt = (nx + r * math.cos(math.radians(na)), ny + r * math.sin(math.radians(na)))
-        s = seg[k % 2]                                   # right and left edges short, top and bottom long
-        x0, y0 = pts[-1]
-        pts += [(x0 + (nxt[0] - x0) * i / s, y0 + (nxt[1] - y0) * i / s) for i in range(1, s)]
-    return np.array(pts)
+# ---------------- solids ----------------
+def rrect_wire(w, h, r, z):
+    hw, hh = w / 2, h / 2
+    mw = BRepBuilderAPI_MakeWire()
+    corners = [((hw - r, hh - r), 0), ((-hw + r, hh - r), 90), ((-hw + r, -hh + r), 180), ((hw - r, -hh + r), 270)]
+    arcs = []
+    for (ox, oy), a in corners:
+        p = [gp_Pnt(ox + r * math.cos(math.radians(a + d)), oy + r * math.sin(math.radians(a + d)), z)
+             for d in (0, 45, 90)]
+        arcs.append((GC_MakeArcOfCircle(*p).Value(), p[0], p[2]))
+    for i, (arc, _s, e) in enumerate(arcs):
+        mw.Add(BRepBuilderAPI_MakeEdge(arc).Edge())
+        mw.Add(BRepBuilderAPI_MakeEdge(e, arcs[(i + 1) % 4][1]).Edge())
+    return mw.Wire()
 
 
-def ribbed_loop(d, d_rib, n=60):
-    """CCW socket loop: circle of dia d with RIB["n"] trapezoid ribs reaching in to dia d_rib (first one at +y)."""
-    R, r = d / 2, d_rib / 2
-    a_tip, a_base = RIB["tip_w"] / 2 / r, RIB["base_w"] / 2 / R
-    ribs = [math.pi / 2 + 2 * math.pi * k / RIB["n"] for k in range(RIB["n"])]
-    pts = []
-    for i in range(n):
-        t = 2 * math.pi * i / n + 1e-9
-        if all(abs((t - c + math.pi) % (2 * math.pi) - math.pi) > a_base + 0.02 for c in ribs):
-            pts.append((t, R))
-    for c in ribs:
-        rt = r / math.cos(a_tip)                         # flat tip at distance r from the centre
-        pts += [(c - a_base, R), (c - a_tip, rt), (c + a_tip, rt), (c + a_base, R)]
-    pts.sort(key=lambda p: p[0] % (2 * math.pi))
-    return np.array([(rr * math.cos(t), rr * math.sin(t)) for t, rr in pts])
+def rotz(shape, deg):
+    t = gp_Trsf(); t.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1)), math.radians(deg))
+    return BRepBuilderAPI_Transform(shape, t, True).Shape()
 
 
-def zipper(outer_ids, inner_ids, P):
-    """Triangulate the ring between two star-shaped loops around (0,0), CCW, by angle."""
-    def ang(i):
-        return math.atan2(P[i][1], P[i][0]) % (2 * math.pi)
-    o = sorted(outer_ids, key=ang)
-    q = sorted(inner_ids, key=ang)
-    T = []
-    i = j = 0
-    no, ni = len(o), len(q)
-    while i < no or j < ni:
-        a0, a1 = o[i % no], o[(i + 1) % no]
-        b0, b1 = q[j % ni], q[(j + 1) % ni]
-        na = ang(a1) + (2 * math.pi if i + 1 >= no else 0)
-        nb = ang(b1) + (2 * math.pi if j + 1 >= ni else 0)
-        if (na <= nb and i < no) or j >= ni:
-            T.append((a0, a1, b0)); i += 1
-        else:
-            T.append((a0, b1, b0)); j += 1
-    return T
+def xz_prism(pts, y0, y1):
+    """a prism from a polygon in the XZ plane, from y0 to y1."""
+    poly = BRepBuilderAPI_MakePolygon()
+    for x, z in pts:
+        poly.Add(gp_Pnt(x, y0, z))
+    poly.Close()
+    face = BRepBuilderAPI_MakeFace(poly.Wire()).Face()
+    return BRepPrimAPI_MakePrism(face, gp_Vec(0, y1 - y0, 0)).Shape()
 
 
-def orient(T, P, want_z):
-    out = []
-    for t in T:
-        p0, p1, p2 = (np.array(P[k]) for k in t)
-        nz = np.cross(p1 - p0, p2 - p0)[2]
-        out.append(t if nz * want_z > 0 else (t[0], t[2], t[1]))
-    return out
+def cap_body(p):
+    """cap outline with the chamfered top, bottom at z = 0."""
+    ts = BRepOffsetAPI_ThruSections(True, True)
+    ts.AddWire(rrect_wire(p["w"], p["h"], p["r"], 0.0))
+    ts.AddWire(rrect_wire(p["w"], p["h"], p["r"], p["height"] - p["cham"]))
+    ts.AddWire(rrect_wire(p["w"] - 2 * p["cham"], p["h"] - 2 * p["cham"], max(p["r"] - p["cham"], 0.3), p["height"]))
+    ts.Build()
+    return ts.Shape()
 
 
-def cap_mesh(p):
-    outer = rrect_loop(p["w"], p["h"], p["r"])
-    topl = rrect_loop(p["w"] - 2 * p["cham"], p["h"] - 2 * p["cham"], max(p["r"] - p["cham"], 0.3))
-    sock = ribbed_loop(*p["sock"])
-    m, k = len(outer), len(sock)
-    H, Hs, Hc = p["height"], p["sock_d"], p["height"] - p["cham"]
-    V = [(x, y, 0.0) for x, y in outer] + [(x, y, Hc) for x, y in outer] + \
-        [(x, y, H) for x, y in topl] + [(x, y, 0.0) for x, y in sock] + \
-        [(x, y, Hs) for x, y in sock] + [(0.0, 0.0, H), (0.0, 0.0, Hs)]
-    S0, S1, CT, CS = 3 * m, 3 * m + k, 3 * m + 2 * k, 3 * m + 2 * k + 1
-    T = []
-    for i in range(m):
-        j = (i + 1) % m
-        T += [(i, j, m + j), (i, m + j, m + i)]
-        T += [(m + i, m + j, 2 * m + j), (m + i, 2 * m + j, 2 * m + i)]
-        T += [(2 * m + i, 2 * m + j, CT)]
-    for i in range(k):
-        j = (i + 1) % k
-        T += [(S0 + j, S0 + i, S1 + i), (S0 + j, S1 + i, S1 + j)]   # socket wall (faces inward)
-    T += orient([(S1 + i, S1 + (i + 1) % k, CS) for i in range(k)], V, -1)   # socket ceiling, normal down
-    ring = zipper(list(range(m)), list(range(S0, S0 + k)), V)
-    assert ring == orient(ring, V, 1), "bottom ring folds over: refine the outer loop"
-    T += orient(ring, V, -1)                                             # bottom ring, normal down
-    return np.array(V), np.array(T)
+def socket(p, name):
+    """cap with the socket of set `name`: a bore with four rigid ribs along its wall that follow the plunger's
+    cone (lead-in at the mouth, clear of the ceiling), and the set's dimples on the underside."""
+    hs, R = SK["depth"], SK["d"] / 2
+    hw, lead, top = SK["rib_w"] / 2, SK["lead"], hs - SK["relief"]
+
+    def r(z):                                        # rib circle radius at height z above the cap bottom
+        return S.cap_rib_d(name, hs - z) / 2
+    cap = cut(cap_body(p), cyl(R, -1, hs))
+    prof = [(r(lead) + SK["lead_r"], 0), (R + 0.1, 0), (R + 0.1, top), (r(top), top), (r(lead), lead)]
+    for a in SK["rib_angles"]:
+        cap = fuse(cap, rotz(xz_prism(prof, -hw, hw), a))
+    m = S.CAP_MARK
+    for x, y in m["pos"][:set_marks(name)]:
+        cap = cut(cap, cyl(m["d"] / 2, -1, m["depth"], x, y))
+    return cap
+
+
+def set_marks(name):
+    """how many dimples mark cap set `name`: A 1, B 2, C 3, D 4."""
+    return list(S.CAP_SETS).index(name) + 1
 
 
 # Tactile bars, found without looking (as in the 3D view): SHIFT and DN at the front edge, UP at the back edge.
-# A closed box, 0.35 mm proud, sunk 0.05 mm into the top so the printer fuses it with the cap. Model -y is the
-# front edge (the texture's bottom).
+# A box (stack.CAP_BAR) sunk 0.05 mm into the top so it fuses with the cap. Model -y is the front edge (the
+# texture's bottom).
 BAR = S.CAP_BAR
 BAR_EDGE = {"SHIFT": -1, "DN": -1, "UP": 1}
 
 
-def bar_mesh(p, edge):
+def with_bar(cap, p, edge):
     y = edge * ((p["h"] - 2 * p["cham"]) / 2 - BAR["inset"])
-    x0, x1, y0, y1 = -BAR["w"] / 2, BAR["w"] / 2, y - BAR["d"] / 2, y + BAR["d"] / 2
-    z0, z1 = p["height"] - BAR["sink"], p["height"] + BAR["proud"]
-    V = [(x, yy, z) for z in (z0, z1) for x, yy in ((x0, y0), (x1, y0), (x1, y1), (x0, y1))]
-    T = [(0, 2, 1), (0, 3, 2), (4, 5, 6), (4, 6, 7),            # bottom (down), top (up)
-         (0, 1, 5), (0, 5, 4), (1, 2, 6), (1, 6, 5), (2, 3, 7), (2, 7, 6), (3, 0, 4), (3, 4, 7)]
-    return np.array(V), np.array(T)
+    return fuse(cap, box(-BAR["w"] / 2, y - BAR["d"] / 2, p["height"] - BAR["sink"],
+                         BAR["w"] / 2, y + BAR["d"] / 2, p["height"] + BAR["proud"]))
+
+
+def mesh(shape, top_z, deflection=0.004):
+    """welded triangles of a solid: vertices (n, 3), triangles (m, 3), and which triangles lie on the top face."""
+    assert BRepCheck_Analyzer(shape).IsValid(), "invalid cap solid"
+    BRepMesh_IncrementalMesh(shape, deflection, False, 0.2, True)
+    pts, tris, top = [], [], []
+    ex = TopExp_Explorer(shape, TopAbs_FACE)
+    while ex.More():
+        face = topods.Face(ex.Current())
+        loc = TopLoc_Location()
+        tri = BRep_Tool.Triangulation(face, loc)
+        t = loc.Transformation()
+        nodes = np.array([[q.X(), q.Y(), q.Z()]
+                          for q in (tri.Node(i + 1).Transformed(t) for i in range(tri.NbNodes()))])
+        idx = np.array([tri.Triangle(i + 1).Get() for i in range(tri.NbTriangles())]) - 1
+        if face.Orientation() == TopAbs_REVERSED:
+            idx = idx[:, [0, 2, 1]]
+        flat_top = bool(np.all(np.abs(nodes[:, 2] - top_z) < 1e-6))
+        tris.append(idx + sum(len(a) for a in pts))
+        pts.append(nodes)
+        top += [flat_top] * len(idx)
+        ex.Next()
+    P, T = np.concatenate(pts), np.concatenate(tris)
+    key = np.round(P / 1e-5).astype(np.int64)                       # weld the faces' shared edge nodes
+    _, first, inv = np.unique(key, axis=0, return_index=True, return_inverse=True)
+    V, T = P[first], inv.reshape(-1)[T]
+    keep = (T[:, 0] != T[:, 1]) & (T[:, 1] != T[:, 2]) & (T[:, 2] != T[:, 0])
+    return V, T[keep], np.array(top)[keep]
 
 
 # ---------------- texture ----------------
 tex = Image.new("RGB", (TEX, TEX), BLACK)
-dr = ImageDraw.Draw(tex)
 
 
 ARROW_EM = 0.55                                  # the D-> arrow (em), as in the 3D view
@@ -162,119 +184,164 @@ def _width_em(label, font100):
 
 
 def _legend_em():
-    """One legend size for every cap: the widest legend fills 84 % of the cap top (about 2.0 mm cap height)."""
+    """One legend size for every cap: the widest legend, grown by LEGEND_GROW, fills 84 % of the cap top (about
+    2.0 mm cap height)."""
     probe = ImageFont.truetype(FONT, 100)
     top_w = KEY["w"] - 2 * KEY["cham"]
-    return min(3.1, min(top_w * 0.84 / _width_em(t, probe) for t in caps))     # em size in mm
+    return min(3.1, min((top_w * 0.84 - 2 * S.LEGEND_GROW) / _width_em(t, probe) for t in caps))   # em in mm
 
 
 def draw_label(cell, text, p):
+    """Draw a legend into its texture cell: glyphs, arrow and icon grown all round by stack.LEGEND_GROW (a round
+    outline), drawn SS times finer and averaged down."""
     gx, gy = cell % GRID, cell // GRID
     x0, y0 = gx * CELL, gy * CELL
     ppm = CELL / max(p["w"], p["h"])                 # pixels per mm
     if not text:
         return x0, y0, ppm
-    em = LEGEND_EM * ppm
+    q = ppm * SS
+    em, g = LEGEND_EM * q, S.LEGEND_GROW * q
+    im = Image.new("L", (CELL * SS, CELL * SS), 0)
+    d = ImageDraw.Draw(im)
     font = ImageFont.truetype(FONT, int(round(em)))
-    colour = AMBER if text == "SHIFT" else WHITE
-    cx, cy = x0 + CELL / 2, y0 + CELL / 2 + 0.04 * em
+    # the middle of the capitals on the cap centre: the "m" anchors centre on ascender and descender, which
+    # sets capitals about 0.25 mm towards the front, where the SHIFT and DN tactile bars stand
+    top, bottom = font.getbbox("H", anchor="ls")[1::2]
+    cx, cy, base = CELL * SS / 2, CELL * SS / 2, CELL * SS / 2 - (top + bottom) / 2
+
+    def write(xy, t, anchor):                        # anchor "l" or "m" horizontally, on the baseline
+        d.text((xy[0], base), t, font=font, fill=255, anchor=anchor[0] + "s", stroke_width=round(g),
+               stroke_fill=255)
+
+    def shape(pts):                                  # a filled polygon grown by g (round corners)
+        d.polygon(pts, fill=255)
+        d.line(pts + [pts[0]], fill=255, width=round(2 * g))
+        for x, y in pts:
+            d.ellipse((x - g, y - g, x + g, y + g), fill=255)
+
+    def line(xa, xb, y, w):                          # a horizontal line w wide, grown by g
+        shape([(xa, y - w / 2), (xb, y - w / 2), (xb, y + w / 2), (xa, y + w / 2)])
     if text == "D→":                                 # Garmin direct-to: a D with an arrow through it
         dw = font.getlength("D")
         xl = cx - (dw + ARROW_EM * em) / 2
-        dr.text((xl, cy), "D", font=font, fill=colour, anchor="lm")
+        write((xl, cy), "D", "lm")
         y, xe = cy - 0.02 * em, xl + dw + ARROW_EM * em
-        dr.line([(xl - 0.12 * em, y), (xe - 0.2 * em, y)], fill=colour, width=max(1, round(0.085 * em)))
-        dr.polygon([(xe, y), (xe - 0.26 * em, y - 0.17 * em), (xe - 0.26 * em, y + 0.17 * em)], fill=colour)
+        line(xl - 0.12 * em, xe - 0.2 * em, y, S.LEGEND_LINE * em)
+        shape([(xe, y), (xe - 0.26 * em, y - 0.17 * em), (xe - 0.26 * em, y + 0.17 * em)])
     elif text.endswith("⇆"):                         # flip-flop: text + two opposed arrows
         t = text[:-1].rstrip()
         tw, gap = font.getlength(t), S.FLIP_GAP * em
         xl = cx - (tw + gap + S.FLIP_W * em) / 2
-        dr.text((xl, cy), t, font=font, fill=colour, anchor="lm")
+        write((xl, cy), t, "lm")
         ix = xl + tw + gap
-        for poly in S.FLIP_ICON:
-            dr.polygon([(ix + x * em, cy + y * em) for x, y in poly], fill=colour)
+        for poly in S.CAP_FLIP_ICON:
+            shape([(ix + x * em, cy + y * em) for x, y in poly])
     else:
-        dr.text((cx, cy), text, font=font, fill=colour, anchor="mm")
+        write((cx, cy), text, "mm")
+    tex.paste(AMBER if text == "SHIFT" else WHITE, (x0, y0, x0 + CELL, y0 + CELL),
+              im.resize((CELL, CELL), Image.BOX))
     return x0, y0, ppm
 
 
 LEGEND_EM = _legend_em()
 
-# ---------------- assemble OBJ ----------------
-allV, allT, allUV = [], [], []
+
+# ---------------- writers ----------------
+def write_obj(f, mtl, parts):
+    """parts: (V, T, top mask, UV per vertex, UV of a black pixel); one shell each. Every vertex has its UV
+    (vt n for v n); faces off the top use their part's black UV, listed after the vertex UVs."""
+    f.write(f"# Avionics Panel rev 1 key caps (units: mm)\nmtllib {mtl}\nusemtl caps\n")
+    lines_v, lines_vt, lines_f = [], [], []
+    for V, _T, _top, uv, _blk in parts:
+        lines_v += [f"v {x:.4f} {y:.4f} {z:.4f}\n" for x, y, z in V]
+        lines_vt += [f"vt {u:.6f} {v:.6f}\n" for u, v in uv]
+    nvt = len(lines_v)
+    lines_vt += [f"vt {u:.6f} {v:.6f}\n" for *_rest, (u, v) in parts]
+    base = 0
+    for k, (V, T, top, _uv, _blk) in enumerate(parts):
+        b = nvt + k + 1
+        for t, ft in zip(T + base + 1, top, strict=True):
+            a, c, d = t
+            lines_f.append(f"f {a}/{a} {c}/{c} {d}/{d}\n" if ft else f"f {a}/{b} {c}/{b} {d}/{b}\n")
+        base += len(V)
+    f.write("".join(lines_v) + "".join(lines_vt) + "".join(lines_f))
+
+
+def mtl_text(png):
+    return f"newmtl caps\nKa 1 1 1\nKd 1 1 1\nKs 0 0 0\nillum 1\nmap_Kd {png}\n"
+
+
+def zip_add(z, name, data):
+    zi = zipfile.ZipInfo(name, date_time=(2026, 1, 1, 0, 0, 0)); zi.compress_type = zipfile.ZIP_DEFLATED
+    z.writestr(zi, data)
+
+
+def slug(label):
+    s = label.replace("⇆", "FLIP").replace("→", "TO").replace("½", "HALF")
+    return re.sub(r"[^A-Za-z0-9]+", "-", s).strip("-") or "BLANK"
+
+
+# ---------------- build ----------------
+p = KEY
+for k, label in enumerate(caps):
+    draw_label(k, label, p)
 pitch = 16.0
 black_uv = ((TEX - 8) / TEX, 8 / TEX)       # a black pixel near the corner (outside all label areas)
-for k, label in enumerate(caps):
-    p = KEY
-    V, T = cap_mesh(p)
-    m = len(rrect_loop(p["w"], p["h"], p["r"]))
-    topmask = np.zeros(len(V), bool)
-    topmask[2 * m:3 * m] = True
-    topmask[len(V) - 2] = True
-    x0, y0, ppm = draw_label(k, label, p)
-    uv = np.tile(np.array(black_uv), (len(V), 1))
-    # top vertices: planar projection into this cap's texture cell (image y down, model y up)
-    u = (x0 + CELL / 2 + V[:, 0] * ppm) / TEX
-    v = 1 - (y0 + CELL / 2 - V[:, 1] * ppm) / TEX
-    uv[topmask] = np.stack([u, v], 1)[topmask]
-    if label in BAR_EDGE:                    # bar: its own black shell on the top face
-        Vb, Tb = bar_mesh(p, BAR_EDGE[label])
-        T = np.concatenate([T, Tb + len(V)])
-        V = np.concatenate([V, Vb])
-        uv = np.concatenate([uv, np.tile(np.array(black_uv), (len(Vb), 1))])
-    # place caps on a grid for printing
-    col, row = k % 8, k // 8
-    off = np.array([col * pitch, -row * pitch, 0])
-    base = sum(len(a) for a in allV)
-    allV.append(V + off)
-    allUV.append(uv)
-    allT.append(T + base)
+png_all = io.BytesIO()
+tex.save(png_all, "PNG")
+summary = []
+for name in S.CAP_SETS:
+    plain = socket(p, name)
+    meshes = {}                               # one mesh per shape: plain, bar at the front, bar at the back
+    parts, singles = [], []
+    open_edges, vol = 0, 0.0
+    for k, label in enumerate(caps):
+        edge = BAR_EDGE.get(label, 0)
+        if edge not in meshes:
+            meshes[edge] = mesh(with_bar(plain, p, edge) if edge else plain, p["height"])
+        V, T, top = meshes[edge]
+        x0, y0 = (k % GRID) * CELL, (k // GRID) * CELL
+        ppm = CELL / max(p["w"], p["h"])     # pixels per mm, as draw_label
+        # top vertices: planar projection into this cap's texture cell (image y down, model y up)
+        px, py = x0 + CELL / 2 + V[:, 0] * ppm, y0 + CELL / 2 - V[:, 1] * ppm
+        uv = np.stack([px / TEX, 1 - py / TEX], 1)
+        # the same cap alone, on its own texture tile
+        uv1 = np.stack([(px - x0) / CELL, 1 - (py - y0) / CELL], 1)
+        singles.append((f"{name}-{k + 1:02d}-{slug(label)}", (V, T, top, uv1, (4 / CELL, 1 - 4 / CELL)), (x0, y0)))
+        # watertight: every edge used once in each direction
+        e = np.concatenate([T[:, [0, 1]], T[:, [1, 2]], T[:, [2, 0]]])
+        fwd = {tuple(a) for a in e}
+        open_edges += sum(1 for a in e if (a[1], a[0]) not in fwd)
+        tri = V[T]
+        vol += np.sum(np.einsum("ij,ij->i", tri[:, 0], np.cross(tri[:, 1], tri[:, 2]))) / 6
+        col, row = k % 8, k // 8              # print layout: a grid of caps
+        parts.append((V + np.array([col * pitch, -row * pitch, 0]), T, top, uv, black_uv))
+    assert open_edges == 0, f"set {name}: {open_edges} open edges"
+    base = f"avionics-panel-rev1-caps-{name}"
+    # one zip for full-colour printing services: model, material and texture together (fixed timestamps)
+    obj = io.StringIO()
+    write_obj(obj, f"{base}.mtl", parts)
+    with zipfile.ZipFile(f"{base}.zip", "w", zipfile.ZIP_DEFLATED) as z:
+        zip_add(z, f"{base}.obj", obj.getvalue())
+        zip_add(z, f"{base}.mtl", mtl_text(f"{base}.png"))
+        zip_add(z, f"{base}.png", png_all.getvalue())
+    # one zip per cap, all in one archive, for a shop that wants one part per file
+    with zipfile.ZipFile(f"avionics-panel-rev1-caps-single-{name}.zip", "w", zipfile.ZIP_DEFLATED) as outer:
+        for cname, part, (x0, y0) in singles:
+            buf, obj, png = io.BytesIO(), io.StringIO(), io.BytesIO()
+            write_obj(obj, f"cap-{cname}.mtl", [part])
+            tex.crop((x0, y0, x0 + CELL, y0 + CELL)).save(png, "PNG")
+            with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+                zip_add(z, f"cap-{cname}.obj", obj.getvalue())
+                zip_add(z, f"cap-{cname}.mtl", mtl_text(f"cap-{cname}.png"))
+                zip_add(z, f"cap-{cname}.png", png.getvalue())
+            zip_add(outer, f"cap-{cname}.zip", buf.getvalue())
+    d_top = S.cap_rib_d(name, SK["relief"])
+    summary.append(f"  set {name}: {set_marks(name)} dimple(s), ribs {d_top:.2f} to {S.CAP_SETS[name]:.2f} mm, "
+                   f"{len(caps)} caps, {sum(len(q[0]) for q in parts)} vertices, "
+                   f"{sum(len(q[1]) for q in parts)} triangles, open edges {open_edges}, volume {vol / 1000:.2f} cm3")
 
-# top-face triangles must only use top UVs; side faces touching the top loop need black UVs
-# -> duplicate the top-loop vertices: separate vertex set for UV purposes
-V = np.concatenate(allV)
-UV = np.concatenate(allUV)
-T = np.concatenate(allT)
-
-# faces fully on the top get the label UVs, all others black
-face_top = np.all(np.abs(V[T][:, :, 2] - V[T][:, :, 2].max(axis=1, keepdims=True)) < 1e-9, axis=1) & \
-    np.all(UV[T][:, :, 0] != black_uv[0], axis=1)
-
-with open("avionics-panel-rev1-caps.mtl", "w") as f:
-    f.write("newmtl caps\nKa 1 1 1\nKd 1 1 1\nKs 0 0 0\nillum 1\nmap_Kd avionics-panel-rev1-caps.png\n")
-with open("avionics-panel-rev1-caps.obj", "w") as f:
-    f.write("# Avionics Panel rev 1 key caps (units: mm)\nmtllib avionics-panel-rev1-caps.mtl\nusemtl caps\n")
-    for x, y, z in V:
-        f.write(f"v {x:.4f} {y:.4f} {z:.4f}\n")
-    for u, v in UV:
-        f.write(f"vt {u:.6f} {v:.6f}\n")
-    f.write(f"vt {black_uv[0]:.6f} {black_uv[1]:.6f}\n")
-    blk = len(UV) + 1
-    for t, ft in zip(T, face_top, strict=True):
-        a, b, c = t + 1
-        if ft:
-            f.write(f"f {a}/{a} {b}/{b} {c}/{c}\n")
-        else:
-            f.write(f"f {a}/{blk} {b}/{blk} {c}/{blk}\n")
-tex.save("avionics-panel-rev1-caps.png")
-# one zip for full-colour printing services: model, material and texture together (fixed timestamps)
-with zipfile.ZipFile("avionics-panel-rev1-caps.zip", "w", zipfile.ZIP_DEFLATED) as z:
-    for f in ("avionics-panel-rev1-caps.obj", "avionics-panel-rev1-caps.mtl", "avionics-panel-rev1-caps.png"):
-        zi = zipfile.ZipInfo(f, date_time=(2026, 1, 1, 0, 0, 0)); zi.compress_type = zipfile.ZIP_DEFLATED
-        with open(f, "rb") as src:
-            z.writestr(zi, src.read())
-
-# checks: watertight per cap, positive volume
-e = np.concatenate([T[:, [0, 1]], T[:, [1, 2]], T[:, [2, 0]]])
-fwd = {tuple(a) for a in e}
-open_edges = sum(1 for a in e if (a[1], a[0]) not in fwd)
-tri = V[T]
-vol = np.sum(np.einsum("ij,ij->i", tri[:, 0], np.cross(tri[:, 1], tri[:, 2]))) / 6
-sk = ribbed_loop(*KEY["sock"])
-sock_in = min(np.linalg.norm(a + np.clip(-a @ (b - a) / ((b - a) @ (b - a)), 0, 1) * (b - a))
-              for a, b in zip(sk, np.roll(sk, -1, 0), strict=True))
-print(f"socket {KEY['sock'][0]} mm, {RIB['n']} ribs, inscribed dia {2 * sock_in:.2f} mm "
-      f"(plunger {S.PLUNGER_D:.2f} +-0.30)")
-print(f"legend em {LEGEND_EM:.2f} mm, cap height about {0.7 * LEGEND_EM:.2f} mm")
-print(f"{len(caps)} caps, {len(V)} vertices, {len(T)} triangles, open edges {open_edges}, "
-      f"volume {vol/1000:.2f} cm3, top faces {face_top.sum()}")
+print(f"socket {SK['d']} mm, {len(SK['rib_angles'])} rigid ribs {SK['rib_w']} wide on the plunger cone "
+      f"(3.12 to 3.29 over the {SK['depth']:.1f} mm socket), {len(S.CAP_SETS)} sets:")
+print("\n".join(summary))
+print(f"legend em {LEGEND_EM:.2f} mm, cap height about {0.7 * LEGEND_EM:.2f} mm, grown by {S.LEGEND_GROW} mm")

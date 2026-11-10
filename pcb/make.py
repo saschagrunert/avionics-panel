@@ -76,7 +76,7 @@ def text_polys(s, x, y, size, mirror=False, align="center", angle=0.0):
     return out
 
 
-silk = {"F": [], "B": []}     # list of ("text", polys) or ("line", pts, width) or ("circle", x, y, r, width)
+silk = {"F": [], "B": []}     # list of ("text", polys) or ("line", pts, width) or ("dot", x, y, diameter)
 
 
 def T(layer, s, x, y, size=2.0, align="center", angle=0.0):
@@ -97,8 +97,14 @@ for _name, x, y in B.DIODES:
     silk["B"].append(("line", [(x + 2.55, y - 0.75), (x + 2.55, y + 0.75)], 0.25))   # cathode bar
 mx, my = B.MCU
 silk["B"].append(("line", [(mx - 3.9, my + 4.6), (mx - 4.6, my + 4.6), (mx - 4.6, my + 3.9)], 0.15))   # pin 1 corner
+# pin 1 dots (0.4 mm) beside pin 1 of the flash (bottom-right), the regulator (north-east) and the crystal
+# (bottom-right corner), at least 0.15 mm from any mask opening; offsets from the pin 1 pad's centre
+PIN1_DOT = {"U2": (0.75, 0.6), "U3": (0.85, 0.0), "Y1": (1.05, 0.95)}
+for ref, (dx, dy) in PIN1_DOT.items():
+    p = next(p for p in pads if p.name == f"{ref}.1")
+    silk["B"].append(("dot", p.x + dx, p.y + dy, 0.4))
 for ref, x, y in (("U1", mx + 5.0, my + 5.0), ("U2", 126.6 - 6.2 + B.SHIFT_X, 47.6), ("J1", B.USB_X, 12.9),
-                  ("U3", B.LDO[0] + 2.4, B.LDO[1] + 2.4), ("Y1", 122.0 + B.SHIFT_X, 18.0)):
+                  ("U3", B.LDO[0] + 2.4, B.LDO[1] + 2.4), ("Y1", B.XTAL[0], 18.0)):
     T("B", ref, x, y, 0.9)
 T("B", "Avionics Panel rev 1 - RP2040 - USB-C", (B.COLS[2] + B.COLS[3]) / 2, 2.6, 1.4)
 T("B", "BOOT: bridge", B.BOOT[0], B.BOOT[1] + 2.3, 0.9)
@@ -263,8 +269,8 @@ EP_WINDOWS = [(sx * 0.95, sy * 0.95, 1.1) for sx in (-1, 1) for sy in (-1, 1)]
 
 def paste(fname):
     g = Gerber(fname, "Paste,Bot")
-    for p in pads:
-        if p.layers == "B" and p.paste and not p.drill:
+    for p in pads:                   # SMD pads on the bottom, and the pin-in-paste holes of SMD parts
+        if p.paste and ((p.layers == "B" and not p.drill) or p.pip):
             if p.shape == "rect":
                 g.flash(g.ap("R", p.w, p.h), p.x, p.y)
             else:
@@ -291,6 +297,8 @@ def silkscreen(layer, fname, func):
                 dark = True
         elif it[0] == "line":
             g.line(g.ap("C", it[2]), it[1])
+        elif it[0] == "dot":
+            g.flash(g.ap("C", it[3]), it[1], it[2])
     g.save()
 
 

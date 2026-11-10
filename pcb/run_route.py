@@ -11,6 +11,7 @@ import time
 import board as B
 import numpy as np
 import route as R
+from geom import detour_limits, net_lengths
 
 seed = int(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1].isdigit() else 0
 pads = B.build()
@@ -61,7 +62,7 @@ if seed:
 # MCU-local nets first (short, critical), then the long ones. The two USB-C lines are not among them: they lead
 # the nets the rip-up below may reorder, so when they take the north fan-out's only way out to the west
 # (GP12, GP13, GP15) those nets move ahead of them on the next pass
-PRIO = ["XIN", "XOUT", "XO_R", "QSPI_SD2", "QSPI_SCLK", "QSPI_SD0", "QSPI_SD1", "QSPI_SD3", "QSPI_SS",
+PRIO = ["QSPI_SD2", "QSPI_SCLK", "QSPI_SD0", "QSPI_SD1", "QSPI_SD3", "QSPI_SS",
         "BOOT_SW", "USB_DM", "USB_DP", "CC1", "CC2", "VBUS"]
 first = [n for n in PRIO if n in bynet]
 rest = [n for n in local + direct + matrix if n not in first]
@@ -134,19 +135,23 @@ if __name__ == "__main__":
         rnd.shuffle(east)
         it_e = iter(east)
         mov = [next(it_e) if n in east else n for n in mov]
+    limit = {n: lim for n, (_tree, lim) in detour_limits(pads, bynet).items()}
     best = None
-    for _it in range(PASSES):                  # rip-up and retry: nets that failed go first next time, and the
-        router, failed = run(fixed_first + mov)   # area round them costs the others more (congestion history)
-        if best is None or len(failed) < len(best[1]):
-            best = (router, failed)
-        if not failed:
+    for _it in range(PASSES):                  # rip-up and retry: nets that failed or took a detour (longer than
+        router, failed = run(fixed_first + mov)   # check.py allows) go first next time, and the area round
+        length = net_lengths(merge_fixed_vias(router.segments, router.vias)[0])   # them costs the others more
+        detour = [n for n in bynet if n not in failed and length.get(n, 0) > limit[n]]
+        if best is None or (len(failed), len(detour)) < (len(best[1]), len(best[2])):
+            best = (router, failed, detour)
+        if not failed and not detour:
             break
-        for n in failed:
+        for n in failed + detour:
             R.add_history(n, bynet[n])
-        mov = [n for n in mov if n in failed] + [n for n in mov if n not in failed]
-    router, failed = best
+        mov = [n for n in mov if n in failed + detour] + [n for n in mov if n not in failed + detour]
+    router, failed, detour = best
     with open(f"routed_{seed}.json" if len(sys.argv) > 2 else "routed.json", "w") as f:
         segments, vias = merge_fixed_vias(router.segments, router.vias)
         json.dump({"segments": segments, "vias": vias, "failed": failed}, f)
-    L = sum(math.hypot(s[2] - s[0], s[3] - s[1]) for s in router.segments)
-    print(f"seed {seed}: failed {failed} vias {len(router.vias)} length {L:.0f} mm  ({time.time()-t0:.0f}s)")
+    L = sum(net_lengths(router.segments).values())
+    print(f"seed {seed}: failed {failed} detours {detour} vias {len(router.vias)} length {L:.0f} mm  "
+          f"({time.time()-t0:.0f}s)")

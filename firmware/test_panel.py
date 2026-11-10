@@ -1,4 +1,4 @@
-"""Host tests for panel.py: python3 test_panel.py"""
+"""Host tests for panel.py: run pytest from the repository root."""
 import buttonmap as BM
 import panel as P
 
@@ -207,6 +207,310 @@ def test_up_dn_repeat():
     assert 4 <= n <= 7, n                    # 1 at once, then from 400 ms about 8 per second
 
 
+def pressed_trace(s, ms, dev=1):
+    """{ms: set of button names pressed on dev} for the next ms milliseconds"""
+    out = {}
+    for _ in range(ms):
+        s.run(1)
+        out[s.t] = {s.names[dev][b] for b in s.p.buttons(dev)}
+    return out
+
+
+# MobiFlight polls the joysticks from a 20 ms System.Timers.Timer; Windows' 15.6 ms clock makes that about
+# every 31 ms. It sees snapshots, so a detent only counts if a poll lands in its press and another in its gap.
+POLL_MS = 31.25
+
+
+def test_detent_pulses_survive_mobiflight_polling():
+    # a quick spin of the FMS knob (one step per detent): whatever the phase of the poll, MobiFlight counts
+    # every queued detent, and the run-on after the spin stays below 0.8 s
+    s, trace = Sim(), {}
+    for _ in range(12):                                    # 12 detents in 60 ms: MAX_QUEUE of them are kept
+        s.p.turn("FMS_INNER", 1, s.t)
+        trace.update(pressed_trace(s, 5))
+    trace.update(pressed_trace(s, 1500))
+    on = [t for t in sorted(trace) if "FMS_INNER_CW" in trace[t]]
+    assert on[-1] < 800
+    for phase in range(32):
+        polls = [t for t in sorted(trace) if (t - phase) % POLL_MS < 1]
+        seen = [("FMS_INNER_CW" in trace[t]) for t in polls]
+        presses = sum(b and not a for a, b in zip([False] + seen, seen))
+        assert presses == P.MAX_QUEUE, phase
+
+
+def test_timing_rules_keep_repeats_from_piling_up(monkeypatch):
+    # a step (press and gap) may be as long as the UP / DN repeat and the tilt repeat, each, but not longer
+    import pytest
+    P.check_timing()
+    step = P.PRESS_MS + P.GAP_MS
+    for name in ("REPEAT_MS", "PAN_MS"):
+        with monkeypatch.context() as m:
+            m.setattr(P, name, step)
+            P.check_timing()
+            m.setattr(P, name, step - 1)
+            with pytest.raises(ValueError):
+                P.check_timing()
+
+
+def test_reversing_a_knob_drops_the_queued_steps():
+    # ten quick detents clockwise, then one back: the knob stops at once, it does not run on clockwise first
+    s = Sim()
+    s.turn("FMS_INNER", 10, every=10); s.take()
+    s.turn("FMS_INNER", -1); s.run(1000)
+    assert s.take() == [(1, "FMS_INNER_CCW")]
+    s.turn("ALTHDG_OUTER", 6, every=10); s.take()           # slow and coarse steps of one ring both go
+    s.turn("ALTHDG_OUTER", -1); s.run(1000)
+    assert s.take() == [(1, "ALT_100_DN")]
+    s.turn("FMS_INNER", 6, every=10); s.turn("FMS_OUTER", -3, every=10); s.take()   # other rings keep theirs
+    s.run(1000)
+    assert {n for _, n in s.take()} == {"FMS_INNER_CW", "FMS_OUTER_CCW"}
+
+
+def test_reversing_drops_slow_and_coarse_steps_of_one_turn():
+    # two slow detents (the second still queued), then fast ones: the reversal drops the queued slow step
+    # too, not only the coarse ones queued last
+    s = Sim()
+    for gap in (P.FAST_MS + 5, 5, 5, 5):
+        s.p.turn("ALTHDG_OUTER", 1, s.t); s.run(gap)
+    assert s.take() == [(1, "ALT_100_UP"), (1, "ALT_1000_UP")]
+    assert s.p.queue[s.p._btn(1, "ALT_100_UP")] == 2 and s.p.queue[s.p._btn(1, "ALT_1000_UP")] == 2
+    s.p.turn("ALTHDG_OUTER", -1, s.t); s.run(1000)
+    assert s.take() == [(1, "ALT_100_DN")]
+
+
+def test_reversing_lets_the_running_pulse_finish():
+    s = Sim()
+    s.turn("FMS_INNER", 5, every=5)                         # the first pulse is pressed now
+    s.p.turn("FMS_INNER", -1, s.t)
+    trace = pressed_trace(s, 300)
+    cw = [t for t in sorted(trace) if "FMS_INNER_CW" in trace[t]]
+    assert cw and cw == list(range(cw[0], cw[-1] + 1)) and len(cw) < P.PRESS_MS   # the rest of that press only
+
+
+def test_two_slow_detents_after_a_stall_stay_slow():
+    # the loop stalled (a USB send waited): two detents read at once say nothing about the speed. As in
+    # code.py, a pass reads the encoders before its tick(): the detents come 1 ms after the last tick
+    s = Sim()
+    s.run(100)
+    s.t += 1; s.p.turn("ALTHDG_OUTER", 2, s.t); s.run(500)
+    assert [n for _, n in s.take()] == ["ALT_1000_UP"] * 2   # no stall: two in one read is fast
+    s.t += 2000                                              # stalled: time passed, no tick() ran
+    s.p.turn("ALTHDG_OUTER", 2, s.t); s.run(500)
+    assert [n for _, n in s.take()] == ["ALT_100_UP"] * 2
+
+
+def light_and_edges(s, ms):
+    """per ms: (light level, button names newly pressed on device 1)"""
+    out = []
+    for _ in range(ms):
+        n = len(s.seen)
+        s.run(1)
+        out.append((s.p.shift_level(s.t), [name for _, name in s.seen[n:]]))
+    return out
+
+
+def test_shifted_tilt_held_keeps_the_light():
+    # a shifted pan held longer than 3 s: the light stays on while S_PAN repeats, then the usual 3 s
+    s = Sim()
+    s.key("SHIFT"); s.take()
+    s.p.key("RANGE_COM", True, s.t); s.p.key("RANGE_A", True, s.t)
+    held = light_and_edges(s, 5000)
+    assert all(level == P.LIGHT_FULL for level, _ in held)
+    assert sum(names.count("S_PAN_UP") for _, names in held) > 30
+    s.p.key("RANGE_A", False, s.t); s.p.key("RANGE_COM", False, s.t)
+    assert s.p.shift_until == s.t + P.SHIFT_MS
+    after = light_and_edges(s, 3100)
+    assert all(names == [] for _, names in after)            # no PTR, no more pan
+    assert after[-1][0] == P.LIGHT_OFF
+
+
+def test_shifted_centre_push_held_stays_shifted():
+    # SHIFT, then the RANGE centre held for 4 s: the light stays on, and the release sends S_PTR
+    s = Sim()
+    s.key("SHIFT"); s.take()
+    s.p.key("RANGE_COM", True, s.t)
+    assert all(level == P.LIGHT_FULL for level, _ in light_and_edges(s, 4000))
+    s.p.key("RANGE_COM", False, s.t); s.run(200)
+    assert s.take() == [(1, "S_PTR")]
+
+
+def test_centre_push_is_shifted_as_at_its_press():
+    # SHIFT is decided when the centre goes down, as the light showed then
+    s = Sim()
+    s.key("SHIFT"); s.take()
+    s.p.key("RANGE_COM", True, s.t); s.run(100)
+    s.turn("FMS_OUTER", 1); assert not s.p.shift_active(s.t)   # another knob ends SHIFT while the centre is held
+    s.p.key("RANGE_COM", False, s.t); s.run(200)
+    assert s.take() == [(1, "FMS_OUTER_CW"), (1, "S_PTR")]
+    s.p.key("RANGE_COM", True, s.t); s.run(100)
+    s.key("SHIFT")                                           # tapped while an unshifted centre is held
+    s.p.key("RANGE_COM", False, s.t); s.run(200)
+    assert s.take() == [(1, "PTR")]
+    s.key("AP"); assert s.take() == [(1, "TEST")]            # the tap still arms the next key
+
+
+def test_held_shifted_tilt_survives_a_stalled_pass():
+    # one loop pass stalls for longer than SHIFT_MS while a shifted tilt is held: the session goes on
+    s = Sim()
+    s.key("SHIFT"); s.take()
+    s.p.key("RANGE_COM", True, s.t); s.p.key("RANGE_A", True, s.t); s.run(500)
+    s.t += P.SHIFT_MS + 500                                  # stalled: time passed, no tick() ran
+    held = light_and_edges(s, 1000)
+    assert all(level == P.LIGHT_FULL for level, _ in held)
+    assert sum(names.count("S_PAN_UP") for _, names in held) >= 5
+    s.p.key("RANGE_A", False, s.t); s.p.key("RANGE_COM", False, s.t); s.run(200)
+    assert s.p.shift_active(s.t)
+
+
+def test_held_shifted_push_survives_a_stalled_pass():
+    # the same when the stalled pass first reads an input: the release, then a turn of the same knob
+    s = Sim()
+    s.key("SHIFT"); s.take()
+    s.p.key("ALTHDG_PUSH", True, s.t); s.run(100)
+    s.t += P.SHIFT_MS + 500                                  # stalled: time passed, no tick() ran
+    s.p.key("ALTHDG_PUSH", False, s.t)
+    assert s.p.shift_active(s.t) and s.p.shift_until == s.t + P.SHIFT_MS
+    s.turn("ALTHDG_INNER", 1)
+    assert s.take() == [(1, "BARO_STD"), (1, "BARO_UP")]
+
+
+def test_shifted_push_held_keeps_the_light():
+    s = Sim()
+    s.key("SHIFT"); s.take()
+    s.p.key("ALTHDG_PUSH", True, s.t)
+    assert all(level == P.LIGHT_FULL for level, _ in light_and_edges(s, 4000))
+    assert s.take() == [(1, "BARO_STD")]
+    s.p.key("ALTHDG_PUSH", False, s.t)
+    s.run(3100); assert not s.p.shift_active(s.t)
+
+
+def test_shift_taps_keep_a_held_shifted_tilt():
+    # SHIFT tapped once or twice during a held shifted pan: S_PAN goes on and the light stays on until the
+    # release; one tap arms the next key, a second tap cancels only that
+    for taps, key in ((1, "TEST"), (2, "AP")):
+        s = Sim()
+        s.key("SHIFT"); s.take()
+        s.p.key("RANGE_COM", True, s.t); s.p.key("RANGE_A", True, s.t); s.run(1500)
+        for _ in range(taps):
+            s.p.key("SHIFT", True, s.t); s.run(30); s.p.key("SHIFT", False, s.t); s.run(30)
+        held = light_and_edges(s, 4000)
+        assert all(level == P.LIGHT_FULL for level, _ in held)
+        assert sum(names.count("S_PAN_UP") for _, names in held) > 30
+        s.p.key("RANGE_A", False, s.t); s.p.key("RANGE_COM", False, s.t); s.run(200)
+        assert s.p.shift_active(s.t)
+        s.take(); s.key("AP"); assert s.take() == [(1, key)]
+
+
+def test_shift_taps_keep_a_held_shifted_push():
+    for taps in (1, 2):
+        s = Sim()
+        s.key("SHIFT"); s.take()
+        s.p.key("ALTHDG_PUSH", True, s.t); s.run(1500)
+        for _ in range(taps):
+            s.p.key("SHIFT", True, s.t); s.run(30); s.p.key("SHIFT", False, s.t); s.run(30)
+        assert all(level == P.LIGHT_FULL for level, _ in light_and_edges(s, 4000))
+        assert s.take() == [(1, "BARO_STD")]
+        s.p.key("ALTHDG_PUSH", False, s.t); s.run(2900); assert s.p.shift_active(s.t)
+        s.run(200); assert not s.p.shift_active(s.t)
+
+
+def tap(s, name):
+    s.p.key(name, True, s.t); s.run(30); s.p.key(name, False, s.t); s.run(30)
+
+
+def hold_shifted_tilt(s):
+    s.key("SHIFT"); s.take()
+    s.p.key("RANGE_COM", True, s.t); s.p.key("RANGE_A", True, s.t); s.run(1000)
+
+
+def test_keys_keep_a_held_shifted_tilt():
+    # no key ends the session a held tilt keeps: a plain key, a key that a SHIFT tap armed, SHIFT taps. S_PAN
+    # and the light go on until the release, then the usual 3 s
+    for keys, sent in ((["AP"], ["AP"]), (["SHIFT", "VFR"], ["IDENT"]),
+                       (["SHIFT", "VFR", "SHIFT", "SHIFT", "AP"], ["IDENT", "AP"])):
+        s = Sim()
+        hold_shifted_tilt(s)
+        for k in keys:
+            tap(s, k)
+        held = light_and_edges(s, 4000)
+        assert all(level == P.LIGHT_FULL for level, _ in held), keys
+        assert sum(names.count("S_PAN_UP") for _, names in held) > 30, keys
+        assert [n for _, n in s.take() if n != "S_PAN_UP"] == sent, keys
+        s.p.key("RANGE_A", False, s.t); s.p.key("RANGE_COM", False, s.t)
+        s.run(2900); assert s.p.shift_active(s.t), keys
+        s.run(200); assert not s.p.shift_active(s.t), keys
+
+
+def test_armed_key_keeps_a_held_shifted_push():
+    s = Sim()
+    s.key("SHIFT"); s.p.key("ALTHDG_PUSH", True, s.t); s.run(500)
+    tap(s, "SHIFT"); tap(s, "VFR")
+    assert all(level == P.LIGHT_FULL for level, _ in light_and_edges(s, 4000))
+    s.turn("ALTHDG_INNER", 1)                                # still the shifted session: BARO
+    assert s.take() == [(1, "BARO_STD"), (1, "IDENT"), (1, "BARO_UP")]
+
+
+def test_second_tap_cancels_shift_unless_a_control_is_held():
+    # the held push is let go between the two taps: the second tap cancels SHIFT. The same right after a
+    # squawk entry: the first tap arms SHIFT, the second ends the knob's session too
+    s = Sim()
+    s.key("SHIFT"); s.p.key("ALTHDG_PUSH", True, s.t); s.run(500)
+    tap(s, "SHIFT")
+    s.p.key("ALTHDG_PUSH", False, s.t); s.run(100); assert s.p.shift_active(s.t)
+    tap(s, "SHIFT"); assert s.p.shift_level(s.t) == P.LIGHT_OFF
+    s.turn("ALTHDG_INNER", 1)
+    assert s.take() == [(1, "BARO_STD"), (1, "HDG_1_UP")]
+    s.key("SHIFT"); s.turn("FREQ_OUTER", 1)
+    tap(s, "SHIFT"); tap(s, "SHIFT"); assert s.p.shift_level(s.t) == P.LIGHT_OFF
+    s.turn("FREQ_OUTER", 1)
+    assert s.take() == [(1, "SQK_D2_UP"), (1, "COM_MHZ_UP")]
+
+
+def test_a_plain_push_held_does_not_keep_shift():
+    # only a push made in a shifted session keeps it: SHIFT and a turn while a plain push is held end the
+    # session 3 s after the detent, push still held
+    s = Sim()
+    s.p.key("ALTHDG_PUSH", True, s.t); s.run(100)
+    s.key("SHIFT"); s.turn("ALTHDG_INNER", 1, every=1)
+    s.run(P.SHIFT_MS - 100); assert s.p.shift_active(s.t)
+    s.run(100); assert not s.p.shift_active(s.t)
+    assert s.take() == [(1, "HDG_SYNC"), (1, "BARO_UP")]
+
+
+def test_shifted_repeat_stops_when_another_knob_takes_shift():
+    # SHIFT tapped during a shifted pan, then the FMS knob turned: the arming goes to the FMS knob (lighting),
+    # which ends the RANGE session. The light stays on for the FMS knob, but the tilt stops sending S_PAN
+    s = Sim()
+    hold_shifted_tilt(s)
+    tap(s, "SHIFT")
+    s.turn("FMS_OUTER", 1, every=1)
+    assert s.take()[-1] == (1, "PANEL_LT_UP")
+    rest = light_and_edges(s, 4000)
+    assert all(level != P.LIGHT_OFF for level, _ in rest[:2500])
+    assert not any("S_PAN_UP" in names for _, names in rest)
+
+
+def test_shifted_repeat_stops_when_shift_is_armed_after_its_session_ended():
+    # in one loop pass another knob's push ends the RANGE session and SHIFT is tapped: the light is on for
+    # the armed SHIFT, which no longer belongs to the tilt, so S_PAN stops
+    s = Sim()
+    hold_shifted_tilt(s)
+    s.p.key("FMS_PUSH", True, s.t); s.p.key("SHIFT", True, s.t)
+    rest = light_and_edges(s, 2000)
+    assert rest[0][0] == P.LIGHT_FULL and not any("S_PAN_UP" in names for _, names in rest)
+
+
+def test_shifted_repeat_stops_when_another_control_ends_shift():
+    # the other hand turns the FMS knob during a shifted pan: SHIFT ends, the light goes dark, and the
+    # held tilt stops sending S_PAN (lit means shifted)
+    s = Sim()
+    s.key("SHIFT")
+    s.p.key("RANGE_COM", True, s.t); s.p.key("RANGE_A", True, s.t); s.run(1000)
+    s.turn("FMS_OUTER", 1, every=1); s.take()
+    rest = light_and_edges(s, 2000)
+    assert all(level == P.LIGHT_OFF and "S_PAN_UP" not in names for level, names in rest)
+
+
 def test_counts():
     assert len(BM.DEVICE[1]) == 117 and len(BM.DEVICE[2]) == 39
     assert BM.DEVICE[1][-5:] == BM.LIGHTING                          # lighting is the tail of device 1
@@ -248,8 +552,3 @@ def test_button_numbers_are_frozen():
     for dev, names in FROZEN.items():
         assert tuple(BM.DEVICE[dev][:len(names)]) == names, f"device {dev}: a button number moved"
 
-
-if __name__ == "__main__":
-    for name, fn in list(globals().items()):
-        if name.startswith("test_"):
-            fn(); print("ok", name)

@@ -13,9 +13,11 @@ SHIFT_PULSE_MS = 125     # ... dim and bright this long each (4 Hz): starts dim,
 LIGHT_OFF, LIGHT_DIM, LIGHT_FULL = 0, 1, 2   # levels of the amber light; code.py maps them to PWM duties
 FREQ_RESET_MS = 10000    # frequency knob back to COM after this long without a turn
 FAST_MS = 60             # detents closer than this (same ring, same direction) take the coarse step
-PRESS_MS = 40            # one knob detent = a button held this long ...
-GAP_MS = 25              # ... then released this long before the next one
-MAX_QUEUE = 12           # queued detents per button (fast spins)
+# MobiFlight polls the joysticks from a 20 ms timer that Windows' 15.6 ms clock stretches to about 31 ms, and
+# reads snapshots (nothing buffered): a press and a gap must both outlast one poll, or detents merge or vanish.
+PRESS_MS = 50            # one knob detent = a button held this long ...
+GAP_MS = 40              # ... then released this long before the next one: 90 ms, about 11 steps per second
+MAX_QUEUE = 8            # queued detents per button (fast spins): runs on for at most 8 x 90 = 720 ms
 REPEAT_DELAY_MS = 400    # UP / DN: first repeat ...
 REPEAT_MS = 125          # ... then about 8 per second
 PAN_DELAY_MS = 300       # RANGE tilt: first repeat ...
@@ -32,9 +34,12 @@ def pulse_timing_ok(warn_ms, pulse_ms, shift_ms):
 
 
 def check_timing():
-    """Raises on SHIFT light timing that breaks the rules above (a plain raise: asserts vanish under -O)."""
+    """Raises on timing that breaks the rules above (a plain raise: asserts vanish under -O). A held UP / DN or
+    tilt must not queue repeats faster than the pulses send them, or they run on after the release."""
     if not pulse_timing_ok(SHIFT_WARN_MS, SHIFT_PULSE_MS, SHIFT_MS):
         raise ValueError("SHIFT_WARN_MS must be below SHIFT_MS and a multiple of 2 * SHIFT_PULSE_MS")
+    if min(REPEAT_MS, PAN_MS) < PRESS_MS + GAP_MS:
+        raise ValueError("PRESS_MS + GAP_MS must not exceed REPEAT_MS and PAN_MS")
 
 
 check_timing()
@@ -43,6 +48,7 @@ check_timing()
 class Panel:
     def __init__(self):
         self.shift = None            # None, "any" (armed by the SHIFT key) or the knob that keeps it
+        self.under = None            # with "any": the knob whose held push or tilt keeps its session under it
         self.shift_until = 0
         self.unit = 1
         self.freq_mode = 0
@@ -52,6 +58,9 @@ class Panel:
         self.queue = {}              # (device, button) -> queued detents
         self.pulse = {}              # (device, button) -> (down?, until_ms)
         self.last_detent = {}        # ring -> (ms, direction)
+        self.ring_keys = {}          # ring -> queue keys its detents went to since its last reversal
+        self.holds = {}              # source -> knob: a push or tilt held in that knob's shifted session
+        self.last_tick = None        # ms of the last tick(): the previous loop pass
         self.range_dirs = set()
         self.range_com = False       # RANGE "com" closed (any operation closes it)
         self.range_tilted = False    # a direction closed during this "com" press
@@ -66,6 +75,16 @@ class Panel:
     def _queue(self, dev, name, n=1):
         k = self._btn(dev, name)
         self.queue[k] = min(self.queue.get(k, 0) + n, MAX_QUEUE)
+        return k
+
+    def _reverse(self, ring):
+        """The ring turned the other way: drop the detents it still has queued in the old direction, so the knob
+        stops at once. A pulse already on the way finishes, the PC has seen its press."""
+        for k in self.ring_keys.pop(ring, ()):
+            if k in self.pulse:
+                self.queue[k] = 1
+            else:
+                self.queue.pop(k, None)
 
     def shift_active(self, t):
         """Whether SHIFT applies at time t, the one place that decides it: inputs, tick() and the light agree,
@@ -73,16 +92,30 @@ class Panel:
         return self.shift is not None and t < self.shift_until
 
     def _expire(self, t):
+        """Ends SHIFT once it ran out. A shifted push or tilt still held keeps its session, the 3 s start at its
+        release: extended first, so a loop pass that stalled for 3 s or more doesn't end it under the hand."""
+        if self._held() is not None:
+            self.shift_until = t + SHIFT_MS
         if not self.shift_active(t):
-            self.shift = None
+            self.shift = self.under = None
+
+    def _kept(self):
+        """The knob whose session SHIFT is: the armed "any" keeps the one a held control was in."""
+        return self.under if self.shift == "any" else self.shift
+
+    def _held(self):
+        """The knob whose session a shifted push or tilt still held keeps, or None. Keys never end that
+        session, SHIFT taps and the key a tap armed included; another knob does (_knob_shift)."""
+        knob = self._kept()
+        return knob if knob in self.holds.values() else None
 
     def _knob_shift(self, knob, t):
         """SHIFT for a knob action: armed SHIFT or this knob's own shifted session. Starts/extends it."""
         if self.shift == "any" or self.shift == knob:
-            self.shift = knob
+            self.shift, self.under = knob, None
             self.shift_until = t + SHIFT_MS
             return True
-        self.shift = None            # any other action ends another knob's session
+        self.shift = self.under = None   # another knob ends this session, also one a held push or tilt keeps
         return False
 
     def shift_level(self, t):
@@ -117,14 +150,15 @@ class Panel:
             self.held.pop(name, None)
             self.repeat.pop(name, None)
             return
+        held = self._held()
         if name == "SHIFT":
-            if self.shift == "any":                      # second tap cancels
-                self.shift = None
+            if self.shift == "any":                      # a second tap cancels SHIFT, except for a held control
+                self.shift, self.under = held, None
             else:                                        # also while a knob still keeps SHIFT: arm for the next key
-                self.shift, self.shift_until = "any", t + SHIFT_MS
+                self.shift, self.under, self.shift_until = "any", held, t + SHIFT_MS
             return
         shifted = self.shift == "any"
-        self.shift = None
+        self.shift, self.under = held, None              # a key ends a knob's session, unless a control holds it
         if name == "HOME" and shifted:                    # UNIT: firmware state, white light
             self.unit = 2 if self.unit == 1 else 1
             return
@@ -139,9 +173,12 @@ class Panel:
     def _push(self, name, pressed, t):
         if not pressed:
             self.held.pop(name, None)
+            self.holds.pop(name, None)
             return
         knob = name[:-5]                                   # ALTHDG, FMS, FREQ
         shifted = self._knob_shift(knob, t)
+        if shifted:
+            self.holds[name] = knob
         if name == "ALTHDG_PUSH":
             self.held[name] = self._btn(1, "BARO_STD" if shifted else "HDG_SYNC")
         elif name == "FMS_PUSH":
@@ -161,8 +198,12 @@ class Panel:
             return
         up = steps > 0
         last = self.last_detent.get(ring)
-        # fast: 2+ detents in one read, or the previous detent on this ring and direction was recent
-        fast = abs(steps) > 1 or (last is not None and last[1] == up and t - last[0] < FAST_MS)
+        if last is not None and last[1] != up:
+            self._reverse(ring)
+        # fast: 2+ detents in one read, or the previous detent on this ring and direction was recent. After a
+        # stalled loop pass 2+ detents in one read say nothing about the speed: only the previous detent counts.
+        stalled = self.last_tick is not None and t - self.last_tick > FAST_MS
+        fast = (abs(steps) > 1 and not stalled) or (last is not None and last[1] == up and t - last[0] < FAST_MS)
         self.last_detent[ring] = (t, up)
         knob = ring.split("_")[0]
         shifted = self._knob_shift(knob, t)
@@ -187,26 +228,31 @@ class Panel:
         else:                                               # FMS, RANGE: exactly one step per detent
             dev = self._unit_dev() if knob == "FMS" else 1
             name = ("S_" if shifted else "") + ring + ("_CW" if up else "_CCW")   # shifted: only RANGE gets here
-            self._queue(dev, name, abs(steps))
-            return
-        base = quick if (fast and quick) else slow
-        self._queue(dev, base + ("_UP" if up else "_DN"), abs(steps))
+        if slow:
+            name = (quick if (fast and quick) else slow) + ("_UP" if up else "_DN")
+        self.ring_keys.setdefault(ring, set()).add(self._queue(dev, name, abs(steps)))
 
     def _range_key(self, name, pressed, t):
         """A tilt closes its direction and "com"; the centre push closes "com" alone. "com" can close well
-        before the direction on a slow tilt, so PTR is sent on release, and only if no direction closed."""
+        before the direction on a slow tilt, so PTR is sent on release, and only if no direction closed. SHIFT is
+        decided at the press, as for a push: S_PTR or PTR as the light showed when the centre went down."""
+        shifted = name in self.holds                       # the release: was it pressed in a shifted session?
+        if not pressed:
+            self.holds.pop(name, None)
+        elif self._knob_shift("RANGE", t):                 # "com" too
+            self.holds[name] = "RANGE"
         if name == "RANGE_COM":
             if pressed:
                 self.range_com, self.range_tilted = True, bool(self.range_dirs)
             else:
                 if not self.range_tilted and not self.range_dirs:
-                    self._queue(1, "S_PTR" if self._knob_shift("RANGE", t) else "PTR")
+                    self._queue(1, "S_PTR" if shifted else "PTR")
                 self.range_com, self.range_tilted = False, False
             return
         if pressed:
             self.range_dirs.add(name)
             self.range_tilted = True
-            button = ("S_PAN_" if self._knob_shift("RANGE", t) else "PAN_") + PAN_DIRS[name]
+            button = ("S_PAN_" if name in self.holds else "PAN_") + PAN_DIRS[name]
             self._queue(1, button)
             self.repeat[name] = [1, button, t + PAN_DELAY_MS, PAN_MS]
         else:
@@ -215,11 +261,16 @@ class Panel:
 
     # ---------------- time ----------------
     def tick(self, t):
-        self._expire(t)
+        self._expire(t)                                    # extends a session held by a push or tilt
+        self.last_tick = t
         if self.freq_mode and t - self.freq_last >= FREQ_RESET_MS:
             self.freq_mode = 0
-        for r in self.repeat.values():
+        for src in list(self.repeat):
+            r = self.repeat[src]
             dev, button, nxt, every = r
+            if src in self.holds and self._kept() != self.holds[src]:
+                del self.repeat[src]                       # its shifted session ended, maybe for another knob: stop
+                continue
             if t >= nxt:
                 self._queue(dev, button)
                 r[2] = t + every

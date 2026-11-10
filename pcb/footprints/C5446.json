@@ -1,0 +1,12 @@
+{
+ "lcsc": "C5446",
+ "title": "XC6206P332MR",
+ "package": "SOT-23-3_L2.9-W1.6-P1.90-LS2.8-BR",
+ "source": "JLCPCB / EasyEDA library footprint, https://easyeda.com/api/products/C5446/components, fetched 2026-11-10",
+ "frame": "top view, mm, x right, y down, from the footprint origin; pads: number, x, y, size x, size y",
+ "pads": [
+  ["1", 1.235, 0.95, 1.07, 0.6],
+  ["2", 1.235, -0.95, 1.07, 0.6],
+  ["3", -1.235, 0.0, 1.07, 0.6]
+ ]
+}

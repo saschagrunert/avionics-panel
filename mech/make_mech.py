@@ -1,4 +1,4 @@
-"""Body and spacers for the Avionics Panel rev 1, exact solids (OpenCascade) -> STEP + STL for JLC3DP.
+"""Body for the Avionics Panel rev 1, exact solid (OpenCascade) -> STEP + STL for JLC3DP, steel plate DXF.
 
 The 6 degree wedge is part of the body, so no wedge feet are needed; four flat silicone feet only stop it
 sliding; they go on four flat pads. The wedge is hollow from below: a 2 mm floor under the PCB, ribs down to
@@ -8,12 +8,13 @@ BOOT hole in the floor, USB-C opening in the back wall. The front plate is CNC a
 (make_plate_step.py); every height is in stack.py.
 
 Stack (z = 0 is the PCB top):
-  body   floor -7.6 .. -5.6 (-7.2 .. -5.6 at the front edge), bottom plane from -7.2 at the front to about
-         -14 at the back, walls up to z 5.1 (0.9 below the plate), 4 bosses carry the PCB at z -1.6 (4 mm
-         room for the SMD parts and the USB-C socket on the underside), 2 posts support the middle of the PCB
-  spacer 4 metal round spacers, 6 mm (printed tubes as the fallback), between the PCB top and the plate
-  plate  4 mm aluminium, z 6 .. 10, blind M2.5 threads from below
-  screws 4 x M2.5 x 12 pan head from below, one to four washers: body boss -> PCB -> spacer -> plate
+  body     floor -7.6 .. -5.6 (-7.2 .. -5.6 at the front edge), bottom plane from -7.2 at the front to about
+           -14 at the back, walls up to z 5.1 (0.9 below the plate), 4 bosses carry the PCB at z -1.6 (4 mm
+           room for the SMD parts and the USB-C socket on the underside), 2 posts 0.25 under the middle of
+           the PCB, counterbore seats at z -3.2 (1.6 mm of PA12 up to the PCB)
+  standoff 4 x M2.5 x 8 female-female hex (5 mm across flats), z 0 .. 8, glued 2 mm deep into the plate
+  plate    4 mm aluminium, z 6 .. 10, 4 flat-bottom standoff pockets from below, no threads
+  screws   4 x M2.5 x 8 pan head from below, one washer each: body boss -> PCB -> standoff
 Height 17.2 mm at the front, rising to about 24 mm at the back.
 Output frame: X right, Y away from the user (board y flipped), Z up.
 """
@@ -27,12 +28,15 @@ from OCC.Core.gp import gp_Ax1, gp_Ax2, gp_Dir, gp_Pnt, gp_Trsf, gp_Vec
 sys.path.insert(0, "../pcb")
 import board as B  # noqa: E402
 import stack as S  # noqa: E402
+from dxf import write_dxf  # noqa: E402
 from make_plate_step import rrect_prism  # noqa: E402
 from occ_util import box, common, cut, cyl, export, fuse, move, volume  # noqa: E402
 
 # PCB to cavity wall: the cavity (160.6 x 60.6) may print 0.4 % small (JLC3DP MJF) and the board outline
-# is +-0.2 (JLCPCB), so 0.5 per side; the outer outline stays the same (walls 1.8)
-CLEAR, WALL = 0.5, 1.8
+# is +-0.2 (JLCPCB), so 0.5 per side; walls 2.0 (JLC3DP MJF: 2.0 for parts over 100 mm), so the outline
+# (stack.OVH, shared with the plate) is 2.5 out from the PCB
+CLEAR, WALL = 0.5, 2.0
+assert abs(CLEAR + WALL - S.OVH) < 1e-9, "the body outline is the plate outline"
 PCB_OUTLINE_TOL, BODY_SCALE_TOL = 0.2, 0.004
 UNDER = 4.0                         # room under the PCB: SMD parts, USB-C socket (3.2 mm), THT leads
 FLOOR = 2.0                         # floor under the PCB room; the wedge below it is hollow
@@ -48,35 +52,39 @@ def _up(v):
 
 
 # The body locates nothing. Its screw hole is as small as passes the screw wherever the body's MJF tolerance
-# over 153 mm and the plate put the hole (stack.POS_TOL), so the DIN 125 washer under the head still bears
-# all round it with the screw against the hole wall. The counterbore clears that washer in the same worst case.
+# over 153 mm and the PCB holes (the screws sit in the standoffs, which line up with them) put the hole
+# (stack.POS_TOL), so the DIN 125 washer under the head still bears all round it with the screw against the
+# hole wall. The counterbore clears that washer in the same worst case.
 _PT = S.POS_TOL
-SCREW_CLEAR = _up(S.SCREW_D / 2 + _PT["body"] + _PT["plate"] + _PT["body_hole"])        # 1.85: hole 3.7
+SCREW_CLEAR = _up(S.SCREW_D / 2 + _PT["body"] + _PT["pcb"] + _PT["body_hole"])          # 1.85: hole 3.7
 SCREW_OFFSET = SCREW_CLEAR + _PT["body_hole"] - S.SCREW["d_min"] / 2   # screw against the widest hole wall
 WASHER_PLAY = (S.WASHER["bore_max"] - S.SCREW["d_min"]) / 2           # washer sliding on the screw
 # Counterbore: wide enough that the washer lies flat wherever the screw sits (worst case it slides on the
 # screw towards the middle), narrow enough that its wall keeps the washer over the body hole all round.
 HEAD_R = 4.2                        # counterbore 8.4; check_fit.py checks both limits
 BOSS_R = 4.0                        # boss top on the PCB (PA12 on solder mask past the 3.6 mm copper keep-out)
-BOSS_R_LOW = HEAD_R + 1.0           # boss round the counterbore; bosses are joined to the walls
+BOSS_R_LOW = HEAD_R + 1.6           # boss round the counterbore (JLC3DP: fastener walls over 1.5); joined to the walls
 BOOT_HOLE = 5.0                     # bridge the BOOT pads with a small screwdriver
 # The hollow stops where it is 1 mm high: in front of that the floor is solid down to the desk plane (BOOT hole
 # and front feet). No slot or sliver under 0.8 mm anywhere: check_fit.py rasterises sections to prove it.
 HOLLOW_H_MIN = 1.0
 # The PCB is held only at its corners (about 153 mm apart) and would sag 0.3 to 0.5 mm under a key press in
 # the middle, about the switch travel. Two posts carry it there, at spots free of bottom parts and pins:
-# between the AUTOPILOT and AUDIO blocks, and between key columns 4 and 5, midway between rows 1 and 2.
+# between the AUTOPILOT and AUDIO blocks, and between key columns 4 and 5, midway between rows 1 and 2. They
+# end stack.SUPPORT_SHORT under the PCB, so the MJF tolerance cannot bow the board up towards the light pipes.
 SUPPORTS = [(72.3, 30.8), (98.6, 30.8)]
 SUPPORT_R = 2.5
+SUPPORT_TOP = -S.PCB_T - S.SUPPORT_SHORT
 # ribs in the hollow wedge, down to the bottom plane (board coordinates): front to back under the posts and
-# between the knobs and key blocks, one across through the posts
-RIB_T = 1.6
+# between the knobs and key blocks, one across through the posts; 2.0 thick (JLC3DP MJF, parts over 100 mm)
+RIB_T = 2.0
 RIBS_X = (36.0, 72.3, 98.6, 125.0)          # 125 stays clear of the BOOT hole (x 132.1)
 RIBS_Y = (30.8,)
 # optional steel plate as desk weight, 2 mm, in a recess parallel to the bottom plane: x centred, y from the
-# back wall (1 mm rim left) towards the front until about 1 mm of floor is left above the recess; notched at
-# the back corners for the feet
-STEEL = dict(w=144.0, d=48.0, t=2.0, depth=2.2, y0=-1.3, notch=15.0)
+# back wall (2.1 mm rim left) towards the front as far as the recess stays in the hollow under the 2 mm floor,
+# so every wall round it keeps JLC3DP's 2.0 mm for MJF parts over 100 mm; notched at the back corners for the
+# feet. It is taped onto the ribs, the USB-C block and the back rim.
+STEEL = dict(w=144.0, d=37.0, t=2.0, depth=2.2, y0=-0.4, notch=15.0)
 # flat pads for four self-adhesive feet up to 10 mm across (pads 12 mm), wide apart, outside the steel plate
 FOOT_D, FOOT_PAD = 10.0, 12.0
 FEET = [(15.5, 6.7), (B.W - 15.5, 6.7), (15.5, 55.5), (B.W - 15.5, 55.5)]
@@ -142,6 +150,19 @@ def corner(mx, my, r, z0, z1):
     return fuse(fuse(a, b), cyl(r, z0, z1, mx, my))
 
 
+def foot_bridges():
+    """(x0, y0, x1, y1) of the blocks that join a foot pad to the boss next to it and to the wall behind both,
+    so no slot narrower than 0.8 mm is left between them (the bosses round the counterbores reach close)."""
+    out = []
+    for fx, fy in FEET:
+        mx, my = min(B.MOUNTS, key=lambda m: math.hypot(m[0] - fx, m[1] - fy))
+        if math.hypot(mx - fx, my - fy) < BOSS_R_LOW + FOOT_PAD / 2 + 2.0:
+            sy, r = (-1 if my < B.H / 2 else 1), min(BOSS_R_LOW, FOOT_PAD / 2)
+            wall = B.H / 2 + sy * (B.H / 2 + o + 1)
+            out.append((min(mx, fx), min(fy - sy * r, wall), max(mx, fx), max(fy - sy * r, wall)))
+    return out
+
+
 def hollow():
     """the wedge under the floor, inside the walls and behind the solid front band, less ribs, bosses, pads."""
     cx, cy = B.W / 2, B.H / 2
@@ -151,6 +172,7 @@ def hollow():
     keep += [box(-o - 1, y - RIB_T / 2, -41, B.W + o + 1, y + RIB_T / 2, 0) for y in RIBS_Y]
     keep += [corner(mx, my, BOSS_R_LOW, -41, 0) for (mx, my) in B.MOUNTS]
     keep += [cyl(FOOT_PAD / 2, -41, 0, fx, fy) for (fx, fy) in FEET]
+    keep += [box(x0, y0, -41, x1, y1, 0) for x0, y0, x1, y1 in foot_bridges()]
     keep += [box(B.USB_X - USB_KEEP[0] / 2, -o - 1, -41, B.USB_X + USB_KEEP[0] / 2, USB_KEEP[1], 0)]
     return cut(h, *keep)
 
@@ -178,8 +200,8 @@ def body():
         shell = fuse(shell, common(corner(mx, my, BOSS_R_LOW, Z_FLOOR_TOP - 0.1, S.SEAT_Z), inside))
         shell = fuse(shell, common(corner(mx, my, BOSS_R, S.SEAT_Z - 0.1, -S.PCB_T - 0.2), inside))
         shell = fuse(shell, cyl(BOSS_R, S.SEAT_Z - 0.1, -S.PCB_T, mx, my))
-    for (px, py) in SUPPORTS:          # just touch the PCB underside: the middle keys must not flex the board
-        shell = fuse(shell, cyl(SUPPORT_R, Z_FLOOR_TOP - 0.5, -S.PCB_T, px, py))
+    for (px, py) in SUPPORTS:          # just under the PCB: a key press in the middle bends it onto them
+        shell = fuse(shell, cyl(SUPPORT_R, Z_FLOOR_TOP - 0.5, SUPPORT_TOP, px, py))
     holes = [wedge_cutter(), hollow(), steel_recess(), usb_cutter(), cyl(BOOT_HOLE / 2, -41, 0, *B.BOOT)]
     for (mx, my) in B.MOUNTS:
         holes += [cyl(SCREW_CLEAR, -41, 0, mx, my), cyl(HEAD_R, -41, S.SEAT_Z, mx, my)]
@@ -191,9 +213,11 @@ def to_output(shape):
     return BRepBuilderAPI_Transform(shape, m, True).Shape()
 
 
-def spacer():
-    sp = S.SPACER
-    return cut(cyl(sp["od"] / 2, 0, sp["length"]), cyl(sp["id"] / 2, -1, sp["length"] + 1))
+def steel_outline():
+    """outline of the optional steel plate, mm, origin at its front-left corner, y towards the back."""
+    st = STEEL
+    w, d, n = st["w"], st["d"], st["notch"]
+    return [(0, 0), (w, 0), (w, d - n), (w - n, d - n), (w - n, d), (n, d), (n, d - n), (0, d - n)]
 
 
 if __name__ == "__main__":
@@ -203,4 +227,4 @@ if __name__ == "__main__":
           f"{STEEL['w']:.0f} x {STEEL['d']:.0f} x {STEEL['t']:.0f} mm less two {STEEL['notch']:.0f} mm corner "
           f"notches, {steel_mass():.0f} g")
     export(to_output(b), "avionics-panel-rev1-body", deflection=0.02)
-    export(spacer(), "avionics-panel-rev1-spacer")
+    write_dxf("avionics-panel-rev1-steel.dxf", {"CUT": [steel_outline()]})   # for a laser-cutting service

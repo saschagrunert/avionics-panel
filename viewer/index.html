@@ -7,6 +7,7 @@
   /* the cap font is served with the page (fonts/, SIL OFL), nothing loads from a font CDN */
   @font-face { font-family: "Barlow Semi Condensed"; font-weight: 500; src: url(fonts/BarlowSemiCondensed-Medium.ttf) format("truetype"); }
   @font-face { font-family: "Barlow Semi Condensed"; font-weight: 600; src: url(fonts/BarlowSemiCondensed-SemiBold.ttf) format("truetype"); }
+  @font-face { font-family: "Barlow Semi Condensed"; font-weight: 700; src: url(fonts/BarlowSemiCondensed-Bold.ttf) format("truetype"); }
   /* layout: full-bleed 3D canvas; name and dimensions top-left, view switcher bottom-centre */
   :root {
     --bg: #e3e5e9; --ground: #d3d6db; --fg: #1c1e22; --muted: #5c6169;
@@ -78,11 +79,12 @@ if (!window.GEOMETRY || !window.THREE || !THREE.OrbitControls) {   // a missing 
 const G = window.GEOMETRY;
 // the flip-flop icon of COM ⇆ / ADF ⇆ (stack.py): polygons in em from the icon's left edge and the text middle
 const FLIP = G.flip_icon;
-function flipIcon(g, ix, y, em) {
-  for (const poly of FLIP.polys) {
+function flipIcon(g, ix, y, em, polys = FLIP.polys, grow = 0) {   // grow: outline width (px) all round
+  for (const poly of polys) {
     g.beginPath();
     poly.forEach(([x, py], i) => (i ? g.lineTo : g.moveTo).call(g, ix + x * em, y + py * em));
     g.closePath(); g.fill();
+    if (grow > 0) { g.lineWidth = 2 * grow; g.lineJoin = 'round'; g.stroke(); }
   }
 }
 const W = G.board.w, H = G.board.h, R = G.board.corner_r, CLEAR = G.body.clear, O = G.body.overhang;
@@ -97,7 +99,7 @@ const KEYS = G.key_legends;
 const KNOB_IN = G.inner_knob.d / 2;
 const at = (name, extra) => {   // position, size and legends from mech/stack.py via geometry.js
   const k = G.knobs[name];
-  return { x: k.x, y: k.y, r: (k.d || 0) / 2, legendTilt: k.legend_tilt,
+  return { x: k.x, y: k.y, r: k.flutes ? G.outer_knob.d / 2 : 0, flutes: G.flutes[k.flutes], legendTilt: k.legend_tilt,
            main: k.legend, shift: k.legend_shift, ...extra };
 };
 const KNOBS = {
@@ -109,10 +111,10 @@ const KNOBS = {
 // lights: SHIFT (amber) is on while SHIFT applies (pulsing in its last second), UNIT 2 (white) while unit 2 is selected
 const light = name => ({ x: G.lights[name].x, y: G.lights[name].y, r: G.lights[name].d / 2 });
 const LIGHTS = [
-  { ...light('SHIFT'), color: 0x20180a, emissive: 0xd9a441, on: 1.0 },    // shown armed, same amber as the legends
+  { ...light('SHIFT'), color: 0x20180a, emissive: G.amber, on: 1.0 },     // shown armed, same amber as the legends
   { ...light('UNIT'), color: 0x8c8f94, emissive: 0xffffff, on: 0.0 } ];   // shown off
 const FRAME_M = 3.0;
-// one engraved frame around all keys, split by single lines (no double rule between groups).
+// one laser-marked frame around all keys, split by single lines (no double rule between groups).
 // Rows stay aligned across the panel on purpose; the extra 3.5 mm between rows 2 and 3 holds the FMS line.
 const FRAME = { x0: COLS[0] - CAP[0] / 2 - FRAME_M, x1: COLS[6] + CAP[0] / 2 + FRAME_M,
                 y0: ROWS[0] - CAP[1] / 2 - 4.2, y1: ROWS[3] + CAP[1] / 2 + 4.6,
@@ -122,7 +124,7 @@ const MOUNTS = G.board.mounts, SUPPORTS = G.body.supports;
 const SCREW_HEAD_Z = G.screw.head_z, SCREW_L = G.screw.length, LED_TOP = G.led_top, PIPE_Z0 = G.pipe.z0;
 const USB_X = G.parts.usb_x, MCU = G.parts.mcu, FLASH = G.parts.flash, XTAL = G.parts.xtal, LDO = G.parts.ldo;   // bottom side
 const CAP_FONT = '"Barlow Semi Condensed", "Arial Narrow", "Roboto Condensed", sans-serif';
-const AMBER = '#d9a441', WHITE_ENGR = 'rgba(228,230,234,0.92)', PLATE_BASE = '#2d2f33';
+const AMBER = G.amber, WHITE_ENGR = 'rgba(228,230,234,0.92)', PLATE_BASE = '#2d2f33';
 
 const backH = PLATE_Z1 - Z_BOT + SLOPE * HO;
 document.getElementById('dims').textContent =
@@ -147,7 +149,7 @@ async function main() {
   }
   // the legends are drawn into textures, so wait (briefly) for the condensed face
   try {
-    await Promise.race([Promise.all(['500', '600'].map(w => document.fonts.load(`${w} 40px "Barlow Semi Condensed"`))),
+    await Promise.race([Promise.all(['500', '600', '700'].map(w => document.fonts.load(`${w} 40px "Barlow Semi Condensed"`))),
                         new Promise(r => setTimeout(r, 2500))]);
   } catch (e) { /* fall back to the stack */ }
 
@@ -244,6 +246,7 @@ async function main() {
   const bodyMat   = M({ color: 0x27282b, roughness: 0.93 });
   const plateSide = M({ color: 0x4a4d53, roughness: 0.42, metalness: 0.65 });
   const capMat    = M({ color: 0x1b1c1f, roughness: 0.5 });
+  const barMat    = M({ color: 0x1b1c1f, roughness: 0.5, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
   const dark      = M({ color: 0x15161a, roughness: 0.6 });
   const metal     = M({ color: 0xb9bcc2, roughness: 0.35, metalness: 0.9 });
   const pcbSide   = M({ color: 0x1e3a2c, roughness: 0.7 });
@@ -254,7 +257,7 @@ async function main() {
     const BD = G.body, CW = W + 2 * CLEAR, CH = H + 2 * CLEAR;
     const ring = rrectShape(WO, HO, RO);
     ring.holes.push(rrectPath(CW, CH, R + CLEAR));
-    const walls = slab(ring, Z_BOT, PLATE_Z0 - BD.wall_gap, bodyMat);   // walls stop short: the spacers set the plate height
+    const walls = slab(ring, Z_BOT, PLATE_Z0 - BD.wall_gap, bodyMat);   // walls stop short: the standoffs set the plate height
     shearBottom(walls, Z_BOT); bodyG.add(walls);
     bodyG.add(slab(rrectShape(CW, CH, R + CLEAR), BD.z_floor_bot, Z_FLOOR, bodyMat));   // floor under the PCB room
     // everything under the floor reaches down to the 6 degree desk plane; shapes in absolute coordinates for the shear
@@ -281,10 +284,15 @@ async function main() {
       shearBottom(low, Z_BOT); bodyG.add(low);
       bodyG.add(slab(corner(mx, my, BD.boss_r, BD.boss_hole_r), BD.seat_z, -PCB_T, bodyMat));
     }
-    const post = (x, y, r) => {                                    // from the floor up to the PCB underside
+    const post = (x, y, r) => {                                    // from the floor up to just under the PCB
       const sh = new THREE.Shape(); sh.absarc(0, 0, r, 0, Math.PI * 2, false);
-      const m = slab(sh, Z_FLOOR, -PCB_T, bodyMat); m.position.set(px(x), 0, pz(y)); bodyG.add(m);
+      const m = slab(sh, Z_FLOOR, BD.support_top, bodyMat); m.position.set(px(x), 0, pz(y)); bodyG.add(m);
     };
+    // foot pads joined to the bosses, inside the walls as in make_mech.py (the blocks are cut at the cavity)
+    const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+    for (const [x0, y0, x1, y1] of BD.foot_bridges) {
+      under(rect(clamp(x0, -CLEAR, W + CLEAR), clamp(y0, -CLEAR, H + CLEAR), clamp(x1, -CLEAR, W + CLEAR), clamp(y1, -CLEAR, H + CLEAR)));
+    }
     for (const [sx, sy] of SUPPORTS) post(sx, sy, G.body.support_r);                  // two posts under the middle of the PCB
     box(bodyG, 9.4, 3.6, 2.6, USB_X, -O + 1.0, -PCB_T - 3.4, dark);
     box(bodyG, 8.6, 2.8, 1.0, USB_X, -O + 0.6, -PCB_T - 3.0, metal);
@@ -296,7 +304,7 @@ async function main() {
     const c = document.createElement('canvas'); const ppm = 10;
     c.width = Math.round(W * ppm); c.height = Math.round(H * ppm);
     const g = c.getContext('2d');
-    g.fillStyle = '#0e1012'; g.fillRect(0, 0, c.width, c.height);
+    g.fillStyle = '#1d5534'; g.fillRect(0, 0, c.width, c.height);   // green solder mask, as ordered
     g.strokeStyle = 'rgba(70,74,80,0.55)'; g.lineWidth = 0.25 * ppm;
     const KDX = G.board.key_pad_dx, KDY = G.board.key_pad_dy;
     for (const k of keyList) { g.beginPath(); g.moveTo((k.x - KDX) * ppm, (k.y - KDY) * ppm); g.lineTo((k.x + KDX) * ppm, (k.y - KDY) * ppm); g.stroke(); }
@@ -327,11 +335,20 @@ async function main() {
       const a = i / 12 * Math.PI * 2, rr = 5.6 + (i % 2) * 1.0;
       box(pcbG, 1.6, 0.8, 0.8, MCU[0] + Math.cos(a) * rr, MCU[1] + Math.sin(a) * rr, under(0.8), i % 4 ? dark : metal);
     }
+    // key plunger (TE's STEP): a cone from the switch body up to just under the top, then the rounded top edge
+    const P = G.keys.plunger, PL_TOP = G.keys.plunger_top, PL_BODY = G.keys.switch_top;
+    const plProfile = [new THREE.Vector2(0, PL_BODY), new THREE.Vector2(P.d1 / 2, PL_BODY),
+                       new THREE.Vector2(P.d0 / 2, PL_TOP - P.dz0)];
+    for (let i = 1; i <= 4; i++) {                                     // edge radius, quarter round
+      const a = i / 4 * Math.PI / 2;
+      plProfile.push(new THREE.Vector2(P.top_r + P.edge_r * Math.cos(a), PL_TOP - P.edge_r + P.edge_r * Math.sin(a)));
+    }
+    plProfile.push(new THREE.Vector2(0, PL_TOP));
+    const plungerGeo = new THREE.LatheGeometry(plProfile, 16);
     for (const k of keyList) {
       box(pcbG, 2.6, 0.9, 1.2, k.x, k.y + 4.6, under(0.9), dark);
-      box(pcbG, 6, 3.5, 6, k.x, k.y, 0, dark);
-      const top = G.keys.plunger_top;                                  // plunger from the 3.5 mm switch body up
-      const st = new THREE.Mesh(new THREE.CylinderGeometry(1.75, 1.75, top - 3.5, 16), dark); st.position.set(px(k.x), (top + 3.5) / 2, pz(k.y)); pcbG.add(st);
+      box(pcbG, 6, PL_BODY, 6, k.x, k.y, 0, dark);
+      const st = new THREE.Mesh(plungerGeo, dark); st.position.set(px(k.x), 0, pz(k.y)); pcbG.add(st);
     }
     for (const k of Object.values(KNOBS)) {
       const dual = k.kind === 'dual';
@@ -351,12 +368,13 @@ async function main() {
     }
   }
 
-  // ---------------- screws (below the body) and spacers (between PCB and plate) ----------------
+  // ---------------- screws (below the body) and standoffs (glued into the plate, down to the PCB) ----------------
   const screwG = new THREE.Group(); assembly.add(screwG);
-  const spacerG = new THREE.Group(); assembly.add(spacerG);
+  const standoffG = new THREE.Group(); assembly.add(standoffG);
   {
     const steel = M({ color: 0x2a2b2e, roughness: 0.45, metalness: 0.8 });     // black oxide
-    const SC = G.screw, washerH = G.body.seat_z - SCREW_HEAD_Z;                 // shims from the seat down to the head
+    const brass = M({ color: 0xc9a650, roughness: 0.35, metalness: 0.9 });
+    const SC = G.screw, washerH = G.body.seat_z - SCREW_HEAD_Z;                 // the washer between seat and head
     for (const [mx, my] of MOUNTS) {
       const washers = new THREE.Mesh(new THREE.CylinderGeometry(SC.washer_od / 2, SC.washer_od / 2, washerH, 24), metal);
       washers.position.set(px(mx), SCREW_HEAD_Z + washerH / 2, pz(my)); screwG.add(washers);
@@ -366,12 +384,14 @@ async function main() {
       slot.position.set(px(mx), SCREW_HEAD_Z - SC.head_k - 0.02, pz(my)); screwG.add(slot);
       const shank = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.2, SCREW_L, 16), steel);
       shank.position.set(px(mx), SCREW_HEAD_Z + SCREW_L / 2, pz(my)); screwG.add(shank);
-      const sh = new THREE.Shape(); sh.absarc(0, 0, G.spacer.od / 2, 0, Math.PI * 2, false); sh.holes.push(circlePath(0, 0, G.spacer.id / 2));
-      const sp = slab(sh, 0, G.spacer.length, bodyMat); sp.position.set(px(mx), 0, pz(my)); spacerG.add(sp);
+      const SO = G.standoff, hex = new THREE.Shape();                            // M2.5 female-female hex standoff
+      for (let i = 0; i < 6; i++) { const a = Math.PI / 6 + i * Math.PI / 3; (i ? hex.lineTo : hex.moveTo).call(hex, SO.ac / 2 * Math.cos(a), SO.ac / 2 * Math.sin(a)); }
+      hex.holes.push(circlePath(0, 0, SO.hole_d / 2));
+      const so = slab(hex, 0, SO.length, brass); so.position.set(px(mx), 0, pz(my)); standoffG.add(so);
     }
   }
 
-  // ---------------- front plate (anodised aluminium, engraved legends) ----------------
+  // ---------------- front plate (anodised aluminium, laser-marked and UV-printed legends) ----------------
   const plateG = new THREE.Group(); assembly.add(plateG);
   const pipeG = new THREE.Group(); assembly.add(pipeG);
   {
@@ -479,36 +499,39 @@ async function main() {
   }
 
   // ---------------- caps: one legend size for every cap, condensed face, Garmin glyphs ----------------
+  // as printed (mech/make_caps.py): Bold, every glyph, arrow and icon grown all round by LEG.grow mm
   const capsG = new THREE.Group(); assembly.add(capsG);
-  const CB = G.keys.cap_chamfer, CAP_TOP = [CAP[0] - 2 * CB, CAP[1] - 2 * CB];
+  const CB = G.keys.cap_chamfer, CAP_TOP = [CAP[0] - 2 * CB, CAP[1] - 2 * CB], LEG = G.keys.legend;
   const meas = document.createElement('canvas').getContext('2d');
   function labelWidthEm(label) {
-    meas.font = `600 100px ${CAP_FONT}`;
+    meas.font = `${LEG.weight} 100px ${CAP_FONT}`;
     if (label === 'D→') return meas.measureText('D').width / 100 + 0.55;
     if (label.endsWith('⇆')) return meas.measureText(label.slice(0, -1).trimEnd()).width / 100 + FLIP.gap + FLIP.w;
     return meas.measureText(label).width / 100;
   }
-  const EM_MM = Math.min(3.1, ...keyList.map(k => CAP_TOP[0] * 0.84 / labelWidthEm(k.label)));
+  const EM_MM = Math.min(3.1, ...keyList.map(k => (CAP_TOP[0] * 0.84 - 2 * LEG.grow) / labelWidthEm(k.label)));
   function capTexture(label, color, bg) {
     const c = document.createElement('canvas'), k = 56;
     c.width = Math.round(CAP_TOP[0] * k); c.height = Math.round(CAP_TOP[1] * k);
     const g = c.getContext('2d');
     g.fillStyle = bg; g.fillRect(0, 0, c.width, c.height);
-    const em = EM_MM * k, cx = c.width / 2, cy = c.height / 2 + 0.04 * em;
-    g.font = `600 ${em}px ${CAP_FONT}`; g.fillStyle = color; g.strokeStyle = color; g.textBaseline = 'middle';
+    const em = EM_MM * k, cx = c.width / 2, cy = c.height / 2, grow = LEG.grow * k;
+    g.font = `${LEG.weight} ${em}px ${CAP_FONT}`; g.fillStyle = color; g.strokeStyle = color; g.textBaseline = 'alphabetic';
+    g.lineJoin = 'round'; g.lineWidth = 2 * grow;
+    const capH = g.measureText('H').actualBoundingBoxAscent;   // capitals centred on the cap, as make_caps.py
+    const text = (t, x, y) => { g.fillText(t, x, y + capH / 2); g.lineWidth = 2 * grow; g.strokeText(t, x, y + capH / 2); };
     if (label === 'D→') {                                // Garmin direct-to: a D with an arrow through it
       const dw = g.measureText('D').width, x0 = cx - (dw + 0.55 * em) / 2;
-      g.textAlign = 'left'; g.fillText('D', x0, cy);
-      const y = cy - 0.02 * em, xe = x0 + dw + 0.55 * em;
-      g.lineWidth = 0.085 * em; g.lineCap = 'butt';
-      g.beginPath(); g.moveTo(x0 - 0.12 * em, y); g.lineTo(xe - 0.2 * em, y); g.stroke();
-      g.beginPath(); g.moveTo(xe, y); g.lineTo(xe - 0.26 * em, y - 0.17 * em); g.lineTo(xe - 0.26 * em, y + 0.17 * em); g.closePath(); g.fill();
+      g.textAlign = 'left'; text('D', x0, cy);
+      const y = cy - 0.02 * em, xe = x0 + dw + 0.55 * em, hw = LEG.line / 2;
+      flipIcon(g, 0, 0, 1, [[[x0 - 0.12 * em, y - hw * em], [xe - 0.2 * em, y - hw * em], [xe - 0.2 * em, y + hw * em], [x0 - 0.12 * em, y + hw * em]],
+                            [[xe, y], [xe - 0.26 * em, y - 0.17 * em], [xe - 0.26 * em, y + 0.17 * em]]], grow);
     } else if (label.endsWith('⇆')) {                    // flip-flop: text + two opposed arrows
       const t = label.slice(0, -1).trimEnd(), tw = g.measureText(t).width, x0 = cx - (tw + (FLIP.gap + FLIP.w) * em) / 2;
-      g.textAlign = 'left'; g.fillText(t, x0, cy);
-      flipIcon(g, x0 + tw + FLIP.gap * em, cy, em);
+      g.textAlign = 'left'; text(t, x0, cy);
+      flipIcon(g, x0 + tw + FLIP.gap * em, cy, em, LEG.flip_polys, grow);
     } else {
-      g.textAlign = 'center'; g.fillText(label, cx, cy);
+      g.textAlign = 'center'; text(label, cx, cy);
     }
     const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.anisotropy = 8; return t;
   }
@@ -520,13 +543,16 @@ async function main() {
     const color = key.label === 'SHIFT' ? AMBER : '#f3f3f3';
     const bg = '#1b1c1f';
     const top = new THREE.Mesh(new THREE.PlaneGeometry(CAP_TOP[0], CAP_TOP[1]),
-      new THREE.MeshStandardMaterial({ map: capTexture(key.label, color, bg), roughness: 0.5 }));
+      // pulled towards the camera: 0.02 mm over the cap top is below the depth precision of the far plan view
+      new THREE.MeshStandardMaterial({ map: capTexture(key.label, color, bg), roughness: 0.5,
+        polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
     top.rotation.x = -Math.PI / 2; top.position.set(px(key.x), base + height + 0.02, pz(key.y)); capsG.add(top);
     // tactile bars, found without looking: SHIFT and DN at the front edge, UP at the back edge
     const barEdge = { SHIFT: 1, DN: 1, UP: -1 }[key.label];
     if (barEdge) {
       const B = G.keys.bar;                                  // as printed (mech/make_caps.py)
-      const bar = new THREE.Mesh(new THREE.BoxGeometry(B.w, B.proud, B.d), capMat);
+      // pulled further towards the camera than the legend plane, so the plan view still shows the bars
+      const bar = new THREE.Mesh(new THREE.BoxGeometry(B.w, B.proud, B.d), barMat);
       bar.position.set(px(key.x), base + height + B.proud / 2, pz(key.y) + barEdge * (CAP_TOP[1] / 2 - B.inset)); bar.castShadow = true; capsG.add(bar);
     }
   }
@@ -537,7 +563,8 @@ async function main() {
   // No index line: the encoders turn endlessly, a pointer would suggest an absolute position.
   const knobPlastic = M({ color: 0x151617, roughness: 0.6, metalness: 0.0 });
   const outerG = new THREE.Group(), innerG = new THREE.Group(); assembly.add(outerG, innerG);
-  function knob(x, y, r, z0, h, flutes, depth, taper, grp) {
+  function knob(x, y, r, z0, h, F, grp) {   // F: flutes from mech/stack.py (count, depth, taper)
+    const flutes = F.n, depth = F.depth, taper = F.taper;
     const s = new THREE.Shape(), N = flutes * 10;
     for (let i = 0; i <= N; i++) {
       const a = i / N * Math.PI * 2;
@@ -560,19 +587,19 @@ async function main() {
   for (const k of Object.values(KNOBS)) {
     const R = k.r, OK = G.outer_knob, IK = G.inner_knob, RK = G.range_knob;
     if (k.kind === 'dual') {
-      knob(k.x, k.y, R, PLATE_Z1 + OK.z0, OK.z1 - OK.z0, Math.round(R * 3.3), 0.45, 0.05, outerG);   // outer ring (mech/make_knobs.py)
-      knob(k.x, k.y, KNOB_IN, PLATE_Z1 + IK.z0, IK.z1 - IK.z0, 24, 0.32, 0.06, innerG);            // inner knob, on the shaft tip
+      knob(k.x, k.y, R, PLATE_Z1 + OK.z0, OK.z1 - OK.z0, k.flutes, outerG);                     // outer ring (FMS: coarser grip)
+      knob(k.x, k.y, KNOB_IN, PLATE_Z1 + IK.z0, IK.z1 - IK.z0, G.flutes.inner, innerG);         // inner knob, on the shaft tip
     } else {                                                  // RANGE: turns, tilts to pan, pushes; skirt hides the tilt opening
-      const sk = new THREE.Mesh(new THREE.CylinderGeometry(RK.d / 2, RK.skirt_d / 2, 1.0, 64), knobPlastic);
-      sk.position.set(px(k.x), PLATE_Z1 + RK.z0 + 0.5, pz(k.y)); sk.castShadow = true; outerG.add(sk);
-      knob(k.x, k.y, RK.d / 2, PLATE_Z1 + RK.z0 + 0.8, RK.z1 - RK.z0 - 0.8, 22, 0.32, 0.05, outerG);
+      const sk = new THREE.Mesh(new THREE.CylinderGeometry(RK.d / 2, RK.skirt_d / 2, RK.rim, 64), knobPlastic);
+      sk.position.set(px(k.x), PLATE_Z1 + RK.z0 + RK.rim / 2, pz(k.y)); sk.castShadow = true; outerG.add(sk);
+      knob(k.x, k.y, RK.d / 2, PLATE_Z1 + RK.z0 + RK.rim - 0.2, RK.z1 - RK.z0 - RK.rim + 0.2, G.flutes.range, outerG);
     }
   }
 
   // ---------------- place on the ground and set up views ----------------
-  // explode offsets (mm): PCB lifts its bottom parts out of the body, spacers clear the key switches,
-  // the plate with its glued light pipes clears the spacers, caps and knobs clear the plate and the shaft tips
-  const EXPLODE = [[screwG, -30], [pcbG, 18], [spacerG, 30], [pipeG, 46], [plateG, 46], [capsG, 62], [outerG, 64], [innerG, 78]];
+  // explode offsets (mm): PCB lifts its bottom parts out of the body, the plate with its glued standoffs and
+  // light pipes clears the key switches, caps and knobs clear the plate and the shaft tips
+  const EXPLODE = [[screwG, -30], [pcbG, 18], [standoffG, 46], [pipeG, 46], [plateG, 46], [capsG, 62], [outerG, 64], [innerG, 78]];
   assembly.updateMatrixWorld(true);
   const bb = new THREE.Box3().setFromObject(assembly);
   assembly.position.y = -bb.min.y + 0.01;

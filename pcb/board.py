@@ -19,6 +19,12 @@ Footprint sources:
 
 Bottom-side parts: seen from the top, a part on the bottom is mirrored, so its pins number clockwise.
 check.py asserts that for every bottom part with three or more numbered pins.
+CPL rotations follow JLCPCB's convention for the bottom side (the one KiBot's JLCPCB rotation filter and
+the kicad-jlcpcb-tools plugin write: 180 minus KiCad's bottom-side angle): seen from the bottom, a part is
+JLC's library footprint (its top view) turned counter-clockwise by the CPL rotation, just like a top-side
+part seen from the top. Seen from the top, as this file works, that is the footprint mirrored left to right,
+then turned clockwise. check.py fits every bottom-side part's JLC footprint (stored in footprints/) onto
+our pads that way: each JLC pad must land on our pad with the same number.
 Circuit follows Raspberry Pi's "Hardware design with RP2040" minimal design.
 """
 import importlib.util
@@ -48,8 +54,11 @@ POUR_CLEAR = 0.30
 EDGE_CLEAR = 0.50
 VIA_D, VIA_DRILL = 0.60, 0.30
 SVIA_D, SVIA_DRILL = 0.50, 0.30     # small vias (USB-C, fan-out ends): JLC standard 0.3 mm drill, 0.45 mm pad min.
-MOUNT_HOLE = 4.2      # screws never touch it, whatever the tolerances and the board offset the key caps allow
+MOUNT_HOLE = 3.0      # close round the M2.5 screw: it lines up the glued standoff while the epoxy cures (mech/stack.py)
 MOUNTS = [(3.5, 3.5), (W - 3.5, 3.5), (3.5, H - 3.5), (W - 3.5, H - 3.5)]
+# no copper on F and B within this radius of a mounting-hole centre: the standoff end and the body boss press
+# on the board there (check.py measures it on the Gerbers, mech/check_fit.py fits the standoff inside it)
+MOUNT_KEEPOUT = 3.6
 PLANES = {"In1": "GND", "In2": "3V3"}
 
 KEY_DX, KEY_DY, KEY_PAD, KEY_DRILL = 3.25, 2.25, 1.8, 1.0
@@ -67,8 +76,11 @@ FREQ, FMS = (XR, 15.0), (XR, 45.0)          # right: frequency dual over FMS dua
 MCU = (122.6 + SHIFT_X, 25.0)   # RP2040 on the bottom, mirrored (pins 1-14 face the keys, bottom to top)
 USB_X = 118.0 + SHIFT_X
 BOOT = (MCU[0] + 0.5, 54.0)     # bridge pads on the bottom, under a hole in the case floor
-LEDS = {"SHIFT": ((COLS[3], ROWS[3] + 3.2 + 1.75), "GP12", "amber"),    # light pipes in the front plate
-        "UNIT": ((COLS[3] + 4.3, ROWS[2] + 3.2 + 1.6), "GP15", "white")}
+# Light pipes in the front plate over the LEDs. In the 4 mm aluminium plate each light hole keeps a web of at
+# least 0.8 mm (JLCCNC's minimum metal wall) to the next key hole: SHIFT 0.85 mm to the key above, UNIT
+# 0.86 mm to the key up and to the left. SHIFT's 3.8 mm LED flange clears the switch body above by 0.35 mm.
+LEDS = {"SHIFT": ((COLS[3], ROWS[3] + 3.2 + 2.05), "GP12", "amber"),
+        "UNIT": ((COLS[3] + 4.3, ROWS[2] + 3.2 + 1.9), "GP15", "white")}
 
 # GPIO plan (RP2040 GPIO number -> function)
 # matrix lines leave the RP2040 (pins 14..2, top to bottom on the mirrored chip) in the order the
@@ -76,7 +88,7 @@ LEDS = {"SHIFT": ((COLS[3], ROWS[3] + 3.2 + 1.75), "GP12", "amber"),    # light 
 ROW_GP = ["GP11", "GP8", "GP5", "GP2", "GP0"]           # rows 0-3 keys, row 4: RANGE switches + ALT/HDG push
 COL_GP = ["GP1", "GP3", "GP4", "GP6", "GP7", "GP9", "GP10"]
 R4_COL = {"ALTHDG": 5, "FMS": 6}       # row 4: RANGE A, B, C, D, com on columns 0-4, ALT/HDG push 5, FMS push 6
-PUSH_GP = {"FREQ": "GP13"}               # FREQ push: direct input (pull-up, switch to GND). GP14 is the spare pin
+PUSH_GP = {"FREQ": "GP13"}               # FREQ push: direct input (pull-up, switch to GND). GP14 is spare
 
 # RP2040 QFN-56 pin -> net
 RP = {1: "3V3", 10: "3V3", 22: "3V3", 33: "3V3", 42: "3V3", 49: "3V3", 48: "3V3", 43: "3V3", 44: "3V3",
@@ -89,7 +101,7 @@ for i, pin in enumerate(range(2, 10)):
 for i, pin in enumerate(range(11, 15)):
     RP[pin] = f"GP{8 + i}"                  # GPIO8-11 on pins 11-14
 for i, pin in enumerate(range(15, 19)):
-    RP[pin] = f"GP{12 + i}"                 # GPIO12-15: SHIFT light, FREQ push, spare (debug pad), UNIT light
+    RP[pin] = f"GP{12 + i}"                 # GPIO12-15: SHIFT light, FREQ push, spare (fan-out only, NC), UNIT light
 for i, pin in enumerate(range(34, 38)):
     RP[pin] = f"GP{22 + i}"                 # GPIO22-25 (FREQ)
 RP[40], RP[41] = "GP28", "GP29"             # RANGE encoder
@@ -100,10 +112,13 @@ RP[38], RP[39] = "GP26", "GP27"             # FMS outer ring
 
 
 class Pad:
-    def __init__(self, name, net, x, y, shape, w, h, layers, drill=None, slot=None, paste=True, mask=True):
+    def __init__(self, name, net, x, y, shape, w, h, layers, drill=None, slot=None, paste=True, mask=True, pip=False):
         self.name, self.net, self.x, self.y = name, net, x, y
         self.shape, self.w, self.h = shape, w, h            # circle | obround | rect
         self.layers, self.drill, self.slot, self.paste = layers, drill, slot, paste
+        # pin-in-paste: a plated hole of an assembled SMD part (the USB-C shell tabs) that gets bottom paste and
+        # is reflowed with the part
+        self.pip = pip
         # layers with a mask opening: True = all of the pad's layers, False = a routing point under the mask
         self.mask = layers if mask is True else (mask or "")
 
@@ -122,7 +137,7 @@ class Pad:
 
 DIODES, NPTH, PARTS = [], [], []
 FOOTPRINT = {}              # ref -> footprint name for the BOM (bottom-side parts)
-PREROUTED = {"QSPI_SD0", "QSPI_SD1", "QSPI_SD2", "QSPI_SD3", "QSPI_SCLK", "1V1"}
+PREROUTED = {"QSPI_SD0", "QSPI_SD1", "QSPI_SD2", "QSPI_SD3", "QSPI_SCLK", "1V1", "XIN", "XOUT", "XO_R"}
 FIXED_SEGS, FIXED_VIAS = [], []
 BUS_PADS = set()            # pads already joined by a pre-routed matrix bus
 JOINED = set()              # other pads joined to a routing point by pre-routed copper (not router terminals)
@@ -147,7 +162,8 @@ def smd(name, net, x, y, w, h, shape="rect", paste=True, layer="B", mask=True):
 
 
 def part(ref, value, lcsc, x, y, rot=0, side="bottom", foot=None):
-    """A part for the BOM / CPL. Bottom-side parts are assembled by JLCPCB and need their footprint name."""
+    """A part for the BOM / CPL. Bottom-side parts are assembled by JLCPCB and need their footprint name; rot is
+    the CPL rotation in JLCPCB's bottom-side convention (module docstring)."""
     assert foot or side == "top", f"{ref}: bottom-side part without a footprint"
     PARTS.append((ref, value, lcsc, x, y, rot, side))
     FOOTPRINT[ref] = foot
@@ -157,13 +173,14 @@ CHIP = {"0603": (0.8, 0.8, 0.95), "0402": (0.5, 0.6, 0.55)}   # pad centre offse
 
 
 def chip(pads, ref, x, y, net1, net2, value, lcsc, vertical=False, size="0603"):
-    """Two-pad chip resistor / capacitor; pad 1 left (or top), pad 2 right (or bottom)."""
+    """Two-pad chip resistor / capacitor; pad 1 left (or top), pad 2 right (or bottom). JLC's footprint has pad 1
+    on the left; on the bottom that is rotation 180 (pad 1 left) or 270 (pad 1 on top)."""
     off, length, width = CHIP[size]
     dx, dy = (0, off) if vertical else (off, 0)
     w, h = (width, length) if vertical else (length, width)
     pads.append(smd(f"{ref}.1", net1, x - dx, y - dy, w, h))
     pads.append(smd(f"{ref}.2", net2, x + dx, y + dy, w, h))
-    part(ref, value, lcsc, x, y, 90 if vertical else 0, foot=size)
+    part(ref, value, lcsc, x, y, 270 if vertical else 180, foot=size)
     return (x - dx, y - dy), (x + dx, y + dy)
 
 
@@ -189,21 +206,23 @@ def add_encoder(pads, ref, cx, cy, dual, a, b, a2=None, b2=None, push_k=None, va
     if dual:
         for dx, nm, net in ((-2.5, "A2", a2), (0, "C2", "GND"), (2.5, "B2", b2)):
             pads.append(th(f"{ref}.{nm}", net, cx + dx, cy - 9.5))
-    for s in (-1, 1):
-        pads.append(Pad(f"{ref}.MP{s}", None, cx + s * 5.5, cy, "obround", 2.5, 3.6, "FB",
+    for s in (-1, 1):       # metal mounting lugs on GND through the plane: an ESD path from the shaft
+        pads.append(Pad(f"{ref}.MP{s}", "GND", cx + s * 5.5, cy, "obround", 2.5, 3.6, "FB",
                         drill=SLOT[0], slot=SLOT))
     part(ref, val, lcsc, cx, cy, side="top")
 
 
 # Alps RKJXT1F42001 (LCSC C160841): turn (15 pulses / 30 detents), 4-way tilt, centre push. Hole pattern read
-# from the Alps mounting-hole drawing, 11 x 1.0 mm, verified against JLC's footprint (below).
+# from the Alps mounting-hole drawing (seen from the insertion side), 11 x 1.0 mm, verified against JLC's
+# footprint (below). The locating hole for the 1 mm peg is 1.3 mm, as in JLC's footprint.
 # Switches: "Push" is common to all; A, B, C, D close with their direction, "com" closes on every operation
 # (centre push = com without A-D, decoded in firmware).
 RKJXT_HOLES = {"ECOM": (-1.5, -7.8), "C": (1.5, -7.8), "COM": (-1.0, -5.78), "D": (-7.8, -1.5),
                "ENCA": (-7.8, 1.5), "LUG": (-3.8, 1.5), "ENCB": (7.8, -1.5), "B": (7.8, 1.5),
-               "GND": (6.68, 3.75), "A": (-1.5, 7.8), "PUSH": (1.0, 6.98)}
-# Checked against JLC's own footprint of C160841 (EasyEDA SW-TH_RKJXT1F42001): all 11 positions agree after
-# correcting PUSH (x 0.5 -> 1.0) and GND (x 6.86 -> 6.68), the two the Alps drawing did not dimension.
+               "GND": (6.86, 3.75), "A": (-1.5, 7.8), "PUSH": (1.0, 6.98)}
+RKJXT_LUG = 1.3
+# Checked against JLC's own footprint of C160841 (EasyEDA SW-TH_RKJXT1F42001): all 11 positions and the
+# locating hole agree (the Alps drawing puts the frame ground at x 6.86, y 3.75).
 
 
 def add_rkjxt(pads, ref, cx, cy, enc_a, enc_b):
@@ -211,7 +230,7 @@ def add_rkjxt(pads, ref, cx, cy, enc_a, enc_b):
     for nm, (dx, dy) in RKJXT_HOLES.items():
         x, y = cx + dx, cy + dy
         if nm == "LUG":
-            NPTH.append((x, y, 1.1))
+            NPTH.append((x, y, RKJXT_LUG))
             continue
         net = {"ECOM": "GND", "GND": "GND", "ENCA": enc_a, "ENCB": enc_b, "PUSH": ROW_GP[4]}.get(nm, f"{ref}_{nm}")
         pads.append(Pad(f"{ref}.{nm}", net, x, y, "circle", 1.7, 1.7, "FB", 1.0))
@@ -311,7 +330,7 @@ def add_rp2040(pads):
                             mask="F"))
     (px, py), _, _ = qfn_pad_xy(19)                         # TESTEN to the exposed pad
     seg(mx + px, my + py + 0.4375, mx + px, my - 1.6, "GND", "B", 0.2)
-    part("U1", "RP2040", "C2040", mx, my, foot="LQFN-56 7x7")
+    part("U1", "RP2040", "C2040", mx, my, 180, foot="LQFN-56 7x7")
     # SWD debug points: SWCLK and SWDIO end in exposed 0.6 / 0.7 mm pads (bottom) at the north fan-out, for
     # thin wires to an SWD probe (GND: the USB-C shell; the probe resets the chip over SWD). There is no
     # room for larger pads or vias: the lanes around the RP2040 are full. SWDIO's pad sits 0.8 mm further out.
@@ -350,11 +369,12 @@ def add_usb(pads):
     for dx, w, net, nm in contacts:
         pads.append(smd(f"J1.{nm}", net, cx + dx, yc, w, L))
     for s in (-1, 1):
-        # shell pads 1.2 wide, as in JLC's footprint
+        # shell pads 1.2 wide, as in JLC's footprint; pin-in-paste: paste over the whole pad on the bottom, so
+        # the reflow solders the four tabs that take the plug's load, not only the 0.3 mm contacts
         pads.append(Pad(f"J1.SH{s}a", "GND", cx + s * 4.325, 6.28, "obround", 1.2, 2.0, "FB",
-                        drill=0.6, slot=(0.6, 1.7)))
+                        drill=0.6, slot=(0.6, 1.7), pip=True))
         pads.append(Pad(f"J1.SH{s}b", "GND", cx + s * 4.325, 2.10, "obround", 1.2, 1.8, "FB",
-                        drill=0.6, slot=(0.6, 1.4)))
+                        drill=0.6, slot=(0.6, 1.4), pip=True))
         NPTH.append((cx + s * 2.89, 5.79, 0.6))
     ye = yc + L / 2                     # 7.70: pad ends, the breakout starts here
     yo = 11.2
@@ -387,10 +407,11 @@ def add_usb(pads):
     seg(cx - 1.0, yv, cx - 1.25, yv + 0.25, "USB_DP_C", "F"); seg(cx - 1.25, yv + 0.25, cx - 1.25, yo, "USB_DP_C", "F")
     pads.append(Pad("J1.E_DP", "USB_DP_C", cx - 1.25, yo, "circle", 0.3, 0.3, "F", paste=False, mask=False))
     # JLC's origin: midway between the pad row and the front shell pegs
-    part("J1", "TYPE-C-31-M-12", "C165948", cx, (yc + 2.10) / 2, foot="USB-C 16P")
+    part("J1", "TYPE-C-31-M-12", "C165948", cx, (yc + 2.10) / 2, 180, foot="USB-C 16P")
 
 
 LDO = (125.3 + SHIFT_X, 8.0)
+XTAL = (121.7 + SHIFT_X, 15.6)      # crystal centre, over the XIN fan-out end
 
 
 def build():
@@ -406,7 +427,7 @@ def build():
             pads.append(th(n + ".B", ROW_GP[r], x + KEY_DX, y - KEY_DY, KEY_PAD, KEY_DRILL))
             pads.append(th(n + ".C", None, x - KEY_DX, y + KEY_DY, KEY_PAD, KEY_DRILL))
             pads.append(th(n + ".D", kn, x + KEY_DX, y + KEY_DY, KEY_PAD, KEY_DRILL))
-            part(n, "1-1825910-4", "C589907", x, y, side="top")      # TE FSM8JH: 6x6 mm, 9.5 mm, round 3.10 mm plunger
+            part(n, "1-1825910-4", "C589907", x, y, side="top")      # TE FSM8JH: 6x6 mm, 9.5 mm, round plunger
             add_diode(pads, "D" + n, x, y, COL_GP[c], kn)
             BUS_PADS.update({n + ".A", n + ".B", "D" + n + ".A"})
         # row bus: one straight F line through the A/B pins of the row
@@ -458,7 +479,7 @@ def add_flash(pads):
         else:
             fp[p] = (fx - 1.905 + 1.27 * (p - 5), ft)
         pads.append(smd(f"U2.{p}", fl[p], *fp[p], 0.6, 1.87))
-    part("U2", "W25Q16JVSNIQ", "C2456211", fx, (ft + fb) / 2, 270, foot="SOIC-8 150mil")
+    part("U2", "W25Q16JVSNIQ", "C2456211", fx, (ft + fb) / 2, 0, foot="SOIC-8 150mil")
     plane_via(fp[8], "3V3", 0, (fb - ft) / 2)   # vias inside the body
     plane_via(fp[4], "GND", 0, -(fb - ft) / 2)
 
@@ -487,7 +508,7 @@ def add_support(pads):
     pads.append(smd("U3.3", "VBUS", lx - 1.1, ly, 0.9, 0.6))
     pads.append(smd("U3.1", "GND", lx + 1.1, ly - 0.95, 0.9, 0.6))
     pads.append(smd("U3.2", "3V3", lx + 1.1, ly + 0.95, 0.9, 0.6))
-    part("U3", "XC6206P332MR", "C5446", lx, ly, 90, foot="SOT-23")
+    part("U3", "XC6206P332MR", "C5446", lx, ly, 180, foot="SOT-23")
     plane_via((lx + 1.1, ly + 0.95), "3V3", 0, 1.05)
     a, b = chip(pads, "C_IN", lx - 1.1, ly - 2.0, "GND", "VBUS", "1uF", "C15849", vertical=True)
     seg(b[0], b[1], lx - 1.1, ly, "VBUS", "B", 0.4)
@@ -498,24 +519,9 @@ def add_support(pads):
     # CC pull-downs 5.1k
     a, b = chip(pads, "R_CC1", USB_X - 2.8, 12.2, "CC1", "GND", "5.1k", "C23186", vertical=True)
     plane_via(b, "GND", 1.0, 0)
-    a, b = chip(pads, "R_CC2", USB_X + 1.5, 12.9, "CC2", "GND", "5.1k", "C23186", vertical=True)
+    a, b = chip(pads, "R_CC2", USB_X + 1.5, 12.65, "CC2", "GND", "5.1k", "C23186", vertical=True)
     plane_via(b, "GND", -1.0, 0)
-    # crystal 12 MHz, 3225 4-pad (pins 1/3 crystal, 2/4 GND), right above XIN / XOUT. On the bottom the
-    # footprint is mirrored; turned so the crystal pins land on XIN (bottom-left) and XO_R (top-right):
-    # pin 1 top-right, then clockwise seen from the top. The crystal itself has no polarity.
-    yx, yy = 122.0 + SHIFT_X, 15.6
-    pads.append(smd("Y1.1", "XO_R", yx + 1.1, yy - 0.8, 1.4, 1.2))
-    pads.append(smd("Y1.2", "GND", yx + 1.1, yy + 0.8, 1.4, 1.2))
-    pads.append(smd("Y1.3", "XIN", yx - 1.1, yy + 0.8, 1.4, 1.2))
-    pads.append(smd("Y1.4", "GND", yx - 1.1, yy - 0.8, 1.4, 1.2))
-    seg(yx + 1.1, yy + 0.8, yx - 1.1, yy - 0.8, "GND", "B", 0.3)       # GND pads joined under the body
-    plane_via((yx - 1.1, yy - 0.8), "GND", 0, -1.2)
-    part("Y1", "ABM8-272-T3 12MHz", "C20625731", yx, yy, foot="3225 4-pad")
-    a, b = chip(pads, "C_X1", 118.9 + SHIFT_X, 16.4, "GND", "XIN", "15pF", "C1644")
-    plane_via(a, "GND", 0, 1.0)
-    a, b = chip(pads, "C_X2", 124.6 + SHIFT_X, 13.0, "GND", "XO_R", "15pF", "C1644", vertical=True)
-    plane_via(a, "GND", 1.0, 0)
-    chip(pads, "R_X", 124.6 + SHIFT_X, 15.6, "XO_R", "XOUT", "1k", "C21190", vertical=True)
+    add_crystal(pads)
     d2, ybelow = add_core_caps(pads)
     # USB series resistors 27R next to the RP2040's USB pins (south side), below the capacitors in the corner:
     # D- on top, D+ below, the RP2040 side on the left. The lines from the USB-C come down on the top layer and
@@ -542,6 +548,43 @@ def add_support(pads):
         plane_via(a, "3V3", *d3); plane_via(b, "GND", *dg)
     a, b = chip(pads, "C_VIN", 115.6 + SHIFT_X, 44.0, "3V3", "GND", "1uF", "C15849", vertical=True)
     plane_via(a, "3V3", 1.0, 0); plane_via(b, "GND", 1.0, 0)
+
+
+def add_crystal(pads):
+    """12 MHz crystal ABM8-272-T3 (3225 4-pad) right above XIN / XOUT, with its load capacitors and the 1k, all on
+    hand-routed copper. Abracon's drawing (bottom view): #1 top-left and #3 bottom-right are the crystal, #2
+    and #4 GND. JLC's footprint of C20625731 has pin 1 bottom-left in its top view, so on the bottom at
+    rotation 0 (mirrored left to right), seen from the top: 1 bottom-right (XO_R), 2 bottom-left (GND), 3
+    top-left (XIN), 4 top-right (GND). XIN comes straight up from its fan-out end between the two lower pads;
+    XOUT runs from its fan-out end east to the 1k 1.8 mm south of the crystal centre, clear of the crystal body
+    and pads, XO_R from the 1k round the east side of the crystal and up to C_X2. The two GND pads each go to
+    the plane: the top-right one through its own via, the bottom-left one through C_X1's GND pad and via."""
+    yx, yy = XTAL
+    ends = {p.net: (p.x, p.y) for p in pads if re.match(r"U1\.F2[01]$", p.name)}
+    assert abs(ends["XIN"][0] - yx) < 1e-6, "the crystal sits centred over the XIN fan-out end"
+    pads.append(smd("Y1.1", "XO_R", yx + 1.1, yy + 0.8, 1.4, 1.2))
+    pads.append(smd("Y1.2", "GND", yx - 1.1, yy + 0.8, 1.4, 1.2))
+    pads.append(smd("Y1.3", "XIN", yx - 1.1, yy - 0.8, 1.4, 1.2))
+    pads.append(smd("Y1.4", "GND", yx + 1.1, yy - 0.8, 1.4, 1.2))
+    part("Y1", "ABM8-272-T3 12MHz", "C20625731", yx, yy, 0, foot="3225 4-pad")
+    plane_via((yx + 1.1, yy - 0.8), "GND", 0, -1.2)
+    cx, rx = yx - 2.8, yx + 3.1                         # C_X1 west of the crystal, R_X and C_X2 east of it
+    a, b = chip(pads, "C_X1", cx, yy, "XIN", "GND", "15pF", "C1644", vertical=True)
+    seg(*a, yx - 1.1, yy - 0.8, "XIN", "B", TRACE_W)
+    seg(*b, yx - 1.1, yy + 0.8, "GND", "B", 0.3)
+    plane_via(b, "GND", -1.0, 0)
+    a, _ = chip(pads, "C_X2", rx, yy - 2.6, "GND", "XO_R", "15pF", "C1644", vertical=True)
+    plane_via(a, "GND", 1.0, 0)
+    (_, r1), (_, r2) = chip(pads, "R_X", rx, yy, "XO_R", "XOUT", "1k", "C21190", vertical=True)
+
+    def path(net, pts):
+        for (x1, y1), (x2, y2) in pairwise(pts):
+            seg(x1, y1, x2, y2, net, "B", TRACE_W)
+    ex, ey = ends["XIN"]
+    path("XIN", [(ex, ey), (ex, yy), (yx - 1.1, yy - 0.8)])
+    ex, ey = ends["XOUT"]
+    path("XOUT", [(ex, ey), (ex, yy + 1.8), (rx - 1.0, yy + 1.8), (rx, r2)])
+    path("XO_R", [(yx + 1.1, yy + 0.8), (rx - 0.9, yy + 0.8), (rx - 0.9, r1), (rx, r1), (rx, yy - 1.8)])
 
 
 def add_core_caps(pads):
@@ -630,18 +673,18 @@ def add_matrix_lanes(pads):
 
 def route_bias():
     """Soft routing costs: (layers, rect, nets exempt, extra cost per grid step). The band between the north
-    fan-out ends and the crystal is the only way out to the west for GP12, GP13 and GP15 (and the crystal's
-    own XIN / XOUT); any other net crossing it (the USB-C lines take it on their way south) pays extra, so it
+    fan-out ends and the crystal is the only way out to the west for GP12, GP13 and GP15; any other net
+    crossing it (the USB-C lines take it on their way south) pays extra, so it
     goes round the east side when it can."""
     mx, my = MCU
-    north_west = {RP[p] for p in range(15, 22) if RP[p] != "GND"}     # GP12-15, XIN, XOUT
+    north_west = {RP[p] for p in range(15, 19)}                         # GP12-15
     return [("FB", (mx - FAN_END_W, my - FAN_END - 4.0, mx - 1.0, my - FAN_END + 0.3), north_west, 2.0)]
 
 
 def keepouts():
     k = []
     for (x, y) in MOUNTS:
-        k.append(("FB", "circle", (x, y, 3.6)))
+        k.append(("FB", "circle", (x, y, MOUNT_KEEPOUT)))
     # inside the QFN fan-out square only the pre-routed fan-out may run on the bottom
     mx, my = MCU
     e = FAN_END - 0.3
