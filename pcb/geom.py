@@ -46,3 +46,20 @@ def rounded_rect(x0, y0, x1, y1, r, n=12):
             a = math.radians(a0 + 90 * i / n)
             pts.append((cx + r * math.cos(a), cy + r * math.sin(a)))
     return pts
+
+
+def pad_geom(p):
+    """A board.Pad's copper as a geometry item."""
+    return ("rect",) + p.rect() + (0.0,) if p.shape == "rect" else ("cap",) + p.capsule()
+
+
+def bbox(g):
+    """Bounding box (x0, y0, x1, y1) of a geometry item."""
+    if g[0] == "rect":
+        return tuple(g[1:5])
+    return min(g[1], g[3]) - g[5], min(g[2], g[4]) - g[5], max(g[1], g[3]) + g[5], max(g[2], g[4]) + g[5]
+
+
+def boxes_near(a, b, margin):
+    """True when two bounding boxes come within margin of each other: the prefilter before item_dist."""
+    return not (a[0] > b[2] + margin or b[0] > a[2] + margin or a[1] > b[3] + margin or b[1] > a[3] + margin)

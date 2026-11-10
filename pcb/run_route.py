@@ -22,7 +22,7 @@ def is_fixed_end(p):
     """Pads already tied to a breakout point by pre-routed copper: not router terminals."""
     if p.net == "QSPI_SS" and p.name != "R_BOOT.1":
         return True
-    return (p.name in B.BUS_PADS or bool(re.match(r"U1\.\d+$", p.name))
+    return (p.name in B.BUS_PADS or p.name in B.JOINED or bool(re.match(r"U1\.\d+$", p.name))
             or (p.name.startswith("J1.") and not p.name.startswith(("J1.E", "J1.SH"))))
 
 bynet = {}
@@ -43,6 +43,7 @@ for net, ps in bynet.items():
         matrix.append(net)
 
 rnd = random.Random(seed)
+PASSES = 25
 
 
 def span(net):
@@ -57,9 +58,11 @@ if seed:
     rnd.shuffle(direct)
     rnd.shuffle(matrix)
 
-# MCU-local nets first (short, critical), then the long ones
-PRIO = ["1V1", "XIN", "XOUT", "XO_R", "QSPI_SD2", "QSPI_SCLK", "QSPI_SD0", "QSPI_SD1", "QSPI_SD3", "QSPI_SS",
-        "BOOT_SW", "USB_DM", "USB_DP", "USB_DN_C", "USB_DP_C", "CC1", "CC2", "VBUS"]
+# MCU-local nets first (short, critical), then the long ones. The two USB-C lines are not among them: they lead
+# the nets the rip-up below may reorder, so when they take the north fan-out's only way out to the west
+# (GP12, GP13, GP15) those nets move ahead of them on the next pass
+PRIO = ["XIN", "XOUT", "XO_R", "QSPI_SD2", "QSPI_SCLK", "QSPI_SD0", "QSPI_SD1", "QSPI_SD3", "QSPI_SS",
+        "BOOT_SW", "USB_DM", "USB_DP", "CC1", "CC2", "VBUS"]
 first = [n for n in PRIO if n in bynet]
 rest = [n for n in local + direct + matrix if n not in first]
 keyloc = [n for n in rest if n.startswith("K") and n.endswith("_K")]
@@ -124,18 +127,22 @@ if __name__ == "__main__":
     t0 = time.time()
     fixed_first = keyloc + first
     mov = mfirst + others
+    usb_c = ["USB_DN_C", "USB_DP_C"]          # the USB-C lines lead the nets the rip-up may reorder
+    mov = usb_c + [n for n in mov if n not in usb_c]
     if seed >= 2:                              # diversity: shuffle the east-side nets
         east = [n for n in mov if n in [f"GP{i}" for i in range(16, 30)]]
         rnd.shuffle(east)
         it_e = iter(east)
         mov = [next(it_e) if n in east else n for n in mov]
     best = None
-    for _it in range(10):                       # rip-up and retry: nets that failed go first next time
-        router, failed = run(fixed_first + mov)
+    for _it in range(PASSES):                  # rip-up and retry: nets that failed go first next time, and the
+        router, failed = run(fixed_first + mov)   # area round them costs the others more (congestion history)
         if best is None or len(failed) < len(best[1]):
             best = (router, failed)
         if not failed:
             break
+        for n in failed:
+            R.add_history(n, bynet[n])
         mov = [n for n in mov if n in failed] + [n for n in mov if n not in failed]
     router, failed = best
     with open(f"routed_{seed}.json" if len(sys.argv) > 2 else "routed.json", "w") as f:

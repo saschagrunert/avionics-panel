@@ -5,8 +5,6 @@ from collections import OrderedDict
 import board as B
 
 B.build()
-FOOT = {"1N4148W": "SOD-123", "RP2040": "LQFN-56 7x7", "TYPE-C-31-M-12": "USB-C 16P", "W25Q16JVSNIQ": "SOIC-8 150mil",
-        "ABM8-272-T3 12MHz": "3225 4-pad", "XC6206P332MR": "SOT-23"}
 # JLCPCB gets the bottom side only (Economic assembly); the top-side through-hole parts go to THT-LCSC.csv.
 SMD = [p for p in B.PARTS if p[6] == "bottom"]
 groups = OrderedDict()
@@ -16,8 +14,9 @@ with open("avionics-panel-rev1-BOM.csv", "w", newline="") as f:
     w = csv.writer(f)
     w.writerow(["Comment", "Designator", "Footprint", "LCSC Part #", "Quantity"])
     for (value, lcsc), refs in groups.items():
-        foot = FOOT.get(value) or ("0603" if all(r.startswith(("R_", "C_")) for r in refs) else None)
-        assert foot, f"no footprint name for {value} ({', '.join(refs)}): add it to FOOT"
+        foot = {B.FOOTPRINT[r] for r in refs}           # board.part() records it with every bottom-side part
+        assert len(foot) == 1, f"{value} {lcsc}: one LCSC part on several footprints {sorted(foot)}"
+        foot = foot.pop()
         w.writerow([value, ",".join(refs), foot, lcsc, len(refs)])
 with open("avionics-panel-rev1-CPL.csv", "w", newline="") as f:
     w = csv.writer(f)

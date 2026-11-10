@@ -24,7 +24,7 @@ segments = [tuple(s) for s in d["segments"]]          # x1,y1,x2,y2,layer,net,wi
 vias = [tuple(v) for v in d["vias"]]                  # x,y,net,diameter,drill (fixed vias merged by run_route.py)
 
 # ---------------- geometry items for the DRC ----------------
-from geom import item_dist, pt_seg, rounded_rect, seg_seg_dist  # noqa
+from geom import pad_geom, pt_seg, rounded_rect  # noqa: E402
 
 
 def copper_items():
@@ -32,7 +32,7 @@ def copper_items():
     items = []
     for p in pads:
         net = p.net or ("NC:" + p.name)
-        g = ("rect",) + p.rect() + (0.0,) if p.shape == "rect" else ("cap",) + p.capsule()
+        g = pad_geom(p)
         for ly in p.layers:
             items.append((ly, g, net, "pad:" + p.name))
     for (x1, y1, x2, y2, ly, net, w) in segments:
@@ -253,7 +253,7 @@ def plane(layer, net, fname, func):
 def mask(layer, fname, func):
     g = Gerber(fname, func)
     for p in pads:
-        if layer in p.layers and p.mask:        # breakout points of the fan-out stay under the mask
+        if layer in p.mask:          # breakout points of the fan-out and the 1V1 vias on the bottom stay under the mask
             pad_flash(g, p, 0.05)
     g.save()
 

@@ -69,11 +69,12 @@ The board and caps need numpy, scipy, matplotlib, scikit-image and pillow. On Ni
 nix-shell -p "python3.withPackages (ps: with ps; [ numpy scipy matplotlib scikit-image pillow ])"
 ```
 
-Inside `pcb/`: `python3 precheck.py` (placement clearances), `python3 run_route.py 4` (routing, writes
-`routed.json`; seed 4 routes every net; `run_route.py <seed> x` writes `routed_<seed>.json` instead, for
-trying seeds in parallel), `python3 make.py` (Gerbers), `python3 check.py` (electrical
-check, DRC and bottom-side pin order on the Gerbers), `python3 render.py`, `python3 make_bom.py`,
-`python3 make_schematic.py` (schematic PDF from the netlist).
+Inside `pcb/`: `python3 precheck.py` (placement clearances), `python3 run_route.py 14` (routing, writes
+`routed.json`; seed 14 routes every net, as do 19 of seeds 1 to 20; `run_route.py <seed> x` writes
+`routed_<seed>.json` instead, for trying seeds in parallel), `python3 make.py` (Gerbers),
+`python3 check.py` (electrical check, DRC, drills, paste, mask dams, decoupling and bottom-side pin order
+on the Gerbers), `python3 render.py`, `python3 make_bom.py`, `python3 make_schematic.py` (schematic PDF
+from the netlist).
 `dbg.py` plots a region of the routed board.
 Inside `mech/`: `python3 make_caps.py`, `python3 make_plate_art.py`.
 

@@ -4,13 +4,20 @@
 3. geometric clearance DRC on the design primitives
 4. renders of front and back
 5. pin order of the bottom-side parts (mirrored footprints)
+6. drills and annular rings against JLCPCB's limits, no hole at or in an SMD pad or a paste opening, paste on
+   every assembled pad and nowhere else
+7. solder mask dams (between openings on the mask Gerbers) against JLCPCB's green minimum
+8. copper path from every RP2040 supply pin to its nearest decoupling capacitor, and every decoupling
+   capacitor with its own plane vias
 """
+import heapq
 import json
 import math
 import re
 
 import board as B
 import numpy as np
+from geom import bbox, boxes_near, item_dist, pad_geom
 from PIL import Image, ImageDraw
 from scipy import ndimage
 
@@ -18,71 +25,86 @@ PX = 0.05
 WPX, HPX = int(B.W / PX) + 1, int(B.H / PX) + 1
 
 
-def raster(fname):
-    img = Image.new("L", (WPX, HPX), 0)
-    dr = ImageDraw.Draw(img)
-    aps, cur, pos, region, dark = {}, None, (0, 0), None, True
+def gerber_ops(fname):
+    """This generator's Gerber files as a list of operations in board mm (y down): ("dark", bool),
+    ("region", [(x, y), ...]), ("flash", aperture, (x, y)) and ("line", aperture, (x0, y0), (x1, y1)), an
+    aperture being (kind C / R / O, size x, size y)."""
+    aps, cur, pos, region, ops = {}, None, (0.0, 0.0), None, []
     with open("gerbers/" + fname) as f:
         txt = f.read()
-
-    def P(x, y):
-        return (x / 1e6 / PX, (B.H - y / 1e6) / PX)
-
     for tok in re.findall(r"%[^%]*%|[^*%\n]+\*", txt):
         tok = tok.strip()
         m = re.match(r"%ADD(\d+)([COR]),([\d.]+)(?:X([\d.]+))?\*%", tok)
         if m:
             aps[int(m.group(1))] = (m.group(2), float(m.group(3)), float(m.group(4) or 0))
             continue
-        if tok == "%LPD*%":
-            dark = True; continue
-        if tok == "%LPC*%":
-            dark = False; continue
+        if tok in ("%LPD*%", "%LPC*%"):
+            ops.append(("dark", tok == "%LPD*%")); continue
         if tok == "G36*":
             region = []; continue
         if tok == "G37*":
             if len(region) > 2:
-                dr.polygon(region, fill=255 if dark else 0)
+                ops.append(("region", region))
             region = None; continue
         m = re.match(r"D(\d+)\*$", tok)
         if m and int(m.group(1)) >= 10:
             cur = aps[int(m.group(1))]; continue
         m = re.match(r"X(-?\d+)Y(-?\d+)D0([123])\*", tok)
-        if m:
-            x, y, op = int(m.group(1)), int(m.group(2)), m.group(3)
-            p = P(x, y)
-            col = 255 if dark else 0
-            if region is not None:
-                if op == "2":
-                    if len(region) > 2:
-                        dr.polygon(region, fill=col)
-                    region = [p]
+        if not m:
+            continue
+        p, op = (int(m.group(1)) / 1e6, B.H - int(m.group(2)) / 1e6), m.group(3)
+        if region is not None:
+            if op == "2":
+                if len(region) > 2:
+                    ops.append(("region", region))
+                region = [p]
+            else:
+                region.append(p)
+        elif op == "3":
+            ops.append(("flash", cur, p))
+        elif op == "1":
+            ops.append(("line", cur, pos, p))
+        pos = p
+    return ops
+
+
+def raster(fname):
+    img = Image.new("L", (WPX, HPX), 0)
+    dr = ImageDraw.Draw(img)
+    col = 255
+
+    def P(q):
+        return (q[0] / PX, q[1] / PX)
+
+    for op in gerber_ops(fname):
+        if op[0] == "dark":
+            col = 255 if op[1] else 0
+        elif op[0] == "region":
+            dr.polygon([P(q) for q in op[1]], fill=col)
+        elif op[0] == "flash":
+            (k, a, b), p = op[1], P(op[2])
+            if k == "C":
+                r = a / 2 / PX
+                dr.ellipse([p[0] - r, p[1] - r, p[0] + r, p[1] + r], fill=col)
+            elif k == "R":
+                w, h = a / 2 / PX, b / 2 / PX
+                dr.rectangle([p[0] - w, p[1] - h, p[0] + w, p[1] + h], fill=col)
+            else:
+                w, h = a / PX, b / PX
+                r = min(w, h) / 2
+                if w >= h:
+                    q1, q2 = (p[0] - w / 2 + r, p[1]), (p[0] + w / 2 - r, p[1])
                 else:
-                    region.append(p)
-            elif op == "3":
-                k, a, b = cur
-                if k == "C":
-                    r = a / 2 / PX
-                    dr.ellipse([p[0] - r, p[1] - r, p[0] + r, p[1] + r], fill=col)
-                elif k == "R":
-                    w, h = a / 2 / PX, b / 2 / PX
-                    dr.rectangle([p[0] - w, p[1] - h, p[0] + w, p[1] + h], fill=col)
-                else:
-                    w, h = a / PX, b / PX
-                    r = min(w, h) / 2
-                    if w >= h:
-                        q1, q2 = (p[0] - w / 2 + r, p[1]), (p[0] + w / 2 - r, p[1])
-                    else:
-                        q1, q2 = (p[0], p[1] - h / 2 + r), (p[0], p[1] + h / 2 - r)
-                    dr.line([q1, q2], fill=col, width=int(round(2 * r)))
-                    for q in (q1, q2):
-                        dr.ellipse([q[0] - r, q[1] - r, q[0] + r, q[1] + r], fill=col)
-            elif op == "1":
-                r = cur[1] / 2 / PX
-                dr.line([pos, p], fill=col, width=max(1, int(round(2 * r))))
-                for q in (pos, p):
+                    q1, q2 = (p[0], p[1] - h / 2 + r), (p[0], p[1] + h / 2 - r)
+                dr.line([q1, q2], fill=col, width=int(round(2 * r)))
+                for q in (q1, q2):
                     dr.ellipse([q[0] - r, q[1] - r, q[0] + r, q[1] + r], fill=col)
-            pos = p
+        else:
+            r = op[1][1] / 2 / PX
+            p0, p1 = P(op[2]), P(op[3])
+            dr.line([p0, p1], fill=col, width=max(1, int(round(2 * r))))
+            for q in (p0, p1):
+                dr.ellipse([q[0] - r, q[1] - r, q[0] + r, q[1] + r], fill=col)
     return np.array(img) > 127
 
 
@@ -133,6 +155,319 @@ def pin_order(pads):
     ok = -oy * ax < 0                      # cross(opening, B1->A1): > 0 for the top-view footprint, < 0 mirrored
     bad += not ok
     print(f"  J1   USB-C contact order   {'mirrored, OK' if ok else 'NOT MIRRORED: D+/D- swapped'}")
+    return bad
+
+
+def flashes(fname):
+    """The flashed apertures of a Gerber file that holds nothing else (paste, mask), as geometry items:
+    ("rect", x0, y0, x1, y1, 0) or ("cap", x1, y1, x2, y2, r) in board coordinates."""
+    out = []
+    for op in gerber_ops(fname):
+        if op[0] == "dark":
+            assert op[1], f"{fname}: clear polarity not expected"
+            continue
+        assert op[0] == "flash", f"{fname}: only flashes expected"
+        (k, a, b), (x, y) = op[1], op[2]
+        if k == "R":
+            out.append(("rect", x - a / 2, y - b / 2, x + a / 2, y + b / 2, 0.0))
+        elif k == "C":
+            out.append(("cap", x, y, x, y, a / 2))
+        elif a >= b:
+            out.append(("cap", x - (a - b) / 2, y, x + (a - b) / 2, y, b / 2))
+        else:
+            out.append(("cap", x, y - (b - a) / 2, x, y + (b - a) / 2, a / 2))
+    return out
+
+
+# JLCPCB standard process (no surcharge): 0.3 mm smallest plated drill, 0.5 mm smallest unplated hole,
+# via pad at least 0.15 mm over the drill (0.45 mm on 0.3), component pads with a wider ring
+MIN_DRILL, MIN_NPTH = 0.3, 0.5
+MIN_RING_VIA, MIN_RING_PAD = 0.075, 0.15
+VIA_PAD_MIN = 0.1           # hole copper to SMD pad copper or a paste opening, any net: no via in a pad
+THERMAL = {"U1.EP"}         # exposed pad: its GND vias are meant to be there, clear of its paste windows
+
+
+def assembled(p, bottom_refs):
+    """A pad JLCPCB solders: a pin of a bottom-side part (not a fan-out point, 1V1 probe via, USB-C breakout
+    point or SWD wire pad; those carry the part's name but no part pin)."""
+    ref, pin = p.name.split(".", 1)
+    return (ref in bottom_refs and not p.drill and p.layers == "B"
+            and not re.fullmatch(r"[FV]\d+|E_\w+|E", pin))
+
+
+def holes_and_paste(pads, vias, pth, npth):
+    """Drills against JLCPCB's limits, no hole copper at or in an SMD pad or a paste opening, paste on every
+    assembled pad and on nothing else. Measured on the drill files and the paste Gerber."""
+    bad = 0
+    bottom = {ref for ref, *_r, side in B.PARTS if side == "bottom"}
+    paste = flashes("avionics-B_Paste.gbp")
+    # --- drill sizes and annular rings: every plated hole matched to the via or pad around it
+    ring_min = {"via": 9.0, "pad": 9.0}
+    hole_cu = {}                                # what -> (geometry of the copper around the hole, net)
+    for x, y, t in sorted(set(pth)):            # read_drill lists a round hole twice, a slot as samples
+        v = next((v for v in vias if abs(v[0] - x) < 1e-3 and abs(v[1] - y) < 1e-3), None)
+        if v:
+            ring, kind = (v[3] - t) / 2, "via"
+            hole_cu[f"via {v[2]} at ({x:.2f}, {y:.2f})"] = (("cap", x, y, x, y, v[3] / 2), v[2])
+        else:
+            p = next((p for p in pads if p.drill and item_dist(pad_geom(p), ("cap", x, y, x, y, 0)) < 0), None)
+            if p is None:
+                print(f"PLATED HOLE WITHOUT PAD at ({x:.2f}, {y:.2f})"); bad += 1; continue
+            if p.slot:                          # make.py drills slots along y only, so the pad must be tall
+                assert p.h >= p.w, f"{p.name}: slot along a wide pad, make.py only drills vertical slots"
+                ring = min(p.w - p.slot[0], p.h - p.slot[1]) / 2
+            else:
+                ring = (min(p.w, p.h) - t) / 2
+            kind = "pad"
+            hole_cu[p.name] = (pad_geom(p), p.net)
+        ring_min[kind] = min(ring_min[kind], ring)
+        if t < MIN_DRILL - 1e-6:
+            print(f"DRILL TOO SMALL {t} at ({x:.2f}, {y:.2f})"); bad += 1
+        if ring < (MIN_RING_VIA if kind == "via" else MIN_RING_PAD) - 1e-6:
+            print(f"ANNULAR RING {ring:.3f} mm ({kind}) at ({x:.2f}, {y:.2f})"); bad += 1
+    for x, y, t in npth:
+        if t < MIN_NPTH - 1e-6:
+            print(f"UNPLATED HOLE TOO SMALL {t} at ({x:.2f}, {y:.2f})"); bad += 1
+    print(f"drills: smallest plated {min(t for *_xy, t in pth):.2f} mm (min {MIN_DRILL}), unplated "
+          f"{min(t for *_xy, t in npth):.2f} mm (min {MIN_NPTH}); annular ring vias {ring_min['via']:.3f} mm "
+          f"(min {MIN_RING_VIA}), pads {ring_min['pad']:.3f} mm (min {MIN_RING_PAD})")
+    # --- hole copper vs SMD pads (fan-out breakout points under the mask are not pads) and paste openings
+    smd = [p for p in pads if not p.drill and len(p.layers) == 1 and (p.mask or p.paste)]
+    near = 9.0
+
+    def gap(d):
+        return f"{d:.3f} mm from" if d >= 0 else "overlaps"
+    for what, (g, net) in hole_cu.items():
+        gb = bbox(g)
+        for p in smd:
+            if p.name in THERMAL and net == p.net:
+                continue
+            pg = pad_geom(p)
+            if not boxes_near(bbox(pg), gb, 1):
+                continue
+            d = item_dist(g, pg)
+            near = min(near, d)
+            if d < VIA_PAD_MIN - 1e-6:
+                print(f"HOLE AT PAD: {what} {gap(d)} {p.name}"); bad += 1
+        for f in paste:
+            if not boxes_near(bbox(f), gb, 1):
+                continue
+            d = item_dist(g, f)
+            near = min(near, d)
+            if d < VIA_PAD_MIN - 1e-6:
+                print(f"HOLE AT PASTE: {what} {gap(d)} the paste opening at ({f[1]:.2f}, {f[2]:.2f})"); bad += 1
+    # --- paste: every opening inside an assembled pad, every assembled pad with paste
+    pasted = set()
+    def inside(fb, pb):
+        return fb[0] > pb[0] - 1e-6 and fb[1] > pb[1] - 1e-6 and fb[2] < pb[2] + 1e-6 and fb[3] < pb[3] + 1e-6
+    for f in paste:
+        fb = bbox(f)
+        p = next((p for p in pads if "B" in p.layers and not p.drill and inside(fb, bbox(pad_geom(p)))), None)
+        if p is None or not assembled(p, bottom):
+            where = p.name if p else "no pad"
+            print(f"PASTE ON {where} at ({(fb[0] + fb[2]) / 2:.2f}, {(fb[1] + fb[3]) / 2:.2f})"); bad += 1
+            continue
+        pasted.add(p.name)
+    nopaste = [p.name for p in pads if assembled(p, bottom) and p.name not in pasted]
+    for name in nopaste:
+        print(f"NO PASTE on {name}"); bad += 1
+    n_asm = sum(assembled(p, bottom) for p in pads)
+    print(f"pads and holes: closest hole copper to an SMD pad or paste {near:.3f} mm (min {VIA_PAD_MIN}); "
+          f"paste on {len(pasted)} of {n_asm} assembled pads, {len(paste)} openings; {bad} problems")
+    return bad
+
+
+MASK_DAM = 0.1             # JLCPCB, green solder mask: narrowest dam it keeps between two openings
+
+
+def mask_dams(pads):
+    """Solder mask dams measured on the mask Gerbers: no two openings closer than MASK_DAM, and no openings of
+    pads on different nets touching (one merged opening leaves no dam at all). Prints the count of dams at
+    the minimum."""
+    bad = 0
+    for layer, fname in (("F", "avionics-F_Mask.gts"), ("B", "avionics-B_Mask.gbs")):
+        ops = flashes(fname)
+        bbs = [bbox(g) for g in ops]
+        nets = []
+        for b in bbs:                           # the pad each opening belongs to: same centre
+            cx, cy = (b[0] + b[2]) / 2, (b[1] + b[3]) / 2
+            p = next((p for p in pads if layer in p.mask and abs(p.x - cx) < 1e-3 and abs(p.y - cy) < 1e-3), None)
+            nets.append(p and (p.net or "NC:" + p.name))
+            if p is None:
+                bad += 1; print(f"MASK OPENING WITHOUT PAD on {layer} at ({cx:.2f}, {cy:.2f})")
+        at_min, worst = 0, 9.0
+        for i in range(len(ops)):
+            for j in range(i + 1, len(ops)):
+                if not boxes_near(bbs[i], bbs[j], 0.2):
+                    continue
+                d = item_dist(ops[i], ops[j])
+                where = f"on {layer} at ({ops[i][1]:.2f}, {ops[i][2]:.2f})"
+                if d <= 1e-6:
+                    if nets[i] != nets[j]:
+                        bad += 1; print(f"MASK OPENINGS MERGED, NO DAM between {nets[i]} and {nets[j]} {where}")
+                    continue
+                worst = min(worst, d)
+                if d < MASK_DAM - 1e-4:
+                    bad += 1; print(f"MASK DAM {d:.3f} mm {where}")
+                elif d < MASK_DAM + 1e-4:
+                    at_min += 1
+        narrow = f"{worst:.3f} mm" if worst < 9 else "none under 0.2 mm"
+        print(f"mask {layer}: {len(ops)} openings, narrowest dam {narrow} (min {MASK_DAM}), "
+              f"{at_min} at exactly {MASK_DAM}")
+    return bad
+
+
+# Decoupling, measured as the copper path from the RP2040 pin to the capacitor pad: trace length on the outer
+# layers plus, through a plane, the straight distance from via to via (pad centre to pad centre).
+# - Pins with a capacitor of their own (42-44 IOVDD / ADC_AVDD / VREG_VIN on C_D2, 45 VREG_VOUT on C_1V0,
+#   50 DVDD on C_1V1): at most OWN_CAP_MAX of copper. Raspberry Pi's minimal design puts each capacitor
+#   right at its pin; the limit keeps the supply side of the loop at about 2 nH, the order of the
+#   capacitor's own ESL plus its GND via (a 0.25 mm trace 0.2 mm over the 3V3 plane has about 0.3 nH/mm).
+# - Exceptions, no capacitor of their own: IOVDD 1, 10, 22, 26, 33 and USB_VDD / IOVDD 48, 49 sit inside the
+#   fan-out (every lane around the chip is taken), so they drop straight into the 3V3 plane (at most
+#   PLANE_ENTRY_MAX of copper to the via) and share C_D0 to C_D3, C_FL and C_VIN on it. DVDD 23 on the
+#   north side has no room between the crystal and the fan-out; it reaches the 1V1 capacitors over the
+#   top layer through V23. Their paths are reported, not limited.
+OWN_CAP_MAX = 6.0
+PLANE_ENTRY_MAX = 2.0
+PLANE_SHARED = {1, 10, 22, 26, 33, 48, 49}
+NO_ROOM = {23}
+CAP_VIA_MAX = 1.0          # every decoupling capacitor: its own plane via at most one stub from the pad centre
+
+
+def centre_line(g):
+    """The centre line of a geometry item: a capsule's spine, a rectangle's centre."""
+    if g[0] == "rect":
+        c = ((g[1] + g[3]) / 2, (g[2] + g[4]) / 2)
+        return c, c
+    return (g[1], g[2]), (g[3], g[4])
+
+
+def closest_pair(sa, sb):
+    """Nearly the closest points of two segments (from the four end-to-segment projections)."""
+    def proj(p, a, b):
+        dx, dy = b[0] - a[0], b[1] - a[1]
+        l2 = dx * dx + dy * dy
+        t = 0.0 if l2 == 0 else max(0.0, min(1.0, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2))
+        return (a[0] + t * dx, a[1] + t * dy)
+    cands = [(p, proj(p, *sb)) for p in sa] + [(proj(q, *sa), q) for q in sb]
+    return min(cands, key=lambda c: math.dist(*c))
+
+
+def copper_graph(net, pads, segments, vias):
+    """Nodes (pad centres, segment ends, vias, plane points) and edges (copper length) of one net."""
+    planed = net in B.PLANES.values()
+    adj = {}
+
+    def edge(a, b, d):
+        adj.setdefault(a, []).append((b, d))
+        adj.setdefault(b, []).append((a, d))
+
+    items = {"F": [], "B": []}                 # (geometry, [(node, (x, y))]) per outer layer
+    for p in pads:
+        if p.net != net:
+            continue
+        for ly in p.layers:
+            items[ly].append((pad_geom(p), [(("pad", p.name, ly), (p.x, p.y))]))
+        if p.drill:                            # plated hole: both layers and the plane
+            edge(("pad", p.name, "F"), ("pad", p.name, "B"), 0.0)
+            if planed:
+                edge(("pad", p.name, "B"), ("plane", p.x, p.y), 0.0)
+    for x1, y1, x2, y2, ly, n, w in segments:
+        if n == net:
+            a, b = ("pt", ly, round(x1, 4), round(y1, 4)), ("pt", ly, round(x2, 4), round(y2, 4))
+            edge(a, b, math.hypot(x2 - x1, y2 - y1))
+            items[ly].append((("cap", x1, y1, x2, y2, w / 2), [(a, (x1, y1)), (b, (x2, y2))]))
+    for x, y, n, d, _dr in vias:
+        if n == net:
+            edge(("via", x, y, "F"), ("via", x, y, "B"), 0.0)
+            if planed:
+                edge(("via", x, y, "B"), ("plane", x, y), 0.0)
+            for ly in "FB":
+                items[ly].append((("cap", x, y, x, y, d / 2), [(("via", x, y, ly), (x, y))]))
+    for its in items.values():                 # touching copper: join the anchors through the contact
+        bbs = [bbox(g) for g, _a in its]
+        for i, (ga, anchors_a) in enumerate(its):
+            for j in range(i + 1, len(its)):
+                gb, anchors_b = its[j]
+                if not boxes_near(bbs[i], bbs[j], 1e-3) or item_dist(ga, gb) > 1e-3:
+                    continue
+                ca, cb = closest_pair(centre_line(ga), centre_line(gb))
+                for a, pa in anchors_a:
+                    for b, pb in anchors_b:
+                        if a != b:
+                            edge(a, b, math.dist(pa, ca) + math.dist(ca, cb) + math.dist(cb, pb))
+    plane = [k for k in adj if k[0] == "plane"]
+    for i, a in enumerate(plane):              # across the plane: via to via in a straight line
+        for b in plane[i + 1:]:
+            edge(a, b, math.hypot(a[1] - b[1], a[2] - b[2]))
+    return adj
+
+
+def shortest(adj, start):
+    dist, heap = {start: 0.0}, [(0.0, start)]
+    while heap:
+        d, n = heapq.heappop(heap)
+        if d > dist[n]:
+            continue
+        for m, w in adj.get(n, ()):
+            if d + w < dist.get(m, math.inf):
+                dist[m] = d + w
+                heapq.heappush(heap, (d + w, m))
+    return dist
+
+
+def decoupling(pads, segments, vias):
+    bad = 0
+    caps = [p for p in pads if re.fullmatch(r"C_\w+\.\d", p.name)]
+    print("decoupling: RP2040 supply pin -> nearest capacitor on its net, copper path (trace + via to via)")
+    graphs = {}
+    pins = sorted((int(p.name[3:]), p) for p in pads
+                  if re.fullmatch(r"U1\.\d+", p.name) and p.net in ("3V3", "1V1"))
+    for pin, p in pins:
+        if p.net not in graphs:
+            graphs[p.net] = copper_graph(p.net, pads, segments, vias)
+        dist = shortest(graphs[p.net], ("pad", p.name, "B"))
+        d, c = min((dist.get(("pad", c.name, "B"), math.inf), c.name) for c in caps if c.net == p.net)
+        if pin in PLANE_SHARED:
+            entry = min((v for k, v in dist.items() if k[0] == "plane"), default=math.inf)
+            ok = entry <= PLANE_ENTRY_MAX
+            rule = f"exception: shared through the plane, pin to plane {entry:.2f} mm (max {PLANE_ENTRY_MAX})"
+        elif pin in NO_ROOM:
+            ok = d < math.inf
+            rule = "exception: no room at the pin, over the top layer"
+        else:
+            ok = d <= OWN_CAP_MAX
+            rule = f"own capacitor (max {OWN_CAP_MAX})"
+        bad += not ok
+        print(f"  pin {pin:2d} {p.net}  {d:5.2f} mm  {c:8s} {rule}  {'OK' if ok else 'FAIL'}")
+    return bad
+
+
+def cap_vias(pads, vias):
+    """Every decoupling capacitor (one pad on GND, the other on a supply) has its own via into the GND plane
+    and, if its supply is a plane (3V3), into that plane too: at most CAP_VIA_MAX from the pad centre and
+    nearer to that pad than to any other capacitor pad on the net."""
+    bad, n = 0, 0
+    byref = {}
+    for p in pads:
+        if re.fullmatch(r"C_\w+\.\d", p.name):
+            byref.setdefault(p.name.split(".")[0], []).append(p)
+    for _ref, ps in sorted(byref.items()):
+        nets = {p.net for p in ps}
+        if "GND" not in nets or not nets & {"3V3", "1V1", "VBUS"}:
+            continue                            # crystal load capacitors
+        n += 1
+        for p in ps:
+            if p.net not in B.PLANES.values():
+                continue
+            rivals = [q for q in pads if q.net == p.net and q is not p and re.fullmatch(r"C_\w+\.\d", q.name)]
+            own = [v for v in vias if v[2] == p.net and math.hypot(v[0] - p.x, v[1] - p.y) <= CAP_VIA_MAX + 1e-6
+                   and all(math.hypot(v[0] - q.x, v[1] - q.y) > math.hypot(v[0] - p.x, v[1] - p.y) for q in rivals)]
+            if not own:
+                bad += 1; print(f"NO OWN {p.net} VIA within {CAP_VIA_MAX} mm of {p.name}")
+    print(f"capacitor vias: {n} decoupling capacitors, each plane pad with its own via within {CAP_VIA_MAX} mm, "
+          f"{bad} problems")
     return bad
 
 
@@ -238,25 +573,16 @@ if __name__ == "__main__":
     bad += plane_bad
 
     # --- geometric clearance DRC (outer layers) ---
-    from geom import item_dist, seg_seg_dist  # noqa
     with open("design.json") as f:
         items = json.load(f)["items"]
     worst, viol = 9, 0
 
-    def bbox(it):
-        g = it[1]
-        if g[0] == "rect":
-            return g[1], g[2], g[3], g[4]
-        r = g[5]
-        return min(g[1], g[3]) - r, min(g[2], g[4]) - r, max(g[1], g[3]) + r, max(g[2], g[4]) + r
-    bbs = [bbox(it) for it in items]
+    bbs = [bbox(it[1]) for it in items]
     for i in range(len(items)):
         a, ba = items[i], bbs[i]
         for j in range(i + 1, len(items)):
             b, bb = items[j], bbs[j]
-            if a[0] != b[0] or a[2] == b[2]:
-                continue
-            if ba[0] > bb[2] + 0.5 or bb[0] > ba[2] + 0.5 or ba[1] > bb[3] + 0.5 or bb[1] > ba[3] + 0.5:
+            if a[0] != b[0] or a[2] == b[2] or not boxes_near(ba, bb, 0.5):
                 continue
             dd = item_dist(a[1], b[1])
             worst = min(worst, dd)
@@ -277,7 +603,6 @@ if __name__ == "__main__":
                 viol += 1; print("NEAR NPTH", it[2], it[3], round(dist, 2))
     # hole to hole, by net (JLCPCB: 0.5 mm between holes of different nets, 0.254 mm on the same net).
     # Plated holes carry their net; NPTH and mounting holes count as their own net. Slots are capsules.
-    from geom import item_dist as _dist
     holes = [(("cap", v[0], v[1], v[0], v[1], v[4] / 2), v[2]) for v in rd["vias"]]
     for p in pads:
         if p.drill and not p.slot:
@@ -296,7 +621,7 @@ if __name__ == "__main__":
             gj, nj = holes[j]
             if abs(gi[1] - gj[1]) > 3 or abs(gi[2] - gj[2]) > 3:
                 continue
-            gap = _dist(gi, gj)
+            gap = item_dist(gi, gj)
             same = ni == nj
             if gap < hmin[same][0]:
                 hmin[same] = (gap, (round(gi[1], 2), round(gi[2], 2), ni, nj))
@@ -305,9 +630,13 @@ if __name__ == "__main__":
     print(f"holes: closest different nets {hmin[False][0]:.3f} mm (min 0.5), "
           f"same net {hmin[True][0]:.3f} mm (min 0.254)")
     print(f"DRC: worst copper clearance {worst:.3f} mm, {viol} violations")
+    hole_bad = holes_and_paste(pads, rd["vias"], pth, npth)
+    hole_bad += mask_dams(pads)
+    hole_bad += decoupling(pads, rd["segments"], rd["vias"])
+    hole_bad += cap_vias(pads, rd["vias"])
     pin_bad = pin_order(pads)
     print(f"pin order (bottom parts): {pin_bad} problems")
     for ly, img in ras.items():
         np.save(f"raster{ly}.npy", img)
     import sys
-    sys.exit(1 if (bad or floating or viol or pin_bad) else 0)
+    sys.exit(1 if (bad or floating or viol or hole_bad or pin_bad) else 0)

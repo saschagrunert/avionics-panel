@@ -379,7 +379,7 @@ window.GEOMETRY = {
  "parts": {
   "flash": [
    131.405,
-   36.885
+   37.885
   ],
   "ldo": [
    134.3,

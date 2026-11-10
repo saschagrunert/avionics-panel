@@ -1,13 +1,12 @@
 """Placement check before routing: clearance between all fixed copper (pads, pre-routed segments, vias)."""
 import board as B
-from geom import item_dist
+from geom import bbox, boxes_near, item_dist, pad_geom
 
 pads = B.build()
 items = []
 for p in pads:
-    g = ("rect",) + p.rect() + (0.0,) if p.shape == "rect" else ("cap",) + p.capsule()
     for ly in p.layers:
-        items.append((ly, g, p.net or "NC:" + p.name, p.name))
+        items.append((ly, pad_geom(p), p.net or "NC:" + p.name, p.name))
 for (x1, y1, x2, y2, ly, net, w) in B.FIXED_SEGS:
     items.append((ly, ("cap", x1, y1, x2, y2, w / 2), net, "seg"))
 for (x, y, net, d, _dr) in B.FIXED_VIAS:
@@ -17,23 +16,12 @@ for (x, y, d) in B.NPTH:
     for ly in "FB":
         items.append((ly, ("cap", x, y, x, y, d / 2 + 0.05), "NPTH", "npth"))
 
-
-def bbox(g):
-    if g[0] == "rect":
-        return g[1:5]
-    r = g[5]
-    return min(g[1], g[3]) - r, min(g[2], g[4]) - r, max(g[1], g[3]) + r, max(g[2], g[4]) + r
-
-
 bb = [bbox(i[1]) for i in items]
 bad = 0
 for i in range(len(items)):
     for j in range(i + 1, len(items)):
         a, b = items[i], items[j]
-        if a[0] != b[0] or a[2] == b[2]:
-            continue
-        A, Bb = bb[i], bb[j]
-        if A[0] > Bb[2] + 0.3 or Bb[0] > A[2] + 0.3 or A[1] > Bb[3] + 0.3 or Bb[1] > A[3] + 0.3:
+        if a[0] != b[0] or a[2] == b[2] or not boxes_near(bb[i], bb[j], 0.3):
             continue
         d = item_dist(a[1], b[1])
         if d < B.CLEAR - 1e-6:
