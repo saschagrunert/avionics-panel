@@ -6,10 +6,28 @@ matrix, knobs and lights) is drawn from the same netlist by [make_schematic.py](
 which fails if any pad of the board is missing from it.
 
 RP2040 with W25Q16 flash, 12 MHz crystal, XC6206 regulator and USB-C, all on the bottom of a 4-layer
-board (signals / GND / 3V3 / signals). Fully routed (`run_route.py 4`) and checked on the Gerbers:
-125 nets, 0 shorts, 0 opens, closest copper 0.155 mm, 0 DRC violations, and every bottom-side part has
+board (signals / GND / 3V3 / signals). Fully routed (`run_route.py 14`) and checked on the Gerbers:
+125 nets, 0 shorts, 0 opens, closest copper 0.150 mm, 0 DRC violations, and every bottom-side part has
 mirrored pin order. Closest holes on different nets 0.544 mm (JLCPCB minimum 0.5),
-on the same net 0.354 mm (minimum 0.254); `check.py` checks both by net.
+on the same net 0.301 mm (minimum 0.254); `check.py` checks both by net. Apart from the GND vias in the
+RP2040's exposed pad, no via sits in or within 0.1 mm of an SMD pad, and none within 0.1 mm of a paste
+opening (the router keeps them out, `check.py` checks it). Paste is on every assembled pad and nowhere
+else, the drills (0.3 mm plated, 0.6 mm unplated) and annular rings (0.1 mm on vias, 0.15 mm on pads)
+are within JLCPCB's standard limits, and no solder mask dam is under 0.1 mm (green mask).
+
+Decoupling follows Raspberry Pi's minimal design where there is room. In the corner south-east of the
+RP2040, C_D2 (100 nF, 3V3) takes a direct trace from pin 42 and the shared via of pins 42-44 (IOVDD,
+ADC_AVDD, VREG_VIN): 2.2 to 4.6 mm of copper from those pins. Two 0402 capacitors hang from a short trace
+off VREG_VOUT (pin 45), C_1V0 (1 uF, 2.0 mm of copper) and C_1V2 (100 nF), and C_1V1 (100 nF, 0603) sits
+1.7 mm below DVDD (pin 50). Every decoupling capacitor has its own GND via (and its own 3V3 via on the 3V3
+side), at most 1 mm from the pad. `check.py` measures the copper path from each supply pin to its nearest
+capacitor (trace length plus the straight via-to-via distance through a plane) and fails a pin with a
+capacitor of its own above 6 mm: about 2 nH of trace 0.2 mm over the 3V3 plane, the order of the
+capacitor's own ESL and GND via. Exceptions, reported but not limited: DVDD pin 23 on the north side has
+no room between the crystal and the fan-out and reaches the 1V1 capacitors over the top layer through the
+1V1 vias under the chip (about 10 mm; the vias are probe points on the top and tented on the bottom), and
+the other IOVDD pins and USB_VDD sit inside the fan-out, reach the 3V3 plane within 2 mm of copper and share
+C_D0 to C_D3, C_FL and C_VIN on it.
 
 | GPIO | Use |
 | --- | --- |

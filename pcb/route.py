@@ -14,6 +14,7 @@ FREE, NONET = -1, -2
 
 THR = (B.CLEAR + B.TRACE_W / 2) / RES + 0.5          # trace centre keep distance (cells)
 THR_VIA = (B.CLEAR + B.VIA_D / 2) / RES + 0.5
+VIA_PAD_CLEAR = 0.1         # via copper to any SMD pad, its own net included: no via in or at a pad
 LAYER_COST = (1.15, 1.0)    # no top pour on the 4-layer board
 VIA_COST = 60.0             # in cells
 
@@ -47,6 +48,66 @@ def stamp_capsule(arr, x1, y1, x2, y2, r, val):
     arr[iy0:iy1, ix0:ix1][m] = val
 
 
+def no_via_mask(pads):
+    """Grid points where no via may go: closer than VIA_PAD_CLEAR (copper to copper) to an SMD pad. The fan-out
+    breakout points (no mask opening, no paste) are routing points, not pads. Exact distances, worked out
+    once per pad set and only in a window around each pad."""
+    r = B.VIA_D / 2 + VIA_PAD_CLEAR
+    smd = [p for p in pads if not p.drill and len(p.layers) == 1 and (p.mask or p.paste)]
+    key = tuple((p.x, p.y, p.w, p.h, p.shape) for p in smd)
+    if key not in _NOVIA:
+        m = np.zeros((NY, NX), bool)
+        for p in smd:
+            x0, y0, x1, y1 = p.rect() if p.shape == "rect" else (p.x - p.w / 2, p.y - p.h / 2, p.x + p.w / 2,
+                                                                 p.y + p.h / 2)
+            ix0, ix1 = max(int((x0 - r) / RES), 0), min(int((x1 + r) / RES) + 2, NX)
+            iy0, iy1 = max(int((y0 - r) / RES), 0), min(int((y1 + r) / RES) + 2, NY)
+            xs, ys = XS[iy0:iy1, ix0:ix1], YS[iy0:iy1, ix0:ix1]
+            if p.shape == "rect":
+                d = np.hypot(np.maximum(np.maximum(x0 - xs, xs - x1), 0), np.maximum(np.maximum(y0 - ys, ys - y1), 0))
+            else:
+                cx1, cy1, cx2, cy2, rp = p.capsule()
+                d = seg_dist(xs, ys, cx1, cy1, cx2, cy2) - rp
+            m[iy0:iy1, ix0:ix1] |= d < r + 1e-3
+        _NOVIA[key] = m
+    return _NOVIA[key]
+
+
+_NOVIA, _BIAS = {}, {}
+
+
+HISTORY = {}               # net -> cost map round its pads, raised each time the net fails (see add_history)
+
+
+def add_history(net, pads, radius=2.0, cost=1.0):
+    """Congestion history between rip-up passes: the area round a net that failed costs every other net a bit
+    more on the next pass, so they leave it room."""
+    m = HISTORY.setdefault(net, np.zeros((NY, NX), np.float32))
+    for p in pads:
+        tmp = np.zeros((NY, NX), np.int8)
+        stamp_capsule(tmp, p.x, p.y, p.x, p.y, radius, 1)
+        m += cost * tmp
+    _BIAS.clear()
+
+
+def bias_maps(net):
+    """Extra cost per step on each layer for this net: areas board.route_bias() keeps for other nets, plus the
+    congestion history round the nets that failed before."""
+    if net in _BIAS:
+        return _BIAS[net]
+    extra = _BIAS[net] = np.zeros((2, NY, NX), np.float32)
+    for layers, (x0, y0, x1, y1), nets, cost in B.route_bias():
+        if net in nets:
+            continue
+        m = (x0 <= XS) & (x1 >= XS) & (y0 <= YS) & (y1 >= YS)
+        for ly in layers:
+            extra[L[ly]][m] += cost
+    for other, m in HISTORY.items():
+        if other != net:
+            extra += m
+    return extra
+
+
 class Router:
     def __init__(self, pads, netnames):
         self.pads = pads
@@ -64,6 +125,7 @@ class Router:
                 else:
                     m = (p[0] <= XS) & (p[2] >= XS) & (p[1] <= YS) & (p[3] >= YS)
                     self.owner[L[ly]][m] = NONET
+        self.novia = no_via_mask(pads)
         for pad in pads:
             v = self.netid[pad.net] if pad.net else NONET
             x1, y1, x2, y2, r = pad.capsule()
@@ -110,6 +172,7 @@ class Router:
 
     def route(self, net, pa, pb=None, goal_mask=None):
         nid = self.netid[net]
+        extra = bias_maps(net)
         feas = []
         dist = []
         for ly in (0, 1):
@@ -117,7 +180,7 @@ class Router:
             d = ndimage.distance_transform_edt(~obst)
             dist.append(d)
             feas.append(d >= THR)
-        via_ok = (dist[0] >= THR_VIA) & (dist[1] >= THR_VIA)
+        via_ok = (dist[0] >= THR_VIA) & (dist[1] >= THR_VIA) & ~self.novia
         # own pads are always enterable
         start, goal = set(), set()
         for (iy, ix) in self.pad_cells(pa):
@@ -166,7 +229,7 @@ class Router:
                 if 0 <= ny_ < NY and 0 <= nx_ < NX and feas[lay][ny_, nx_]:
                     if dx and dy and not (feas[lay][iy, nx_] and feas[lay][ny_, ix]):
                         continue
-                    ng = gc + c * LAYER_COST[lay]
+                    ng = gc + c * (LAYER_COST[lay] + extra[lay, ny_, nx_])
                     nn = (lay, ny_, nx_)
                     if ng < g[nn]:
                         g[nn] = ng

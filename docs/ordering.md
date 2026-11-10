@@ -4,7 +4,7 @@ Everything comes from the JLC group. The files are in [production/](../productio
 
 | Part | Service | Process | Files in `production/` |
 | --- | --- | --- | --- |
-| Board, assembled | JLCPCB | 4 layers, ENIG, 0.3 mm min. via; Economic assembly, bottom side (all SMD), 2 boards, confirm parts placement; BOM and CPL list the bottom side only | `gerbers.zip`, `BOM.csv`, `CPL.csv` |
+| Board, assembled | JLCPCB | 4 layers, ENIG, green solder mask, 0.3 mm min. via; Economic assembly, bottom side (all SMD), 2 boards, confirm parts placement; BOM and CPL list the bottom side only | `gerbers.zip`, `BOM.csv`, `CPL.csv` |
 | Through-hole parts | LCSC, hand-soldered | keys, encoders, RANGE control, LEDs for one panel plus spares | `THT-LCSC.csv` (LCSC BOM tool) |
 | Front plate | JLCCNC | 4 mm aluminium 6061, CNC from the back in one setup, bead blasting + black anodising (matte), laser marking, threads: yes; the form allows two finishes, so the orange UV print and the threads go into the remark (below) | `plate.step`, `plate-drawing.pdf` (threads), `plate.dxf` (marking) |
 | Body | JLC3DP | MJF PA12-HP, dyed black; 4 printed spacers (`spacer.step`) only as a fallback for the metal ones | `body.step` |
@@ -22,6 +22,10 @@ JLCCNC remark for the threads: "4 x M2.5 blind threads from the back, thread mil
 Plate 4.0 ±0.1; hole and pocket depths +0/-0.1: at least 0.7 mm must stay to the front face. Thread and hole positions
 ±0.1 mm to each other. Please mask the threads before anodising, or chase them after anodising."
 
+Keep the solder mask green: the mask dams between the RP2040's pads, between the USB-C contacts and
+between C_X2 and R_X are 0.1 mm, JLCPCB's minimum for green ([pcb/check.py](../pcb/check.py) measures
+them). Other colours need wider dams, so those pads would lose the mask between them.
+
 All four shops share one JLC account but have their own checkout. JLC3DP items can join the JLCPCB
 cart and be paid together; LCSC can combine its shipment with a JLCPCB order (choose it at the LCSC
 checkout); JLCCNC is paid separately after its review. Payment by PayPal, card or Google Pay. Under
@@ -35,7 +39,9 @@ Before paying, check in the JLCPCB placement preview (bottom side seen from the 
 
 - Pin 1 of U1 (RP2040) at the bottom of its west side, next to the silk corner mark; pins run clockwise.
 - Pin 1 of U2 (flash) bottom-right, U3 (regulator) on the north-east pad, Y1 (crystal) top-right.
-- J1 (USB-C): contact A1/B12 on the left (-x) end of the pad row, shell pegs in the NPTH holes.
+- J1 (USB-C): contact A1/B12 on the left (-x) end of the pad row, shell pegs in the NPTH holes. The
+  shell's 4 plated tabs go through slotted holes and get no paste: check in the preview whether JLC
+  solders them, otherwise hand-solder them, since they carry the load of the plug.
 - The two LEDs with the flat (cathode) on the square pad; encoders and the RANGE control inside their outlines.
 - The 35 diodes: every cathode band on the east (+x) side, towards the electronics strip (for the five
   RANGE diodes that is away from the RANGE control). A reversal is not fatal if all of them are

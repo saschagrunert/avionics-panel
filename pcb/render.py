@@ -1,4 +1,4 @@
-"""Render front/back previews from the Gerber files (black mask, white silk, ENIG pads)."""
+"""Render front/back previews from the Gerber files (green mask, white silk, ENIG pads)."""
 import board as B
 import numpy as np
 from check import HPX, PX, WPX, raster, read_drill
@@ -24,8 +24,8 @@ def render(side, out):
     bd = board_mask()
     img = np.zeros((HPX, WPX, 3), np.uint8)
     img[:] = (235, 235, 235)                       # background
-    img[bd] = (22, 22, 24)                         # black soldermask
-    img[bd & cu] = (40, 40, 44)                    # copper under mask
+    img[bd] = (24, 92, 52)                         # green soldermask (as ordered)
+    img[bd & cu] = (52, 128, 70)                   # copper under mask
     img[bd & sk & ~mk] = (245, 245, 245)           # silkscreen
     img[bd & mk & cu] = (214, 172, 70)             # ENIG pads
     im = Image.fromarray(img)
