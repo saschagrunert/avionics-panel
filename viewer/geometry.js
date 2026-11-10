@@ -163,8 +163,8 @@ window.GEOMETRY = {
   "w": 0.6
  },
  "inner_knob": {
-  "d": 13.0,
-  "recess_d": 10.4,
+  "d": 12.0,
+  "recess_d": 9.2,
   "recess_top": 10.1,
   "z0": 8.8,
   "z1": 19.2
@@ -325,26 +325,26 @@ window.GEOMETRY = {
  },
  "knobs": {
   "ALTHDG": {
-   "d": 22.0,
+   "d": 17.0,
    "legend": "ALT \u00b7 HDG \u00b7 PUSH SYNC",
    "legend_shift": "CRS \u00b7 BARO \u00b7 PUSH STD",
-   "legend_tilt": 15,
+   "legend_tilt": 20,
    "x": 15.0,
    "y": 15.0
   },
   "FMS": {
-   "d": 24.0,
+   "d": 17.0,
    "legend": "FMS \u00b7 PUSH CRSR",
    "legend_shift": "PANEL \u00b7 FLOOD \u00b7 PUSH CABIN",
-   "legend_tilt": 5,
+   "legend_tilt": 20,
    "x": 145.0,
    "y": 45.0
   },
   "FREQ": {
-   "d": 22.0,
+   "d": 17.0,
    "legend": "FREQ \u00b7 PUSH COM/NAV/ADF",
    "legend_shift": "SQUAWK \u00b7 PUSH XPDR",
-   "legend_tilt": 15,
+   "legend_tilt": 10,
    "x": 145.0,
    "y": 15.0
   },
@@ -371,7 +371,7 @@ window.GEOMETRY = {
   }
  },
  "outer_knob": {
-  "neck_d": 9.6,
+  "neck_d": 8.3,
   "neck_top": 8.6,
   "z0": 0.8,
   "z1": 8.0

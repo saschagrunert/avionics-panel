@@ -262,6 +262,16 @@ def clearances():
     ok, ik, rk = S.OUTER_KNOB, S.INNER_KNOB, S.RANGE_KNOB
     p = S.PUSH_TRAVEL
     outer_grip = min(S.PLATE_Z1 + ok["neck_top"], S.OUTER_TOP) - (S.SLEEVE_TOP + S.SLEEVE_CLEAR)
+    # ---- knob walls: resin diameters (JLC3DP) +-0.2 outside, +-0.3 on holes; a bore at FIT 0 leaves up to 0.05
+    # radial play on its shaft, so the two knobs of a dual can sit that far off each other twice ----
+    part_tol, hole_tol, bore_play = 0.2, 0.3, 0.05
+    loose = max(S.FIT, *S.FIT_VARIANTS.values())
+    fo, fi = K.OUTER_FLUTES, K.INNER_FLUTES
+    ring_r, cb_r = min(S.KNOB_D.values()) / 2, S.SLEEVE_D / 2 + S.SLEEVE_CLEAR
+    # flute bottoms where the walls are thinnest: the taper narrows the knobs towards the top of the
+    # recess (inner) and of the counterbore (outer)
+    rec_bot = ik["d"] / 2 * (1 - fi["taper"] * (ik["recess_top"] - ik["z0"]) / (ik["z1"] - ik["z0"])) - fi["depth"]
+    cb_bot = ring_r * (1 - fo["taper"] * K.outer_counterbore_top() / (ok["z1"] - ok["z0"])) - fo["depth"]
     # ---- plate: thickness +-PLATE_T_TOL, back on the spacer (+-0.05 from the PCB top); depths from the back ----
     sp_tol, t_tol = S.STACK_TOL["spacer"], S.PLATE_T_TOL
     t_min = S.PLATE_T - t_tol
@@ -325,6 +335,14 @@ def clearances():
         ("inner knob over outer knob, pushed", ik["z0"] - p - ok["z1"]),
         ("inner recess over outer neck, pushed", ik["recess_top"] - p - ok["neck_top"]),
         ("inner recess over outer shaft top, pushed", ik["recess_top"] - p - (S.OUTER_TOP - S.PLATE_Z1)),
+        (f"inner recess ({ik['recess_d']}) round the outer neck ({ok['neck_d']}), radial: resin, bore play",
+         (ik["recess_d"] - hole_tol) / 2 - (ok["neck_d"] + part_tol) / 2 - 2 * bore_play),
+        (f"outer neck wall round the 6 mm bore, loose variant (+{loose}), beyond 1.0",
+         (ok["neck_d"] - S.OUTER_D - loose) / 2 - 1.0),
+        ("inner knob wall round the recess at the flute bottoms, beyond 1.0", rec_bot - ik["recess_d"] / 2 - 1.0),
+        ("outer knob wall round the counterbore at the flute bottoms, beyond 1.0", cb_bot - cb_r - 1.0),
+        ("outer ring beyond the inner knob, per side, beyond 2.0 (Garmin 2.5)",
+         ring_r - ik["d"] / 2 - 2.0),
         ("RANGE knob over hub, pushed",
          (S.LEVER_Z0 - 0.3) - S.RKJXT_HUB_TOP - (S.LEVER_Z0 - S.PLATE_Z1 - rk["z0"])),
         (f"encoder pocket (-{pd}) over encoder body (8.0 +0.3), high plate",
