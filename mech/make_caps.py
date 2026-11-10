@@ -2,9 +2,10 @@
 
 rev 1: one label per cap in one size (the shift legends are engraved on the plate), amber SHIFT label.
 
-28 caps (9.6 x 6.4 mm, 6 mm tall) for 6x6 mm tactile switches, 9.5 mm high with a round 3.10 mm plunger
-(TE 1-1825910-4 = FSM8JH); the 3.05 mm socket grips it. Test-print one cap first: the cap sits 2.5 mm
-proud of the plate. Black caps, white printed labels, amber SHIFT.
+28 caps (9.6 x 6.4 mm, 6 mm tall) for 6x6 mm tactile switches, 9.5 mm high with a round 3.10 +-0.30 mm
+plunger (TE 1-1825910-4 = FSM8JH). The socket is a 3.6 mm bore with three ribs, 0.8 mm wide at the tip
+(the process's minimum detail), reaching in to 3.05 mm: see stack.CAP_SOCKET for the range it grips.
+Test-print one cap first: the cap sits 2.5 mm proud of the plate. Black caps, white printed labels, amber SHIFT.
 Exact (watertight) meshes, one shell per cap.
 """
 import math
@@ -26,32 +27,48 @@ AMBER = (217, 164, 65)
 caps = [LABELS[r][c] for r in range(4) for c in range(7)]
 
 # low and wide, like the real boxes
-KEY = dict(w=9.6, h=6.4, r=1.2, height=6.0, cham=0.45, sock=("round", 3.05, 3.05), sock_d=3.0)
+_SK = S.CAP_SOCKET
+KEY = dict(w=S.CAP["w"], h=S.CAP["h"], r=S.CAP["r"], height=S.CAP["height"], cham=S.CAP["cham"],
+           sock=(_SK["d"], _SK["rib_d"]), sock_d=_SK["depth"])
+RIB = dict(n=_SK["ribs"], tip_w=_SK["tip_w"], base_w=_SK["base_w"])   # socket ribs: flat tip, width at the wall
 
 CELL = 512                        # texture cell per cap (8 x 8 grid on a 4k texture)
 GRID = TEX // CELL
 
 
-def rrect_loop(w, h, r, n=8):
-    """Closed CCW loop of a rounded rectangle centred at 0 (fixed vertex count 4*(n+1))."""
+def rrect_loop(w, h, r, n=8, seg=(7, 12)):
+    """Closed CCW loop of a rounded rectangle centred at 0 (fixed vertex count 4*(n+1) + 2*(seg[0]+seg[1]-2)).
+    The straight edges are split into seg (short, long) pieces, so the bottom ring to the socket stays local."""
     pts = []
-    for (cx, cy, a0) in ((w / 2 - r, -h / 2 + r, -90), (w / 2 - r, h / 2 - r, 0),
-                         (-w / 2 + r, h / 2 - r, 90), (-w / 2 + r, -h / 2 + r, 180)):
+    corners = ((w / 2 - r, -h / 2 + r, -90), (w / 2 - r, h / 2 - r, 0),
+               (-w / 2 + r, h / 2 - r, 90), (-w / 2 + r, -h / 2 + r, 180))
+    for k, (cx, cy, a0) in enumerate(corners):
         for i in range(n + 1):
             a = math.radians(a0 + 90 * i / n)
             pts.append((cx + r * math.cos(a), cy + r * math.sin(a)))
+        nx, ny, na = corners[(k + 1) % 4]
+        nxt = (nx + r * math.cos(math.radians(na)), ny + r * math.sin(math.radians(na)))
+        s = seg[k % 2]                                   # right and left edges short, top and bottom long
+        x0, y0 = pts[-1]
+        pts += [(x0 + (nxt[0] - x0) * i / s, y0 + (nxt[1] - y0) * i / s) for i in range(1, s)]
     return np.array(pts)
 
 
-def socket_loop(sock, n=8):
-    kind, a, b = sock
-    if kind == "rect":
-        A, Bq = a / 2, b / 2          # plus shape: union of a x b and b x a rectangles
-        return np.array([(A, -Bq), (A, Bq), (Bq, Bq), (Bq, A), (-Bq, A), (-Bq, Bq),
-                         (-A, Bq), (-A, -Bq), (-Bq, -Bq), (-Bq, -A), (Bq, -A), (Bq, -Bq)])
-    m = 4 * (n + 1)
-    return np.array([(a / 2 * math.cos(2 * math.pi * i / m - math.pi / 2 + 1e-9),
-                      b / 2 * math.sin(2 * math.pi * i / m - math.pi / 2 + 1e-9)) for i in range(m)])
+def ribbed_loop(d, d_rib, n=60):
+    """CCW socket loop: circle of dia d with RIB["n"] trapezoid ribs reaching in to dia d_rib (first one at +y)."""
+    R, r = d / 2, d_rib / 2
+    a_tip, a_base = RIB["tip_w"] / 2 / r, RIB["base_w"] / 2 / R
+    ribs = [math.pi / 2 + 2 * math.pi * k / RIB["n"] for k in range(RIB["n"])]
+    pts = []
+    for i in range(n):
+        t = 2 * math.pi * i / n + 1e-9
+        if all(abs((t - c + math.pi) % (2 * math.pi) - math.pi) > a_base + 0.02 for c in ribs):
+            pts.append((t, R))
+    for c in ribs:
+        rt = r / math.cos(a_tip)                         # flat tip at distance r from the centre
+        pts += [(c - a_base, R), (c - a_tip, rt), (c + a_tip, rt), (c + a_base, R)]
+    pts.sort(key=lambda p: p[0] % (2 * math.pi))
+    return np.array([(rr * math.cos(t), rr * math.sin(t)) for t, rr in pts])
 
 
 def zipper(outer_ids, inner_ids, P):
@@ -87,10 +104,7 @@ def orient(T, P, want_z):
 def cap_mesh(p):
     outer = rrect_loop(p["w"], p["h"], p["r"])
     topl = rrect_loop(p["w"] - 2 * p["cham"], p["h"] - 2 * p["cham"], max(p["r"] - p["cham"], 0.3))
-    sock = socket_loop(p["sock"])
-    if p["sock"][0] == "round":
-        th = np.arctan2(outer[:, 1], outer[:, 0])
-        sock = np.stack([p["sock"][1] / 2 * np.cos(th), p["sock"][2] / 2 * np.sin(th)], 1)
+    sock = ribbed_loop(*p["sock"])
     m, k = len(outer), len(sock)
     H, Hs, Hc = p["height"], p["sock_d"], p["height"] - p["cham"]
     V = [(x, y, 0.0) for x, y in outer] + [(x, y, Hc) for x, y in outer] + \
@@ -107,19 +121,16 @@ def cap_mesh(p):
         j = (i + 1) % k
         T += [(S0 + j, S0 + i, S1 + i), (S0 + j, S1 + i, S1 + j)]   # socket wall (faces inward)
     T += orient([(S1 + i, S1 + (i + 1) % k, CS) for i in range(k)], V, -1)   # socket ceiling, normal down
-    if p["sock"][0] == "round":     # socket points share the outer loop's polar angles: plain quad ring
-        for i in range(m):
-            j = (i + 1) % m
-            T += orient([(i, j, S0 + j), (i, S0 + j, S0 + i)], V, -1)
-    else:
-        T += orient(zipper(list(range(m)), list(range(S0, S0 + k)), V), V, -1)   # bottom ring, normal down
+    ring = zipper(list(range(m)), list(range(S0, S0 + k)), V)
+    assert ring == orient(ring, V, 1), "bottom ring folds over: refine the outer loop"
+    T += orient(ring, V, -1)                                             # bottom ring, normal down
     return np.array(V), np.array(T)
 
 
 # Tactile bars, found without looking (as in the 3D view): SHIFT and DN at the front edge, UP at the back edge.
 # A closed box, 0.35 mm proud, sunk 0.05 mm into the top so the printer fuses it with the cap. Model -y is the
 # front edge (the texture's bottom).
-BAR = dict(w=3.2, d=0.55, proud=0.35, sink=0.05, inset=0.75)
+BAR = S.CAP_BAR
 BAR_EDGE = {"SHIFT": -1, "DN": -1, "UP": 1}
 
 
@@ -259,6 +270,11 @@ fwd = {tuple(a) for a in e}
 open_edges = sum(1 for a in e if (a[1], a[0]) not in fwd)
 tri = V[T]
 vol = np.sum(np.einsum("ij,ij->i", tri[:, 0], np.cross(tri[:, 1], tri[:, 2]))) / 6
+sk = ribbed_loop(*KEY["sock"])
+sock_in = min(np.linalg.norm(a + np.clip(-a @ (b - a) / ((b - a) @ (b - a)), 0, 1) * (b - a))
+              for a, b in zip(sk, np.roll(sk, -1, 0), strict=True))
+print(f"socket {KEY['sock'][0]} mm, {RIB['n']} ribs, inscribed dia {2 * sock_in:.2f} mm "
+      f"(plunger {S.PLUNGER_D:.2f} +-0.30)")
 print(f"legend em {LEGEND_EM:.2f} mm, cap height about {0.7 * LEGEND_EM:.2f} mm")
 print(f"{len(caps)} caps, {len(V)} vertices, {len(T)} triangles, open edges {open_edges}, "
       f"volume {vol/1000:.2f} cm3, top faces {face_top.sum()}")

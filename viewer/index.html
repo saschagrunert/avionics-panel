@@ -248,20 +248,43 @@ async function main() {
   const metal     = M({ color: 0xb9bcc2, roughness: 0.35, metalness: 0.9 });
   const pcbSide   = M({ color: 0x1e3a2c, roughness: 0.7 });
 
-  // ---------------- body: wedge floor + walls ----------------
+  // ---------------- body: walls, 2 mm floor, hollow wedge with ribs and foot pads (mech/make_mech.py) ----------------
   const bodyG = new THREE.Group(); assembly.add(bodyG);
   {
-    const floor = slab(rrectShape(WO, HO, RO), Z_BOT, Z_FLOOR, bodyMat);
-    shearBottom(floor, Z_BOT); bodyG.add(floor);
+    const BD = G.body, CW = W + 2 * CLEAR, CH = H + 2 * CLEAR;
     const ring = rrectShape(WO, HO, RO);
-    ring.holes.push(rrectPath(W + 2 * CLEAR, H + 2 * CLEAR, R + CLEAR));
-    bodyG.add(slab(ring, Z_FLOOR, PLATE_Z0 - G.body.wall_gap, bodyMat));   // walls stop short: the spacers set the plate height
-    const post = (x, y, r, rIn) => {                               // from the floor up to the PCB underside (mech/make_mech.py)
+    ring.holes.push(rrectPath(CW, CH, R + CLEAR));
+    const walls = slab(ring, Z_BOT, PLATE_Z0 - BD.wall_gap, bodyMat);   // walls stop short: the spacers set the plate height
+    shearBottom(walls, Z_BOT); bodyG.add(walls);
+    bodyG.add(slab(rrectShape(CW, CH, R + CLEAR), BD.z_floor_bot, Z_FLOOR, bodyMat));   // floor under the PCB room
+    // everything under the floor reaches down to the 6 degree desk plane; shapes in absolute coordinates for the shear
+    const under = (shape) => { const m = slab(shape, Z_BOT, Z_FLOOR, bodyMat); shearBottom(m, Z_BOT); bodyG.add(m); };
+    const rect = (x0, y0, x1, y1) => rrectShape(x1 - x0, y1 - y0, 0.001, px((x0 + x1) / 2), -pz((y0 + y1) / 2));
+    const disc = (x, y, r) => { const s = new THREE.Shape(); s.absarc(px(x), -pz(y), r, 0, Math.PI * 2, false); return s; };
+    under(rect(-CLEAR, BD.hollow_front, W + CLEAR, H + CLEAR));                          // solid band along the front
+    for (const x of BD.ribs_x) under(rect(x - BD.rib_t / 2, -CLEAR, x + BD.rib_t / 2, BD.hollow_front));
+    for (const y of BD.ribs_y) under(rect(-CLEAR, y - BD.rib_t / 2, W + CLEAR, y + BD.rib_t / 2));
+    for (const [fx, fy] of BD.feet) under(disc(fx, fy, BD.foot_pad / 2));                // flat pads for the feet
+    // screw bosses joined to their corner walls: wide round the washer counterbore, narrower on the PCB
+    const corner = (mx, my, r, hole) => {
+      const sx = mx < W / 2 ? -1 : 1, sy = my < H / 2 ? -1 : 1, xw = sx < 0 ? -CLEAR : W + CLEAR, yw = sy < 0 ? -CLEAR : H + CLEAR;
+      const pts = [[xw, yw], [mx - sx * r, yw], [mx - sx * r, my]];
+      const a0 = Math.atan2(0, -sx), a1 = Math.atan2(-sy, 0);
+      let da = a1 - a0; while (da > Math.PI) da -= 2 * Math.PI; while (da < -Math.PI) da += 2 * Math.PI;
+      for (let i = 1; i < 16; i++) { const a = a0 + da * i / 16; pts.push([mx + r * Math.cos(a), my + r * Math.sin(a)]); }
+      pts.push([mx, my - sy * r], [xw, my - sy * r]);
+      const s = new THREE.Shape(pts.map(([x, y]) => new THREE.Vector2(px(x), -pz(y))));
+      s.holes.push(circlePath(px(mx), -pz(my), hole)); return s;
+    };
+    for (const [mx, my] of MOUNTS) {
+      const low = slab(corner(mx, my, BD.boss_r_low, BD.counterbore_r), Z_BOT, BD.seat_z, bodyMat);
+      shearBottom(low, Z_BOT); bodyG.add(low);
+      bodyG.add(slab(corner(mx, my, BD.boss_r, BD.boss_hole_r), BD.seat_z, -PCB_T, bodyMat));
+    }
+    const post = (x, y, r) => {                                    // from the floor up to the PCB underside
       const sh = new THREE.Shape(); sh.absarc(0, 0, r, 0, Math.PI * 2, false);
-      if (rIn) sh.holes.push(circlePath(0, 0, rIn));
       const m = slab(sh, Z_FLOOR, -PCB_T, bodyMat); m.position.set(px(x), 0, pz(y)); bodyG.add(m);
     };
-    for (const [mx, my] of MOUNTS) post(mx, my, G.body.boss_r, G.body.boss_hole_r);   // bosses: the screws come up through them
     for (const [sx, sy] of SUPPORTS) post(sx, sy, G.body.support_r);                  // two posts under the middle of the PCB
     box(bodyG, 9.4, 3.6, 2.6, USB_X, -O + 1.0, -PCB_T - 3.4, dark);
     box(bodyG, 8.6, 2.8, 1.0, USB_X, -O + 0.6, -PCB_T - 3.0, metal);
@@ -333,11 +356,14 @@ async function main() {
   const spacerG = new THREE.Group(); assembly.add(spacerG);
   {
     const steel = M({ color: 0x2a2b2e, roughness: 0.45, metalness: 0.8 });     // black oxide
+    const SC = G.screw, washerH = G.body.seat_z - SCREW_HEAD_Z;                 // shims from the seat down to the head
     for (const [mx, my] of MOUNTS) {
-      const head = new THREE.Mesh(new THREE.CylinderGeometry(2.25, 2.25, 2.5, 24), steel);
-      head.position.set(px(mx), SCREW_HEAD_Z - 1.25, pz(my)); screwG.add(head);
-      const hex = new THREE.Mesh(new THREE.CylinderGeometry(1.15, 1.15, 0.05, 6), dark);
-      hex.position.set(px(mx), SCREW_HEAD_Z - 2.52, pz(my)); screwG.add(hex);
+      const washers = new THREE.Mesh(new THREE.CylinderGeometry(SC.washer_od / 2, SC.washer_od / 2, washerH, 24), metal);
+      washers.position.set(px(mx), SCREW_HEAD_Z + washerH / 2, pz(my)); screwG.add(washers);
+      const head = new THREE.Mesh(new THREE.CylinderGeometry(SC.head_d / 2 - 0.3, SC.head_d / 2, SC.head_k, 24), steel);
+      head.position.set(px(mx), SCREW_HEAD_Z - SC.head_k / 2, pz(my)); screwG.add(head);   // pan head
+      const slot = new THREE.Mesh(new THREE.BoxGeometry(SC.head_d * 0.7, 0.05, 0.5), dark);
+      slot.position.set(px(mx), SCREW_HEAD_Z - SC.head_k - 0.02, pz(my)); screwG.add(slot);
       const shank = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.2, SCREW_L, 16), steel);
       shank.position.set(px(mx), SCREW_HEAD_Z + SCREW_L / 2, pz(my)); screwG.add(shank);
       const sh = new THREE.Shape(); sh.absarc(0, 0, G.spacer.od / 2, 0, Math.PI * 2, false); sh.holes.push(circlePath(0, 0, G.spacer.id / 2));
@@ -445,12 +471,10 @@ async function main() {
       lensMat.color.convertSRGBToLinear(); lensMat.emissive.convertSRGBToLinear();
       const lens = new THREE.Mesh(new THREE.CylinderGeometry(L.r, L.r, 0.1, 32), lensMat);   // flat lens, flush with the plate
       lens.position.set(px(L.x), PLATE_Z1 + 0.03, pz(L.y)); plateG.add(lens);
-      const pipeMat = M({ color: 0xdfe6ea, roughness: 0.15, transparent: true, opacity: 0.55 });   // clear resin, collar under the plate
+      const pipeMat = M({ color: 0xdfe6ea, roughness: 0.15, transparent: true, opacity: 0.55 });   // clear resin, glued flush
       const rr = L.r - G.pipe.clear / 2;                                   // slip fit in its hole
-      const rod = new THREE.Mesh(new THREE.CylinderGeometry(rr, rr, PLATE_Z1 - 0.05 - PIPE_Z0, 24), pipeMat);
-      rod.position.set(px(L.x), (PLATE_Z1 - 0.05 + PIPE_Z0) / 2, pz(L.y)); pipeG.add(rod);
-      const collar = new THREE.Mesh(new THREE.CylinderGeometry(G.pipe.collar_d / 2, G.pipe.collar_d / 2, PLATE_Z0 - PIPE_Z0, 24), pipeMat);
-      collar.position.set(px(L.x), (PLATE_Z0 + PIPE_Z0) / 2, pz(L.y)); pipeG.add(collar);
+      const rod = new THREE.Mesh(new THREE.CylinderGeometry(rr, rr, G.pipe.len, 24), pipeMat);   // clear of its LED
+      rod.position.set(px(L.x), PIPE_Z0 + G.pipe.len / 2, pz(L.y)); pipeG.add(rod);
     }
   }
 
@@ -547,8 +571,8 @@ async function main() {
 
   // ---------------- place on the ground and set up views ----------------
   // explode offsets (mm): PCB lifts its bottom parts out of the body, spacers clear the key switches,
-  // light pipes and plate clear the spacers, caps and knobs clear the plate and the shaft tips
-  const EXPLODE = [[screwG, -30], [pcbG, 18], [spacerG, 30], [pipeG, 36], [plateG, 46], [capsG, 62], [outerG, 64], [innerG, 78]];
+  // the plate with its glued light pipes clears the spacers, caps and knobs clear the plate and the shaft tips
+  const EXPLODE = [[screwG, -30], [pcbG, 18], [spacerG, 30], [pipeG, 46], [plateG, 46], [capsG, 62], [outerG, 64], [innerG, 78]];
   assembly.updateMatrixWorld(true);
   const bb = new THREE.Box3().setFromObject(assembly);
   assembly.position.y = -bb.min.y + 0.01;
