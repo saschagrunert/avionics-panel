@@ -48,7 +48,7 @@ POUR_CLEAR = 0.30
 EDGE_CLEAR = 0.50
 VIA_D, VIA_DRILL = 0.60, 0.30
 SVIA_D, SVIA_DRILL = 0.50, 0.30     # small vias (USB-C, fan-out ends): JLC standard 0.3 mm drill, 0.45 mm pad min.
-MOUNT_HOLE = 3.2
+MOUNT_HOLE = 4.2      # screws never touch it, whatever the tolerances and the board offset the key caps allow
 MOUNTS = [(3.5, 3.5), (W - 3.5, 3.5), (3.5, H - 3.5), (W - 3.5, H - 3.5)]
 PLANES = {"In1": "GND", "In2": "3V3"}
 

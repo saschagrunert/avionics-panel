@@ -48,7 +48,8 @@ Production files, by supplier (details in [Ordering](docs/ordering.md)):
   [thread drawing](production/avionics-panel-rev1-plate-drawing.pdf),
   [marking DXF](production/avionics-panel-rev1-plate.dxf)
 - JLC3DP: [body](production/avionics-panel-rev1-body.step),
-  [spacer](production/avionics-panel-rev1-spacer.step), [key caps](production/avionics-panel-rev1-caps.zip),
+  [spacer](production/avionics-panel-rev1-spacer.step) (fallback for metal spacers),
+  [key caps](production/avionics-panel-rev1-caps.zip),
   [light pipes](production/avionics-panel-rev1-lightpipes.step), knobs
   ([outer 22](production/avionics-panel-rev1-knob-outer-22.step),
   [outer 24](production/avionics-panel-rev1-knob-outer-24.step),

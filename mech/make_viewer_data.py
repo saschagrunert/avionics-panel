@@ -1,12 +1,10 @@
 """Geometry for the 3D view (viewer/geometry.js, a plain script so the page also opens from disk), taken from
-board.py, stack.py, make_mech.py and the cap
-dimensions of make_caps.py, so the viewer never carries hand copies of them.
+board.py, stack.py and make_mech.py, so the viewer never carries hand copies of them.
 
 Board coordinates in mm (x to the right, y from the back edge towards the user), heights with z = 0 at the PCB
 top. The file is byte-stable (sorted keys, fixed rounding), so CI can check it is up to date.
 Needs pythonocc-core (make_mech.py imports it).
 """
-import ast
 import json
 import sys
 from pathlib import Path
@@ -15,18 +13,6 @@ sys.path.insert(0, "../pcb")
 import board as B  # noqa: E402
 import make_mech as MM  # noqa: E402
 import stack as S  # noqa: E402
-
-PLUNGER_TOP = 9.5                   # TE 1-1825910-4: plunger top above the PCB (see stack.py)
-RKJXT_BODY, RKJXT_HUB_TOP = 8.6, 10.5    # Alps RKJXT1F42001 drawing (see check_fit.py)
-
-
-def caps_dict(name):
-    """a dict(...) constant of make_caps.py (KEY, BAR), read without running the cap generator"""
-    tree = ast.parse(Path(__file__).with_name("make_caps.py").read_text())
-    for node in tree.body:
-        if isinstance(node, ast.Assign) and getattr(node.targets[0], "id", None) == name:
-            return {kw.arg: ast.literal_eval(kw.value) for kw in node.value.keywords}
-    raise SystemExit(f"make_caps.py: {name} not found")
 
 
 def rounded(v):
@@ -41,18 +27,21 @@ def rounded(v):
 
 B.build()
 part = {ref: (x, y) for ref, _v, _l, x, y, _r, _s in B.PARTS}
-key, bar = caps_dict("KEY"), caps_dict("BAR")
+
 geometry = {
     "board": {"w": B.W, "h": B.H, "corner_r": B.CORNER_R, "t": S.PCB_T, "mounts": B.MOUNTS,
               "mount_hole": B.MOUNT_HOLE, "key_pad_dx": B.KEY_DX, "key_pad_dy": B.KEY_DY},
     "body": {"clear": MM.CLEAR, "wall": MM.WALL, "overhang": S.OVH, "z_bot": MM.Z_BOT,
-             "z_floor": MM.Z_FLOOR_TOP, "wall_gap": S.WALL_GAP, "tilt_deg": 6.0, "boss_r": MM.BOSS_R,
-             "boss_hole_r": MM.SCREW_CLEAR, "supports": MM.SUPPORTS, "support_r": MM.SUPPORT_R},
+             "z_floor": MM.Z_FLOOR_TOP, "wall_gap": S.WALL_GAP, "tilt_deg": S.BODY_TILT, "boss_r": MM.BOSS_R,
+             "boss_hole_r": MM.SCREW_CLEAR, "supports": MM.SUPPORTS, "support_r": MM.SUPPORT_R,
+             "z_floor_bot": MM.Z_FLOOR_BOT, "hollow_front": MM.hollow_front(), "ribs_x": MM.RIBS_X,
+             "ribs_y": MM.RIBS_Y, "rib_t": MM.RIB_T, "boss_r_low": MM.BOSS_R_LOW, "counterbore_r": MM.HEAD_R,
+             "seat_z": S.SEAT_Z, "feet": MM.FEET, "foot_pad": MM.FOOT_PAD},
     "plate": {"z0": S.PLATE_Z0, "z1": S.PLATE_Z1, "key_hole": S.KEY_HOLE, "shaft_hole": S.SHAFT_HOLE,
               "range_hole": S.RANGE_HOLE},
-    "keys": {"cols": B.COLS, "rows": B.ROWS, "cap": [key["w"], key["h"]], "cap_height": key["height"],
-             "cap_chamfer": key["cham"], "cap_base": PLUNGER_TOP - key["sock_d"], "plunger_top": PLUNGER_TOP,
-             "bar": bar},
+    "keys": {"cols": B.COLS, "rows": B.ROWS, "cap": [S.CAP["w"], S.CAP["h"]], "cap_height": S.CAP["height"],
+             "cap_chamfer": S.CAP["cham"], "cap_base": S.CAP["base"], "plunger_top": S.PLUNGER_TOP,
+             "bar": S.CAP_BAR},
     "key_legends": S.KEY_LEGENDS,
     "flip_icon": {"w": S.FLIP_W, "gap": S.FLIP_GAP, "polys": S.FLIP_ICON},
     "knobs": {name: {"x": x, "y": y, "d": S.KNOB_D.get(name), "legend_tilt": S.KNOB_LEGEND_TILT[name],
@@ -61,12 +50,13 @@ geometry = {
     "outer_knob": S.OUTER_KNOB, "inner_knob": S.INNER_KNOB, "range_knob": S.RANGE_KNOB,
     "encoder": {"body": S.EC11_BODY, "sleeve_top": S.SLEEVE_TOP, "outer_top": S.OUTER_TOP,
                 "inner_top": S.INNER_TOP, "sleeve_d": S.SLEEVE_D, "outer_d": S.OUTER_D, "inner_d": S.INNER_D},
-    "rkjxt": {"body": RKJXT_BODY, "hub_top": RKJXT_HUB_TOP, "lever_z0": S.LEVER_Z0, "lever_z1": S.LEVER_Z1,
+    "rkjxt": {"body": S.RKJXT_BODY, "hub_top": S.RKJXT_HUB_TOP, "lever_z0": S.LEVER_Z0, "lever_z1": S.LEVER_Z1,
               "lever_d": S.LEVER_D},
     "lights": {name: {"x": x, "y": y, "d": S.LIGHT_HOLES[name]} for name, ((x, y), _gp, _c) in B.LEDS.items()},
     "led_top": S.LED_TOP,
-    "pipe": {"z0": S.PIPE["z0"], "collar_d": S.PIPE["collar"][0], "clear": S.PIPE["clear"]},
-    "screw": {"head_z": S.SCREW_HEAD_Z, "length": S.SCREW_L},
+    "pipe": {"z0": S.PIPE["z0"], "len": S.PIPE["len"], "clear": S.PIPE["clear"]},
+    "screw": {"head_z": S.SCREW_HEAD_Z, "length": S.SCREW_L, "head_d": S.SCREW["head_d"], "head_k": S.SCREW["head_k"],
+              "washer_od": S.WASHER["od"]},
     "spacer": S.SPACER,
     "parts": {"usb_x": B.USB_X, "mcu": part["U1"], "flash": part["U2"], "xtal": part["Y1"], "ldo": part["U3"]},
 }

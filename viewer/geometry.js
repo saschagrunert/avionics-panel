@@ -5,7 +5,7 @@ window.GEOMETRY = {
   "h": 60.0,
   "key_pad_dx": 3.25,
   "key_pad_dy": 2.25,
-  "mount_hole": 3.2,
+  "mount_hole": 4.2,
   "mounts": [
    [
     3.5,
@@ -28,10 +28,43 @@ window.GEOMETRY = {
   "w": 160.0
  },
  "body": {
-  "boss_hole_r": 1.45,
-  "boss_r": 3.6,
-  "clear": 0.3,
+  "boss_hole_r": 1.85,
+  "boss_r": 4.0,
+  "boss_r_low": 5.2,
+  "clear": 0.5,
+  "counterbore_r": 4.2,
+  "feet": [
+   [
+    15.5,
+    6.7
+   ],
+   [
+    144.5,
+    6.7
+   ],
+   [
+    15.5,
+    55.5
+   ],
+   [
+    144.5,
+    55.5
+   ]
+  ],
+  "foot_pad": 12.0,
+  "hollow_front": 48.9,
   "overhang": 2.3,
+  "rib_t": 1.6,
+  "ribs_x": [
+   36.0,
+   72.3,
+   98.6,
+   125.0
+  ],
+  "ribs_y": [
+   30.8
+  ],
+  "seat_z": -2.5,
   "support_r": 2.5,
   "supports": [
    [
@@ -44,10 +77,11 @@ window.GEOMETRY = {
    ]
   ],
   "tilt_deg": 6.0,
-  "wall": 2.0,
-  "wall_gap": 0.3,
+  "wall": 1.8,
+  "wall_gap": 0.9,
   "z_bot": -7.2,
-  "z_floor": -5.6
+  "z_floor": -5.6,
+  "z_floor_bot": -7.6
  },
  "encoder": {
   "body": 8.0,
@@ -363,8 +397,8 @@ window.GEOMETRY = {
  },
  "pipe": {
   "clear": 0.08,
-  "collar_d": 4.0,
-  "z0": 6.2
+  "len": 3.95,
+  "z0": 6.05
  },
  "plate": {
   "key_hole": [
@@ -374,7 +408,7 @@ window.GEOMETRY = {
   ],
   "range_hole": 12.0,
   "shaft_hole": 7.6,
-  "z0": 7.0,
+  "z0": 6.0,
   "z1": 10.0
  },
  "range_knob": {
@@ -391,12 +425,17 @@ window.GEOMETRY = {
   "lever_z1": 17.4
  },
  "screw": {
-  "head_z": -4.1,
-  "length": 12.0
+  "head_d": 5.0,
+  "head_k": 1.75,
+  "head_z": -3.5,
+  "length": 12.0,
+  "washer_od": 7.0
  },
  "spacer": {
   "id": 2.8,
-  "length": 7.0,
-  "od": 5.0
+  "id_max": 2.8,
+  "length": 6.0,
+  "od": 5.0,
+  "od_min": 4.95
  }
 };

@@ -7,9 +7,10 @@ Rev 1 is designed and checked; nothing is ordered yet.
 - Upload the current files to the three quotes (JLCPCB, JLC3DP, JLCCNC; see the
   [checklist](ordering.md#checklist)).
 - JLCCNC reviews the plate before payment. Ask in the remark whether they accept the blind M2.5
-  threads (1.2 mm full thread in a 2.2 mm drill, 0.8 mm left to the front), and watch for a flag on the
-  0.5 mm webs between the light holes and the SHIFT and UNIT key holes; if they flag those, shrink the
-  SHIFT pipe to 1.6 mm and the UNIT pipe to 1.4 mm in [mech/stack.py](../mech/stack.py).
+  threads (thread milled, full thread to 2.6 mm in a 3.2 +0/-0.1 mm flat-bottom hole in the 4 mm plate,
+  0.7 mm left to the front, masked or chased after anodising; see [Ordering](ordering.md)), and watch for
+  a flag on the 0.55 mm webs between the light holes and the SHIFT and UNIT key holes; if they flag
+  those, shrink the SHIFT pipe to 1.6 mm and the UNIT pipe to 1.4 mm in [mech/stack.py](../mech/stack.py).
 
 ## Bench and first board
 
