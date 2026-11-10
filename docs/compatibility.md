@@ -71,6 +71,10 @@ Radios, transponder, audio:
 Partly covered: the KLN 90B (Black Square Bonanza). D→, CLR, ENT, MSG and the FMS knob can map to it
 if the aircraft exposes events for them; its cursor keys and second knob have no place on the panel.
 
+Cockpit lighting (SHIFT + FMS knob) maps to the aircraft's panel and flood light dimmers and the cabin or
+dome light, where the sim or the aircraft exposes them as events or variables; aircraft with one dimmer
+for everything use the outer ring only.
+
 Deliberately not on the panel: volume and squelch, the G1000 softkeys, the KR 87 timer, the KN 62 DME
 mode switch and the Collins IND-450 DME, marker audio (MKR), COM 3, KNS 81 RNAV waypoint entry,
 weather radar controls (RDR 1150XL), soft ride, autothrottle and the G3000 touch controllers.

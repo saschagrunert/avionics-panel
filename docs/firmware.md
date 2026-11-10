@@ -9,7 +9,9 @@ need variables or preconditions and can't get out of sync with the panel:
   functions are their own buttons.
 - UNIT: the firmware keeps the state and drives the white light. Unit 2 versions of the FMS keys, FMS
   knob, CDI and OBS (a GNS 430 as unit 2 has its own), flip-flops and frequency knob are sent on a
-  second USB joystick device: 117 of 128 buttons on device 1, 44 of 64 on device 2 ([BUTTONS.md](../firmware/BUTTONS.md)).
+  second USB joystick device: 122 of 128 buttons on device 1, 44 of 64 on device 2 ([BUTTONS.md](../firmware/BUTTONS.md)).
+  The cockpit lighting behind SHIFT on the FMS knob stays on device 1 in either unit. Button numbers are
+  stable: new buttons go at the end of a device, retired ones (the old shifted FMS buttons) keep their slot.
 - Frequency knob: the push cycles COM, NAV, ADF, and each mode sends its own turn buttons. For
   avionics that show their own tuning cursor (GNS, GTN) the profile maps all modes to the unit's knob
   and the push to its C/V, so the unit keeps the state. For avionics without one (G1000, KX 155/165,

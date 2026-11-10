@@ -55,9 +55,16 @@ def _device1_only():
     return names
 
 
+# FMS knob with SHIFT: cockpit lighting, the same in every unit, so on device 1 only. Outer ring: panel /
+# instrument lights, inner ring: glareshield flood, push: cabin (dome) light. One step per detent; the
+# profile sets the step size.
+LIGHTING = _turn("PANEL_LT") + _turn("FLOOD_LT") + ["CABIN_LT"]
+
+
 def _unit():
     keys = list(UNIT_KEYS) + [shifted(k) for k in UNIT_KEYS if k != "HOME"]
     fms = ["FMS_OUTER_CW", "FMS_OUTER_CCW", "FMS_INNER_CW", "FMS_INNER_CCW", "FMS_CRSR"]
+    # S_FMS_*: retired, SHIFT on the FMS knob is the lighting now; the slots stay so no number moves
     fms += ["S_" + n for n in fms]
     freq = _turn("COM_MHZ") + _turn("COM_KHZ") + _turn("NAV_MHZ") + _turn("NAV_KHZ")
     freq += _turn("ADF_100") + _turn("ADF_1", "ADF_10") + ["FREQ_PUSH"]
@@ -65,7 +72,9 @@ def _unit():
 
 
 UNIT_NAMES = _unit()
-DEVICE = {1: _device1_only() + UNIT_NAMES, 2: list(UNIT_NAMES)}
+# Button numbers are stable, so existing MobiFlight mappings keep working: new buttons go at the end of a
+# device, retired ones keep their slot.
+DEVICE = {1: _device1_only() + UNIT_NAMES + LIGHTING, 2: list(UNIT_NAMES)}
 BUTTON = {dev: {n: i for i, n in enumerate(names)} for dev, names in DEVICE.items()}
 SIZE = {1: 128, 2: 64}                     # buttons per device (report: SIZE / 8 bytes)
 assert len(DEVICE[1]) <= SIZE[1] and len(DEVICE[2]) <= SIZE[2]

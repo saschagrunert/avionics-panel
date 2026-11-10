@@ -108,7 +108,7 @@ class Panel:
         if name == "ALTHDG_PUSH":
             self.held[name] = self._btn(1, "BARO_STD" if shifted else "HDG_SYNC")
         elif name == "FMS_PUSH":
-            self.held[name] = self._btn(self._unit_dev(), "S_FMS_CRSR" if shifted else "FMS_CRSR")
+            self.held[name] = self._btn(1, "CABIN_LT") if shifted else self._btn(self._unit_dev(), "FMS_CRSR")
         elif shifted:
             self.held[name] = self._btn(1, "XPDR_MODE")
         else:                                              # FREQ push: next mode, and C/V for GNS / GTN
@@ -135,6 +135,8 @@ class Panel:
             slow, quick = ("BARO", None) if shifted else ("HDG_1", "HDG_10")
         elif knob == "FREQ" and shifted:
             slow, quick = ("SQK_D2", "SQK_D1") if ring == "FREQ_OUTER" else ("SQK_D4", "SQK_D3")
+        elif knob == "FMS" and shifted:                     # lighting: device 1 in every unit, one step per detent
+            slow = "PANEL_LT" if ring == "FMS_OUTER" else "FLOOD_LT"
         elif knob == "FREQ":
             dev = self._unit_dev()
             self.freq_last = t
@@ -146,7 +148,7 @@ class Panel:
                 quick = "ADF_10" if mode == "ADF" else None
         else:                                               # FMS, RANGE: exactly one step per detent
             dev = self._unit_dev() if knob == "FMS" else 1
-            name = ("S_" if shifted else "") + ring + ("_CW" if up else "_CCW")
+            name = ("S_" if shifted else "") + ring + ("_CW" if up else "_CCW")   # shifted: only RANGE gets here
             self._queue(dev, name, abs(steps))
             return
         base = quick if (fast and quick) else slow

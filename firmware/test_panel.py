@@ -68,6 +68,23 @@ def test_acceleration():
     assert [n for _, n in s.take()] == ["FMS_INNER_CW"] * 5
 
 
+def test_fms_knob_with_shift_dims_the_lights():
+    s = Sim()
+    s.turn("FMS_OUTER", 1); assert s.take() == [(1, "FMS_OUTER_CW")]
+    s.key("SHIFT")
+    s.turn("FMS_OUTER", 2); s.turn("FMS_INNER", -1); s.key("FMS_PUSH")   # one session: both rings and push
+    assert s.take() == [(1, "PANEL_LT_UP"), (1, "PANEL_LT_UP"), (1, "FLOOD_LT_DN"), (1, "CABIN_LT")]
+    s.turn("FMS_OUTER", 2, every=30); s.run(200)                          # fast turn: still one step each
+    assert s.take() == [(1, "PANEL_LT_UP"), (1, "PANEL_LT_UP")]
+    s.run(3000)
+    s.key("SHIFT"); s.key("HOME")                                         # unit 2: lighting stays on device 1
+    s.key("SHIFT"); s.turn("FMS_INNER", 1); s.key("FMS_PUSH")
+    assert s.take() == [(1, "FLOOD_LT_UP"), (1, "CABIN_LT")]
+    s.run(3000)
+    s.turn("FMS_INNER", 1); s.key("FMS_PUSH")                             # plain FMS knob follows the unit
+    assert s.take() == [(2, "FMS_INNER_CW"), (2, "FMS_CRSR")]
+
+
 def test_unit_and_freq_modes():
     s = Sim()
     s.key("COM_SWAP"); assert s.take() == [(1, "COM_SWAP")]
@@ -106,7 +123,8 @@ def test_up_dn_repeat():
 
 
 def test_counts():
-    assert len(BM.DEVICE[1]) == 117 and len(BM.DEVICE[2]) == 44
+    assert len(BM.DEVICE[1]) == 122 and len(BM.DEVICE[2]) == 44
+    assert BM.DEVICE[1][-5:] == BM.LIGHTING                          # added at the end: no number moved
     for name in sum(BM.MATRIX, ()):
         assert name in ("SHIFT", "RANGE_A", "RANGE_B", "RANGE_C", "RANGE_D", "RANGE_COM", "ALTHDG_PUSH",
                         "FMS_PUSH") or name in BM.BUTTON[1], name

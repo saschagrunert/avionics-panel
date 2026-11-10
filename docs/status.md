@@ -42,7 +42,8 @@ Rev 1 is designed and checked; nothing is ordered yet.
 - RANGE footprint checked against JLC's own (C160841), encoder footprint against JLC's own
   (C19270361); LED and resistor part numbers; plate attachment; knob and light-pipe models; rev 1
   firmware; live JLC quotes (2026-11-09).
-- Reddit feedback: FD plain with YD shifted, DME audio instead of MKR, CRS and BARO kept behind SHIFT.
+- Reddit feedback: FD plain with YD shifted, DME audio instead of MKR, CRS and BARO kept behind SHIFT,
+  cockpit lighting dimmers behind SHIFT on the FMS knob.
 - First external review: the regulator, crystal and USB-C footprints are mirrored for the bottom side
   (the USB-C pad row follows JLC's footprint of C165948), the second VBUS pad is tied, SWD debug pads
   and PCB support posts added, key switch changed to TE 1-1825910-4 (the C&K PTS645SL95 is out of
