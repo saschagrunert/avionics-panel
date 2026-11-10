@@ -12,6 +12,7 @@ import zipfile
 from pathlib import Path
 
 import numpy as np
+import stack as S
 from PIL import Image, ImageDraw, ImageFont
 
 TEX = 4096
@@ -20,12 +21,7 @@ FONT = str(Path(__file__).resolve().parent / "fonts/BarlowSemiCondensed-SemiBold
 BLACK = (18, 18, 20)
 WHITE = (245, 245, 245)
 
-LABELS = [   # same order as B.KEY_LABELS (rows top to bottom, columns left to right)
-    ["AP", "ALT", "HDG", "MIC 1", "COM 1", "CDI", "COM ⇆"],
-    ["FD", "VS", "NAV", "MIC 2", "COM 2", "IDENT", "NAV ⇆"],
-    ["UP", "FLC", "APR", "HOME", "FPL", "D→", "MENU"],
-    ["DN", "VNV", "LVL", "SHIFT", "PROC", "CLR", "ENT"],
-]
+LABELS = [[label for label, _ in row] for row in S.KEY_LEGENDS]   # stack.py holds the legends
 AMBER = (217, 164, 65)
 caps = [LABELS[r][c] for r in range(4) for c in range(7)]
 

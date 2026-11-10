@@ -65,6 +65,128 @@ window.GEOMETRY = {
   "z0": 8.8,
   "z1": 19.2
  },
+ "key_legends": [
+  [
+   [
+    "AP",
+    "TEST"
+   ],
+   [
+    "ALT",
+    "ARM"
+   ],
+   [
+    "HDG",
+    "CRS CTR"
+   ],
+   [
+    "MIC 1",
+    "ADF"
+   ],
+   [
+    "COM 1",
+    "NAV 1"
+   ],
+   [
+    "CDI",
+    "OBS"
+   ],
+   [
+    "COM \u21c6",
+    "121.5"
+   ]
+  ],
+  [
+   [
+    "FD",
+    "YD"
+   ],
+   [
+    "VS",
+    ""
+   ],
+   [
+    "NAV",
+    "GPSS"
+   ],
+   [
+    "MIC 2",
+    "DME"
+   ],
+   [
+    "COM 2",
+    "NAV 2"
+   ],
+   [
+    "VFR",
+    "IDENT"
+   ],
+   [
+    "NAV \u21c6",
+    "ADF \u21c6"
+   ]
+  ],
+  [
+   [
+    "UP",
+    ""
+   ],
+   [
+    "FLC",
+    ""
+   ],
+   [
+    "APR",
+    "BC"
+   ],
+   [
+    "HOME",
+    "UNIT"
+   ],
+   [
+    "FPL",
+    "VNAV"
+   ],
+   [
+    "D\u2192",
+    "MSG"
+   ],
+   [
+    "MENU",
+    "NRST"
+   ]
+  ],
+  [
+   [
+    "DN",
+    ""
+   ],
+   [
+    "VNV",
+    ""
+   ],
+   [
+    "LVL",
+    "\u00bd BANK"
+   ],
+   [
+    "SHIFT",
+    ""
+   ],
+   [
+    "PROC",
+    "TERR"
+   ],
+   [
+    "CLR",
+    "MAP"
+   ],
+   [
+    "ENT",
+    ""
+   ]
+  ]
+ ],
  "keys": {
   "bar": {
    "d": 0.55,
@@ -100,21 +222,33 @@ window.GEOMETRY = {
  "knobs": {
   "ALTHDG": {
    "d": 22.0,
+   "legend": "ALT \u00b7 HDG \u00b7 PUSH SYNC",
+   "legend_shift": "CRS \u00b7 BARO \u00b7 PUSH STD",
+   "legend_tilt": 15,
    "x": 15.0,
    "y": 15.0
   },
   "FMS": {
    "d": 24.0,
+   "legend": "FMS \u00b7 PUSH CRSR",
+   "legend_shift": "PANEL \u00b7 FLOOD \u00b7 PUSH CABIN",
+   "legend_tilt": 5,
    "x": 145.0,
    "y": 45.0
   },
   "FREQ": {
    "d": 22.0,
+   "legend": "FREQ \u00b7 PUSH COM/NAV/ADF",
+   "legend_shift": "SQUAWK \u00b7 PUSH XPDR",
+   "legend_tilt": 15,
    "x": 145.0,
    "y": 15.0
   },
   "RANGE": {
    "d": null,
+   "legend": "RANGE \u00b7 PUSH PTR",
+   "legend_shift": null,
+   "legend_tilt": 35,
    "x": 15.0,
    "y": 45.0
   }

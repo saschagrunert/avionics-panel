@@ -21,8 +21,21 @@ Bottom-side parts: seen from the top, a part on the bottom is mirrored, so its p
 check.py asserts that for every bottom part with three or more numbered pins.
 Circuit follows Raspberry Pi's "Hardware design with RP2040" minimal design.
 """
+import importlib.util
+import os
 import re
 from itertools import pairwise
+
+
+def _load(name, path):
+    """a module by file path, without putting its directory on sys.path"""
+    spec = importlib.util.spec_from_file_location(name, os.path.join(os.path.dirname(os.path.abspath(__file__)), path))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+_STACK = _load("_avionics_stack", "../mech/stack.py")   # the one source of the key legends
 
 SHIFT_X = 9.0           # electronics strip + right knob column, moved right as one block from the first draft
 XR = 136.0 + SHIFT_X    # right knob column (FREQ over FMS)
@@ -47,12 +60,8 @@ SLOT = (1.5, 2.6)
 COL_PITCH = 11.85
 COLS = [40.0 + COL_PITCH * k for k in range(3)] + [116.35 - COL_PITCH * k for k in (3, 2, 1, 0)]
 ROWS = [12.5, 23.5, 38.0, 49.0]         # rows 2/3 lower: room for the FMS line on the plate
-KEY_LABELS = [
-    ["AP", "ALT", "HDG", "MIC 1", "COM 1", "CDI", "COM<>"],
-    ["FD", "VS", "NAV", "MIC 2", "COM 2", "IDENT", "NAV<>"],
-    ["UP", "FLC", "APR", "HOME", "FPL", "D->", "MENU"],
-    ["DN", "VNV", "LVL", "SHIFT", "PROC", "CLR", "ENT"],
-]
+KEY_LABELS = [[label.replace(" ⇆", "<>").replace("→", "->") for label, _ in row]   # silkscreen: ASCII
+              for row in _STACK.KEY_LEGENDS]
 ALTHDG, RANGE = (15.0, 15.0), (15.0, 45.0)   # left: ALT/HDG dual over RANGE (RKJXT: turn, 4-way tilt, push)
 FREQ, FMS = (XR, 15.0), (XR, 45.0)          # right: frequency dual over FMS dual
 MCU = (122.6 + SHIFT_X, 25.0)   # RP2040 on the bottom, mirrored (pins 1-14 face the keys, bottom to top)

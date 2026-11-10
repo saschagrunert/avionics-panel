@@ -52,6 +52,29 @@ FIT_VARIANTS = {"tight": -0.05, "loose": 0.15}   # extra outer-22 and inner knob
 OUTER_KNOB = dict(z0=0.8, z1=8.0, neck_d=9.6, neck_top=8.6)
 INNER_KNOB = dict(d=13.0, z0=8.8, z1=19.2, recess_d=10.4, recess_top=10.1)    # recess clears the neck (8.6) when pushed
 KNOB_D = {"ALTHDG": 22.0, "FREQ": 22.0, "FMS": 24.0}
+# knob legends: degrees their arc is turned from the horizontal towards the user, for the plate artwork and
+# the 3D view alike. FMS at 5 keeps its long amber line about 3 mm off the plate edge.
+KNOB_LEGEND_TILT = {"ALTHDG": 15, "FREQ": 15, "FMS": 5, "RANGE": 35}
+
+# Legends, the one source for the caps (make_caps.py), the plate (make_plate_art.py) and the 3D view
+# (geometry.js). The board silkscreen (pcb/board.py) and the firmware button map (firmware/buttonmap.py)
+# keep their own copies (ASCII, CircuitPython); tests/test_labels.py checks they agree with these.
+# Keys: (cap label, amber shift legend under it) per key, rows top to bottom, columns left to right.
+KEY_LEGENDS = [
+    [("AP", "TEST"), ("ALT", "ARM"), ("HDG", "CRS CTR"), ("MIC 1", "ADF"), ("COM 1", "NAV 1"), ("CDI", "OBS"),
+     ("COM ⇆", "121.5")],
+    [("FD", "YD"), ("VS", ""), ("NAV", "GPSS"), ("MIC 2", "DME"), ("COM 2", "NAV 2"), ("VFR", "IDENT"),
+     ("NAV ⇆", "ADF ⇆")],
+    [("UP", ""), ("FLC", ""), ("APR", "BC"), ("HOME", "UNIT"), ("FPL", "VNAV"), ("D→", "MSG"), ("MENU", "NRST")],
+    [("DN", ""), ("VNV", ""), ("LVL", "½ BANK"), ("SHIFT", ""), ("PROC", "TERR"), ("CLR", "MAP"), ("ENT", "")],
+]
+# Knobs: (white legend, amber legend with SHIFT or None): what the rings do, outer first, then the push.
+KNOB_LEGENDS = {
+    "ALTHDG": ("ALT · HDG · PUSH SYNC", "CRS · BARO · PUSH STD"),
+    "RANGE": ("RANGE · PUSH PTR", None),
+    "FREQ": ("FREQ · PUSH COM/NAV/ADF", "SQUAWK · PUSH XPDR"),
+    "FMS": ("FMS · PUSH CRSR", "PANEL · FLOOD · PUSH CABIN"),
+}
 
 # RANGE knob on the RKJXT lever
 LEVER_Z0, LEVER_Z1, LEVER_D, LEVER_FLAT = 12.4, 17.4, 2.5, 1.8

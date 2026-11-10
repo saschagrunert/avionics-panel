@@ -43,7 +43,17 @@ def test_shift_one_shot():
     s.key("SHIFT"); s.key("SHIFT"); s.key("AP"); assert s.take() == [(1, "AP")]   # second tap cancels
     s.key("SHIFT"); s.run(3100); assert not s.p.shift_active(s.t); s.key("AP"); assert s.take() == [(1, "AP")]
     s.key("SHIFT"); s.turn("FREQ_OUTER", 1); s.take()                   # squawk set, light still on
-    s.key("SHIFT"); s.key("IDENT"); assert s.take() == [(1, "VFR")]       # one tap arms SHIFT for the key
+    s.key("SHIFT"); s.key("VFR"); assert s.take() == [(1, "IDENT")]       # one tap arms SHIFT for the key
+
+
+def test_vfr_key_after_a_squawk_entry():
+    # VFR is the plain function: right after a squawk entry (the knob still holds SHIFT) the key sends VFR;
+    # to ident, tap SHIFT first
+    s = Sim()
+    s.key("SHIFT"); s.turn("FREQ_OUTER", 1); s.take()
+    s.key("VFR"); assert s.take() == [(1, "VFR")]
+    s.key("SHIFT"); s.turn("FREQ_INNER", 1); s.take()
+    s.key("SHIFT"); s.key("VFR"); assert s.take() == [(1, "IDENT")]
 
 
 def test_knob_keeps_shift():
@@ -200,6 +210,7 @@ def test_up_dn_repeat():
 def test_counts():
     assert len(BM.DEVICE[1]) == 122 and len(BM.DEVICE[2]) == 44
     assert BM.DEVICE[1][-5:] == BM.LIGHTING                          # added at the end: no number moved
+    assert BM.BUTTON[1]["IDENT"] == 16 and BM.BUTTON[1]["VFR"] == 33  # swapped on the key, not in number
     for name in sum(BM.MATRIX, ()):
         assert name in ("SHIFT", "RANGE_A", "RANGE_B", "RANGE_C", "RANGE_D", "RANGE_COM", "ALTHDG_PUSH",
                         "FMS_PUSH") or name in BM.BUTTON[1], name
