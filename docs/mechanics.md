@@ -77,6 +77,11 @@ Stack (z = 0 is the PCB top):
   that `FIT` if needed.
 - The knobs stand 19.2 mm above the plate (29.2 above the PCB), set by the uncut PEC11D shafts: the outer
   knob grips 4.6 mm of the 6 mm shaft above the bushing, the inner knob the 7 mm D flat.
+- Garmin proportions: all three outer rings are Ø17, the inner knobs Ø12, so 2.5 mm of ring shows each
+  side. The outer knob's hidden Ø8.3 neck leaves 1.15 mm of resin round its 6 mm bore (1.1 mm on the loose
+  variant, JLC3DP's resin minimum is 1.0 mm). The inner knob's Ø9.2 recess clears that neck by 0.45 mm
+  radially (0.1 mm left with resin tolerances and bore play) and leaves 1.0 mm at the bottom of its
+  flutes, 1.35 mm at the crests. The counterbore leaves about 4 mm of ring round the bushing.
 - `mech/check_fit.py` draws sections through the ALT/HDG knob, the RANGE knob and the SHIFT light pipe
   and checks every clearance, including the RANGE skirt at full 9° tilt (about 0.5 mm left).
 - BOOT: two bridge pads on the underside of the PCB under a 5 mm hole in the case floor. Bridge them
@@ -97,7 +102,7 @@ Stack (z = 0 is the PCB top):
 | Case | about 165 × 65 mm, 17 mm high at the front, 24 mm at the back (6° wedge). Chosen for a flat desk in front of the pilot; a steeper angle (12°) only pays off when the panel sits further away or lower |
 | Key pitch | 11.85 mm horizontal (17.1 mm between AUTOPILOT and AUDIO), 11 mm vertical; 14.5 mm between rows 2 and 3 for the FMS line. Rows stay aligned across the panel on purpose, so the autopilot block shares that gap |
 | Caps | 9.6 × 6.4 mm, 2.5 mm proud, one legend size (about 2.0 mm cap height, Barlow Semi Condensed), condensed face; the flip-flop icon is narrow so COM ⇆ does not shrink every legend |
-| Dual knob centres | x 15 and 145, y 15 and 45 (30 mm apart; gap 11.2 mm left to the RANGE skirt, 7 mm right) |
-| Knobs | avionics style: matte black resin, fine vertical flutes, slight taper, chamfered flat top, no index line. Outer ring 7.2 mm tall, inner knob Ø13 × 10.4 mm above it: 19.2 mm above the plate. RANGE Ø13.6 with a Ø15.6 skirt |
+| Dual knob centres | x 15 and 145, y 15 and 45 (30 mm apart; gap 13.7 mm left to the RANGE skirt, 13 mm right) |
+| Knobs | avionics style: matte black resin, fine vertical flutes, slight taper, chamfered flat top, no index line. Outer ring Ø17 × 7.2 mm on all three, inner knob Ø12 × 10.4 mm above it: 19.2 mm above the plate. RANGE Ø13.6 with a Ø15.6 skirt |
 | SHIFT light | Ø1.8 mm light pipe below the SHIFT cap, amber LED on the PCB |
 | UNIT 2 light | Ø1.6 mm light pipe right of the UNIT engraving, white LED on the PCB |

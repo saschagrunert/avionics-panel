@@ -2,9 +2,10 @@
 
 Avionics style: matte black resin, fine vertical flutes, slight taper, chamfered flat top. All sizes
 come from stack.py (datasheet shaft dimensions); each part has its bottom at z = 0.
-  outer knob  ALT/HDG and FREQ dia 22, FMS dia 24: grips the slotted 6 mm outer shaft, with a key in
-              the slot; a hidden neck carries it up into the inner knob's skirt.
-  inner knob  dia 13, all three: D bore on the 3.5 mm inner shaft. The bore bottom sits on the shaft tip,
+  outer knob  dia 17, all three (Garmin proportions: 2.5 mm of ring each side of the inner knob): grips
+              the slotted 6 mm outer shaft, with a key in the slot; a hidden neck carries it up into the
+              inner knob's skirt.
+  inner knob  dia 12, all three: D bore on the 3.5 mm inner shaft. The bore bottom sits on the shaft tip,
               so a push goes straight to the switch.
   RANGE knob  dia 13.6 with a 15.6 skirt over the 12 mm plate hole, D bore on the RKJXT lever.
   light pipes clear resin rods, glued flush into the plate, the bottom clear of the LED. Both are printed as
@@ -16,12 +17,23 @@ Needs pythonocc-core (see make_plate_step.py).
 import stack as S
 from occ_util import box, cut, cyl, dbore, export, fluted, fuse, revolve
 
+# flutes: coarse on the outer rings (count per mm of radius), fine on the inner knobs; depth, taper, top chamfer
+OUTER_FLUTES = dict(per_r=3.3, depth=0.45, taper=0.05, cham=0.8)
+INNER_FLUTES = dict(n=24, depth=0.32, taper=0.06, cham=0.6)
+
+
+def outer_counterbore_top():
+    """counterbore top above the outer knob's bottom: it clears the fixed sleeve."""
+    return S.SLEEVE_TOP - S.PLATE_Z1 - S.OUTER_KNOB["z0"] + S.SLEEVE_CLEAR
+
 
 def outer_knob(D, fit=S.FIT):
     ok = S.OUTER_KNOB
     h = ok["z1"] - ok["z0"]; top = ok["neck_top"] - ok["z0"]
-    body = fuse(fluted(D / 2, h, round(D / 2 * 3.3), 0.45, 0.05, 0.8), cyl(ok["neck_d"] / 2, h - 0.3, top))
-    sleeve_top = S.SLEEVE_TOP - S.PLATE_Z1 - ok["z0"] + S.SLEEVE_CLEAR       # clears the fixed sleeve
+    f = OUTER_FLUTES
+    body = fuse(fluted(D / 2, h, round(D / 2 * f["per_r"]), f["depth"], f["taper"], f["cham"]),
+                cyl(ok["neck_d"] / 2, h - 0.3, top))
+    sleeve_top = outer_counterbore_top()
     slot0 = S.OUTER_TOP - S.SLOT_LEN - S.PLATE_Z1 - ok["z0"] + 0.4
     key_w = (S.SLOT_W - 0.2) / 2
     bore = cut(cyl((S.OUTER_D + fit) / 2, -1, top + 1), box(2.2, -key_w, slot0, 4, key_w, top + 2))
@@ -34,7 +46,8 @@ def inner_knob(fit=S.FIT):
     rec_top = ik["recess_top"] - ik["z0"]
     tip = S.INNER_TOP - S.PLATE_Z1 - ik["z0"]                                 # bore bottom on the shaft tip
     flat0 = tip - S.FLAT_LEN + 0.2
-    body = fluted(ik["d"] / 2, h, 24, 0.32, 0.06, 0.6)
+    f = INNER_FLUTES
+    body = fluted(ik["d"] / 2, h, f["n"], f["depth"], f["taper"], f["cham"])
     return cut(body, cyl(ik["recess_d"] / 2, -1, rec_top), cyl(S.INNER_D / 2 + 0.1, -1, flat0 + 0.01),
                dbore(S.INNER_D + fit, S.INNER_FLAT + fit, flat0, tip))
 
@@ -70,12 +83,12 @@ def light_pipe_pair(pitch=12.0):
 
 
 if __name__ == "__main__":
-    export(outer_knob(S.KNOB_D["ALTHDG"]), "avionics-panel-rev1-knob-outer-22")
-    export(outer_knob(S.KNOB_D["FMS"]), "avionics-panel-rev1-knob-outer-24")
+    assert len(set(S.KNOB_D.values())) == 1, "one outer knob file serves all three dual knobs"
+    export(outer_knob(S.KNOB_D["ALTHDG"]), "avionics-panel-rev1-knob-outer")
     export(inner_knob(), "avionics-panel-rev1-knob-inner")
     export(range_knob(), "avionics-panel-rev1-knob-range")
     for tag, fit in S.FIT_VARIANTS.items():
-        export(outer_knob(S.KNOB_D["ALTHDG"], fit), f"avionics-panel-rev1-knob-outer-22-{tag}")
+        export(outer_knob(S.KNOB_D["ALTHDG"], fit), f"avionics-panel-rev1-knob-outer-{tag}")
         export(inner_knob(fit), f"avionics-panel-rev1-knob-inner-{tag}")
         export(range_knob(fit), f"avionics-panel-rev1-knob-range-{tag}")
     export(light_pipe_pair(), "avionics-panel-rev1-lightpipes", deflection=0.005)   # SHIFT left, UNIT right

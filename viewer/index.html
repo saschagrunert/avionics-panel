@@ -105,7 +105,7 @@ const KNOBS = {
   ap:    at('ALTHDG', { kind: 'dual' }),  // outer ALT, inner HDG (push SYNC); shifted outer CRS, inner BARO (push STD): the push always acts on the inner knob's function.
   range: at('RANGE',  { kind: 'range' }),
   radio: at('FREQ',   { kind: 'dual' }),
-  fms:   at('FMS',    { kind: 'dual' }) };   // larger, as on the G1000, told apart from FREQ by feel; shifted: cockpit lighting
+  fms:   at('FMS',    { kind: 'dual' }) };   // shifted: cockpit lighting
 // lights: SHIFT (amber) is on while SHIFT applies (pulsing in its last second), UNIT 2 (white) while unit 2 is selected
 const light = name => ({ x: G.lights[name].x, y: G.lights[name].y, r: G.lights[name].d / 2 });
 const LIGHTS = [

@@ -64,10 +64,10 @@ Squawk: SHIFT, then turn the frequency knob (outer: first two digits, inner: las
 
 | Position | Part | Turn | Push | With SHIFT |
 | --- | --- | --- | --- | --- |
-| Left top | dual encoder, Ø22 / Ø13 knobs | outer ALT, inner HDG | HDG SYNC | outer CRS, inner BARO, push STD |
+| Left top | dual encoder, Ø17 / Ø12 knobs | outer ALT, inner HDG | HDG SYNC | outer CRS, inner BARO, push STD |
 | Left bottom | multi-control: turn, tilt 4 ways, push | RANGE | map pointer | own buttons, free for personal mappings |
-| Right top | dual encoder, Ø22 / Ø13 knobs | frequency: outer MHz, inner kHz (ADF: outer 100s, inner 1s) | cycles the knob through COM, NAV and ADF standby frequency (ADF only in aircraft that have one; COM/NAV is C/V on the GNS 430) | squawk code, push XPDR mode |
-| Right bottom | dual encoder, Ø24 / Ø13 knobs, the largest knob as on the G1000 | outer page group, inner page | cursor | lighting: outer panel lights, inner glareshield flood, push cabin light |
+| Right top | dual encoder, Ø17 / Ø12 knobs | frequency: outer MHz, inner kHz (ADF: outer 100s, inner 1s) | cycles the knob through COM, NAV and ADF standby frequency (ADF only in aircraft that have one; COM/NAV is C/V on the GNS 430) | squawk code, push XPDR mode |
+| Right bottom | dual encoder, Ø17 / Ø12 knobs | outer page group, inner page | cursor | lighting: outer panel lights, inner glareshield flood, push cabin light |
 
 On the left knob the push sits on the inner HDG knob, so pushing the heading knob syncs the heading,
 as on the G1000. ALT gets the bigger outer ring: it changes most per flight and is easier to spin.
@@ -82,10 +82,14 @@ rings do, outer ring first, then PUSH and what the push does; where one word cov
 for both (FREQ, SQUAWK, FMS). The legends: ALT · HDG · PUSH SYNC, CRS · BARO · PUSH STD, RANGE · PUSH PTR
 (the four arrows already say pan), FREQ · PUSH COM/NAV/ADF, SQUAWK · PUSH XPDR, FMS · PUSH CRSR (as
 Garmin prints it) and PANEL · FLOOD · PUSH CABIN for the cockpit lighting. The texts and the angle each
-legend is turned towards the user live in `mech/stack.py`: 15°, RANGE 35°, and FMS only 5°, so the long
-lighting line keeps about 3 mm off the plate edge. The FREQ legend ends about 5.5 mm above the FMS knob;
-a longer one would run behind it. The arrow pointing away from you is hidden behind the RANGE knob when
-seated; the other three are enough.
+legend is turned towards the user live in `mech/stack.py`: ALT/HDG and FMS 20°, FREQ 10°, RANGE 35°.
+The legends sit about 1.1 mm off the Ø17 rings, so the long ones wrap far round the knob, and seated (eyes
+about 48° over the plate) a knob hides the plate behind it. The angles keep as much in view as the knobs
+allow: ALT/HDG loses about an eighth of its white line behind its own knob, the FMS legends stay clear, and
+the long FREQ · PUSH COM/NAV/ADF loses about 40 % at any angle: its start goes behind its own knob, its
+end (about 10 mm above the FMS knob) behind the FMS knob. All legends stay at least 3.8 mm off the key
+block frame and about 9 mm off each other; the FMS lighting line keeps about 4 mm off the plate edge. The
+arrow pointing away from you is hidden behind the RANGE knob when seated; the other three are enough.
 The cockpit lighting (Reddit feedback) sits behind SHIFT on the FMS knob instead of on knobs of its own:
 it is set once or twice per flight, a knob keeps SHIFT while it turns, so dimming is one tap and then
 turning, and more knobs would break the symmetric layout. The lighting buttons stay on the first

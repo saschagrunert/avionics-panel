@@ -102,13 +102,16 @@ PUSH_TRAVEL = 0.5
 # +0/-0.1, so a 0.05 FIT left 0.05 to 0.15 real clearance. FIT 0 centres the bores on 0 to 0.1, about the
 # 0.05 allowance first intended for a mid-tolerance shaft; the variants sit 0.1 either side.
 FIT = 0.0
-FIT_VARIANTS = {"tight": -0.1, "loose": 0.1}   # extra outer-22, inner and RANGE knob each: resin prints vary
-OUTER_KNOB = dict(z0=0.8, z1=8.0, neck_d=9.6, neck_top=8.6)
-INNER_KNOB = dict(d=13.0, z0=8.8, z1=19.2, recess_d=10.4, recess_top=10.1)    # recess clears the neck (8.6) when pushed
-KNOB_D = {"ALTHDG": 22.0, "FREQ": 22.0, "FMS": 24.0}
+FIT_VARIANTS = {"tight": -0.1, "loose": 0.1}   # extra outer, inner and RANGE knob each: resin prints vary
+# Garmin proportions: outer rings 17 on all three, inner knobs 12, so 2.5 of ring shows each side. The outer
+# knob's neck (8.3) leaves 1.15 of resin round its 6 mm bore (1.1 on the loose variant); the inner knob's
+# recess (9.2) clears it by 0.45 radially and leaves 1.0 at its flute bottoms (1.35 at the crests).
+OUTER_KNOB = dict(z0=0.8, z1=8.0, neck_d=8.3, neck_top=8.6)
+INNER_KNOB = dict(d=12.0, z0=8.8, z1=19.2, recess_d=9.2, recess_top=10.1)     # recess clears the neck (8.6) when pushed
+KNOB_D = {"ALTHDG": 17.0, "FREQ": 17.0, "FMS": 17.0}
 # knob legends: degrees their arc is turned from the horizontal towards the user, for the plate artwork and
-# the 3D view alike. FMS at 5 keeps its long amber line about 3 mm off the plate edge.
-KNOB_LEGEND_TILT = {"ALTHDG": 15, "FREQ": 15, "FMS": 5, "RANGE": 35}
+# the 3D view alike, chosen so a seated eye sees as much of each as the knobs allow (docs/controls.md).
+KNOB_LEGEND_TILT = {"ALTHDG": 20, "FREQ": 10, "FMS": 20, "RANGE": 35}
 
 # Legends, the one source for the caps (make_caps.py), the plate (make_plate_art.py), the board silkscreen
 # (pcb/board.py) and the 3D view (geometry.js). Only the firmware button map (firmware/buttonmap.py,

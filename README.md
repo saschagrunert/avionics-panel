@@ -51,8 +51,7 @@ Production files, by supplier (details in [Ordering](docs/ordering.md)):
   [spacer](production/avionics-panel-rev1-spacer.step) (fallback for metal spacers),
   [key caps](production/avionics-panel-rev1-caps.zip),
   [light pipes](production/avionics-panel-rev1-lightpipes.step), knobs
-  ([outer 22](production/avionics-panel-rev1-knob-outer-22.step),
-  [outer 24](production/avionics-panel-rev1-knob-outer-24.step),
+  ([outer](production/avionics-panel-rev1-knob-outer.step),
   [inner](production/avionics-panel-rev1-knob-inner.step),
   [RANGE](production/avionics-panel-rev1-knob-range.step), plus `-tight` and `-loose` fit variants)
 

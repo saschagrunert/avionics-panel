@@ -62,3 +62,5 @@ Rev 1 is designed and checked; nothing is ordered yet.
   lighting on SHIFT and the FMS knob, VFR as the plain key with IDENT behind SHIFT, consistent knob
   legends, one renumbering of the joystick buttons (frozen from the first build on), and the firmware
   checked to compile with MicroPython.
+- Garmin knob proportions (2026-11-10): all three outer rings Ø17 (were 22, 22 and 24), inner knobs Ø12
+  (were 13), with a thinner neck and recess between them and the knob legends turned to stay in view.
