@@ -8,7 +8,7 @@ the buttons yourself with [BUTTONS.md](firmware/BUTTONS.md).
 
 ![Top view: autopilot keys and ALT/HDG and RANGE knobs left, audio, radio and FMS keys, FREQ and FMS knobs right](renders/2-top.png)
 
-[Open the interactive 3D view](https://saschagrunert.de/avionics-panel/) (exploded view, top view, seated view).
+[Open the interactive 3D view](https://saschagrunert.de/avionics-panel/) (seated, exploded, top and front views).
 
 ## Docs
 
@@ -73,11 +73,12 @@ nix-shell -p "python3.withPackages (ps: with ps; [ numpy scipy matplotlib scikit
 ```
 
 Inside `pcb/`: `python3 precheck.py` (placement clearances), `python3 run_route.py 3` (routing, writes
-`routed.json`; seed 3 routes every net without a detour and within the USB length limits, as do seeds 1,
-2, 4 and 9 of seeds 1 to 15; `run_route.py <seed> x` writes `routed_<seed>.json` instead, for trying
-seeds in parallel), `python3 make.py` (Gerbers), `python3 check.py` (electrical check, DRC, drills,
-paste, mask dams, decoupling, net lengths and USB, JLC footprints and CPL rotations, bottom-side pin
-order, on the Gerbers), `python3 render.py`, `python3 make_bom.py`, `python3 make_schematic.py`
+`routed.json`; seed 3 routes every net without a detour and within the USB length limits, as do seeds 1
+and 7 of seeds 1 to 9, while the others fail one of those limits; `run_route.py <seed> x` writes
+`routed_<seed>.json` instead, for trying seeds in parallel), `python3 make.py` (Gerbers),
+`python3 check.py` (electrical check, DRC, drills, paste, mask dams, hand-soldering clearances,
+decoupling, net lengths and USB, JLC footprints and CPL rotations, through-hole footprints, bottom-side
+pin order, on the Gerbers), `python3 render.py`, `python3 make_bom.py`, `python3 make_schematic.py`
 (schematic PDF from the netlist).
 `dbg.py` plots a region of the routed board.
 Inside `mech/`: `python3 make_plate_art.py`.
@@ -96,8 +97,11 @@ every dimension the 3D view uses).
 The firmware tests run on the PC with `pytest` (from the repository root): `firmware/test_panel.py` covers
 the logic, `firmware/test_code.py` runs `code.py` and `firmware/test_boot.py` runs `boot.py` against stub
 hardware modules, `tests/test_pins.py` checks the firmware pins against the board nets, and
-`tests/test_micropython.py` compiles the board files with MicroPython. That one skips when `micropython`
-is not on the PATH; `build.sh` provides it and sets `REQUIRE_MICROPYTHON=1`, which makes it fail instead.
+`tests/test_micropython.py` compiles the board files with CircuitPython 9.2's own `mpy-cross` (the board's
+compiler, passed in `MPY_CROSS`) and with the MicroPython unix port (`micropython` on the PATH). Each check
+skips without its compiler; `build.sh` provides MicroPython and sets `REQUIRE_MICROPYTHON=1`, which makes
+that check fail instead; it provides `mpy-cross` (and sets `REQUIRE_MPY_CROSS=1`) only on Linux x86-64 and
+ARM64, and elsewhere prints a notice and that check skips.
 
 `./build.sh` does all of the above in one go (`--route` also re-runs the routing), stops at the first
 failed check and copies the results to `production/` and `renders/`. Renders 1 to 4 are screenshots of

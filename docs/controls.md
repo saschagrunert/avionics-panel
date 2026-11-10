@@ -94,8 +94,8 @@ about 48° over the plate) a knob hides the plate behind it. The angles keep as 
 allow: ALT/HDG loses about an eighth of its white line behind its own knob, the FMS legends stay clear, and
 the long FREQ · PUSH COM/NAV/ADF loses about 40 % at any angle: its start goes behind its own knob, its
 end (about 10 mm above the FMS knob) behind the FMS knob. All legends stay at least 3.7 mm off the key
-block frame. FREQ and FMS legends are 9.1 mm apart, the ALT/HDG legend comes within 8.2 mm of the top
-RANGE pan arrow (16.9 mm of the RANGE legend), and the FMS lighting line keeps about 4 mm off the plate
+block frame. FREQ and FMS legends are 9.1 mm apart, the ALT/HDG legend comes within 7.6 mm of the top
+RANGE pan arrow (17.1 mm of the RANGE legend), and the FMS lighting line keeps about 4 mm off the plate
 edge. The arrow pointing away from you is hidden behind the RANGE knob when seated; the other three are
 enough.
 The cockpit lighting (Reddit feedback) sits behind SHIFT on the FMS knob instead of on knobs of its own:

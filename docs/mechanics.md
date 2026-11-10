@@ -36,27 +36,41 @@ Stack (z = 0 is the PCB top):
   full thread engage, and the tip stays at least 0.8 mm short of the wax plug in the plate end of the
   standoff (see gluing) and of the pocket. M2.5 x 10 would reach it. Socket heads (2.5 high) also fit but
   stand closer to the desk.
-- Positions: the key caps centre the board in the 10.2 x 7.0 mm key holes (0.3 mm per side, against about
-  0.23 mm of per-key errors, RSS), and it can still sit up to about 0.39 mm off. The standoffs follow the
-  board, not the plate: they are screwed onto the board before gluing, and each one enters its 7 mm pocket
-  wherever the caps put the board (about 0.6 mm of play round the 5.77 mm corners, plus the screw's play
-  in its PCB hole), so each one ends up on the axis of its screw. A 6.8 mm pocket would even out the glue
-  gap a little but leave only 0.08 mm of that play to spare, so the pocket stays at 7.0 mm and the
-  non-sag epoxy fills the gap. The PCB holes must be close round the screw: 3.0 mm (2.8 to 3.2 with
-  JLCPCB's ±0.2) keeps each standoff within 0.44 mm of its hole, so its end (4.9 mm across flats at least)
-  covers the hole all round with 0.41 mm to spare, its corners stay 0.28 mm inside the 3.6 mm copper
-  keep-out ([pcb/check.py](../pcb/check.py) checks the copper on the Gerbers), and the screw still passes
-  the narrowest hole. A 4.2 mm hole would let a standoff end up 1.04 mm off, past the keep-out and with the
-  hole edge uncovered.
-- The same board offset (plus the plate, PCB and pin tolerances, about 0.72 mm radially) moves the
-  controls in their plate openings: the Ø9.2 encoder holes and the Ø19.2 RANGE pocket (ISO 2768-m, ±0.2)
-  still leave 0.13 mm round the bushings (7.0 +0.3) and the RKJXT body (17 mm across corners, +0.3
-  assumed). The holes stay hidden under the knobs.
+- Positions: the key caps centre the board in the 10.2 x 7.0 mm key holes (+0.1/-0 after anodising, so at
+  least 0.3 mm per side, against about 0.23 mm of per-key errors, RSS), and in holes at +0.1 it can still
+  sit up to about 0.44 mm off. The standoffs follow the board, not the plate: they are screwed onto the
+  board before gluing, and each one enters its 7 mm pocket wherever the caps put the board (about 0.6 mm
+  of play round the 5.77 mm corners, plus the screw's play in its PCB hole), so each one ends up on the
+  axis of its screw. With the board up to 0.44 mm off, the 7.0 mm pocket leaves 0.12 mm of that play to
+  spare; a 6.8 mm pocket would even out the glue gap a little but leave only about 0.02 mm, so the pocket
+  stays at 7.0 mm and the non-sag epoxy fills the gap. The PCB holes must be close round the screw:
+  3.0 mm (2.8 to 3.2 with JLCPCB's ±0.2) keeps each standoff within 0.44 mm of its hole, so its end
+  (4.9 mm across flats at least) covers the hole all round with 0.41 mm to spare, its corners stay
+  0.28 mm inside the 3.6 mm copper keep-out ([pcb/check.py](../pcb/check.py) checks the copper on the
+  Gerbers), and the screw still passes the narrowest hole. A 4.2 mm hole would let a standoff end up
+  1.04 mm off, past the keep-out and with the hole edge uncovered.
+- The same board offset (plus the plate, PCB and pin tolerances, about 0.77 mm radially) moves the
+  controls in their plate openings: the Ø9.2 encoder holes (ISO 2768-m, ±0.2) still leave 0.08 mm round
+  the bushings (7.0 +0.3). The RKJXT floats more on its pins (0.26 mm instead of 0.15, see
+  [hand-soldering](#hand-soldering)), 0.88 mm in all: the Ø19.6 RANGE pocket still leaves 0.17 mm round
+  its body (17 mm across corners, +0.3 assumed) and 0.10 mm over it, so the pocket's floor corner must
+  stay sharp (R0.3 at most, on the plate drawing; it then still clears the body's corner by 0.06 mm), and
+  the Ø11.2 RANGE hole clears its Ø7.2 hub (Alps' STEP model) at full tilt by 0.37 mm. The holes stay
+  hidden under the knobs.
 - The body holes (3.7 mm, counterbores 8.4 mm) clear the screws and washer with the MJF body up to 0.6 mm
   off over its length; at least 1.6 mm of wall stays outside each counterbore and 1.6 mm round it inside
   (JLC3DP asks for more than 1.5 mm on fastener features). The cavity leaves 0.5 mm per side round the
-  PCB, so the board fits even with the body 0.4 % small; the walls and the ribs under the floor are 2.0 mm
+  PCB, so the board fits even with the body 0.4 % small, once the V-cut short edges (±0.4 mm) are sanded
+  to 160.2 mm or less ([Ordering](ordering.md#ordering)); the walls and the ribs under the floor are 2.0 mm
   (JLC3DP's MJF wall for parts over 100 mm).
+- The USB-C opening in the back wall is 15.8 x 8.4 mm (R0.5) and runs on up through the top of the wall
+  as a notch: JLC's socket (C165948) sticks out 0.52 mm past the board edge, level with the cavity wall,
+  so a closed wall above the opening would catch it while the board goes in. Round a plug overmould of
+  the USB-C maximum (12.35 x 6.5 mm, even with square corners) it leaves 0.06 mm with the board anywhere
+  in the cavity (0.5 mm gap, and one V-cut short edge up to 0.4 mm short), the opening where MJF puts it
+  over the 127.5 mm from the side wall (±0.51 mm, which also covers a body printed large), J1 placed
+  0.1 mm off, the opening's bottom ±0.3 mm against the bosses under the PCB and the opening printed
+  0.15 mm small. Under the opening the body is solid down to the desk, 0.8 mm wider than it on each side.
 - Held only at the corners (153 mm apart), the PCB would sag 0.3 to 0.5 mm under a key press in the
   middle, about the switch travel. Two posts at board positions (72.3, 30.8) and (98.6, 30.8), free of
   bottom parts and pins, end 0.25 mm under its underside: a key press bends the board onto them, and a
@@ -71,13 +85,14 @@ soldered by hand from the bottom side. Flash and test the bare board first (step
 part), then solder the keys and LEDs and check them, and the encoders and RANGE control last: they are
 the parts that are hard to remove again.
 
-- USB-C shell tabs: before the first plug-in, look at the four J1 shell tabs from the top. The paste
-  Gerber puts paste on them (pin-in-paste), so they should come back soldered, the slots filled. If one
-  is not, solder it from the top (flux, a little solder into the slot, it is GND): the tabs, not the
-  0.3 mm contacts, take the load of the plug.
+- USB-C shell tabs: solder all four J1 shell tabs from the top before the first plug-in: flux, then feed
+  solder into each slot until it is filled and wets the tab all round (they are GND). The paste Gerber
+  puts paste on the shell pads (pin-in-paste), but that is about 0.12 mm³ of solder against about
+  0.8 mm³ of slot, so the reflow leaves a fillet on the bottom at most. The tabs, not the 0.3 mm
+  contacts, take the load of the plug.
 - Every part sits flat on the board. The plate leaves little room: the encoder pockets clear the
   encoder bodies by 0.3 mm and the RANGE pocket the RKJXT by 0.1 mm at worst, and the light pipes allow an
-  LED at most 0.3 mm proud. Solder one pin, check from the side that the part sits flat and square
+  LED at most 0.2 mm proud. Solder one pin, check from the side that the part sits flat and square
   (press it down while you reheat that pin if not), then solder the rest. Same for the 28 keys: a tilted
   key tilts its cap in the key hole.
 - LEDs: amber XL-302UYC at SHIFT, white XL-302UWC at UNIT. The cathode (the flat side of the LED, the
@@ -85,6 +100,15 @@ the parts that are hard to remove again.
   flat onto the board before soldering, cut the legs short on the bottom.
 - Encoders: the mounting lugs go through their slots and get soldered too; they carry the push of the
   knobs.
+- RANGE control (RKJXT): no centring needed, just seat it flat. Before soldering it can move up to 0.26 mm
+  on its pins: its 0.7 x 0.2 mm terminals (Alps' STEP model) sit in holes drilled 1.1 mm, which JLCPCB's
+  plating finishes at 1.02 to 1.23 mm, and its Ø1 mm locating peg (1 -0.1) in the 1.3 mm unplated hole of
+  JLC's footprint (±0.2 at JLCPCB) would allow even 0.30 mm. Alps asks for 1.1 +0.1/-0 for the peg, but an
+  unplated hole at ±0.2 can come out 0.9 mm, too small for the peg. So the plate gives the part the room
+  instead: `check_fit.py` counts the 0.26 mm for the RANGE pocket, the hole and the skirt (see
+  [Fastening](#fastening)). Its COM and ECOM pins are the closest hand-soldered pair on the board (0.38 mm
+  of copper between the pads, RANGE_COM and GND): check them for a bridge with a magnifier and a
+  continuity tester. A bridge makes the whole fifth column read pressed.
 
 ### Assembly and gluing
 
@@ -104,23 +128,29 @@ caps and shafts are about 10 mm in), with a cloth on top.
 
 1. Push all caps of the chosen set onto their plungers (see [caps](#caps-light-pipes-knobs)), tactile
    bars as in the 3D view, down until each one sits on its plunger top.
-2. Light pipes: lay the plate face down on the blocks. Put masking tape over the two light holes on the
-   front, push each light pipe in from the back until it touches the tape (top flush with the face) and
-   fix it with a thin fillet of clear epoxy (or UV glue) round the hole rim on the plate back, kept flush
-   with the back face: no drop on the pipe end, where it would sit over the LED (0.05 mm of room at
-   worst). Let it cure.
+2. Light pipes: lay the plate face down on the blocks. Hold a stiff card flat against the front over the
+   light hole, with a release film between card and face (a piece of PE bag or baking paper; or use a
+   small piece of low-tack tape on the hole only: ordinary masking tape can lift the UV print, and the
+   UNIT legend is about 1 mm from its hole). Push the light pipe in from the back until it touches the
+   film (top flush with the face). Its end then sits 0.4 mm inside the hole. Run very little clear epoxy
+   (or UV glue) into the gap round the pipe from the back, nothing proud of the back face, where it would
+   sit over the LED: the gap is only 0.15 mm, so the glue wicks along it to the face, and without the film
+   it would glue the card to the plate or leave a film on the UV print. Let it cure, then peel the film
+   off.
 3. Standoffs: roughen their hex sides with fine sandpaper and wipe them with alcohol. Press a little soft
    wax or plasticine (Blu Tack works) into the thread at the plate end of each one with a toothpick marked
    at 2 mm, no deeper than the mark, and scrape the end face clean (keep wax off the sides): it keeps the
    glue out of the thread. A grub screw is no good here: the shortest common M2.5 one (3 mm) can meet the
    screw tip.
-4. Board: fit the body, the PCB on it, and the four screws with their washers from below. Thread each
-   standoff, plugged end up, onto its screw by hand until it seats on the PCB, then hold the standoff
-   (fingers or a 5 mm nut driver) while you turn the screw back a quarter turn, so the standoff stays put
-   and can still slide a little with its screw in the PCB hole. On their screws the standoffs cannot tip
-   over. Dry run: lower the unit face down into the plate as in step 6, without glue, and note at each
-   corner which feeler gauge or drill shank (about 0.8 mm) just slides into the gap between the top of
-   the body wall and the plate back; lift the unit out again.
+4. Board: rest the body on two more blocks or books (the plate keeps the first two), under its long edges
+   but clear of the four corners: the counterbores are in the bottom face, up to about 10 mm deep at the
+   back. Set the PCB in and put the four screws with their washers in from below. Thread each standoff,
+   plugged end up, onto its screw by hand until it seats on the PCB, then hold the standoff (fingers or a 5
+   mm nut driver) while you turn the screw back a quarter turn, so the standoff stays put and can still
+   slide a little with its screw in the PCB hole. On their screws the standoffs cannot tip over. Dry run:
+   lower the unit face down into the plate as in step 6, without glue, and note at each corner which feeler
+   gauge or drill shank (about 0.8 mm) just slides into the gap between the top of the body wall and the
+   plate back; lift the unit out again.
 5. Wipe the pockets with alcohol and keep their floors dry. Mix the epoxy and butter the six sides of each
    standoff over the 2 mm that go into the pocket, thick enough to fill the gap (about 35 mm³ per
    standoff, a pea-sized dab), but keep the last 0.5 mm at the end and the end face bare. Excess bulges at
@@ -162,9 +192,11 @@ before gluing a new one in as above.
   along its wall, attached over their whole length, that follow the plunger's cone: they touch it over
   2.05 mm, so a cap that grips cannot rock. They stop 0.35 mm under the socket ceiling, clear of the
   plunger's rounded edge, so the flat ceiling sits on the plunger top: the plunger, not the fit, sets the
-  cap height (2.5 mm proud), and the socket ends 0.1 mm or more under the plate face. A 0.3 mm lead-in at
-  the mouth starts the cap straight. The ribs, wall and holes meet the full-colour (WJP) minimums of 1.0
-  mm.
+  cap height (2.5 mm proud), and the socket ends 0.1 mm or more under the plate face. These cap heights
+  take board and plate flat: a cap is coaxial with its plunger and smaller than its hole, so the bow and
+  flatness budgets (which matter for the light pipes over the LEDs) only move it a little up or down in
+  its hole. A 0.3 mm lead-in at the mouth starts the cap straight. The ribs, wall and holes meet the
+  full-colour (WJP) minimums of 1.0 mm.
 - Cap sets: a rigid friction fit wants about 0.02 to 0.15 mm of interference on the diameter (holds from
   0.02; up to 0.15 the narrow ribs still give enough to push the cap down by hand), but JLC3DP's resin
   holes vary by about ±0.2 to 0.3 mm (±0.1 to 0.2 mm on their WJP page). So the order has four full sets
@@ -187,17 +219,23 @@ before gluing a new one in as above.
   check_fit.py measures it on the generated texture. The tactile bars on SHIFT, UP and DN are 1.0 mm wide
   but only 0.5 mm proud, under JLC3DP's 0.8 mm for embossed detail: a taller front bar would hide the bottom
   of the SHIFT and DN legends from the seat (check_fit.py checks the sightline at 45°).
-- Light pipes are plain rods 0.3 mm under their holes on the diameter (the holes are +0.1/-0 on the
-  drawing, anodising takes about 0.05 mm off them, and the resin may print 0.2 mm off), glued in flush
-  with the face. Under the 4 mm plate only 0.7 mm is left above the LEDs, too little for a collar that
-  keeps a loose pipe captive without ever touching the plate. Glued, the 3.9 mm pipe's bottom stays at
-  least 0.05 mm over an LED soldered 0.3 mm proud (LED top 5.3 +0.4/-0.1 mm, pipe ±0.1, plate ±0.1,
-  standoff gap -0.1, the board lifted 0.05 mm by a support post), so the board never pushes on it. Both
-  pipes print on a 2.2 x 2.0 mm bar over their tops, on 1.1 mm necks: break them off, sand the stub off
-  with the top and polish it before gluing. The order has two bars, one spare.
-- The rods (Ø1.5 and Ø1.3 mm, 3.9 mm long) are longer than JLC3DP's guideline for resin pillars (Ø1.0 mm
+- Light pipes are plain rods 0.3 mm under their holes on the diameter (the holes are +0.1/-0 on the drawing,
+  anodising takes about 0.05 mm off them, and the resin may print 0.2 mm off), glued in flush with the face.
+  Under the 4 mm plate only 0.7 mm is left above the LEDs, too little for a collar that keeps a loose pipe
+  captive without ever touching the plate. Glued, the 3.6 mm pipe's bottom stays at least 0.25 mm over an
+  LED soldered 0.2 mm proud (LED top 5.3 +0.3/-0.1 mm, pipe ±0.1, plate ±0.1, standoff gap -0.1, the board
+  lifted 0.05 mm by a support post and bowed 0.1 mm towards the plate, the plate 0.1 mm towards the board),
+  so the board never pushes on it. The LEDs sit near the middle of the long span between the corner
+  screws, so the flatness of both counts: JLCPCB allows 0.75 % bow (over 1 mm on this board), the stack
+  takes 0.1 mm; the plate drawing asks for flatness 0.1 mm after bead blasting and anodising (blasting can
+  bow a thin plate; ISO 2768-K alone would allow 0.4 mm over the plate's length); and the LED itself then
+  clears the plate back by 0.05 mm. Check the board on arrival (see [Status](status.md#before-ordering)); a
+  board bowed more gets its LEDs seated flat, which gives back the 0.2 mm a proud LED is allowed. Both pipes
+  print on a 2.2 x 2.0 mm bar over their tops, on 1.1 mm necks: break them off, sand the stub off with the
+  top and polish it before gluing. The order has two bars, one spare.
+- The rods (Ø1.5 and Ø1.3 mm, 3.6 mm long) are longer than JLC3DP's guideline for resin pillars (Ø1.0 mm
   up to 1 mm tall, Ø2.0 mm up to 4 mm), so they may be flagged in the review or break. Fallback: PMMA
-  end-glow optical fibre, Ø1.5 mm for SHIFT and Ø1.0 to 1.25 mm for UNIT, cut to 3.9 mm with a fresh
+  end-glow optical fibre, Ø1.5 mm for SHIFT and Ø1.0 to 1.25 mm for UNIT, cut to 3.6 mm with a fresh
   blade, both ends sanded flat and polished, glued in the same way.
 - Knob bores are drawn at the datasheet shaft size (`stack.FIT` = 0): the shafts are toleranced +0/-0.05
   and +0/-0.1 mm, which leaves 0 to 0.1 mm real clearance on a true print, but JLC3DP's resin holes vary by
@@ -216,7 +254,7 @@ before gluing a new one in as above.
   plate, 0.04 mm left with the PEC11D's tolerances (±0.3 under 10 mm, ±0.5 from 10 mm, RSS) and a high
   plate. The knob grips 4.1 mm of the 6 mm shaft above the bushing (3.7 mm with a shallow slot); its
   counterbore clears the bushing by 0.9 mm (0.03 mm left with the tolerances). The inner knob grips the 7
-  mm D flat and clears the outer one by 1.0 mm when pushed (0.23 mm with the shaft tolerances).
+  mm D flat and clears the outer one by 1.0 mm when pushed (0.22 mm with the shaft and print tolerances).
 - Garmin proportions: all three outer rings are Ø17, the inner knobs Ø12, so 2.5 mm of ring shows each
   side. The outer ring ends flush with the 6 mm shaft top: a neck rising into the inner knob would need a
   recess round it that leaves less than JLC3DP's 1.0 mm resin minimum in a Ø12 knob once a loose knob,
@@ -233,19 +271,26 @@ before gluing a new one in as above.
   inner knobs (20 flutes, still a finer knurl than the rings'), all over the 0.8 mm resin detail.
 - `mech/check_fit.py` draws sections through the ALT/HDG knob, the RANGE knob and the SHIFT light pipe
   and checks every clearance, including the RANGE skirt at full 9° tilt about the datasheet fulcrum (5.55
-  mm over the PCB): at least 0.3 mm over the plate with the knob low and the plate high. Its rim is 1.1 mm
+  mm over the PCB): at least 0.22 mm over the plate with the knob low and the plate high. The Ø16.6 skirt
+  (Ø16.4 on a small print) still covers the 11.2 mm hole (11.4 at ISO 2768-m) at full tilt with the lever
+  0.88 mm off the hole (board, plate, PCB and the RKJXT on its pins) and a loose knob 0.3 mm off the
+  lever, by 0.10 mm (the highest knob, its rim at cos 9°). The four pan arrows start at r 9.65 mm round
+  the hole centre, 0.07 mm outside that skirt seen square on (Ø16.8 on a large print, with the same
+  offsets, upright); from the seat the skirt 2.3 mm over the plate hides a little more. Its rim is 1.1 mm
   thick (1.0 mm on a thin print).
 - BOOT: two bridge pads on the underside of the PCB under a 5 mm hole in the case floor. Bridge them
   with a small screwdriver while plugging in USB. Recovery only: normal updates enter the bootloader
   from software.
-- Four self-adhesive feet up to 10 mm across, on the four flat 12 mm pads under the corners (with or
-  without the steel plate). The aluminium plate adds about 84 g; the printed body is hollow under its
-  2 mm floor (about 38 cm³, 2 mm ribs down to the desk plane, no slot under 0.8 mm; the two back foot
-  pads are joined to the screw bosses). The panel may still slide when knobs are turned one-handed, so a
-  recess in the bottom takes an optional 2 mm steel plate, 144 x 37 mm with two 15 x 15 mm notches at the
-  back corners for the feet (about 77 g), held with double-sided tape on the rib ends; `steel.dxf` has its
-  outline for a laser-cutting service. The recess stays in the hollow under the floor and leaves a 2.1 mm
-  rim at the back, so no wall round it is thinner than JLC3DP's 2.0 mm for MJF parts over 100 mm.
+- Four self-adhesive feet up to 10 mm across, on the four flat 12 mm pads under the corners (with or without
+  the steel plate). The aluminium plate adds about 84 g; the printed body is hollow under its 2 mm floor
+  (about 38 cm³, 2 mm ribs down to the desk plane, no slot under 0.8 mm; the two back foot pads are joined
+  to the screw bosses). The panel may still slide when knobs are turned one-handed, so a recess in the
+  bottom takes an optional 2 mm steel plate, 143 x 36 mm with two 15 x 15 mm notches at the back corners for
+  the feet (about 74 g), held with double-sided tape on the rib ends; `steel.dxf` has its outline for a
+  laser-cutting service. The 144 x 37 mm recess leaves 0.5 mm round it (0.16 mm with the body 0.4 % small
+  and the plate cut 0.1 mm large), with the same notches. The recess stays in the hollow under the floor and
+  leaves a 2.1 mm rim at the back, so no wall round it is thinner than JLC3DP's 2.0 mm for MJF parts over
+  100 mm.
 
 ## Dimensions
 
@@ -255,8 +300,8 @@ before gluing a new one in as above.
 | Case | about 165 × 65 mm, 17 mm high at the front, 24 mm at the back (6° wedge). Chosen for a flat desk in front of the pilot; a steeper angle (12°) only pays off when the panel sits further away or lower |
 | Key pitch | 11.85 mm horizontal (17.1 mm between AUTOPILOT and AUDIO), 11 mm vertical; 14.5 mm between rows 2 and 3 for the FMS line. Rows stay aligned across the panel on purpose, so the autopilot block shares that gap |
 | Caps | 9.6 × 6.4 mm, 2.5 mm proud, one legend size (about 2.0 mm cap height, Barlow Semi Condensed Bold, strokes at least 0.4 mm), condensed face; the flip-flop icon is narrow so COM ⇆ does not shrink every legend |
-| Dual knob centres | x 15 and 145, y 15 and 45 (30 mm apart; gap 13.7 mm left to the RANGE skirt, 13 mm right) |
-| Knobs | avionics style: matte black resin, fine vertical flutes, slight taper, chamfered flat top, no index line. Outer ring Ø17 × 7.0 mm on all three (FMS with a coarser grip), inner knob Ø12 × 10.4 mm above it: 19.9 mm above the plate. RANGE Ø13.6 with a Ø15.6 skirt |
+| Dual knob centres | x 15 and 145, y 15 and 45 (30 mm apart; gap 13.2 mm left to the RANGE skirt, 13 mm right) |
+| Knobs | avionics style: matte black resin, fine vertical flutes, slight taper, chamfered flat top, no index line. Outer ring Ø17 × 7.0 mm on all three (FMS with a coarser grip), inner knob Ø12 × 10.4 mm above it: 19.9 mm above the plate. RANGE Ø13.6 with a Ø16.6 skirt |
 | SHIFT light | Ø1.5 mm light pipe in a Ø1.8 mm hole below the SHIFT cap, amber LED on the PCB |
 | UNIT 2 light | Ø1.3 mm light pipe in a Ø1.6 mm hole right of the UNIT legend, white LED on the PCB |
 | Amber | #d9a441 (RGB 217, 164, 65; nearest Pantone 7563 C, roughly RAL 1004): SHIFT cap legend, UV print on the plate, 3D view |

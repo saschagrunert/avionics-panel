@@ -69,6 +69,10 @@ SLOT = (1.5, 2.6)
 COL_PITCH = 11.85
 COLS = [40.0 + COL_PITCH * k for k in range(3)] + [116.35 - COL_PITCH * k for k in (3, 2, 1, 0)]
 ROWS = [12.5, 23.5, 38.0, 49.0]         # rows 2/3 lower: room for the FMS line on the plate
+# Column pull-ups (10k to 3V3, one per column): the RP2040's own pull-ups (50 to 80k) with 20 to 30 pF of column
+# copper and diodes recover too slowly between two rows of a KeyMatrix scan (about 1 us). On each column bus,
+# midway between key rows 1 and 2, clear of the key pads and of the body's support posts under the board.
+PULLUP_Y = 31.0
 KEY_LABELS = [[label.replace(" ⇆", "<>").replace("→", "->") for label, _ in row]   # silkscreen: ASCII
               for row in _STACK.KEY_LEGENDS]
 ALTHDG, RANGE = (15.0, 15.0), (15.0, 45.0)   # left: ALT/HDG dual over RANGE (RKJXT: turn, 4-way tilt, push)
@@ -78,7 +82,8 @@ USB_X = 118.0 + SHIFT_X
 BOOT = (MCU[0] + 0.5, 54.0)     # bridge pads on the bottom, under a hole in the case floor
 # Light pipes in the front plate over the LEDs. In the 4 mm aluminium plate each light hole keeps a web of at
 # least 0.8 mm (JLCCNC's minimum metal wall) to the next key hole: SHIFT 0.85 mm to the key above, UNIT
-# 0.86 mm to the key up and to the left. SHIFT's 3.8 mm LED flange clears the switch body above by 0.35 mm.
+# 0.86 mm to the key up and to the left (0.75 / 0.76 with both holes at their +0.1 limit, over JLCCNC's
+# 0.5). SHIFT's 3.8 mm LED flange clears the switch body above by 0.35 mm.
 LEDS = {"SHIFT": ((COLS[3], ROWS[3] + 3.2 + 2.05), "GP12", "amber"),
         "UNIT": ((COLS[3] + 4.3, ROWS[2] + 3.2 + 1.9), "GP15", "white")}
 
@@ -172,15 +177,18 @@ def part(ref, value, lcsc, x, y, rot=0, side="bottom", foot=None):
 CHIP = {"0603": (0.8, 0.8, 0.95), "0402": (0.5, 0.6, 0.55)}   # pad centre offset, pad length, pad width (mm)
 
 
-def chip(pads, ref, x, y, net1, net2, value, lcsc, vertical=False, size="0603"):
-    """Two-pad chip resistor / capacitor; pad 1 left (or top), pad 2 right (or bottom). JLC's footprint has pad 1
-    on the left; on the bottom that is rotation 180 (pad 1 left) or 270 (pad 1 on top)."""
+def chip(pads, ref, x, y, net1, net2, value, lcsc, vertical=False, size="0603", flip=False):
+    """Two-pad chip resistor / capacitor; pad 1 left (or top), pad 2 right (or bottom), the other way round with
+    flip. JLC's footprint has pad 1 on the left; on the bottom that is rotation 180 (pad 1 left), 270 (pad 1 on
+    top), 0 (pad 1 right) or 90 (pad 1 at the bottom)."""
     off, length, width = CHIP[size]
     dx, dy = (0, off) if vertical else (off, 0)
+    if flip:
+        dx, dy = -dx, -dy
     w, h = (width, length) if vertical else (length, width)
     pads.append(smd(f"{ref}.1", net1, x - dx, y - dy, w, h))
     pads.append(smd(f"{ref}.2", net2, x + dx, y + dy, w, h))
-    part(ref, value, lcsc, x, y, 270 if vertical else 180, foot=size)
+    part(ref, value, lcsc, x, y, (270 if vertical else 180) - (180 if flip else 0), foot=size)
     return (x - dx, y - dy), (x + dx, y + dy)
 
 
@@ -213,16 +221,21 @@ def add_encoder(pads, ref, cx, cy, dual, a, b, a2=None, b2=None, push_k=None, va
 
 
 # Alps RKJXT1F42001 (LCSC C160841): turn (15 pulses / 30 detents), 4-way tilt, centre push. Hole pattern read
-# from the Alps mounting-hole drawing (seen from the insertion side), 11 x 1.0 mm, verified against JLC's
-# footprint (below). The locating hole for the 1 mm peg is 1.3 mm, as in JLC's footprint.
+# from the Alps mounting-hole drawing (seen from the insertion side), verified against JLC's footprint (below).
+# Alps gives the pin holes as 1.0 +0.2/-0; JLCPCB's plated holes may finish up to 0.08 mm under the drill, so
+# they are drilled 1.1 (JLC's footprint: 1.2), the 1.7 mm pads keep a 0.3 mm ring. The locating hole for the
+# 1 mm peg (1 -0.1) is a 1.3 mm NPTH, as in JLC's footprint: Alps asks for 1.1 +0.1/-0, which JLCPCB's +-0.2
+# on NPTH cannot hold (at 0.9 the peg would not go in). The part floats up to 0.26 mm on its pins before
+# soldering; the plate gives it that room (mech/stack.py RKJXT_ON_PINS).
 # Switches: "Push" is common to all; A, B, C, D close with their direction, "com" closes on every operation
 # (centre push = com without A-D, decoded in firmware).
 RKJXT_HOLES = {"ECOM": (-1.5, -7.8), "C": (1.5, -7.8), "COM": (-1.0, -5.78), "D": (-7.8, -1.5),
                "ENCA": (-7.8, 1.5), "LUG": (-3.8, 1.5), "ENCB": (7.8, -1.5), "B": (7.8, 1.5),
                "GND": (6.86, 3.75), "A": (-1.5, 7.8), "PUSH": (1.0, 6.98)}
 RKJXT_LUG = 1.3
+RKJXT_PAD, RKJXT_DRILL = 1.7, 1.1
 # Checked against JLC's own footprint of C160841 (EasyEDA SW-TH_RKJXT1F42001): all 11 positions and the
-# locating hole agree (the Alps drawing puts the frame ground at x 6.86, y 3.75).
+# locating hole agree (the Alps drawing puts the frame ground at x 6.86, y 3.75); check.py fits it on every run.
 
 
 def add_rkjxt(pads, ref, cx, cy, enc_a, enc_b):
@@ -233,7 +246,7 @@ def add_rkjxt(pads, ref, cx, cy, enc_a, enc_b):
             NPTH.append((x, y, RKJXT_LUG))
             continue
         net = {"ECOM": "GND", "GND": "GND", "ENCA": enc_a, "ENCB": enc_b, "PUSH": ROW_GP[4]}.get(nm, f"{ref}_{nm}")
-        pads.append(Pad(f"{ref}.{nm}", net, x, y, "circle", 1.7, 1.7, "FB", 1.0))
+        pads.append(Pad(f"{ref}.{nm}", net, x, y, "circle", RKJXT_PAD, RKJXT_PAD, "FB", RKJXT_DRILL))
     for k, nm in enumerate(legs):                       # diodes in the free column between the knobs and the keys
         add_diode(pads, f"D_{ref}_{nm}", 28.5, cy - 6.0 + 3.0 * k, COL_GP[k], f"{ref}_{nm}")
     part(ref, "RKJXT1F42001", "C160841", cx, cy, side="top")
@@ -251,7 +264,13 @@ def add_led(pads, name, x, y, gpio, colour):
     led_part, res, res_lcsc = {"amber": ("XL-302UYC", "330R", "C23138"),
                                "white": ("XL-302UWC", "22R", "C23345")}[colour]
     part(f"LED_{name}", led_part, {"XL-302UYC": "C2895466", "XL-302UWC": "C2895458"}[led_part], x, y, side="top")
-    chip(pads, f"R_{name}", x, y + 1.55, gpio, anode, res, res_lcsc)
+    # The resistor lies in line beside the anode pad, its anode end 0.55 mm from it (the same net, so a bridge to
+    # it or a remelt of its joint while the anode is soldered is harmless) and its GPIO end beyond: the LED is
+    # soldered by hand right next to it, so no pad of another net may come near the LED's pads (check.py:
+    # HAND_SMD_MIN). The cathode (GND) pad sat 0.28 mm from the GPIO end before. Beside, not below: SHIFT is near
+    # the board edge, every part body but J1's stays 2.5 mm from it (JLCPCB's terms).
+    off, length, _ = CHIP["0603"]
+    chip(pads, f"R_{name}", x + 1.27 + 0.8 + 0.55 + length / 2 + off, y, gpio, anode, res, res_lcsc, flip=True)
 
 
 # ---------------- RP2040 (bottom side, mirrored top-to-bottom) ----------------
@@ -369,8 +388,9 @@ def add_usb(pads):
     for dx, w, net, nm in contacts:
         pads.append(smd(f"J1.{nm}", net, cx + dx, yc, w, L))
     for s in (-1, 1):
-        # shell pads 1.2 wide, as in JLC's footprint; pin-in-paste: paste over the whole pad on the bottom, so
-        # the reflow solders the four tabs that take the plug's load, not only the 0.3 mm contacts
+        # shell pads 1.2 wide, as in JLC's footprint; pin-in-paste: paste over the whole pad on the bottom. That
+        # is about 0.12 mm3 of solder for about 0.8 mm3 of slot, a bottom fillet at most: the four tabs, which
+        # take the plug's load, are soldered from the top by hand as well (docs/mechanics.md)
         pads.append(Pad(f"J1.SH{s}a", "GND", cx + s * 4.325, 6.28, "obround", 1.2, 2.0, "FB",
                         drill=0.6, slot=(0.6, 1.7), pip=True))
         pads.append(Pad(f"J1.SH{s}b", "GND", cx + s * 4.325, 2.10, "obround", 1.2, 1.8, "FB",
@@ -436,6 +456,10 @@ def build():
     for c, x in enumerate(COLS):    # column bus: straight B line through the diode anodes
         seg(x - DIO_DX, ROWS[0], x - DIO_DX, ROWS[-1], COL_GP[c], "B", TRACE_W)
         BUS_COPPER.append(FIXED_SEGS[-1])
+        # 10k pull-up to 3V3 on the bus, between key rows 1 and 2: pad 1 sits on the bus line, pad 2 has a 3V3 via
+        _, b = chip(pads, f"R_PU{c}", x - DIO_DX + CHIP["0603"][0], PULLUP_Y, COL_GP[c], "3V3", "10k", "C25804")
+        plane_via(b, "3V3", 1.0, 0)
+        BUS_PADS.add(f"R_PU{c}.1")
     # encoders (GPIO order on the east side follows the direction each signal leaves in):
     # GP18-21 ALT/HDG (north, then west over the top), GP22-25 FREQ, GP26/27 + GP16/17 FMS, GP28/29 RANGE (south, west)
     enc = ("PEC11D-4120F-S0015", "C19270361")
@@ -542,11 +566,14 @@ def add_support(pads):
     # decoupling (works through the 3V3 / GND planes)
     for name, (cxx, cyy, d3, dg) in (("C_D0", (116.6 + SHIFT_X, 14.8, (-1.0, 0), (-1.0, 0))),
                                      ("C_D1", (127.4 + SHIFT_X, 12.8, (1.0, 0), (1.0, 0))),
-                                     ("C_D2", (*d2, (1.0, 0), (1.0, 0))),        # next to pins 42-44
+                                     ("C_D2", (*d2, (1.0, 0), (1.0, 0))),        # next to pins 42-44, 1 uF
                                      ("C_D3", (MCU[0] - 4.5, 47.4, (-1.0, 0), (1.0, 0)))):
-        a, b = chip(pads, name, cxx, cyy, "3V3", "GND", "100nF", "C14663", vertical=True)
+        # C_D2 at VREG_VIN (pin 44) is 1 uF: RP2040 datasheet 2.9.3 / 2.10.1, 1 uF close to VREG_VIN
+        val, lc = ("1uF", "C15849") if name == "C_D2" else ("100nF", "C14663")
+        a, b = chip(pads, name, cxx, cyy, "3V3", "GND", val, lc, vertical=True)
         plane_via(a, "3V3", *d3); plane_via(b, "GND", *dg)
-    a, b = chip(pads, "C_VIN", 115.6 + SHIFT_X, 44.0, "3V3", "GND", "1uF", "C15849", vertical=True)
+    # bulk capacitor on the 3V3 plane at the matrix side of the chip (C_OUT0 is the bulk at the regulator)
+    a, b = chip(pads, "C_BULK", 115.6 + SHIFT_X, 44.0, "3V3", "GND", "1uF", "C15849", vertical=True)
     plane_via(a, "3V3", 1.0, 0); plane_via(b, "GND", 1.0, 0)
 
 
@@ -589,12 +616,12 @@ def add_crystal(pads):
 
 def add_core_caps(pads):
     """Decoupling at the RP2040's south-east pins, as in Raspberry Pi's minimal design, all on pre-routed
-    copper. The corner east of the USB fan-out holds C_D2 (100 nF, 3V3) where it always was, fed straight from
-    pin 42 and through the 3V3 via of pins 42-44 (IOVDD, ADC_AVDD, VREG_VIN), and beside it two 0402
-    capacitors fed straight from pin 45: C_1V0 (1 uF, VREG_VOUT) and C_1V2 (100 nF). C_1V1 (100 nF, DVDD)
-    sits right below pin 50, between the QSPI and USB fan-outs. Every capacitor has its own GND via. Pin 23
-    (DVDD, north side) joins over the top layer: V23 -> V45 -> V50 over the chip. Returns C_D2's centre and
-    the top of the free band below the corner, for the USB resistors."""
+    copper. The corner east of the USB fan-out holds C_D2 (1 uF, 3V3: VREG_VIN wants 1 uF) where it always
+    was, fed straight from pin 42 and through the 3V3 via of pins 42-44 (IOVDD, ADC_AVDD, VREG_VIN), and
+    beside it two 0402 capacitors fed straight from pin 45: C_1V0 (1 uF, VREG_VOUT) and C_1V2 (100 nF). C_1V1
+    (100 nF, DVDD) sits right below pin 50, between the QSPI and USB fan-outs. Every capacitor has its own GND
+    via. Pin 23 (DVDD, north side) joins over the top layer: V23 -> V45 -> V50 over the chip. Returns C_D2's
+    centre and the top of the free band below the corner, for the USB resistors."""
     mx, my = MCU
     yo = my + 3.875                                     # outer end of the south QFN pads
     x45 = mx + qfn_pad_xy(45)[0][0]

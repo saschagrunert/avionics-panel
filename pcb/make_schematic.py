@@ -299,7 +299,7 @@ def sheet_power(s):
         s.text(57, y + 0.6, net("J1", pin), 5.6, color=WIRE, va="bottom")
         s.end(*rp["2"], r, "2", "r")
 
-    s.heading(140, 200, "3.3 V regulator")
+    s.heading(140, 192, "3.3 V regulator")         # below the USB-C heading, which runs past x 140
     s.ic("U3", 172, 182, 22, left=[("3", "VIN")], right=[("2", "VOUT")], bottom=[("1", "VSS")], pitch=7.0)
     for ref, x in (("C_IN", 148), ("C_OUT0", 228)):
         top = next(p for p in ("1", "2") if net(ref, p) != "GND")
@@ -323,8 +323,9 @@ def sheet_power(s):
         p = s.two(ref, 26 + i * 25, 74, "d", pins=(top, bot))
         s.end(*p[top], ref, top, "u")
         s.end(*p[bot], ref, bot, "d")
-    s.note(20, 46, ["C_D0 to C_D3: IOVDD, USB_VDD and ADC_AVDD. C_FL: flash VCC. C_VIN: VREG_IN.",
-                    "C_1V0 to C_1V2: DVDD and VREG_VOUT (the RP2040's internal 1.1 V core regulator)."])
+    s.note(20, 46, ["C_D0 to C_D3: IOVDD, USB_VDD and ADC_AVDD; C_D2 (1 uF) also VREG_IN. C_FL: flash VCC.",
+                    "C_BULK: bulk on the 3V3 plane. C_1V0 to C_1V2: DVDD and VREG_VOUT (the RP2040's internal",
+                    "1.1 V core regulator)."])
 
 
 # ---------------- sheet 2: RP2040, flash, crystal ----------------
@@ -427,17 +428,23 @@ def sheet_matrix(s):
     xl, xr = 24, x0 + pitch_x * (len(cols) - 1) + 6
     yb = y0 - pitch_y * (len(rows) - 1) - 20
     s.heading(20, 200, "Key matrix: rows driven, columns read through the diodes "
-                       "(anodes on the columns: keypad.KeyMatrix(columns_to_anodes=True))")
+                       "(anodes on the columns: keypad.KeyMatrix(columns_to_anodes=True)), columns pulled up")
     for r, rn in enumerate(rows):
         y = y0 - pitch_y * r
         s.line((xl, y), (xr, y))
         s.label(xl, y, rn, "l", stub=0)
         s.text(xl + 1, y + 0.8, f"row {r}", 5.8, va="bottom", color=WIRE)
+    pullups = []
     for c, cn in enumerate(cols):
         x = x0 + pitch_x * c
         s.line((x, y0 + 10), (x, yb))
         s.label(x, y0 + 10, cn, "u", stub=0)
         s.text(x + 1.0, y0 + 6, f"col {c}", 5.8, color=WIRE)
+        pu, = [r for r in REFS if r.startswith("R_PU") and net(r, "1") == cn]   # pull-up to 3V3, pin 1 on the column
+        pullups.append(pu)
+        p = s.two(pu, x, yb, "d", pins=("1", "2"), length=8, show_lcsc=False)
+        s.wire([(x, yb), p["1"]], [(pu, "1")])
+        s.end(*p["2"], pu, "2", "d", stub=2.0)
     for r, c, sref, rpins, kpin, nc, d in cells:
         xc, y = x0 + pitch_x * c, y0 - pitch_y * r
         x = xc - 26
@@ -461,11 +468,12 @@ def sheet_matrix(s):
         s.text(x + 4.5, y - 8.4, sref, 6.0)
     keys = [r for r in REFS if re.fullmatch(r"K\d\d", r)]
     diodes = [c[6] for c in cells]
-    s.note(20, 22, [
+    s.note(20, 25, [
         f"{len(keys)} keys {PART[keys[0]][0]} ({PART[keys[0]][1]}): A and B are one contact, C and D the other;",
         f"C is unused. {len(diodes)} diodes {PART[diodes[0]][0]} ({PART[diodes[0]][1]}), one per switch.",
         "Row 4: the RANGE tilt switches A to D and com (centre push = com alone, decoded in firmware),",
         "and the ALT/HDG and FMS knob pushes.",
+        f"{PART[pullups[0]][0]} column pull-ups ({PART[pullups[0]][1]}): the RP2040's own (50 to 80k) are too slow.",
     ], size=6.6)
 
 

@@ -37,6 +37,7 @@ OVH, T = S.OVH, S.PLATE_T
 AMBER_HEX, AMBER_RGB, AMBER_REF = S.AMBER["hex"], ", ".join(map(str, S.AMBER["rgb"])), S.AMBER["ref"]
 PW, PH = B.W + 2 * OVH, B.H + 2 * OVH
 LIGHT_TOL = f"+{S.LIGHT_HOLE_TOL[0]}/-{S.LIGHT_HOLE_TOL[1]:g}"      # light holes: never smaller
+KEY_TOL = f"+{S.KEY_HOLE_TOL[0]}/-{S.KEY_HOLE_TOL[1]:g}"            # key holes, after anodising
 
 
 def P(x, y):
@@ -77,7 +78,7 @@ def build():
     for y in B.ROWS:
         for x in B.COLS:
             tools.append(rrect_prism(*P(x, y), *S.KEY_HOLE, -e, T + e))
-    features.append(("key hole", f"{S.KEY_HOLE[0]} x {S.KEY_HOLE[1]} R{S.KEY_HOLE[2]}", "through",
+    features.append(("key hole", f"{S.KEY_HOLE[0]} x {S.KEY_HOLE[1]} {KEY_TOL} R{S.KEY_HOLE[2]}", "through",
                      len(B.ROWS) * len(B.COLS)))
     for name in ("ALTHDG", "FREQ", "FMS"):
         cx, cy = P(*getattr(B, name))
@@ -190,7 +191,9 @@ def drawing(features, vol):
     notes = [
         f"Material 6061 aluminium, {S.PLATE_T:.1f} +-{S.PLATE_T_TOL} mm. Outline {PW:.1f} x {PH:.1f} mm, "
         f"corner R{B.CORNER_R + OVH:.1f}. "
-        f"Volume {vol / 1000:.1f} cm3. Units mm, general tolerance ISO 2768-m.",
+        f"Volume {vol / 1000:.1f} cm3. Units mm, general tolerance ISO 2768-m; flatness {S.PLATE_FLAT} over the "
+        "whole plate after bead blasting and anodising (held at its corners, LEDs close under its back in the "
+        "middle).",
         "Front face (+Z in the STEP) is flat: no pockets or fastener holes on the front, and no chamfers beyond "
         "the edge break below.",
         f"Positions of the 4 standoff pockets and all through holes: +-{S.POS_TOL['plate']} to each other (the "
@@ -200,24 +203,27 @@ def drawing(features, vol):
         f"{S.STANDOFF_POCKET['depth_tol']} mm deep; metal standoffs are glued into them later. Pocket depths "
         "+0, never deeper: at least 0.7 mm of material must stay to the front face under every pocket; "
         "nothing may break through or mark the front face.",
+        f"RANGE pocket dia {S.RANGE_POCKET[0]}: sharp floor corner, inside radius at most {S.RANGE_POCKET_R} mm "
+        "(the part's corners come within 0.17 mm of its wall, 0.10 mm of its floor).",
         "Finish: black anodised, matte (bead blasted before anodising); the pockets may be anodised.",
         "Marking on the front per avionics-panel-rev1-plate.dxf, same origin (bottom-left, seen from the front): "
         f"layer LASER = laser marking, layer UV_AMBER = UV print in amber {AMBER_HEX} (RGB {AMBER_RGB}, about "
         f"{AMBER_REF}). Layer CUT = outline and through holes for reference. DXF units mm; fill closed contours "
         "even-odd (letter counters are separate contours).",
-        f"Light holes {LIGHT_TOL} (never smaller: light pipes are glued into them). Deburr all edges: edge break "
-        "at most 0.2 on the front outline and hole edges.",
+        f"Key holes {S.KEY_HOLE[0]} x {S.KEY_HOLE[1]} {KEY_TOL} after anodising (never smaller: the key caps "
+        f"centre the board in them). Light holes {LIGHT_TOL} (never smaller: light pipes are glued into them). "
+        "Deburr all edges: edge break at most 0.2 on the front outline and hole edges.",
     ]
     y = 0.98
     tx.text(0, y, "Features", fontsize=9, weight="bold", va="top"); y -= 0.06
     for r in rows:
-        tx.text(0, y, r, fontsize=7.5, family="monospace", va="top"); y -= 0.044
+        tx.text(0, y, r, fontsize=7.5, family="monospace", va="top"); y -= 0.038
     y -= 0.03
     tx.text(0, y, "Notes", fontsize=9, weight="bold", va="top"); y -= 0.06
     import textwrap
     for n in notes:
         for i, line in enumerate(textwrap.wrap(n, 150)):
-            tx.text(0, y, ("- " if i == 0 else "  ") + line, fontsize=7.5, va="top"); y -= 0.044
+            tx.text(0, y, ("- " if i == 0 else "  ") + line, fontsize=7.5, va="top"); y -= 0.038
     fig.savefig("avionics-panel-rev1-plate-drawing.pdf", metadata={"CreationDate": None})   # reproducible
     fig.savefig("avionics-panel-rev1-plate-drawing.png", dpi=110)
     print("drawing written")

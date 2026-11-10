@@ -1,10 +1,12 @@
-"""Download the JLCPCB / EasyEDA library footprint of every bottom-side (assembled) part into <LCSC>.json.
+"""Download the JLCPCB / EasyEDA library footprint of every part with an LCSC number into <LCSC>.json.
 
-These are the footprints JLCPCB places the parts by (its placement preview draws them), so check.py fits each
-one onto our pads, offline, from the files written here. Run it (needs the network) after adding a part type:
+The bottom-side parts are placed by JLCPCB by these footprints (its placement preview draws them), so check.py
+fits each one onto our pads, offline, from the files written here; the through-hole parts on the top are
+soldered by hand, and check.py fits their hole patterns. Run it (needs the network) after adding a part type:
     cd pcb && python3 footprints/fetch.py
 Each file keeps the pads only: number, centre x / y, size x / y in mm, top view, y down, from the
-footprint's origin (the point JLCPCB puts on the CPL position).
+footprint's origin (the point JLCPCB puts on the CPL position). Through-hole parts also keep their holes:
+plated (number, x, y, drill, slot length or 0) and unplated (x, y, diameter).
 """
 import json
 import os
@@ -42,6 +44,24 @@ def pads_of(data):
     return sorted(out, key=lambda p: (len(p[0]), p[0]))
 
 
+def holes_of(data):
+    """(plated, unplated) holes of an EasyEDA footprint, mm, from its origin: plated (number, x, y, drill, slot
+    length or 0) from the multi-layer pads, unplated (x, y, diameter) from the HOLE shapes."""
+    ds = data["packageDetail"]["dataStr"]
+    ox, oy = float(ds["head"]["x"]), float(ds["head"]["y"])
+    plated, unplated = [], []
+    for shape in ds["shape"]:
+        f = shape.split("~")
+        if f[0] == "PAD" and f[6] == "11" and float(f[9] or 0) > 0:      # layer 11: all layers, a hole
+            slot = float(f[13] or 0) * MIL10
+            plated.append((f[8], round((float(f[2]) - ox) * MIL10, 3), round((float(f[3]) - oy) * MIL10, 3),
+                           round(2 * float(f[9]) * MIL10, 3), round(slot, 3)))
+        elif f[0] == "HOLE":
+            unplated.append((round((float(f[1]) - ox) * MIL10, 3), round((float(f[2]) - oy) * MIL10, 3),
+                             round(2 * float(f[3]) * MIL10, 3)))
+    return sorted(plated, key=lambda p: (len(p[0]), p[0])), sorted(unplated)
+
+
 def retry(error):
     """Worth another try: too many requests (429), a server error (5xx) or the network (no connection, a
     timeout, a reset). Any other HTTP error (404, 403) is the answer for this part and comes back the same."""
@@ -66,7 +86,8 @@ def main():
     """With a directory argument, reads the API answers saved there as <LCSC>.json instead of downloading."""
     B.build()
     here = os.path.dirname(os.path.abspath(__file__))
-    for lcsc in sorted({p[2] for p in B.PARTS if p[6] == "bottom"}):
+    top = {p[2] for p in B.PARTS if p[6] == "top"}
+    for lcsc in sorted({p[2] for p in B.PARTS}):
         url, answer = URL.format(lcsc), "no footprint in the answer"
         if len(sys.argv) > 1:
             with open(os.path.join(sys.argv[1], f"{lcsc}.json")) as f:
@@ -79,7 +100,7 @@ def main():
             time.sleep(1)
         if not data or not data.get("packageDetail"):
             sys.exit(f"{lcsc}: EasyEDA returned no footprint for this part ({url.split('?')[0]}, {answer}); check "
-                     "the LCSC number in board.py (check.py needs JLC's footprint of every bottom-side part)")
+                     "the LCSC number in board.py (check.py needs JLC's footprint of every part)")
         ref = {
             "lcsc": lcsc,
             "title": data["title"],
@@ -89,9 +110,15 @@ def main():
         }
         head = ",\n".join(f" {json.dumps(k)}: {json.dumps(v)}" for k, v in ref.items())
         found = pads_of(data)
-        pads = ",\n".join(f"  {json.dumps(list(p))}" for p in found)
+        lists = {"pads": found}
+        if lcsc in top:                             # hand-soldered through-hole part: its holes too
+            lists["holes"], lists["npth"] = holes_of(data)
+            ref["frame"] += "; holes: number, x, y, drill, slot length (0: round); npth: x, y, diameter"
+            head = ",\n".join(f" {json.dumps(k)}: {json.dumps(v)}" for k, v in ref.items())
+        body = ",\n".join(f' "{k}": [\n' + ",\n".join(f"  {json.dumps(list(p))}" for p in v) + "\n ]" if v
+                           else f' "{k}": []' for k, v in lists.items())
         with open(os.path.join(here, f"{lcsc}.json"), "w") as f:
-            f.write(f'{{\n{head},\n "pads": [\n{pads}\n ]\n}}\n')
+            f.write(f"{{\n{head},\n{body}\n}}\n")
         print(lcsc, ref["title"], ref["package"], len(found), "pads")
 
 

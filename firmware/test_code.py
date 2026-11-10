@@ -91,9 +91,9 @@ class Joystick:
 class Hardware:
     """the stub modules, plus the clock that drives the script"""
 
-    def __init__(self, ms, script=None, busy=0, usb_from=0, usb_gap=(0, 0), pico_test=False):
+    def __init__(self, ms, script=None, busy=0, usb_from=0, usb_gap=(0, 0), pico_test=False, edits=()):
         self.t, self.ms, self.script, self.usb_from, self.usb_gap = 0, ms, script or {}, usb_from, usb_gap
-        self.pico_test = pico_test
+        self.pico_test, self.edits = pico_test, edits      # edits: (old, new) source lines, as on a first board
         self.busy = busy                      # sends that fail next, whichever device sends
         self.block = 0                        # ms a failing send blocks (2000 on the board); skips scripts
         self.joysticks = [Joystick(self), Joystick(self)]
@@ -161,6 +161,9 @@ class Hardware:
         if self.pico_test:
             assert source.count("\nPICO_TEST = False\n") == 1
             source = source.replace("\nPICO_TEST = False\n", "\nPICO_TEST = True\n")
+        for old, new in self.edits:
+            assert source.count(old) == 1, old
+            source = source.replace(old, new)
         try:
             self.code = {"__name__": "__main__", "__file__": path}   # code.py's globals, for the scripts
             exec(compile(source, path, "exec"), self.code)
@@ -345,6 +348,24 @@ def test_unit_light_is_written_only_on_a_change():
     assert unit.duty_cycle > 0 and unit.writes == 2         # off at the start, on after SHIFT, HOME
 
 
+def test_shift_light_is_written_only_on_a_change():
+    # code.py asks for the level every pass (1 ms) but writes the PWM duty only when it changes
+    hw = Hardware(3200, {10: [press("SHIFT", True)], 60: [press("SHIFT", False)]}).run()
+    duty = [hw.duty[t] for t in sorted(hw.duty)]
+    changes = sum(a != b for a, b in zip(duty, duty[1:]))
+    assert changes >= 3 and hw.leds[0].writes == 1 + changes    # off at the start, on, pulses, off
+
+
+@pytest.mark.parametrize("count", [0, 1])
+def test_missing_joysticks_stop_code_py(count):
+    # without boot.py's two joysticks (a fresh install) code.py stops with a hint instead of running half
+    hw = Hardware(100)
+    hw.modules["usb_hid"] = types.SimpleNamespace(devices=hw.joysticks[:count])
+    with pytest.raises(RuntimeError, match="joysticks missing"):
+        hw.run()
+    assert hw.reloads == []
+
+
 def test_pico_test_keeps_all_seven_encoders():
     # the bench must allocate the same 7 PIO encoders as the board, RANGE included
     board, pico = Hardware(5).run(), Hardware(5, pico_test=True).run()
@@ -354,6 +375,14 @@ def test_pico_test_keeps_all_seven_encoders():
 def test_encoder_step_is_reported():
     hw = Hardware(400, {10: [step(0, 1)]}).run()       # ALT/HDG outer ring, one slow detent
     assert any(pressed(r, 1, "ALT_100_UP") for r in hw.joysticks[0].reports)
+
+
+def test_reversed_ring_counts_the_other_way():
+    # the reverse flag in RINGS (for a ring that turns the wrong way on the first board): a clockwise count
+    # of the ALT/HDG outer ring sends the counter-clockwise button, the other rings stay as they are
+    reverse = ('("ALTHDG_OUTER", P.GPIO18, P.GPIO19, False)', '("ALTHDG_OUTER", P.GPIO18, P.GPIO19, True)')
+    hw = Hardware(400, {10: [step(0, 1), step(1, 1)]}, edits=[reverse]).run()
+    assert sent_names(hw, 1, ("ALT_100_UP", "ALT_100_DN", "HDG_1_UP", "HDG_1_DN")) == {"ALT_100_DN", "HDG_1_UP"}
 
 
 def sent_names(hw, device, names):

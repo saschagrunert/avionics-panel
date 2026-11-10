@@ -239,6 +239,9 @@ def plane(layer, net, fname, func):
     for (x, y, dd) in B.NPTH:
         g.circle_region(x, y, dd / 2 + 0.5)
     g.pol(True)
+    foreign = [(q.x, q.y, max(q.slot) if q.slot else q.drill) for q in pads if q.drill and q.net != net]
+    foreign += [(x, y, dr) for (x, y, vnet, _d, dr) in vias if vnet != net]
+    dropped = []
     for p in thermals:
         if p.slot:
             sw, sh = p.slot
@@ -248,11 +251,20 @@ def plane(layer, net, fname, func):
             g.flash(g.ap("C", p.drill + 2 * THERMAL_RING), p.x, p.y)
             lx = ly = p.drill / 2 + THERMAL_RING + THERMAL_GAP + 0.1
         n = g.ap("C", SPOKE)
+        # unplated holes and the holes of other nets near the pad (slots as a circle round their length)
+        near = [(hx, hy, hd) for hx, hy, hd in B.NPTH + foreign if abs(hx - p.x) < 4 and abs(hy - p.y) < 4]
         for ex, ey in ((p.x - lx, p.y), (p.x + lx, p.y), (p.x, p.y - ly), (p.x, p.y + ly)):
-            # a spoke pointing at an unplated hole (the USB-C shell pegs next to the shell pads) would run into
-            # its drill: leave that one out, the other spokes carry the pad
-            if all(pt_seg(hx, hy, p.x, p.y, ex, ey) > hd / 2 + SPOKE / 2 + 0.25 for hx, hy, hd in B.NPTH):
+            # a spoke pointing at an unplated hole (the USB-C shell pegs next to the shell pads) or at a hole of
+            # another net (the RANGE control's COM pin next to its GND pin) would run into its drill or its
+            # clearance: leave that one out, the other spokes carry the pad
+            if all(pt_seg(hx, hy, p.x, p.y, ex, ey) > hd / 2 + SPOKE / 2 + 0.25 for hx, hy, hd in near):
                 g.line(n, [(p.x, p.y), (ex, ey)])
+            else:
+                dropped.append(p.name)
+    lost = [n for n in set(dropped) if dropped.count(n) > 2]
+    assert not lost, f"{layer}: thermals left with fewer than two spokes: {sorted(lost)}"
+    if dropped:
+        print(f"{layer}: spokes left out (an unplated hole or another net's hole in the way): {sorted(dropped)}")
     g.save()
 
 

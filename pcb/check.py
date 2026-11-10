@@ -12,6 +12,8 @@
 9. routed length of every net against its shortest tree (no detours), USB D+ / D- length and skew
 10. JLCPCB's footprint of every bottom-side part on our pads at its CPL rotation (pad numbers, positions)
 11. no copper on F or B within the mounting-hole keep-out (standoff end, body boss), only the plane inside
+12. no exposed SMD pad of another net near a hand-soldered through-hole pad (solder bridges)
+13. JLCPCB's footprint of every hand-soldered through-hole part against our holes (positions, drills reported)
 """
 import functools
 import heapq
@@ -383,6 +385,94 @@ def holes_and_paste(pads, vias, pth, npth):
     return bad
 
 
+# The through-hole parts on the top are soldered by hand from the bottom, where the SMD parts sit: a solder
+# bridge from an iron-soldered pin to an SMD pad of another net is a short that is hard to see and to clear (an
+# LED's GND pad 0.28 mm from its resistor's GPIO pad was one). Every exposed SMD pad of another net keeps
+# HAND_SMD_MIN of copper from every hand-soldered pad: room for the iron's tip and a fillet.
+HAND_SMD_MIN = 1.0
+
+
+def hand_solder(pads):
+    """Exposed SMD pads (a mask opening) of another net near the plated holes of the top-side (hand-soldered)
+    parts, measured copper to copper."""
+    top = {ref for ref, *_r, side in B.PARTS if side == "top"}
+    tht = [p for p in pads if p.drill and not p.pip and p.name.split(".")[0] in top]
+    smd = [p for p in pads if not p.drill and len(p.layers) == 1 and p.layers in p.mask]
+    bad, near = 0, (9.0, "")
+    for t in tht:
+        tg = pad_geom(t)
+        tb = bbox(tg)
+        for p in smd:
+            if p.net == t.net and p.net:
+                continue
+            pg = pad_geom(p)
+            if not boxes_near(bbox(pg), tb, HAND_SMD_MIN + 0.5):
+                continue
+            d = item_dist(tg, pg)
+            near = min(near, (d, f"{t.name} ({t.net}) to {p.name} ({p.net})"))
+            if d < HAND_SMD_MIN - 1e-6:
+                bad += 1
+                print(f"HAND-SOLDERED PAD {t.name} ({t.net}) {d:.3f} mm from SMD pad {p.name} ({p.net})")
+    print(f"hand soldering: {len(tht)} through-hole pads, closest SMD pad of another net {near[0]:.3f} mm "
+          f"(min {HAND_SMD_MIN}), {near[1]}; {bad} problems")
+    return bad
+
+
+# Hand-soldered parts: JLC's footprint (footprints/<LCSC>.json, "holes" and "npth") against our holes, by
+# position only (our pin names are not JLC's numbers, and the part is placed by hand). For each of the four
+# rotations the hole pattern is moved onto ours by its centroid; it fits when every JLC hole lands on one of our
+# holes of the part, centres within FP_POS_TOL, with none of ours left over, and every unplated JLC hole on
+# one of ours. The drills are reported side by side: ours follow the part's datasheet.
+def tht_footprints(pads):
+    bad = 0
+    types = {}
+    for ref, value, lcsc, x, y, _rot, side in B.PARTS:
+        if side != "top":
+            continue
+        with open(f"footprints/{lcsc}.json") as f:
+            fp = json.load(f)
+        ours = [p for p in pads if p.name.split(".")[0] == ref and p.drill]
+        npth = [(nx, ny, d) for nx, ny, d in B.NPTH if math.hypot(nx - x, ny - y) < 12.0]
+        fits = []
+        for rot in (0, 90, 180, 270):
+            a = math.radians(rot)
+            jl = [(h[0], h[1] * math.cos(a) - h[2] * math.sin(a), h[1] * math.sin(a) + h[2] * math.cos(a), h[3])
+                  for h in fp["holes"]]
+            if len(jl) != len(ours):
+                continue
+            ox = sum(p.x for p in ours) / len(ours) - sum(h[1] for h in jl) / len(jl)
+            oy = sum(p.y for p in ours) / len(ours) - sum(h[2] for h in jl) / len(jl)
+            worst, used = 0.0, set()
+            for _n, hx, hy, _d in jl:
+                p = min(ours, key=lambda q, hx=hx, hy=hy: math.hypot(q.x - hx - ox, q.y - hy - oy))
+                used.add(p.name)
+                worst = max(worst, math.hypot(p.x - hx - ox, p.y - hy - oy))
+            for hx, hy, _d in fp["npth"]:
+                qx, qy = hx * math.cos(a) - hy * math.sin(a) + ox, hx * math.sin(a) + hy * math.cos(a) + oy
+                worst = max(worst, min((math.hypot(nx - qx, ny - qy) for nx, ny, _d in npth), default=9.0))
+            if worst <= FP_POS_TOL and len(used) == len(ours):
+                fits.append((rot, worst))
+        t = types.setdefault(lcsc, {"value": value, "refs": [], "worst": 0.0, "rots": set(), "ours": set(),
+                                    "jlc": {h[3] for h in fp["holes"]}})
+        t["refs"].append(ref)
+        t["ours"] |= {p.drill for p in ours}
+        if not fits:
+            bad += 1
+            print(f"THROUGH-HOLE FOOTPRINT {ref} ({lcsc}): JLC's holes do not fit ours at any rotation")
+            continue
+        t["worst"] = max(t["worst"], min(w for _r, w in fits))
+        t["rots"] |= {r for r, _w in fits}
+    for lcsc, t in sorted(types.items(), key=lambda kv: kv[1]["refs"][0]):
+        refs = t["refs"][0] + (f" and {len(t['refs']) - 1} more" if len(t["refs"]) > 1 else "")
+        def mm(v):
+            return "/".join(f"{d:g}" for d in sorted(v))
+        print(f"  {lcsc:9s} {t['value']:20s} {refs:16s} fits at {'/'.join(map(str, sorted(t['rots']))) or '-':11s} "
+              f"centres within {t['worst']:.3f} mm; drills ours {mm(t['ours'])}, JLC {mm(t['jlc'])}")
+    print(f"through-hole footprints: {len(types)} JLC footprints on {sum(len(t['refs']) for t in types.values())} "
+          f"hand-soldered parts (tolerance {FP_POS_TOL}), {bad} problems")
+    return bad
+
+
 MASK_DAM = 0.1             # JLCPCB, green solder mask: narrowest dam it keeps between two openings
 
 
@@ -425,16 +515,19 @@ def mask_dams(pads):
 
 # Decoupling, measured as the copper path from the RP2040 pin to the capacitor pad: trace length on the outer
 # layers plus, through a plane, the straight distance from via to via (pad centre to pad centre).
-# - Pins with a capacitor of their own (42-44 IOVDD / ADC_AVDD / VREG_VIN on C_D2, 45 VREG_VOUT on C_1V0,
+# - Pins with a capacitor of their own (42-44 IOVDD / ADC_AVDD / VREG_VIN on C_D2, 1 uF, 45 VREG_VOUT on C_1V0,
 #   50 DVDD on C_1V1): at most OWN_CAP_MAX of copper. Raspberry Pi's minimal design puts each capacitor
 #   right at its pin; the limit keeps the supply side of the loop at about 2 nH, the order of the
 #   capacitor's own ESL plus its GND via (a 0.25 mm trace 0.2 mm over the 3V3 plane has about 0.3 nH/mm).
 # - Exceptions, no capacitor of their own: IOVDD 1, 10, 22, 26, 33 and USB_VDD / IOVDD 48, 49 sit inside the
 #   fan-out (every lane around the chip is taken), so they drop straight into the 3V3 plane (at most
-#   PLANE_ENTRY_MAX of copper to the via) and share C_D0 to C_D3, C_FL and C_VIN on it. DVDD 23 on the
+#   PLANE_ENTRY_MAX of copper to the via) and share C_D0 to C_D3, C_FL and C_BULK on it. DVDD 23 on the
 #   north side has no room between the crystal and the fan-out; it reaches the 1V1 capacitors over the
 #   top layer through V23. Their paths are reported, not limited.
 OWN_CAP_MAX = 6.0
+# - The regulator's input and output want 1 uF at the pin (RP2040 datasheet 2.9.3 / 2.10.1): the nearest
+#   capacitor of VREG_VIN (44) and VREG_VOUT (45) must be at least CAP_MIN_UF.
+CAP_MIN_UF = {44: 1.0, 45: 1.0}
 PLANE_ENTRY_MAX = 2.0
 PLANE_SHARED = {1, 10, 22, 26, 33, 48, 49}
 NO_ROOM = {23}
@@ -523,8 +616,15 @@ def shortest(adj, start):
     return dist
 
 
+def microfarads(value):
+    """'100nF' -> 0.1, '1uF' -> 1.0, '15pF' -> 1.5e-05"""
+    m = re.fullmatch(r"([\d.]+)([pnu])F", value)
+    return float(m.group(1)) * {"p": 1e-6, "n": 1e-3, "u": 1.0}[m.group(2)]
+
+
 def decoupling(pads, segments, vias):
     bad = 0
+    value = {ref: microfarads(v) for ref, v, *_r in B.PARTS if ref.startswith("C_")}
     caps = [p for p in pads if re.fullmatch(r"C_\w+\.\d", p.name)]
     print("decoupling: RP2040 supply pin -> nearest capacitor on its net, copper path (trace + via to via)")
     graphs = {}
@@ -545,8 +645,12 @@ def decoupling(pads, segments, vias):
         else:
             ok = d <= OWN_CAP_MAX
             rule = f"own capacitor (max {OWN_CAP_MAX})"
+        uf = value[c.split(".")[0]]
+        if pin in CAP_MIN_UF:
+            ok = ok and uf >= CAP_MIN_UF[pin]
+            rule += f", at least {CAP_MIN_UF[pin]:g} uF"
         bad += not ok
-        print(f"  pin {pin:2d} {p.net}  {d:5.2f} mm  {c:8s} {rule}  {'OK' if ok else 'FAIL'}")
+        print(f"  pin {pin:2d} {p.net}  {d:5.2f} mm  {c:8s} {uf:g} uF  {rule}  {'OK' if ok else 'FAIL'}")
     return bad
 
 
@@ -807,12 +911,14 @@ if __name__ == "__main__":
     print(f"DRC: worst copper clearance {worst:.3f} mm, {viol} violations")
     hole_bad = holes_and_paste(pads, rd["vias"], pth, npth)
     hole_bad += mask_dams(pads)
+    hole_bad += hand_solder(pads)
     hole_bad += decoupling(pads, rd["segments"], rd["vias"])
     hole_bad += cap_vias(pads, rd["vias"])
     hole_bad += lengths(pads, rd["segments"])
     pin_bad = pin_order(pads)
     print(f"pin order (bottom parts): {pin_bad} problems")
     pin_bad += footprints(pads)
+    pin_bad += tht_footprints(pads)
     for ly, img in ras.items():
         np.save(f"raster{ly}.npy", img)
     import sys

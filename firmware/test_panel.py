@@ -173,7 +173,9 @@ def test_fms_knob_with_shift_dims_the_lights():
 def test_unit_and_freq_modes():
     s = Sim()
     s.key("COM_SWAP"); assert s.take() == [(1, "COM_SWAP")]
+    s.key("HOME"); assert not s.p.unit_light and s.take() == [(1, "HOME")]   # plain HOME: the GTN key
     s.key("SHIFT"); s.key("HOME"); assert s.p.unit_light and s.take() == []
+    s.key("HOME"); assert s.p.unit_light and s.take() == [(2, "HOME")]
     s.key("COM_SWAP"); s.key("AP"); assert s.take() == [(2, "COM_SWAP"), (1, "AP")]
     s.key("FREQ_PUSH"); assert s.p.freq_mode_name == "NAV" and s.take() == [(2, "FREQ_PUSH")]
     s.turn("FREQ_INNER", 1); assert s.take() == [(2, "NAV_KHZ_UP")]
@@ -181,6 +183,49 @@ def test_unit_and_freq_modes():
     s.run(10100); assert s.p.freq_mode_name == "COM"                    # back to COM after 10 s
     s.key("SHIFT"); s.key("HOME"); assert not s.p.unit_light
     s.key("SHIFT"); s.key("FREQ_PUSH"); assert s.take() == [(1, "XPDR_MODE")] and s.p.freq_mode_name == "COM"
+
+
+def test_freq_push_restarts_the_mode_timeout():
+    # a turn, then the push long after it: the 10 s count from the push, not from the turn
+    p = P.Panel()
+    p.turn("FREQ_INNER", 1, 0); p.tick(0)
+    p.key("FREQ_PUSH", True, 20000); p.tick(20001)
+    assert p.freq_mode_name == "NAV"
+    p.key("FREQ_PUSH", False, 20050)
+    p.tick(20000 + P.FREQ_RESET_MS - 1); assert p.freq_mode_name == "NAV"
+    p.tick(20000 + P.FREQ_RESET_MS); assert p.freq_mode_name == "COM"
+
+
+def test_freq_turns_keep_the_mode():
+    # turns keep NAV well past 10 s from the push; COM comes back 10 s after the last turn
+    s = Sim()
+    s.key("FREQ_PUSH"); s.take()
+    s.turn("FREQ_INNER", 4, every=4000)
+    assert [n for _, n in s.take()] == ["NAV_KHZ_UP"] * 4
+    last = s.t - 4000
+    s.run(last + P.FREQ_RESET_MS - 1 - s.t); assert s.p.freq_mode_name == "NAV"
+    s.run(1); assert s.p.freq_mode_name == "COM"
+
+
+def test_adf_inner_ring_accelerates():
+    # in ADF mode the inner ring steps 1 kHz, or 10 kHz on a fast turn
+    s = Sim()
+    s.key("FREQ_PUSH"); s.key("FREQ_PUSH"); s.take()
+    assert s.p.freq_mode_name == "ADF"
+    s.turn("FREQ_INNER", 2, every=P.FAST_MS // 2); s.run(500)
+    assert [n for _, n in s.take()] == ["ADF_1_UP", "ADF_10_UP"]
+
+
+def test_com_nav_rings_do_not_accelerate():
+    # COM and NAV: both rings send one step per detent, however fast the turn (only ADF's inner ring accelerates)
+    for pushes, names in ((0, ("COM_MHZ_UP", "COM_KHZ_UP")), (1, ("NAV_MHZ_UP", "NAV_KHZ_UP"))):
+        for ring, name in zip(("FREQ_OUTER", "FREQ_INNER"), names):
+            s = Sim()
+            for _ in range(pushes):
+                s.key("FREQ_PUSH")
+            s.take()
+            s.turn(ring, 3, every=P.FAST_MS // 2); s.run(500)
+            assert [n for _, n in s.take()] == [name] * 3, (ring, name)
 
 
 def test_range():
@@ -198,6 +243,28 @@ def test_range():
     s.p.key("RANGE_COM", True, s.t); s.run(800); s.p.key("RANGE_COM", False, s.t); s.run(100)
     assert s.take() == [(1, "PTR")]                                      # long centre push: one PTR on release
     s.turn("RANGE", -2); assert [n for _, n in s.take()] == ["RANGE_CCW", "RANGE_CCW"]
+    s.key("SHIFT"); s.turn("RANGE", 1); assert s.take() == [(1, "S_RANGE_CW")]
+    s.key("SHIFT"); s.turn("RANGE", -1); assert s.take() == [(1, "S_RANGE_CCW")]
+
+
+def test_fast_tilt_closes_direction_and_com_in_one_scan():
+    # a quick tilt closes its direction and "com" within one 20 ms keypad scan: the keypad reports them in
+    # the same pass, the direction (RANGE_A, key 28) before "com" (key 32), and releases them the same way
+    names = sum(BM.MATRIX, ())
+    assert names.index("RANGE_A") < names.index("RANGE_COM")
+    s = Sim()
+    s.p.key("RANGE_A", True, s.t); s.p.key("RANGE_COM", True, s.t); s.run(100)
+    s.p.key("RANGE_A", False, s.t); s.p.key("RANGE_COM", False, s.t); s.run(200)
+    assert s.take() == [(1, "PAN_UP")]                                  # no PTR
+
+
+def test_tilt_first_repeat_after_300_ms():
+    s = Sim()
+    t0 = s.t
+    s.p.key("RANGE_COM", True, s.t); s.p.key("RANGE_A", True, s.t)
+    trace = pressed_trace(s, 600)
+    starts = [t for t in sorted(trace) if "PAN_UP" in trace[t] and "PAN_UP" not in trace.get(t - 1, ())]
+    assert starts[:3] == [t0 + 1, t0 + P.PAN_DELAY_MS, t0 + P.PAN_DELAY_MS + P.PAN_MS]
 
 
 def test_up_dn_repeat():
@@ -219,23 +286,34 @@ def pressed_trace(s, ms, dev=1):
 # MobiFlight polls the joysticks from a 20 ms System.Timers.Timer; Windows' 15.6 ms clock makes that about
 # every 31 ms. It sees snapshots, so a detent only counts if a poll lands in its press and another in its gap.
 POLL_MS = 31.25
+# The host fetches the reports every 8 ms (bInterval 8), one IN endpoint for both joysticks: with a report still
+# pending and both devices changing in one pass, an edge waits up to three frames.
+HID_FRAME_MS = 8
 
 
 def test_detent_pulses_survive_mobiflight_polling():
     # a quick spin of the FMS knob (one step per detent): whatever the phase of the poll, MobiFlight counts
-    # every queued detent, and the run-on after the spin stays below 0.8 s
+    # every queued detent, and the run-on after the spin stays below 0.9 s. That holds even when every press
+    # edge, or every release edge, reaches the PC three HID frames late, shortening the press or the gap
     s, trace = Sim(), {}
     for _ in range(12):                                    # 12 detents in 60 ms: MAX_QUEUE of them are kept
         s.p.turn("FMS_INNER", 1, s.t)
         trace.update(pressed_trace(s, 5))
     trace.update(pressed_trace(s, 1500))
-    on = [t for t in sorted(trace) if "FMS_INNER_CW" in trace[t]]
-    assert on[-1] < 800
-    for phase in range(32):
-        polls = [t for t in sorted(trace) if (t - phase) % POLL_MS < 1]
-        seen = [("FMS_INNER_CW" in trace[t]) for t in polls]
-        presses = sum(b and not a for a, b in zip([False] + seen, seen))
-        assert presses == P.MAX_QUEUE, phase
+    on = {t: "FMS_INNER_CW" in trace[t] for t in trace}
+    assert max(t for t in on if on[t]) < 900
+    late = 3 * HID_FRAME_MS
+    for edges in ("press", "release"):
+        # a pulse [a, b) arrives as [a + late, b) or as [a, b + late) (press and gap are longer than late)
+        if edges == "press":
+            pc = {t: on[t] and on.get(t - late, False) for t in on}
+        else:
+            pc = {t: on[t] or on.get(t - late, False) for t in on}
+        for phase in range(32):
+            polls = [t for t in sorted(pc) if (t - phase) % POLL_MS < 1]
+            seen = [pc[t] for t in polls]
+            presses = sum(b and not a for a, b in zip([False] + seen, seen))
+            assert presses == P.MAX_QUEUE, (edges, phase)
 
 
 def test_timing_rules_keep_repeats_from_piling_up(monkeypatch):
@@ -248,6 +326,21 @@ def test_timing_rules_keep_repeats_from_piling_up(monkeypatch):
             m.setattr(P, name, step)
             P.check_timing()
             m.setattr(P, name, step - 1)
+            with pytest.raises(ValueError):
+                P.check_timing()
+
+
+def test_timing_rules_keep_press_and_gap_above_a_poll(monkeypatch):
+    # an edge can reach the PC three 8 ms HID frames late (the joysticks share the endpoint): press and gap must
+    # still outlast MobiFlight's poll then. A 50 ms gap can arrive as 26 ms, shorter than the 31.25 ms poll
+    import pytest
+    assert P.HID_FRAME_MS == HID_FRAME_MS
+    least = P.POLL_MS + 3 * HID_FRAME_MS
+    for name in ("PRESS_MS", "GAP_MS"):
+        with monkeypatch.context() as m:
+            m.setattr(P, name, least)
+            P.check_timing()
+            m.setattr(P, name, least - 1)
             with pytest.raises(ValueError):
                 P.check_timing()
 

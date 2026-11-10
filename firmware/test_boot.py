@@ -1,7 +1,8 @@
 """Host tests for boot.py: runs it against stub CircuitPython modules.
 
 The stub matrix has one switch, SHIFT, from its column pin to its row pin (through the diode, anode on the
-column, as on the board): the column only reads low while SHIFT is held and the row pin drives low.
+column, as on the board): the column only reads low while SHIFT is held and the row pin drives low. The
+pull-up needs time to charge the column: read before a sleep of at least SETTLE_S, it still reads low.
 """
 import os
 import sys
@@ -11,12 +12,13 @@ import buttonmap as BM
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SHIFT_PINS = ("GP2", "GP6")        # row, column of SHIFT; tests/test_pins.py checks them against the board
+SETTLE_S = 0.001                   # far longer than the column needs, far shorter than boot.py waits
 
 
 class Boot:
     def __init__(self, shift=False, pins=SHIFT_PINS):
         self.shift, (self.row, self.col) = shift, pins
-        self.calls, self.ios, self.devices, self.enabled = [], {}, [], None
+        self.calls, self.ios, self.devices, self.enabled, self.sleeps = [], {}, [], None, []
         boot = self
 
         class Pull:
@@ -26,10 +28,11 @@ class Boot:
             def __init__(self, pin):
                 assert pin not in boot.ios or boot.ios[pin].released, f"{pin} claimed twice"
                 self.pin, self.mode, self.pull, self.out, self.released = pin, "in", None, None, False
+                self.charged = False
                 boot.ios[pin] = self
 
             def switch_to_input(self, pull=None):
-                self.mode, self.pull = "in", pull
+                self.mode, self.pull, self.charged = "in", pull, False
 
             def switch_to_output(self, value=False, drive_mode=None):
                 self.mode, self.out = "out", value
@@ -41,7 +44,7 @@ class Boot:
                 if boot.shift and other and not other.released and other.mode == "out" and not other.out:
                     return False                   # current through the diode and the closed switch
                 assert self.pull == Pull.UP, f"{self.pin} floats"
-                return True
+                return self.charged                # low until the pull-up has charged the column
 
             def deinit(self):
                 self.released = True
@@ -53,13 +56,19 @@ class Boot:
         def call(name):
             return lambda *args: boot.calls.append((name,) + args)
 
+        def sleep(seconds):
+            boot.sleeps.append(seconds)
+            for io in boot.ios.values():
+                if seconds >= SETTLE_S and io.mode == "in" and io.pull == Pull.UP and not io.released:
+                    io.charged = True
+
         pins = types.SimpleNamespace(**{f"GPIO{i}": f"GP{i}" for i in range(30)})
         self.modules = {
             "digitalio": types.SimpleNamespace(DigitalInOut=DigitalInOut, Pull=Pull),
             "microcontroller": types.SimpleNamespace(pin=pins),
             "storage": types.SimpleNamespace(disable_usb_drive=call("disable_usb_drive")),
             "supervisor": types.SimpleNamespace(set_usb_identification=call("set_usb_identification")),
-            "time": types.SimpleNamespace(sleep=lambda s: None),
+            "time": types.SimpleNamespace(sleep=sleep),
             "usb_cdc": types.SimpleNamespace(disable=call("usb_cdc.disable")),
             "usb_hid": types.SimpleNamespace(Device=device, enable=self.enable),
             "usb_midi": types.SimpleNamespace(disable=call("usb_midi.disable")),
@@ -97,6 +106,22 @@ def test_without_shift_the_drive_and_console_are_hidden():
 def test_shift_held_keeps_the_drive_and_console():
     boot = Boot(shift=True).run()
     assert not boot.hidden and len(boot.enabled) == 2
+
+
+def test_usb_name_and_interfaces():
+    # in both modes the joysticks carry the name "Avionics Panel" (what joy.cpl and MobiFlight show) and MIDI
+    # is off: only the drive and the console differ between the modes (they shift the joysticks' interface
+    # number, so Windows may see new controllers in SHIFT mode; docs/firmware.md, Install and bring-up)
+    for shift in (False, True):
+        boot = Boot(shift=shift).run()
+        assert boot.calls.count(("set_usb_identification", "DIY", "Avionics Panel")) == 1
+        assert boot.calls.count(("usb_midi.disable",)) == 1
+
+
+def test_shift_is_read_after_the_column_settles():
+    # without the settle the column would still read low and every plain plug-in would keep the drive
+    boot = Boot(shift=False).run()
+    assert boot.hidden and max(boot.sleeps) >= SETTLE_S
 
 
 def test_shift_pins_are_released_for_code_py():
