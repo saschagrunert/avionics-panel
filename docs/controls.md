@@ -24,14 +24,18 @@ SHIFT is tapped, never held. For keys it is one-shot; a knob keeps it while in u
   the panel returns to normal and the light goes off.
 - A knob turned or pushed after SHIFT stays shifted while you keep using it, including moving between
   its outer and inner ring (for a whole squawk code), and returns to normal 3 s after the last detent.
-  1 s was too short to move from one ring to the other or glance at the code.
+  1 s was too short to move from one ring to the other or glance at the code. A push or RANGE tilt held
+  keeps it too, so a long shifted pan never outlasts the light: the 3 s start when it is let go.
 - Tapping SHIFT again cancels it. It also cancels itself after 3 s without input. During the last second
   the amber light pulses between bright and dim, so a knob never drops back to its plain function
   unannounced in the middle of a turn (Reddit feedback). It never goes dark while SHIFT still applies:
   lit, even dim, means shifted; dark means plain. While a knob still keeps SHIFT (light on after a squawk
-  entry), a tap arms SHIFT for the next key instead, so SHIFT, VFR gives IDENT with one tap. The VFR key
-  alone sends VFR, even right after a squawk entry: VFR is the plain function because squawking VFR is
-  the common case in VFR flying; to ident, tap SHIFT first.
+  entry, or a shifted push or tilt still held), a tap arms SHIFT for the next key instead, so SHIFT, VFR
+  gives IDENT with one tap; a second tap cancels SHIFT, except for a shifted control still held. That one
+  keeps its session and the light until it is let go, whatever keys are pressed meanwhile (SHIFT taps,
+  the key a tap armed, plain keys). Only another knob, turned or pushed, ends it: SHIFT belongs to one
+  knob at a time. The VFR key alone sends VFR, even right after a squawk entry: VFR is the plain
+  function because squawking VFR is the common case in VFR flying; to ident, tap SHIFT first.
 - Keys and knobs without an amber legend still send their own shifted button. The planned default profiles
   map it to the same function as the plain control, so a stray SHIFT before DN or ENT does no harm,
   and the slot stays free for personal mappings. The FMS knob is the exception: with SHIFT it works the
@@ -76,7 +80,9 @@ it is BARO (push STD, kept on purpose for transition altitudes in Europe), so CR
 Reddit feedback asked for CRS and BARO on their own knob, as on the G1000 bezel. Kept behind SHIFT on
 purpose: a knob stays shifted while it is turned (both rings, 3 s after the last detent), so setting BARO
 or a course is one tap and then turning, and a fourth dual knob would make the panel wider.
-Outer rings have a coarse knurl, inner knobs a fine one.
+Outer rings have a coarse knurl, inner knobs a fine one. The FMS ring's knurl is coarser and deeper
+again (14 flutes instead of 24), so FREQ and FMS, the same size one above the other, are told apart by
+feel without looking.
 Knob legends follow one pattern, in one type size per colour (white 1.55 mm, amber 1.5 mm): what the
 rings do, outer ring first, then PUSH and what the push does; where one word covers both rings, it stands
 for both (FREQ, SQUAWK, FMS). The legends: ALT · HDG · PUSH SYNC, CRS · BARO · PUSH STD, RANGE · PUSH PTR
@@ -87,9 +93,11 @@ The legends sit about 1.1 mm off the Ø17 rings, so the long ones wrap far round
 about 48° over the plate) a knob hides the plate behind it. The angles keep as much in view as the knobs
 allow: ALT/HDG loses about an eighth of its white line behind its own knob, the FMS legends stay clear, and
 the long FREQ · PUSH COM/NAV/ADF loses about 40 % at any angle: its start goes behind its own knob, its
-end (about 10 mm above the FMS knob) behind the FMS knob. All legends stay at least 3.8 mm off the key
-block frame and about 9 mm off each other; the FMS lighting line keeps about 4 mm off the plate edge. The
-arrow pointing away from you is hidden behind the RANGE knob when seated; the other three are enough.
+end (about 10 mm above the FMS knob) behind the FMS knob. All legends stay at least 3.7 mm off the key
+block frame. FREQ and FMS legends are 9.1 mm apart, the ALT/HDG legend comes within 8.2 mm of the top
+RANGE pan arrow (16.9 mm of the RANGE legend), and the FMS lighting line keeps about 4 mm off the plate
+edge. The arrow pointing away from you is hidden behind the RANGE knob when seated; the other three are
+enough.
 The cockpit lighting (Reddit feedback) sits behind SHIFT on the FMS knob instead of on knobs of its own:
 it is set once or twice per flight, a knob keeps SHIFT while it turns, so dimming is one tap and then
 turning, and more knobs would break the symmetric layout. The lighting buttons stay on the first
@@ -108,7 +116,7 @@ ring, and pages, characters and zoom steps must move exactly one per detent. The
 per detent too; the profile sets the step size.
 UP and DN are keys, as on the G1000. They auto-repeat while held (first repeat after 400 ms,
 then about 8 steps per second), so -1000 ft/min takes about 1.4 s.
-Knob legends are engraved on the side facing the keys; the near side of a rear knob is hidden behind
+Knob legends sit on the side facing the keys; the near side of a rear knob is hidden behind
 the front knob when seated.
 
 ## Keys (label, shift legend in parentheses)
@@ -126,13 +134,13 @@ aircraft have no yaw damper, and where one is installed it is switched once per 
 | UP | FLC | APR (BC) |
 | DN | VNV | LVL (½ BANK) |
 
-One engraved frame surrounds all keys and single lines split it into AUTOPILOT, AUDIO, RADIO and FMS
+One laser-marked frame surrounds all keys and single lines split it into AUTOPILOT, AUDIO, RADIO and FMS
 (separate frames read as a double rule between AUTOPILOT and AUDIO).
 
 Shift legends are 1.7 mm tall, centred 1.6 mm below their cap: clear of the key-hole edge, and the
 next row's caps don't hide them down to about 40° eye height (a desk is around 42°, plus the 6° wedge).
 
-Audio and radio, split by an engraved line. AUDIO (left half) selects what you talk on (MIC) and
+Audio and radio, split by a laser-marked line. AUDIO (left half) selects what you talk on (MIC) and
 listen to (COM; with SHIFT NAV 1, NAV 2, ADF, DME for station identifiers). It does not tune anything.
 RADIO (right half) holds the CDI key, the transponder key and the flip-flops next to the frequency
 knob:

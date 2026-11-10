@@ -63,3 +63,51 @@ def bbox(g):
 def boxes_near(a, b, margin):
     """True when two bounding boxes come within margin of each other: the prefilter before item_dist."""
     return not (a[0] > b[2] + margin or b[0] > a[2] + margin or a[1] > b[3] + margin or b[1] > a[3] + margin)
+
+
+# ---------------- routed length against the shortest tree (check.py and run_route.py) ----------------
+# A routed net may be DETOUR_FACTOR times as long as the shortest 8-direction tree over its pads, plus
+# DETOUR_SLACK for getting out of the RP2040's fan-out and round the parts in the way. In the routing before
+# this check the well-routed nets came to at most 1.6 times their tree (GP17) and 22 mm on a 10 mm tree (the
+# hand-routed VBUS); the UNIT light (GP15) went round the whole board, 341 mm on a 58 mm tree.
+DETOUR_FACTOR, DETOUR_SLACK = 1.5, 15.0
+
+
+def octilinear(a, b):
+    """Shortest 8-direction (0 / 45 / 90 degree) path between two points: the best the grid router can do."""
+    dx, dy = abs(a[0] - b[0]), abs(a[1] - b[1])
+    return dx + dy - (2 - math.sqrt(2)) * min(dx, dy)
+
+
+def tree_length(points):
+    """Length of the minimum spanning tree over the points, octilinear distances (Prim)."""
+    pts = sorted(set(points))
+    if len(pts) < 2:
+        return 0.0
+    best = {p: octilinear(pts[0], p) for p in pts[1:]}
+    total = 0.0
+    while best:
+        p = min(best, key=best.get)
+        total += best.pop(p)
+        for q in best:
+            best[q] = min(best[q], octilinear(p, q))
+    return total
+
+
+def net_lengths(segments):
+    """Trace length per net of a list of (x1, y1, x2, y2, layer, net, ...) segments."""
+    out = {}
+    for s in segments:
+        out[s[5]] = out.get(s[5], 0.0) + math.hypot(s[2] - s[0], s[3] - s[1])
+    return out
+
+
+def detour_limits(pads, nets):
+    """{net: (shortest tree, longest acceptable routed length)} for the given nets, over their pad centres:
+    one pass over the pads for all of them."""
+    pts = {}
+    for p in pads:
+        if p.net in nets:
+            pts.setdefault(p.net, []).append((p.x, p.y))
+    trees = {n: tree_length(pts.get(n, ())) for n in nets}
+    return {n: (t, DETOUR_FACTOR * t + DETOUR_SLACK) for n, t in trees.items()}

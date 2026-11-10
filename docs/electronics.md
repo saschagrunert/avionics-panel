@@ -6,14 +6,39 @@ matrix, knobs and lights) is drawn from the same netlist by [make_schematic.py](
 which fails if any pad of the board is missing from it.
 
 RP2040 with W25Q16 flash, 12 MHz crystal, XC6206 regulator and USB-C, all on the bottom of a 4-layer
-board (signals / GND / 3V3 / signals). Fully routed (`run_route.py 14`) and checked on the Gerbers:
-125 nets, 0 shorts, 0 opens, closest copper 0.150 mm, 0 DRC violations, and every bottom-side part has
-mirrored pin order. Closest holes on different nets 0.544 mm (JLCPCB minimum 0.5),
-on the same net 0.301 mm (minimum 0.254); `check.py` checks both by net. Apart from the GND vias in the
+board (signals / GND / 3V3 / signals). Fully routed (`run_route.py 3`: 112 vias, 3.49 m of trace) and
+checked on the Gerbers: 119 nets, 0 shorts, 0 opens, closest copper 0.150 mm, 0 DRC violations, and every
+bottom-side part has mirrored pin order. Closest holes on different nets 0.544 mm (JLCPCB minimum 0.5),
+on the same net 0.350 mm (minimum 0.254); `check.py` checks both by net. Apart from the GND vias in the
 RP2040's exposed pad, no via sits in or within 0.1 mm of an SMD pad, and none within 0.1 mm of a paste
 opening (the router keeps them out, `check.py` checks it). Paste is on every assembled pad and nowhere
 else, the drills (0.3 mm plated, 0.6 mm unplated) and annular rings (0.1 mm on vias, 0.15 mm on pads)
 are within JLCPCB's standard limits, and no solder mask dam is under 0.1 mm (green mask).
+
+No net takes a detour: `check.py` fails any net whose routed length exceeds 1.5 times its shortest
+8-direction tree plus 15 mm (`geom.py`), and the router rips up and reroutes such a net like a failed one.
+The UNIT light (GP15) had gone round the whole board (341 mm) before; it now runs 86 mm (limit 103). USB:
+D+ 46.1 mm and D- 42.3 mm of trace from the USB-C contacts through the 27 R resistors to the RP2040, 3.8 mm
+apart (`check.py` limits: 50 mm each, 10 mm skew).
+
+JLCPCB places the bottom-side parts by its own library footprints. [pcb/footprints/](../pcb/footprints/)
+keeps the pads of each one (number, position, size; saved from JLC's EasyEDA library by
+`footprints/fetch.py`, source and date in each file), and `check.py` fits them onto our pads at the CPL
+rotation, offline: every JLC pad must land on our pad with the same number, centres within 0.15 mm and
+edges within 0.25 mm. The CPL follows JLC's convention for the bottom side as KiBot's JLCPCB filter and the
+kicad-jlcpcb-tools plugin write it (180 minus KiCad's bottom angle): seen from the bottom, the part is JLC's
+footprint turned counter-clockwise by the rotation. U1 and J1 are at 180, U2 at 0, U3 at 180, Y1 at 0, the
+diodes at 0, the resistors and capacitors at 180 (horizontal) or 270 (vertical). The bottom silkscreen has a
+pin 1 corner mark at U1 and pin 1 dots at U2, U3 and Y1 for the placement preview
+([ordering.md](ordering.md)).
+
+The crystal (Abracon ABM8-272-T3) has the crystal itself on pins 1 and 3, diagonally opposite, and GND on 2
+and 4. Seen from the top, the bottom-side part has pin 1 (XO_R, to the 1k) bottom-right, 2 (GND)
+bottom-left, 3 (XIN) top-left and 4 (GND) top-right. Its nets are hand-routed: XIN comes straight up from
+the RP2040 between the two lower pads, XOUT runs east to the 1k (R_X) just south of the crystal, clear of
+its body and pads, XO_R from the crystal round its east side to the 1k and C_X2; C_X1 sits west of the
+crystal on XIN. The top-right GND pad has its own via into the plane, the bottom-left one shares C_X1's GND
+pad and via.
 
 Decoupling follows Raspberry Pi's minimal design where there is room. In the corner south-east of the
 RP2040, C_D2 (100 nF, 3V3) takes a direct trace from pin 42 and the shared via of pins 42-44 (IOVDD,
@@ -40,7 +65,7 @@ C_D0 to C_D3, C_FL and C_VIN on it.
 | GP28/29 | RANGE encoder |
 | GP13 | FREQ push (direct to GND) |
 | GP12, GP15 | SHIFT light (amber), UNIT 2 light (white) |
-| GP14 | spare (its fan-out is boxed in, not connected) |
+| GP14 | spare: its fan-out stub ends under the solder mask, not connected (boxed in, no room for a pad) |
 | SWCLK, SWDIO | debug points: exposed pads (0.6 / 0.7 mm) on the bottom at the RP2040's north side, for thin wires to an SWD probe; GND on the USB-C shell. RUN stays tied to 3V3, the probe resets over SWD |
 
 35 diodes (1N4148W): one per key, five for the RANGE switches, one each for the ALT/HDG and FMS pushes.
@@ -50,6 +75,7 @@ The encoders feed the RP2040 directly: CircuitPython's `rotaryio` decodes the qu
 machine per ring (7 of the 8), with no polling and no external decoder. A quadrature-to-up/down converter
 such as the LS7183 (a Reddit suggestion) would add seven chips for a job the PIO already does. The part to
 test on the Pico is the detent-to-pulse mapping and the pulse timing towards MobiFlight, not the decoding.
+The encoders' metal mounting lugs are plated slots on GND (through the plane), an ESD path from the shaft.
 
 ## Lights
 
@@ -57,4 +83,6 @@ The board's two lights are XINGLIGHT XL-302UYC (yellow 588 nm, the
 closest 3 mm amber, C2895466) with 330 R (C23138), and XL-302UWC (white, C2895458) with 22 R (C23345).
 Amber runs at about 3 mA from the GPIO. The white LED's forward voltage is 2.7 to 3.0 V at a few mA, close
 to the 3.3 V supply, so it gets a small resistor: roughly 2 to 7 mA over that spread. The firmware sets both
-brightnesses with PWM. Check the white light on the Pico bench test; if it is still too dim, fit 0 R.
+brightnesses with PWM. Check the white light on the first board; if it is still too dim, fit 0 R.
+The LEDs sit where their light holes keep at least 0.8 mm of aluminium to the next key hole (JLCCNC's
+minimum wall): 0.85 mm for SHIFT, 0.86 mm for UNIT.

@@ -1,0 +1,13 @@
+{
+ "lcsc": "C20625731",
+ "title": "ABM8-272-T3_C20625731",
+ "package": "CRYSTAL-SMD_4P-L3.2-W2.5-BL",
+ "source": "JLCPCB / EasyEDA library footprint, https://easyeda.com/api/products/C20625731/components, fetched 2026-11-10",
+ "frame": "top view, mm, x right, y down, from the footprint origin; pads: number, x, y, size x, size y",
+ "pads": [
+  ["1", -1.1, 0.85, 1.4, 1.2],
+  ["2", 1.1, 0.85, 1.4, 1.2],
+  ["3", 1.1, -0.85, 1.4, 1.2],
+  ["4", -1.1, -0.85, 1.4, 1.2]
+ ]
+}

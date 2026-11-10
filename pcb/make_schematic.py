@@ -4,7 +4,7 @@ The board has no hand-drawn schematic: board.py places the pads and gives every 
 router and the checks work from that. This script draws the same netlist as four A3 sheets. Every net on
 the drawing is looked up from a pad, nothing is typed in twice, and the script asserts at the end that
 every pad of the netlist shows up exactly with its net (pins without a net get a no-connect cross).
-Skipped as duplicates: mounting lugs (MP*), the RP2040's fan-out and via pads (U1.F*, U1.V*; the two SWD
+Skipped as duplicates: the RP2040's fan-out and via pads (U1.F*, U1.V*; the two SWD
 pads U1.F24 / U1.F25 are drawn as test points), the USB-C's exposed breakout pads (J1.E_*) and the vias the
 USB-C lines land on (R_DP.E, R_DM.E).
 Pin names come from the datasheets (RP2040 table 2, W25Q16JV, XC6206, USB-C, PEC11D, RKJXT).
@@ -68,7 +68,7 @@ def spare_gpios():
 
 
 def skipped(ref, pin):
-    return (pin.startswith("MP") or (ref == "J1" and pin.startswith("E_"))
+    return ((ref == "J1" and pin.startswith("E_"))
             or (ref in ("R_DP", "R_DM") and pin == "E")         # where the USB-C lines land
             or (ref == "U1" and re.fullmatch(r"[FV]\d+", pin) is not None and pin not in ("F24", "F25")))
 
@@ -374,17 +374,21 @@ def sheet_mcu(s):
         s.end(xx, y - 7, "Y1", pin, "d", stub=1.0)
     s.text(xa + 0.4, y + 0.6, "3", 5.2, color=PIN_C, va="bottom")
     s.text(xb - 1.6, y + 0.6, "1", 5.2, color=PIN_C, va="bottom")
-    cx1 = next(r for r in ("C_X1", "C_X2") if net(r, "2") == net("Y1", "3"))
-    cx2 = "C_X2" if cx1 == "C_X1" else "C_X1"
+    def load_cap(n):
+        """the load capacitor on net n: (ref, its pin on n, its GND pin)"""
+        ref = next(r for r in ("C_X1", "C_X2") if n in (net(r, "1"), net(r, "2")))
+        return (ref, "1", "2") if net(ref, "1") == n else (ref, "2", "1")
+    cx1, p1, g1 = load_cap(net("Y1", "3"))
+    cx2, p2, g2 = load_cap(net("Y1", "1"))
     s.wire([(xa, y), (178, y)], [("Y1", "3")])
-    c = s.two(cx1, 178, y, "d", pins=("2", "1"), text_side=-1)
-    s.wire([(178, y), c["2"]], [(cx1, "2")], check=("Y1", "3")); s.dot(178, y)
-    s.end(*c["1"], cx1, "1", "d")
+    c = s.two(cx1, 178, y, "d", pins=(p1, g1), text_side=-1)
+    s.wire([(178, y), c[p1]], [(cx1, p1)], check=("Y1", "3")); s.dot(178, y)
+    s.end(*c[g1], cx1, g1, "d")
     s.wire([(178, y), (172, y)], [], check=("Y1", "3"))
     s.label(172, y, net("Y1", "3"), "l", stub=0)
-    c = s.two(cx2, 210, y, "d", pins=("2", "1"))
-    s.wire([(xb, y), (210, y)], [("Y1", "1"), (cx2, "2")]); s.dot(210, y)
-    s.end(*c["1"], cx2, "1", "d")
+    c = s.two(cx2, 210, y, "d", pins=(p2, g2))
+    s.wire([(xb, y), (210, y)], [("Y1", "1"), (cx2, p2)]); s.dot(210, y)
+    s.end(*c[g2], cx2, g2, "d")
     r = s.two("R_X", 210, y, "r", pins=("1", "2"))
     s.wire([(210, y), r["1"]], [("R_X", "1")], check=("Y1", "1"))
     s.text(203, y + 0.6, net("Y1", "1"), 5.6, color=WIRE, va="bottom")
@@ -471,10 +475,11 @@ def sheet_knobs(s):
                        "ring 2 as the inner knob")
     encs = sorted((r for r in REFS if r.startswith("ENC_")), key=lambda r: next(p[3:5] for p in B.PARTS if p[0] == r))
     for i, ref in enumerate(encs):
-        assert set(pins_of(ref)) == {"A", "B", "C", "A2", "B2", "C2", "D", "E"}, pins_of(ref)
+        assert set(pins_of(ref)) == {"A", "B", "C", "A2", "B2", "C2", "D", "E", "MP-1", "MP1"}, pins_of(ref)
         left = [("A", "A"), ("C", "C"), ("B", "B"), None, ("A2", "A'"), ("C2", "C'"), ("B2", "B'")]
         x0 = 36 + i * 92
-        s.ic(ref, x0, 186, 30, left=left, right=[("D", "push"), ("E", "push")], pitch=4.5,
+        s.ic(ref, x0, 186, 30, left=left, right=[("D", "push"), ("E", "push"), None, (["MP-1", "MP1"], "lugs", "MP")],
+             pitch=4.5,
              title=f"{PART[ref][0]} ({PART[ref][1]})")
         s.text(x0 + 15, 186 - 4.5 * 2, "ring 1", 6.2, ha="center", color=PIN_C)
         s.text(x0 + 15, 186 - 4.5 * 6, "ring 2", 6.2, ha="center", color=PIN_C)

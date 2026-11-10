@@ -1,0 +1,11 @@
+{
+ "lcsc": "C81598",
+ "title": "1N4148W_C81598",
+ "package": "SOD-123F_L2.7-W1.6-LS3.8-RD",
+ "source": "JLCPCB / EasyEDA library footprint, https://easyeda.com/api/products/C81598/components, fetched 2026-11-10",
+ "frame": "top view, mm, x right, y down, from the footprint origin; pads: number, x, y, size x, size y",
+ "pads": [
+  ["1", -1.735, 0.0, 1.1, 1.0],
+  ["2", 1.735, 0.0, 1.1, 1.0]
+ ]
+}

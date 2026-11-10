@@ -1,9 +1,9 @@
-"""CNC front plate for the Avionics Panel rev 1: STEP model for JLCCNC plus a 2D drawing for the threads.
+"""CNC front plate for the Avionics Panel rev 1: STEP model for JLCCNC plus a 2D drawing of the back.
 
 4 mm aluminium (6061), black anodised. Front face (+Z) is flat: laser marking and UV print follow the
 DXF from make_plate_art.py, in the same coordinates. Back face (Z = 0): pockets for the encoder and
-RANGE bodies and 4 blind M2.5 threads (thread milled, flat bottom). Everything is machined from the back
-in one setup.
+RANGE bodies and 4 round flat-bottom pockets for the glued standoffs; no threads. Everything is machined
+from the back in one setup.
 
 Coordinates: origin at the bottom-left corner of the plate seen from the front, X right, Y up, mm.
 Needs pythonocc-core (nix-shell -p "python3.withPackages (ps: with ps; [ pythonocc-core numpy matplotlib ])").
@@ -34,7 +34,9 @@ import stack as S  # noqa: E402
 from occ_util import pin_step_time  # noqa: E402
 
 OVH, T = S.OVH, S.PLATE_T
+AMBER_HEX, AMBER_RGB, AMBER_REF = S.AMBER["hex"], ", ".join(map(str, S.AMBER["rgb"])), S.AMBER["ref"]
 PW, PH = B.W + 2 * OVH, B.H + 2 * OVH
+LIGHT_TOL = f"+{S.LIGHT_HOLE_TOL[0]}/-{S.LIGHT_HOLE_TOL[1]:g}"      # light holes: never smaller
 
 
 def P(x, y):
@@ -94,13 +96,12 @@ def build():
     for name, d in S.LIGHT_HOLES.items():
         (lx, ly), _, _ = B.LEDS[name]
         tools.append(cyl(*P(lx, ly), d, -e, T + e))
-        features.append((f"{name} light hole", f"dia {d}", "through", 1))
-    for (mx, my) in B.MOUNTS:                                        # flat bottom: thread milled, no drill point
-        tools.append(cyl(*P(mx, my), S.TAP["drill"], -e, S.TAP["hole_depth"]))
-    features.append(("threaded hole", f"{S.TAP['size']}, thread milled",
-                     f"full thread {S.TAP['thread_depth']} min, flat hole {S.TAP['hole_depth']} "
-                     f"+0/-{S.TAP['depth_tol']}, "
-                     "from back", 4))
+        features.append((f"{name} light hole", f"dia {d} {LIGHT_TOL}", "through", 1))
+    sp = S.STANDOFF_POCKET
+    for (mx, my) in B.MOUNTS:                                        # flat bottom, no drill point
+        tools.append(cyl(*P(mx, my), sp["d"], -e, sp["depth"]))
+    features.append(("standoff pocket", f"dia {sp['d']} +{sp['d_tol']}/-0, flat bottom",
+                     f"{sp['depth']} +0/-{sp['depth_tol']} deep from back", 4))
     args, tl = TopTools_ListOfShape(), TopTools_ListOfShape()
     args.Append(plate)
     for t in tools:
@@ -132,7 +133,7 @@ def main():
 
 
 def drawing(features, vol):
-    """A4 drawing of the back face: pockets and threads, plus notes for the order."""
+    """A4 drawing of the back face: pockets, plus notes for the order."""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -154,15 +155,15 @@ def drawing(features, vol):
     for y in B.ROWS:
         for x in B.COLS:
             rr(*P(x, y), *S.KEY_HOLE, fc="white", ec="k", lw=0.6)
+    w, h, r, d = S.EC11_POCKET
     for name in ("ALTHDG", "FREQ", "FMS"):
         cx, cy = P(*getattr(B, name))
-        w, h, r, d = S.EC11_POCKET
         rr(cx, cy, w, h, r, fc="#c9dcf0", ec="#1f5fa0", lw=0.8, hatch="///")
         ax.add_patch(Circle(M(cx, cy), S.SHAFT_HOLE / 2, fc="white", ec="k", lw=0.6))
-        lx, ly = M(cx, cy)
-        side = 1 if lx < PW / 2 else -1                     # label on the side facing the keys
-        ax.annotate(f"pocket {w} x {h} R{r}\n{d} +0/-{S.POCKET_TOL} deep", (lx + side * (w / 2 + 1.0), ly),
-                    ha="left" if side > 0 else "right", va="center", fontsize=6.5)
+    lx, ly = M(*P(*B.FREQ))                         # one label for all three, above the plate (clear of the keys)
+    ax.annotate(f"3 x pocket {w} x {h} R{r}, {d} +0/-{S.POCKET_TOL} deep (encoders)", (lx, ly + h / 2),
+                xytext=(lx - w / 2, PH + 3.5), ha="left", va="center", fontsize=6.5,
+                arrowprops=dict(arrowstyle="-", lw=0.5))
     cx, cy = P(*B.RANGE)
     ax.add_patch(Circle(M(cx, cy), S.RANGE_POCKET[0] / 2, fc="#c9dcf0", ec="#1f5fa0", lw=0.8, hatch="///"))
     ax.add_patch(Circle(M(cx, cy), S.RANGE_HOLE / 2, fc="white", ec="k", lw=0.6))
@@ -172,14 +173,16 @@ def drawing(features, vol):
     for name, d in S.LIGHT_HOLES.items():
         (lx, ly), _, _ = B.LEDS[name]
         ax.add_patch(Circle(M(*P(lx, ly)), d / 2, fc="white", ec="k", lw=0.6))
+    sp = S.STANDOFF_POCKET
     for (mx, my) in B.MOUNTS:
         px, py = M(*P(mx, my))
-        ax.add_patch(Circle((px, py), S.TAP["drill"] / 2, fc="#f0c9c9", ec="#a01f1f", lw=0.8))
-        ax.add_patch(Circle((px, py), 1.25, fc="none", ec="#a01f1f", lw=0.6, ls=(0, (2, 1))))
-        ax.annotate(f"{S.TAP['size']} thread {S.TAP['thread_depth']}\nflat hole {S.TAP['hole_depth']}", (px, py),
-                    xytext=(px + (2 if px < PW / 2 else -2), py),
-                    ha="left" if px < PW / 2 else "right", va="center", fontsize=6.5, color="#a01f1f")
-    ax.set_xlim(-6, PW + 6); ax.set_ylim(-4, PH + 4)
+        ax.add_patch(Circle((px, py), sp["d"] / 2, fc="#c9dcf0", ec="#1f5fa0", lw=0.8, hatch="///"))
+    px, py = M(*P(*B.MOUNTS[0]))                                     # one label for all four, above the plate
+    ax.annotate(f"4 x pocket dia {sp['d']} +{sp['d_tol']}/-0, {sp['depth']} +0/-{sp['depth_tol']} deep, "
+                "flat bottom (glued standoffs, no thread)", (px, py + sp["d"] / 2), xytext=(px, PH + 3.5),
+                ha="right" if px > PW / 2 else "left", va="center", fontsize=6.5,
+                arrowprops=dict(arrowstyle="-", lw=0.5))
+    ax.set_xlim(-6, PW + 6); ax.set_ylim(-4, PH + 6)
     ax.set_title("Avionics Panel rev 1 front plate, seen from the BACK (machined side)", fontsize=11, loc="left")
 
     tx = fig.add_axes([0.04, 0.01, 0.92, 0.38]); tx.axis("off")
@@ -188,20 +191,22 @@ def drawing(features, vol):
         f"Material 6061 aluminium, {S.PLATE_T:.1f} +-{S.PLATE_T_TOL} mm. Outline {PW:.1f} x {PH:.1f} mm, "
         f"corner R{B.CORNER_R + OVH:.1f}. "
         f"Volume {vol / 1000:.1f} cm3. Units mm, general tolerance ISO 2768-m.",
-        "Front face (+Z in the STEP) is flat: no pockets, chamfers or fastener holes on the front.",
-        f"Positions of the 4 threads and all through holes: +-{S.POS_TOL['plate']} to each other (the key caps and "
-        "the screws must line up with the board).",
-        f"4 x {S.TAP['size']} blind threads from the back, THREAD MILLED in a flat-bottom hole (end mill, no "
-        f"drill point): hole {S.TAP['hole_depth']} +0/-{S.TAP['depth_tol']} mm deep, full thread from "
-        f"{S.TAP['entry']} to at least {S.TAP['thread_depth']} mm below the back face (deburr only, no countersink). "
-        "Keep at least 0.7 mm of material to the front face under every hole and pocket (depths +0, never "
-        "deeper): nothing may break through or mark the front face.",
-        "Threads: mask them before anodising, or chase them after anodising (the coating makes them tight).",
-        "Finish: black anodised, matte (bead blasted before anodising).",
+        "Front face (+Z in the STEP) is flat: no pockets or fastener holes on the front, and no chamfers beyond "
+        "the edge break below.",
+        f"Positions of the 4 standoff pockets and all through holes: +-{S.POS_TOL['plate']} to each other (the "
+        "key caps and the board must line up).",
+        f"NO THREADS. 4 x round pockets dia {S.STANDOFF_POCKET['d']} +{S.STANDOFF_POCKET['d_tol']}/-0 from the "
+        f"back, flat bottom (end mill, no drill point), {S.STANDOFF_POCKET['depth']} +0/-"
+        f"{S.STANDOFF_POCKET['depth_tol']} mm deep; metal standoffs are glued into them later. Pocket depths "
+        "+0, never deeper: at least 0.7 mm of material must stay to the front face under every pocket; "
+        "nothing may break through or mark the front face.",
+        "Finish: black anodised, matte (bead blasted before anodising); the pockets may be anodised.",
         "Marking on the front per avionics-panel-rev1-plate.dxf, same origin (bottom-left, seen from the front): "
-        "layer LASER = laser marking, layer UV_ORANGE = UV print orange. "
-        "Layer CUT = outline and through holes for reference.",
-        "Deburr all edges, edge break 0.2 on the front outline and hole edges.",
+        f"layer LASER = laser marking, layer UV_AMBER = UV print in amber {AMBER_HEX} (RGB {AMBER_RGB}, about "
+        f"{AMBER_REF}). Layer CUT = outline and through holes for reference. DXF units mm; fill closed contours "
+        "even-odd (letter counters are separate contours).",
+        f"Light holes {LIGHT_TOL} (never smaller: light pipes are glued into them). Deburr all edges: edge break "
+        "at most 0.2 on the front outline and hole edges.",
     ]
     y = 0.98
     tx.text(0, y, "Features", fontsize=9, weight="bold", va="top"); y -= 0.06

@@ -1,9 +1,9 @@
 """Front plate artwork for JLCCNC (1:1, mm): CNC outline + holes, laser marking, UV print.
 
-Writes avionics-panel-rev1-plate.dxf (R12, layers CUT / LASER / UV_ORANGE) and a coloured SVG preview.
+Writes avionics-panel-rev1-plate.dxf (R12, layers CUT / LASER / UV_AMBER) and a coloured SVG preview.
 The plate is black anodised aluminium. JLCCNC laser marking is single-tone (light grey on black), so the
 white legends and frame lines are LASER; the amber shift legends and knob functions are UV printed
-(UV_ORANGE). Geometry follows pcb/board.py and the 3D view.
+(UV_AMBER). Geometry follows pcb/board.py and the 3D view.
 """
 import math
 import sys
@@ -15,6 +15,7 @@ from matplotlib.textpath import TextPath, TextToPath
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "pcb"))
 import board as B  # noqa: E402
 import stack as S  # noqa: E402
+from dxf import write_dxf  # noqa: E402
 
 FONTS = Path(__file__).resolve().parent / "fonts"
 SEMI = FontProperties(fname=str(FONTS / "BarlowSemiCondensed-SemiBold.ttf"))
@@ -25,14 +26,13 @@ CAP = (9.6, 6.4)
 HOLE = S.KEY_HOLE
 SHAFT_HOLE, RANGE_HOLE = S.SHAFT_HOLE, S.RANGE_HOLE
 LIGHT_HOLES = S.LIGHT_HOLES
-KNOB_R = {k: d / 2 for k, d in S.KNOB_D.items()}
 
 SHIFT_LEGENDS = [[shift for _, shift in row] for row in S.KEY_LEGENDS]   # stack.py holds the legends
 # knob legends on the side facing the keys: (position, white text, amber text or None), one type size
 KNOBS = {name: (pos, *S.KNOB_LEGENDS[name])
          for name, pos in (("ALTHDG", B.ALTHDG), ("RANGE", B.RANGE), ("FREQ", B.FREQ), ("FMS", B.FMS))}
 
-layers = {"CUT": [], "LASER": [], "UV_ORANGE": []}     # closed polygons, PCB coordinates (y down)
+layers = {"CUT": [], "LASER": [], "UV_AMBER": []}     # closed polygons, PCB coordinates (y down)
 
 
 # ---------------- geometry helpers ----------------
@@ -51,7 +51,7 @@ def circle(cx, cy, r, n=72):
 
 
 def bar(x0, y0, x1, y1, w=0.3):
-    """A straight engraved line as a thin closed outline."""
+    """A straight marked line as a thin closed outline."""
     dx, dy = x1 - x0, y1 - y0
     L = math.hypot(dx, dy)
     nx, ny = -dy / L * w / 2, dx / L * w / 2
@@ -178,13 +178,12 @@ hline(vAP, x1, hFMS)
 layers["LASER"].append(bar(vRadio, y0, vRadio, hFMS))
 
 for name, ((kx, ky), main, shift) in KNOBS.items():
-    R = KNOB_R.get(name)
     tilt = math.radians(S.KNOB_LEGEND_TILT[name])
     mid = tilt if kx < B.W / 2 else math.pi - tilt
-    r0 = 12.2 if name == "RANGE" else R + 1.9
+    r0 = 12.2 if name == "RANGE" else S.OUTER_KNOB["d"] / 2 + 1.9
     arc_text("LASER", [(main, SEMI, em(1.55))], kx, ky, r0, mid, 0.22)
     if shift:
-        arc_text("UV_ORANGE", [(shift, SEMI, em(1.5))], kx, ky, r0 + 2.2, mid, 0.22)
+        arc_text("UV_AMBER", [(shift, SEMI, em(1.5))], kx, ky, r0 + 2.2, mid, 0.22)
 rx, ry = B.RANGE
 for i in range(4):                                           # pan arrows
     a = i * math.pi / 2
@@ -193,32 +192,19 @@ for i in range(4):                                           # pan arrows
     tri = [(0.75, 0), (-0.45, -0.7), (-0.45, 0.7)]
     layers["LASER"].append([(px + u * c - v * s, py + u * s + v * c) for u, v in tri])
 
-# ---------------- UV_ORANGE: shift legends under the keys ----------------
+# ---------------- UV_AMBER: shift legends under the keys ----------------
 for rI, y in enumerate(B.ROWS):
     for cI, x in enumerate(B.COLS):
         t = SHIFT_LEGENDS[rI][cI]
         if t.endswith("⇆"):
-            flip_legend("UV_ORANGE", t, x, y + CAP[1] / 2 + 1.6, SEMI, em(1.7), 0.08)
+            flip_legend("UV_AMBER", t, x, y + CAP[1] / 2 + 1.6, SEMI, em(1.7), 0.08)
         elif t:
-            text("UV_ORANGE", t, x, y + CAP[1] / 2 + 1.6, SEMI, em(1.7), 0.08)
+            text("UV_AMBER", t, x, y + CAP[1] / 2 + 1.6, SEMI, em(1.7), 0.08)
 
 
 # ---------------- writers ----------------
-def write_dxf(path):
-    out = ["0", "SECTION", "2", "ENTITIES"]
-    for layer, polys in layers.items():
-        for poly in polys:
-            out += ["0", "POLYLINE", "8", layer, "66", "1", "70", "1"]
-            for x, y in poly:
-                # y up, origin bottom-left
-                out += ["0", "VERTEX", "8", layer, "10", f"{x + OVH:.4f}", "20", f"{B.H + OVH - y:.4f}"]
-            out += ["0", "SEQEND", "8", layer]
-    out += ["0", "ENDSEC", "0", "EOF"]
-    Path(path).write_text("\n".join(out) + "\n")
-
-
 def write_svg(path):
-    colours = {"CUT": ("none", "#202020"), "LASER": ("#d8dadd", "none"), "UV_ORANGE": ("#e0952a", "none")}
+    colours = {"CUT": ("none", "#202020"), "LASER": ("#d8dadd", "none"), "UV_AMBER": (S.AMBER["hex"], "none")}
     w, h = B.W + 2 * OVH, B.H + 2 * OVH
     body = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}mm" height="{h}mm" viewBox="{-OVH} {-OVH} {w} {h}">',
             f'<rect x="{-OVH}" y="{-OVH}" width="{w}" height="{h}" fill="#2d2f33"/>']
@@ -230,6 +216,8 @@ def write_svg(path):
     Path(path).write_text("\n".join(body))
 
 
-write_dxf("avionics-panel-rev1-plate.dxf")
+# DXF: y up, origin at the plate's bottom-left corner
+write_dxf("avionics-panel-rev1-plate.dxf",
+          {layer: [[(x + OVH, B.H + OVH - y) for x, y in poly] for poly in polys] for layer, polys in layers.items()})
 write_svg("avionics-panel-rev1-plate-preview.svg")
 print({k: len(v) for k, v in layers.items()}, "polygons")
