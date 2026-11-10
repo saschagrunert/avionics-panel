@@ -122,5 +122,10 @@ them (1-based). Device 2 is the second joystick of the panel: the unit 2 copies.
 | ADF_10_UP | 115 | 42 |
 | ADF_10_DN | 116 | 43 |
 | FREQ_PUSH | 117 | 44 |
+| PANEL_LT_UP | 118 | |
+| PANEL_LT_DN | 119 | |
+| FLOOD_LT_UP | 120 | |
+| FLOOD_LT_DN | 121 | |
+| CABIN_LT | 122 | |
 
-Device 1: 117 of 128 buttons. Device 2: 44 of 64.
+Device 1: 122 of 128 buttons. Device 2: 44 of 64.

@@ -29,7 +29,11 @@ SHIFT is tapped, never held. For keys it is one-shot; a knob keeps it while in u
   entry), a tap arms SHIFT for the next key instead, so SHIFT, IDENT gives VFR with one tap.
 - Keys and knobs without an amber legend still send their own shifted button. The default profiles
   map it to the same function as the plain control, so a stray SHIFT before DN or ENT does no harm,
-  and the slot stays free for personal mappings.
+  and the slot stays free for personal mappings. The FMS knob is the exception: with SHIFT it works the
+  cockpit lighting, so a stray SHIFT before it changes a light level or toggles the cabin light instead
+  of paging. The amber light shows it, and turning back, or pushing again, undoes it. After dimming, the
+  knob stays on the lighting for 3 s like any shifted knob: wait for the amber light to go out before
+  paging.
 - The cap has a small raised bar near its front edge, so it can be found without looking.
   UP (bar at the back edge) and DN (bar at the front edge) are told apart the same way.
 - It sits in the centre of the bottom row: shortest average travel to both sides.
@@ -57,7 +61,7 @@ Squawk: SHIFT, then turn the frequency knob (outer: first two digits, inner: las
 | Left top | dual encoder, Ø22 / Ø13 knobs | outer ALT, inner HDG | HDG SYNC | outer CRS, inner BARO, push STD |
 | Left bottom | multi-control: turn, tilt 4 ways, push | RANGE | map pointer | none |
 | Right top | dual encoder, Ø22 / Ø13 knobs | frequency: outer MHz, inner kHz (ADF: outer 100s, inner 1s) | cycles the knob through COM, NAV and ADF standby frequency (ADF only in aircraft that have one; COM/NAV is C/V on the GNS 430) | squawk code, push XPDR mode |
-| Right bottom | dual encoder, Ø24 / Ø13 knobs, the largest knob as on the G1000 | outer page group, inner page | cursor | none |
+| Right bottom | dual encoder, Ø24 / Ø13 knobs, the largest knob as on the G1000 | outer page group, inner page | cursor | lighting: outer panel lights, inner glareshield flood, push cabin light |
 
 On the left knob the push sits on the inner HDG knob, so pushing the heading knob syncs the heading,
 as on the G1000. ALT gets the bigger outer ring: it changes most per flight and is easier to spin.
@@ -72,6 +76,10 @@ Knob legends are short: RANGE · PUSH PTR (the four arrows already say pan), PUS
 place beside the RADIO keys says it tunes frequencies; a longer legend ran behind the FMS knob),
 SQUAWK · PUSH XPDR, FMS · PUSH CRSR. The arrow pointing away from you is hidden behind the RANGE knob
 when seated; the other three are enough.
+The cockpit lighting (Reddit feedback) sits behind SHIFT on the FMS knob instead of on knobs of its own:
+it is set once or twice per flight, a knob keeps SHIFT while it turns, so dimming is one tap and then
+turning, and more knobs would break the symmetric layout. The lighting buttons stay on the first
+joystick whatever unit is selected.
 Acceleration (firmware): a slow turn makes the fine step, a fast turn the coarse step.
 
 | Function | Slow | Fast |
@@ -81,8 +89,9 @@ Acceleration (firmware): a slow turn makes the fine step, a fast turn the coarse
 | Squawk, per ring | last digit of the pair | first digit of the pair |
 | ADF, inner ring | 1 kHz | 10 kHz |
 
-COM, NAV, BARO, the FMS knob and RANGE have no acceleration: frequencies already have a coarse
-outer ring, and pages, characters and zoom steps must move exactly one per detent.
+COM, NAV, BARO, the FMS knob and RANGE have no acceleration: frequencies already have a coarse outer
+ring, and pages, characters and zoom steps must move exactly one per detent. The dimmers move one step
+per detent too; the profile sets the step size.
 UP and DN are keys, as on the G1000. They auto-repeat while held (first repeat after 400 ms,
 then about 8 steps per second), so -1000 ft/min takes about a second.
 Knob legends are engraved on the side facing the keys; the near side of a rear knob is hidden behind
