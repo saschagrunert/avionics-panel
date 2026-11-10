@@ -11,7 +11,9 @@ What each key and knob does, and why it sits where it is. Button numbers for map
 - The left side does the autopilot work and the right side does radios and navigation.
 - White legends are primary functions, amber legends are SHIFT functions. All caps are black. Two
   lights: amber whenever SHIFT applies (pulsing in its last second), white while unit 2 is selected.
-- Everything behind SHIFT can wait until the autopilot flies. If both hands are needed, LVL first.
+- Everything behind SHIFT can wait until the autopilot flies, apart from IDENT (SHIFT, VFR: VFR is the
+  plain function because squawking VFR is the common case in VFR flying). If both hands are needed, LVL
+  first.
 
 ## SHIFT
 
@@ -26,7 +28,9 @@ SHIFT is tapped, never held. For keys it is one-shot; a knob keeps it while in u
   the amber light pulses between bright and dim, so a knob never drops back to its plain function
   unannounced in the middle of a turn (Reddit feedback). It never goes dark while SHIFT still applies:
   lit, even dim, means shifted; dark means plain. While a knob still keeps SHIFT (light on after a squawk
-  entry), a tap arms SHIFT for the next key instead, so SHIFT, IDENT gives VFR with one tap.
+  entry), a tap arms SHIFT for the next key instead, so SHIFT, VFR gives IDENT with one tap. The VFR key
+  alone sends VFR, even right after a squawk entry: VFR is the plain function because squawking VFR is
+  the common case in VFR flying; to ident, tap SHIFT first.
 - Keys and knobs without an amber legend still send their own shifted button. The default profiles
   map it to the same function as the plain control, so a stray SHIFT before DN or ENT does no harm,
   and the slot stays free for personal mappings. The FMS knob is the exception: with SHIFT it works the
@@ -52,7 +56,7 @@ HDG and FLC, hold UP or DN to the climb speed. After takeoff: SHIFT, YD (where i
 Descent: set the new altitude, press VS, hold DN to -500 to -1000 ft/min; ALT captures.
 Tuning: push the frequency knob to choose COM, NAV or ADF, turn outer (MHz) and inner (kHz), then press
 COM ⇆ or NAV ⇆ (SHIFT, NAV ⇆ for the ADF). UNIT first for COM 2 / NAV 2.
-Squawk: SHIFT, then turn the frequency knob (outer: first two digits, inner: last two). IDENT is its own key.
+Squawk: SHIFT, then turn the frequency knob (outer: first two digits, inner: last two). IDENT: SHIFT, VFR.
 
 ## Knobs
 
@@ -70,12 +74,16 @@ it is BARO (push STD, kept on purpose for transition altitudes in Europe), so CR
 Reddit feedback asked for CRS and BARO on their own knob, as on the G1000 bezel. Kept behind SHIFT on
 purpose: a knob stays shifted while it is turned (both rings, 3 s after the last detent), so setting BARO
 or a course is one tap and then turning, and a fourth dual knob would make the panel wider.
-Outer rings have a coarse knurl, inner knobs a fine one. In the engraving the outer-ring function is
-set in larger type (ALT, CRS), so the legend shows which ring does what.
-Knob legends are short: RANGE · PUSH PTR (the four arrows already say pan), PUSH COM/NAV/ADF (its
-place beside the RADIO keys says it tunes frequencies; a longer legend ran behind the FMS knob),
-SQUAWK · PUSH XPDR, FMS · PUSH CRSR. The arrow pointing away from you is hidden behind the RANGE knob
-when seated; the other three are enough.
+Outer rings have a coarse knurl, inner knobs a fine one.
+Knob legends follow one pattern, all in one type size: what the rings do, outer ring first, then PUSH and
+what the push does; where one word covers both rings, it stands for both (FREQ, SQUAWK, FMS). The
+legends: ALT · HDG · PUSH SYNC, CRS · BARO · PUSH STD, RANGE · PUSH PTR (the four arrows already say
+pan), FREQ · PUSH COM/NAV/ADF, SQUAWK · PUSH XPDR, FMS · PUSH CRSR (as Garmin prints it) and
+PANEL · FLOOD · PUSH CABIN for the cockpit lighting. The texts and the angle each legend is turned
+towards the user live in `mech/stack.py`: 15°, RANGE 35°, and FMS only 5°, so the long lighting line
+keeps about 3 mm off the plate edge. The FREQ legend ends about 5.5 mm above the FMS knob; a longer one
+would run behind it. The arrow pointing away from you is hidden behind the RANGE knob when seated; the
+other three are enough.
 The cockpit lighting (Reddit feedback) sits behind SHIFT on the FMS knob instead of on knobs of its own:
 it is set once or twice per flight, a knob keeps SHIFT while it turns, so dimming is one tap and then
 turning, and more knobs would break the symmetric layout. The lighting buttons stay on the first
@@ -125,7 +133,7 @@ RADIO (right half) holds the flip-flops next to the frequency knob:
 | | | | |
 | --- | --- | --- | --- |
 | MIC 1 (ADF) | COM 1 (NAV 1) | CDI (OBS) | COM ⇆ (121.5) |
-| MIC 2 (DME) | COM 2 (NAV 2) | IDENT (VFR) | NAV ⇆ (ADF ⇆) |
+| MIC 2 (DME) | COM 2 (NAV 2) | VFR (IDENT) | NAV ⇆ (ADF ⇆) |
 
 121.5 tunes the emergency frequency, like holding the COM flip-flop for two seconds on Garmin units.
 ADF ⇆ is the ADF flip-flop (FRQ on the KR 87). MIC 1 (ADF) is different: it only listens to the ADF.

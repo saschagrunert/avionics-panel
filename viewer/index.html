@@ -79,21 +79,21 @@ const PLATE_Z0 = G.plate.z0, PLATE_Z1 = G.plate.z1, Z_BOT = G.body.z_bot, Z_FLOO
 const TILT = G.body.tilt_deg * Math.PI / 180, SLOPE = Math.tan(TILT);
 const COLS = G.keys.cols, ROWS = G.keys.rows;
 const CAP = G.keys.cap, HOLE = G.plate.key_hole;   // [w, h, corner r]
-// [label, shift] per key; UP / DN auto-repeat while held (100 ft/min or 1 kt per step)
-const KEYS = [
-  // autopilot columns: engage / vertical / lateral; VS and FLC sit next to UP and DN as on the G1000
-  [['AP', 'TEST'],  ['ALT', 'ARM'], ['HDG', 'CRS CTR'], ['MIC 1', 'ADF'], ['COM 1', 'NAV 1'], ['CDI', 'OBS'],    ['COM⇆', '121.5']],
-  [['FD', 'YD'],    ['VS', ''],    ['NAV', 'GPSS'], ['MIC 2', 'DME'], ['COM 2', 'NAV 2'], ['IDENT', 'VFR'],  ['NAV⇆', 'ADF ⇆']],
-  [['UP', ''],      ['FLC', ''],   ['APR', 'BC'],    ['HOME', 'UNIT'], ['FPL', 'VNAV'],    ['D→', 'MSG'],     ['MENU', 'NRST']],
-  [['DN', ''],      ['VNV', ''],   ['LVL', '½ BANK'],    ['SHIFT', ''],    ['PROC', 'TERR'],   ['CLR', 'MAP'],   ['ENT', '']]];
+// [label, shift] per key, from mech/stack.py; UP / DN auto-repeat while held (100 ft/min or 1 kt per step).
+// Autopilot columns: engage / vertical / lateral; VS and FLC sit next to UP and DN as on the G1000.
+const KEYS = G.key_legends;
 const KNOB_IN = G.inner_knob.d / 2;
-const at = (name, extra) => ({ x: G.knobs[name].x, y: G.knobs[name].y, r: (G.knobs[name].d || 0) / 2, ...extra });
+const at = (name, extra) => {   // position, size and legends from mech/stack.py via geometry.js
+  const k = G.knobs[name];
+  return { x: k.x, y: k.y, r: (k.d || 0) / 2, legendTilt: k.legend_tilt,
+           main: k.legend, shift: k.legend_shift, ...extra };
+};
 const KNOBS = {
   // legends sit on the near side of each knob (the far side is hidden behind the knob when seated)
-  ap:    at('ALTHDG', { kind: 'dual',  main: [['ALT', 1], [' · HDG · PUSH SYNC', 0]], shift: [['CRS', 1], [' · BARO · PUSH STD', 0]] }),  // outer ALT, inner HDG (push SYNC); shifted outer CRS, inner BARO (push STD): the push always acts on the inner knob's function. Outer function in larger type.
-  range: at('RANGE',  { kind: 'range', main: [['RANGE · PUSH PTR', 0]], shift: null }),
-  radio: at('FREQ',   { kind: 'dual',  main: [['PUSH COM/NAV/ADF', 0]],  shift: [['SQUAWK · PUSH XPDR', 0]] }),
-  fms:   at('FMS',    { kind: 'dual',  main: [['FMS · PUSH CRSR', 0]],   shift: null }) };   // larger, as on the G1000: told apart from FREQ by feel
+  ap:    at('ALTHDG', { kind: 'dual' }),  // outer ALT, inner HDG (push SYNC); shifted outer CRS, inner BARO (push STD): the push always acts on the inner knob's function.
+  range: at('RANGE',  { kind: 'range' }),
+  radio: at('FREQ',   { kind: 'dual' }),
+  fms:   at('FMS',    { kind: 'dual' }) };   // larger, as on the G1000, told apart from FREQ by feel; shifted: cockpit lighting
 // lights: SHIFT (amber) is on while SHIFT applies (pulsing in its last second), UNIT 2 (white) while unit 2 is selected
 const light = name => ({ x: G.lights[name].x, y: G.lights[name].y, r: G.lights[name].d / 2 });
 const LIGHTS = [
@@ -197,11 +197,11 @@ async function main() {
 
   // text along a circle, centred on angle `mid` (0 = towards +x, y towards the user). Letters face outward on
   // the far half and inward on the near half, so no legend is ever upside down for the seated user.
-  // segs: [{ t, font }] so one legend can mix sizes (outer-ring function larger)
-  function arcText(g, segs, cx, cy, r, mid, color, track) {
+  // one legend in one font, letters along an arc
+  function arcText(g, text, font, cx, cy, r, mid, color, track) {
     const near = Math.sin(mid) > 0.01;
     g.save(); g.fillStyle = color; g.textAlign = 'center'; g.textBaseline = 'middle';
-    const chars = segs.flatMap(s => [...s.t].map(ch => ({ ch, font: s.font })));
+    const chars = [...text].map(ch => ({ ch, font }));
     const ws = chars.map(c => { g.font = c.font; return g.measureText(c.ch).width + track; });
     const total = ws.reduce((a, b) => a + b, 0) - track;
     let acc = 0;
@@ -377,12 +377,11 @@ async function main() {
     // knob legends on arcs: white = turn, amber = with SHIFT
     // legends on the side facing the keys: seated, the near side of a rear knob is hidden behind the front knob
     for (const k of Object.values(KNOBS)) {
-      const tilt = (k.y < H / 2 ? 15 : 35) * Math.PI / 180;           // turned towards the user, clear of the knob behind
+      const tilt = k.legendTilt * Math.PI / 180;                        // turned towards the user (stack.py)
       const mid = k.x < W / 2 ? tilt : Math.PI - tilt;
       const r0 = (k.kind === 'range' ? 12.2 : k.r + 1.9) * ppm;   // legend radius: presentation
-      const segs = (list, base, big) => list.map(([t, b]) => ({ t, font: b ? mmFont(big, 700) : mmFont(base, 600) }));
-      arcText(g, segs(k.main, 1.55, 1.95), X(k.x), Y(k.y), r0, mid, WHITE_ENGR, 0.22 * ppm);
-      if (k.shift) arcText(g, segs(k.shift, 1.5, 1.85), X(k.x), Y(k.y), r0 + 2.2 * ppm, mid, AMBER, 0.22 * ppm);
+      arcText(g, k.main, mmFont(1.55, 600), X(k.x), Y(k.y), r0, mid, WHITE_ENGR, 0.22 * ppm);
+      if (k.shift) arcText(g, k.shift, mmFont(1.5, 600), X(k.x), Y(k.y), r0 + 2.2 * ppm, mid, AMBER, 0.22 * ppm);
     }
     // pan arrows around RANGE, in the four pan directions
     {
@@ -426,7 +425,7 @@ async function main() {
   function labelWidthEm(label) {
     meas.font = `600 100px ${CAP_FONT}`;
     if (label === 'D→') return meas.measureText('D').width / 100 + 0.55;
-    if (label.endsWith('⇆')) return meas.measureText(label.slice(0, -1)).width / 100 + 0.22 + ICON_EM;
+    if (label.endsWith('⇆')) return meas.measureText(label.slice(0, -1).trimEnd()).width / 100 + 0.22 + ICON_EM;
     return meas.measureText(label).width / 100;
   }
   const EM_MM = Math.min(3.1, ...keyList.map(k => CAP_TOP[0] * 0.84 / labelWidthEm(k.label)));
@@ -446,7 +445,7 @@ async function main() {
       g.beginPath(); g.moveTo(x0 - 0.12 * em, y); g.lineTo(xe - 0.2 * em, y); g.stroke();
       g.beginPath(); g.moveTo(xe, y); g.lineTo(xe - 0.26 * em, y - 0.17 * em); g.lineTo(xe - 0.26 * em, y + 0.17 * em); g.closePath(); g.fill();
     } else if (label.endsWith('⇆')) {                    // flip-flop: text + two opposed arrows
-      const t = label.slice(0, -1), tw = g.measureText(t).width, iw = ICON_EM * em, gap = 0.22 * em;
+      const t = label.slice(0, -1).trimEnd(), tw = g.measureText(t).width, iw = ICON_EM * em, gap = 0.22 * em;
       const x0 = cx - (tw + gap + iw) / 2;
       g.textAlign = 'left'; g.fillText(t, x0, cy);
       const ix = x0 + tw + gap, dy = capH * 0.24, hl = 0.22 * em, hh = 0.13 * em;

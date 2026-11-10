@@ -19,7 +19,6 @@ import stack as S  # noqa: E402
 
 FONTS = Path(__file__).resolve().parent / "fonts"
 SEMI = FontProperties(fname=str(FONTS / "BarlowSemiCondensed-SemiBold.ttf"))
-BOLD = FontProperties(fname=str(FONTS / "BarlowSemiCondensed-Bold.ttf"))
 TTP = TextToPath()
 
 OVH = S.OVH                               # plate overhangs the PCB by clearance + wall
@@ -29,19 +28,10 @@ SHAFT_HOLE, RANGE_HOLE = S.SHAFT_HOLE, S.RANGE_HOLE
 LIGHT_HOLES = S.LIGHT_HOLES
 KNOB_R = {k: d / 2 for k, d in S.KNOB_D.items()}
 
-SHIFT_LEGENDS = [
-    ["TEST", "ARM", "CRS CTR", "ADF", "NAV 1", "OBS", "121.5"],
-    ["YD", "", "GPSS", "DME", "NAV 2", "VFR", "ADF ⇆"],
-    ["", "", "BC", "UNIT", "VNAV", "MSG", "NRST"],
-    ["", "", "½ BANK", "", "TERR", "MAP", ""],
-]
-# knob legends on the side facing the keys: (segments white, segments amber); segment = (text, outer-ring?)
-KNOBS = {
-    "ALTHDG": (B.ALTHDG, [("ALT", 1), (" · HDG · PUSH SYNC", 0)], [("CRS", 1), (" · BARO · PUSH STD", 0)]),
-    "RANGE": (B.RANGE, [("RANGE · PUSH PTR", 0)], None),
-    "FREQ": (B.FREQ, [("PUSH COM/NAV/ADF", 0)], [("SQUAWK · PUSH XPDR", 0)]),
-    "FMS": (B.FMS, [("FMS · PUSH CRSR", 0)], None),
-}
+SHIFT_LEGENDS = [[shift for _, shift in row] for row in S.KEY_LEGENDS]   # stack.py holds the legends
+# knob legends on the side facing the keys: (position, white text, amber text or None), one type size
+KNOBS = {name: (pos, *S.KNOB_LEGENDS[name])
+         for name, pos in (("ALTHDG", B.ALTHDG), ("RANGE", B.RANGE), ("FREQ", B.FREQ), ("FMS", B.FMS))}
 
 layers = {"CUT": [], "LASER": [], "UV_ORANGE": []}     # closed polygons, PCB coordinates (y down)
 
@@ -189,13 +179,12 @@ layers["LASER"].append(bar(vRadio, y0, vRadio, hFMS))
 
 for name, ((kx, ky), main, shift) in KNOBS.items():
     R = KNOB_R.get(name)
-    tilt = math.radians(15 if ky < B.H / 2 else 35)
+    tilt = math.radians(S.KNOB_LEGEND_TILT[name])
     mid = tilt if kx < B.W / 2 else math.pi - tilt
     r0 = 12.2 if name == "RANGE" else R + 1.9
-    arc_text("LASER", [(t, BOLD if big else SEMI, em(1.95 if big else 1.55)) for t, big in main], kx, ky, r0, mid, 0.22)
+    arc_text("LASER", [(main, SEMI, em(1.55))], kx, ky, r0, mid, 0.22)
     if shift:
-        arc_text("UV_ORANGE", [(t, BOLD if big else SEMI, em(1.85 if big else 1.5)) for t, big in shift],
-                 kx, ky, r0 + 2.2, mid, 0.22)
+        arc_text("UV_ORANGE", [(shift, SEMI, em(1.5))], kx, ky, r0 + 2.2, mid, 0.22)
 rx, ry = B.RANGE
 for i in range(4):                                           # pan arrows
     a = i * math.pi / 2

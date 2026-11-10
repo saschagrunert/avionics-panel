@@ -53,7 +53,9 @@ geometry = {
     "keys": {"cols": B.COLS, "rows": B.ROWS, "cap": [key["w"], key["h"]], "cap_height": key["height"],
              "cap_chamfer": key["cham"], "cap_base": PLUNGER_TOP - key["sock_d"], "plunger_top": PLUNGER_TOP,
              "bar": bar},
-    "knobs": {name: {"x": x, "y": y, "d": S.KNOB_D.get(name)}
+    "key_legends": S.KEY_LEGENDS,
+    "knobs": {name: {"x": x, "y": y, "d": S.KNOB_D.get(name), "legend_tilt": S.KNOB_LEGEND_TILT[name],
+                     "legend": S.KNOB_LEGENDS[name][0], "legend_shift": S.KNOB_LEGENDS[name][1]}
               for name, (x, y) in (("ALTHDG", B.ALTHDG), ("FREQ", B.FREQ), ("FMS", B.FMS), ("RANGE", B.RANGE))},
     "outer_knob": S.OUTER_KNOB, "inner_knob": S.INNER_KNOB, "range_knob": S.RANGE_KNOB,
     "encoder": {"body": S.EC11_BODY, "sleeve_top": S.SLEEVE_TOP, "outer_top": S.OUTER_TOP,
