@@ -8,6 +8,9 @@ and docs/firmware.md.
 import buttonmap as BM
 
 SHIFT_MS = 3000          # SHIFT cancels itself, and a shifted knob returns to normal, after this
+SHIFT_WARN_MS = 1000     # the amber light pulses for this long before SHIFT drops out ...
+SHIFT_PULSE_MS = 125     # ... dim and bright this long each (4 Hz): starts dim, ends bright
+LIGHT_OFF, LIGHT_DIM, LIGHT_FULL = 0, 1, 2   # levels of the amber light; code.py maps them to PWM duties
 FREQ_RESET_MS = 10000    # frequency knob back to COM after this long without a turn
 FAST_MS = 60             # detents closer than this (same ring, same direction) take the coarse step
 PRESS_MS = 40            # one knob detent = a button held this long ...
@@ -20,6 +23,21 @@ PAN_MS = 120             # ... then this often
 # RANGE tilt switches -> pan direction. Check on the first board and swap here if a direction is off.
 PAN_DIRS = {"RANGE_A": "UP", "RANGE_B": "LEFT", "RANGE_C": "DOWN", "RANGE_D": "RIGHT"}
 FREQ_MODES = ("COM", "NAV", "ADF")
+
+
+def pulse_timing_ok(warn_ms, pulse_ms, shift_ms):
+    """The warning must be whole dim/bright pairs, so it starts dim exactly warn_ms before the drop and its
+    last phase is bright, and shorter than SHIFT itself, so a fresh SHIFT shows steady before it pulses."""
+    return 0 < warn_ms < shift_ms and pulse_ms > 0 and warn_ms % (2 * pulse_ms) == 0
+
+
+def check_timing():
+    """Raises on SHIFT light timing that breaks the rules above (a plain raise: asserts vanish under -O)."""
+    if not pulse_timing_ok(SHIFT_WARN_MS, SHIFT_PULSE_MS, SHIFT_MS):
+        raise ValueError("SHIFT_WARN_MS must be below SHIFT_MS and a multiple of 2 * SHIFT_PULSE_MS")
+
+
+check_timing()
 
 
 class Panel:
@@ -49,6 +67,15 @@ class Panel:
         k = self._btn(dev, name)
         self.queue[k] = min(self.queue.get(k, 0) + n, MAX_QUEUE)
 
+    def shift_active(self, t):
+        """Whether SHIFT applies at time t, the one place that decides it: inputs, tick() and the light agree,
+        so a late detent after a stalled loop is plain, as the dark light says, and cannot revive the session."""
+        return self.shift is not None and t < self.shift_until
+
+    def _expire(self, t):
+        if not self.shift_active(t):
+            self.shift = None
+
     def _knob_shift(self, knob, t):
         """SHIFT for a knob action: armed SHIFT or this knob's own shifted session. Starts/extends it."""
         if self.shift == "any" or self.shift == knob:
@@ -58,9 +85,18 @@ class Panel:
         self.shift = None            # any other action ends another knob's session
         return False
 
-    @property
-    def shift_light(self):
-        return self.shift is not None
+    def shift_level(self, t):
+        """Level of the amber light at time t: LIGHT_FULL while SHIFT applies, pulsing between LIGHT_DIM and
+        LIGHT_FULL during its last SHIFT_WARN_MS, so a knob never drops back to its plain function
+        unannounced in the middle of a turn. Never LIGHT_OFF while SHIFT applies, and LIGHT_OFF from the
+        moment SHIFT runs out, whether or not tick() has seen that yet. An int, no float: code.py calls
+        this every millisecond."""
+        if not self.shift_active(t):
+            return LIGHT_OFF
+        left = self.shift_until - t
+        if left > SHIFT_WARN_MS:
+            return LIGHT_FULL
+        return LIGHT_FULL if ((left - 1) // SHIFT_PULSE_MS) % 2 == 0 else LIGHT_DIM
 
     @property
     def unit_light(self):
@@ -72,6 +108,7 @@ class Panel:
 
     # ---------------- inputs ----------------
     def key(self, name, pressed, t):
+        self._expire(t)
         if name.startswith("RANGE_"):
             return self._range_key(name, pressed, t)
         if name in ("ALTHDG_PUSH", "FMS_PUSH", "FREQ_PUSH"):
@@ -119,6 +156,7 @@ class Panel:
     def turn(self, ring, steps, t):
         """ring: ALTHDG_OUTER, ALTHDG_INNER, FREQ_OUTER, FREQ_INNER, FMS_OUTER, FMS_INNER or RANGE.
         steps: detents, positive clockwise."""
+        self._expire(t)
         if not steps:
             return
         up = steps > 0
@@ -175,8 +213,7 @@ class Panel:
 
     # ---------------- time ----------------
     def tick(self, t):
-        if self.shift is not None and t >= self.shift_until:
-            self.shift = None
+        self._expire(t)
         if self.freq_mode and t - self.freq_last >= FREQ_RESET_MS:
             self.freq_mode = 0
         for r in self.repeat.values():

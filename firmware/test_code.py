@@ -65,7 +65,7 @@ class Hardware:
         self.t, self.ms, self.script = 0, ms, script or {}
         self.joysticks = [Joystick(busy), Joystick(busy)]
         self.matrix = self.direct = None
-        self.encoders, self.leds = [], []
+        self.encoders, self.leds, self.duty = [], [], {}
         hw = self
 
         class Matrix(Keys):
@@ -95,6 +95,8 @@ class Hardware:
         }
 
     def sleep(self, _seconds):
+        if self.leds:                         # the LED as code.py left it in the pass for time self.t
+            self.duty[self.t] = self.leds[0].duty_cycle
         self.t += 1
         if self.t >= self.ms:
             raise Stop
@@ -149,6 +151,22 @@ def test_usb_busy_does_not_stop_the_loop():
 def test_encoder_step_is_reported():
     hw = Hardware(400, {10: [step(0, 1)]}).run()       # ALT/HDG outer ring, one slow detent
     assert any(pressed(r, 1, "ALT_100_UP") for r in hw.joysticks[0].reports)
+
+
+def test_shift_light_pulses_on_the_led():
+    # one run of code.py, the LED duty of every pass by its time: steady full, then dim and full phases in
+    # the last second, never 0 before the drop, 0 after it
+    hw = Hardware(3200, {10: [press("SHIFT", True)], 60: [press("SHIFT", False)]}).run()
+    duty = hw.duty
+    lit = [t for t in sorted(duty) if duty[t]]
+    on, end = lit[0], lit[-1] + 1                        # SHIFT armed ... dropped
+    assert on == 10 and end == on + 3000                 # armed in the pass of the press, 3 s exactly
+    full = duty[on]
+    warning = [duty[t] for t in range(end - 1000, end)]
+    assert all(duty[t] == full for t in range(on, end - 1000))
+    dim = warning[0]                                     # whatever SHIFT_DUTY says: between off and full
+    assert 0 < dim < full and set(warning) == {dim, full} and warning[-1] == full
+    assert all(duty[t] == 0 for t in range(end, 3200))
 
 
 def test_shift_light_follows_shift():
