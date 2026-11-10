@@ -58,7 +58,7 @@
   <span>drag to rotate · scroll to zoom · right-drag to pan</span>
 </div>
 <div class="bar" role="group" aria-label="View">
-  <button id="vA" class="on" type="button" aria-pressed="true">Assembled</button>
+  <button id="vA" class="on" type="button" aria-pressed="true">Seated</button>
   <button id="vE" type="button" aria-pressed="false">Exploded</button>
   <button id="vT" type="button" aria-pressed="false">Top</button>
   <button id="vF" type="button" aria-pressed="false">Front</button>
@@ -255,10 +255,26 @@ async function main() {
   const bodyG = new THREE.Group(); assembly.add(bodyG);
   {
     const BD = G.body, CW = W + 2 * CLEAR, CH = H + 2 * CLEAR;
-    const ring = rrectShape(WO, HO, RO);
-    ring.holes.push(rrectPath(CW, CH, R + CLEAR));
+    // the walls as one outline that runs in through the USB-C notch in the back wall (shape y = -pz: the back on top)
+    const UO = BD.usb_open, uo0 = UO.z - UO.h / 2, nl = px(USB_X) - UO.w / 2, nr = px(USB_X) + UO.w / 2;
+    const ring = new THREE.Shape(), ow = WO / 2, oh = HO / 2, cw = CW / 2, ch = CH / 2, cr = R + CLEAR;
+    ring.moveTo(nr, oh); ring.lineTo(ow - RO, oh); ring.quadraticCurveTo(ow, oh, ow, oh - RO);
+    ring.lineTo(ow, -oh + RO); ring.quadraticCurveTo(ow, -oh, ow - RO, -oh);
+    ring.lineTo(-ow + RO, -oh); ring.quadraticCurveTo(-ow, -oh, -ow, -oh + RO);
+    ring.lineTo(-ow, oh - RO); ring.quadraticCurveTo(-ow, oh, -ow + RO, oh);
+    ring.lineTo(nl, oh); ring.lineTo(nl, ch);
+    ring.lineTo(-cw + cr, ch); ring.quadraticCurveTo(-cw, ch, -cw, ch - cr);
+    ring.lineTo(-cw, -ch + cr); ring.quadraticCurveTo(-cw, -ch, -cw + cr, -ch);
+    ring.lineTo(cw - cr, -ch); ring.quadraticCurveTo(cw, -ch, cw, -ch + cr);
+    ring.lineTo(cw, ch - cr); ring.quadraticCurveTo(cw, ch, cw - cr, ch);
+    ring.lineTo(nr, ch); ring.lineTo(nr, oh);
     const walls = slab(ring, Z_BOT, PLATE_Z0 - BD.wall_gap, bodyMat);   // walls stop short: the standoffs set the plate height
     shearBottom(walls, Z_BOT); bodyG.add(walls);
+    // the wall under the USB-C opening, from the desk plane up to the opening's bottom (make_mech.py)
+    const sill = slab(rrectShape(UO.w, O - CLEAR, 0.001, px(USB_X), -pz(-(O + CLEAR) / 2)), uo0 - 1, uo0, bodyMat);
+    const sp = sill.geometry.attributes.position;
+    for (let i = 0; i < sp.count; i++) if (sp.getY(i) < uo0 - 0.5) sp.setY(i, Z_BOT - SLOPE * (HO / 2 - sp.getZ(i)));
+    sp.needsUpdate = true; sill.geometry.computeVertexNormals(); bodyG.add(sill);
     bodyG.add(slab(rrectShape(CW, CH, R + CLEAR), BD.z_floor_bot, Z_FLOOR, bodyMat));   // floor under the PCB room
     // everything under the floor reaches down to the 6 degree desk plane; shapes in absolute coordinates for the shear
     const under = (shape) => { const m = slab(shape, Z_BOT, Z_FLOOR, bodyMat); shearBottom(m, Z_BOT); bodyG.add(m); };
@@ -294,8 +310,6 @@ async function main() {
       under(rect(clamp(x0, -CLEAR, W + CLEAR), clamp(y0, -CLEAR, H + CLEAR), clamp(x1, -CLEAR, W + CLEAR), clamp(y1, -CLEAR, H + CLEAR)));
     }
     for (const [sx, sy] of SUPPORTS) post(sx, sy, G.body.support_r);                  // two posts under the middle of the PCB
-    box(bodyG, 9.4, 3.6, 2.6, USB_X, -O + 1.0, -PCB_T - 3.4, dark);
-    box(bodyG, 8.6, 2.8, 1.0, USB_X, -O + 0.6, -PCB_T - 3.0, metal);
   }
 
   // ---------------- PCB ----------------
@@ -328,7 +342,8 @@ async function main() {
     const under = h => -PCB_T - h;
     box(pcbG, 7, 0.9, 7, MCU[0], MCU[1], under(0.9), dark);
     box(pcbG, 5.3, 1.5, 4.0, FLASH[0], FLASH[1], under(1.5), dark);
-    box(pcbG, 8.9, 3.2, 7.3, USB_X, 3.6, under(3.2), metal);
+    const [J1W, J1H] = G.parts.j1_body, J1L = 7.3;                    // USB-C socket, its face where J1 puts it
+    box(pcbG, J1W, J1H, J1L, USB_X, G.parts.j1_face + J1L / 2, under(J1H), metal);
     box(pcbG, 3.2, 0.8, 2.5, XTAL[0], XTAL[1], under(0.8), metal);
     box(pcbG, 2.9, 1.1, 1.3, LDO[0], LDO[1], under(1.1), dark);         // SOT-23 regulator
     for (let i = 0; i < 12; i++) {
@@ -358,7 +373,7 @@ async function main() {
       if (dual) {                                                                // bushing, outer shaft, inner shaft
         shaft(E.sleeve_d / 2, E.body, E.sleeve_top); shaft(E.outer_d / 2, E.sleeve_top, E.outer_top);
         shaft(E.inner_d / 2, E.outer_top, E.inner_top);
-      } else { shaft(2, J.body, J.hub_top); shaft(J.lever_d / 2, J.hub_top, J.lever_z1); }   // RKJXT hub and lever
+      } else { shaft(J.hub_d / 2, J.body, J.hub_top); shaft(J.lever_d / 2, J.hub_top, J.lever_z1); }   // RKJXT hub and lever
     }
     for (const L of LIGHTS) {                                                    // 3 mm LEDs under the light pipes
       const led = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.5, LED_TOP - 0.8, 24), M({ color: L.emissive, roughness: 0.3, transparent: true, opacity: 0.75 }));
@@ -462,17 +477,17 @@ async function main() {
     for (const k of Object.values(KNOBS)) {
       const tilt = k.legendTilt * Math.PI / 180;                        // turned towards the user (stack.py)
       const mid = k.x < W / 2 ? tilt : Math.PI - tilt;
-      const r0 = (k.kind === 'range' ? 12.2 : k.r + 1.9) * ppm;   // legend radius: presentation
+      const r0 = (k.kind === 'range' ? G.range_art.legend_r : k.r + 1.9) * ppm;   // legend radius (stack.py)
       arcText(g, k.main, mmFont(1.55, 600), X(k.x), Y(k.y), r0, mid, WHITE_ENGR, 0.22 * ppm);
       if (k.shift) arcText(g, k.shift, mmFont(1.5, 600), X(k.x), Y(k.y), r0 + 2.2 * ppm, mid, AMBER, 0.22 * ppm);
     }
     // pan arrows around RANGE, in the four pan directions
     {
-      const k = KNOBS.range; g.fillStyle = WHITE_ENGR;
+      const k = KNOBS.range, tri = G.range_art.arrow; g.fillStyle = WHITE_ENGR;
       for (let i = 0; i < 4; i++) {
-        const a = i * Math.PI / 2, rr0 = 9.4 * ppm;
+        const a = i * Math.PI / 2, rr0 = G.range_art.arrow_r * ppm;   // as on the plate artwork (stack.py)
         g.save(); g.translate(X(k.x) + Math.cos(a) * rr0, Y(k.y) + Math.sin(a) * rr0); g.rotate(a);
-        g.beginPath(); g.moveTo(0.75 * ppm, 0); g.lineTo(-0.45 * ppm, -0.7 * ppm); g.lineTo(-0.45 * ppm, 0.7 * ppm); g.closePath(); g.fill(); g.restore();
+        g.beginPath(); tri.forEach(([u, v], j) => (j ? g.lineTo : g.moveTo).call(g, u * ppm, v * ppm)); g.closePath(); g.fill(); g.restore();
       }
     }
     const topMat = new THREE.MeshStandardMaterial({ map: mmTexture(c, WO, HO), roughness: 0.5, metalness: 0.3 });

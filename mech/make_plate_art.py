@@ -180,17 +180,16 @@ layers["LASER"].append(bar(vRadio, y0, vRadio, hFMS))
 for name, ((kx, ky), main, shift) in KNOBS.items():
     tilt = math.radians(S.KNOB_LEGEND_TILT[name])
     mid = tilt if kx < B.W / 2 else math.pi - tilt
-    r0 = 12.2 if name == "RANGE" else S.OUTER_KNOB["d"] / 2 + 1.9
+    r0 = S.RANGE_ART["legend_r"] if name == "RANGE" else S.OUTER_KNOB["d"] / 2 + 1.9
     arc_text("LASER", [(main, SEMI, em(1.55))], kx, ky, r0, mid, 0.22)
     if shift:
         arc_text("UV_AMBER", [(shift, SEMI, em(1.5))], kx, ky, r0 + 2.2, mid, 0.22)
 rx, ry = B.RANGE
-for i in range(4):                                           # pan arrows
+for i in range(4):                                           # pan arrows, outside the skirt (check_fit.py)
     a = i * math.pi / 2
     c, s = math.cos(a), math.sin(a)
-    px, py = rx + 9.4 * c, ry + 9.4 * s
-    tri = [(0.75, 0), (-0.45, -0.7), (-0.45, 0.7)]
-    layers["LASER"].append([(px + u * c - v * s, py + u * s + v * c) for u, v in tri])
+    px, py = rx + S.RANGE_ART["arrow_r"] * c, ry + S.RANGE_ART["arrow_r"] * s
+    layers["LASER"].append([(px + u * c - v * s, py + u * s + v * c) for u, v in S.RANGE_ART["arrow"]])
 
 # ---------------- UV_AMBER: shift legends under the keys ----------------
 for rI, y in enumerate(B.ROWS):

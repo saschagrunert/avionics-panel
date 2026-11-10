@@ -78,8 +78,9 @@ ax = axes[1]
 cx, cy = PS.P(*B.RANGE)
 draw(ax, plate, cy, "#1f5fa0", dx=-cx, dz=S.PLATE_Z0)
 part(ax, -12, -S.PCB_T, 24, S.PCB_T, fc="#c8d8c0")
-part(ax, -14.5 / 2, 0, 14.5, S.RKJXT_BODY)
-part(ax, -2.0, S.RKJXT_BODY, 4.0, S.RKJXT_HUB_TOP - S.RKJXT_BODY)
+flats = S.RKJXT_ACROSS * math.cos(math.pi / 8)               # octagon: 17 across corners, 15.7 across flats
+part(ax, -flats / 2, 0, flats, S.RKJXT_BODY)
+part(ax, -S.RKJXT_HUB[0] / 2, S.RKJXT_BODY, S.RKJXT_HUB[0], S.RKJXT_HUB_TOP - S.RKJXT_BODY)   # hub (chamfer not drawn)
 part(ax, -S.LEVER_D / 2, S.LEVER_Z0, S.LEVER_D, S.LEVER_Z1 - S.LEVER_Z0)
 RANGE_SOLID = K.range_knob()
 draw(ax, RANGE_SOLID, 0, "k", dz=S.PLATE_Z1 + S.RANGE_KNOB["z0"])
@@ -103,7 +104,7 @@ part(ax, key_dy - S.CAP["h"] / 2, S.CAP["base"], S.CAP["h"], S.CAP["height"], fc
 pipe = move(K.light_pipe("SHIFT"), 0, 0, 0)
 tp = gp_Trsf(); tp.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1)), -math.pi / 2)
 draw(ax, BRepBuilderAPI_Transform(pipe, tp, True).Shape(), 0, "k", dx=0, dz=S.PIPE["z0"])
-ax.set_title("SHIFT light pipe (front of the panel on the left)")
+ax.set_title("SHIFT light pipe\n(front of the panel on the left)")
 
 for ax, xl in zip(axes, ((-14, 14), (-11, 11), (-6, 9)), strict=True):
     ax.set_aspect("equal"); ax.grid(alpha=0.3); ax.set_xlim(*xl); ax.set_ylim(-3, 31 if ax is axes[0] else 22)
@@ -119,9 +120,11 @@ def rrect_sd(x, y, w, h, r):
     return np.hypot(np.maximum(qx, 0), np.maximum(qy, 0)) + np.minimum(np.maximum(qx, qy), 0) - r
 
 
-def cap_shift_room():
-    """how far a key cap can shift in its key hole before it touches: (least, most) over all directions."""
-    c = S.CAP
+def cap_shift_room(grow=0.0):
+    """how far a key cap can shift in its key hole (grown by grow on width and height) before it touches:
+    (least, most) over all directions."""
+    c, (hw, hh, hr) = S.CAP, S.KEY_HOLE
+    hole = (hw + grow, hh + grow, hr + grow / 2)
     t = np.linspace(0, 2 * np.pi, 720, endpoint=False)
     ox = (c["w"] / 2 - c["r"]) * np.sign(np.cos(t)) + c["r"] * np.cos(t)     # cap outline, corners dense
     oy = (c["h"] / 2 - c["r"]) * np.sign(np.sin(t)) + c["r"] * np.sin(t)
@@ -130,7 +133,7 @@ def cap_shift_room():
         lo, hi = 0.0, 2.0
         for _ in range(30):
             d = (lo + hi) / 2
-            inside = rrect_sd(ox + d * np.cos(a), oy + d * np.sin(a), *S.KEY_HOLE).max() <= 0
+            inside = rrect_sd(ox + d * np.cos(a), oy + d * np.sin(a), *hole).max() <= 0
             lo, hi = (d, hi) if inside else (lo, d)
         rooms.append(lo)
     return min(rooms), max(rooms)
@@ -253,7 +256,8 @@ def body_thin(res=0.1):
     tri = body_triangles()
     ux = B.USB_X
     planes = [(2, z) for z in (-2.5, -4.0, -6.0, -6.5, -7.0, -7.7, -8.3, -9.0, -10.5, -12.0, -13.5)]
-    planes += [(0, x) for x in (3.5, 9.0, 15.5, 22.5, 54.0, 85.0, 112.0, ux - 7.0, ux, ux + 7.0, B.BOOT[0],
+    uw = (MM.USB_OPEN["w"] + MM.USB_KEEP[0]) / 4        # in the walls beside the USB-C opening
+    planes += [(0, x) for x in (3.5, 9.0, 15.5, 22.5, 54.0, 85.0, 112.0, ux - uw, ux, ux + uw, B.BOOT[0],
                                 150.0, 156.5)]
     planes += [(1, y) for y in (-1.5, 0.5, 2.0, 3.5, 6.7, 20.0, 40.0, 47.8, 55.5, 57.0)]
     void, wall, wall2 = (0.0, "none"), (0.0, "none"), (0.0, "none")
@@ -416,6 +420,9 @@ def cap_rows(face_lo, back_hi):
          "at the mouth)", (sk["d"] - hole_tol - S.plunger_d(hs)) / 2),
         (f"cap seats on the plunger top: cap bottom over the switch body ({S.SWITCH_BODY_TOP:.1f}), pressed",
          c["base"] - S.KEY_TRAVEL - S.PLUNGER_TOP_TOL - S.SWITCH_BODY_TOP),
+        # These two rows take board and plate flat: a cap is coaxial with its plunger and smaller than its key
+        # hole, so the PCB bow and plate flatness budgets (PCB_BOW, PLATE_FLAT, SUPPORT_LIFT) only move it a
+        # little up or down in the hole; they matter for the LED rows below, where the pipe sits over the LED.
         (f"cap socket ceiling (on the plunger top, +{S.PLUNGER_TOP_TOL}) under the lowest plate face",
          face_lo - (S.PLUNGER_TOP + S.PLUNGER_TOP_TOL)),
         (f"pressed cap still inside its key hole (travel {S.KEY_TRAVEL}, plunger -{S.PLUNGER_TOP_TOL}, high plate)",
@@ -444,13 +451,74 @@ def cap_rows(face_lo, back_hi):
     return rows
 
 
+def key_hole_max():
+    """the key hole at its largest (+KEY_HOLE_TOL on width and height, after anodising)."""
+    (w, h, r), up = S.KEY_HOLE, S.KEY_HOLE_TOL[0]
+    return w + up, h + up, r + up / 2
+
+
+def mjf(length):
+    """JLC3DP MJF tolerance on a length (+-): 0.3 up to 100 mm, 0.4 % above."""
+    return max(0.3, 0.004 * length)
+
+
+def usb_rows():
+    """USB-C socket and plug in the back wall opening (make_mech.USB_OPEN, carried up as a notch)."""
+    u, place, hole = MM.USB_OPEN, 0.1, S.POS_TOL["body_hole"]    # J1 placement (JLCPCB), MJF on the opening
+    # the board lies anywhere in the cavity (CLEAR). Its sideways play is set by its short edges against the
+    # side walls, and those are V-cut and sanded (+-PCB_VCUT_TOL): at worst one of them is that much short.
+    # Against a side wall the opening sits that far plus USB_X (or W - USB_X) from the board edge, and MJF puts
+    # it within mjf() of that length from the wall: this also covers a body printed large, whose gap grows
+    edge = MM.CLEAR + MM.PCB_VCUT_TOL
+    float_ = edge + max(mjf(B.USB_X + MM.CLEAR), mjf(B.W - B.USB_X + MM.CLEAR))   # 0.9 + 0.51 (left wall)
+    j1w, j1h = MM.J1_BODY
+    bot = u["z"] - u["h"] / 2                            # opening bottom
+    z_tol = mjf(-S.PCB_T - bot)                         # MJF: boss top (the PCB underside) to the opening bottom
+    om_w, om_h = 12.35, 6.5                              # USB-C spec: plug overmould up to 12.35 x 6.5
+    ow, oh, orr = u["w"] - 2 * hole, u["h"] - 2 * hole, u["r"] - hole
+    zc = -S.PCB_T - j1h / 2 - u["z"]                    # plug centre, on the socket's middle, over the opening's
+    # a square overmould (no corner radius) off centre by the float and J1 in x, J1 and the body height in z:
+    # least clearance to the opening, whose top is open (the notch, as wide as the opening)
+    xs = np.linspace(-om_w / 2, om_w / 2, 241)
+    zs = np.linspace(-om_h / 2, om_h / 2, 131)
+    ex = np.concatenate([xs, xs, np.full_like(zs, -om_w / 2), np.full_like(zs, om_w / 2)])
+    ez = np.concatenate([np.full_like(xs, -om_h / 2), np.full_like(xs, om_h / 2), zs, zs])
+    om = 1e9
+    for sx in (-1, 1):
+        for sz in (-1, 1):
+            x, z = ex + sx * (float_ + place), ez + zc + sz * (place + z_tol)
+            sd = np.minimum(rrect_sd(x, z, ow, oh, orr), rrect_sd(x, z - 50, ow, 100, 0))   # opening and notch
+            om = min(om, -sd.max())
+    return [
+        (f"USB-C socket ({j1w} wide, {-MM.J1_FACE:.2f} past the PCB edge) passes the wall notch: board "
+         f"{float_:.2f} off (cavity, V-cut edge, MJF on the opening), J1 {place}, MJF -{hole}",
+         ow / 2 - j1w / 2 - float_ - place),
+        (f"USB-C socket ({j1h} high under the PCB, J1 {place}) over the opening bottom (MJF -{hole}, body "
+         f"height {z_tol})", (-S.PCB_T - j1h - place - z_tol) - (bot + hole)),
+        (f"USB-C socket ({j1h} high, J1 {place}) over the body floor under the PCB ({MM.UNDER} room, MJF "
+         f"-{mjf(MM.UNDER)})", MM.UNDER - j1h - place - mjf(MM.UNDER)),
+        (f"USB-C overmould ({om_w} x {om_h}, square) in the {u['w']} x {u['h']} R{u['r']} opening: board "
+         f"{float_:.2f} off, J1 {place}, body height {z_tol}, MJF -{hole}", om),
+    ]
+
+
+def steel_row():
+    """the optional steel plate (laser cut +-0.1) in its recess (MJF), per side: outline and between notches."""
+    st, (rw, rd), laser = MM.STEEL, MM.STEEL_RECESS, 0.1
+    n = st["notch"]
+    gaps = [(rw - mjf(rw) - st["w"] - laser) / 2, (rd - mjf(rd) - st["d"] - laser) / 2,
+            (rw - 2 * n - mjf(rw - 2 * n) - (st["w"] - 2 * n) - 2 * laser) / 2]
+    return (f"steel plate ({st['w']:.0f} x {st['d']:.0f}, laser +-{laser}) in its {rw:.0f} x {rd:.0f} recess (MJF "
+            f"-{mjf(rw):.2f} / -{mjf(rd):.1f}), and between notches, per side", min(gaps))
+
+
 def pocket_web():
     """least plate left between a standoff pocket and any other plate feature or the plate edge."""
     r = S.STANDOFF_POCKET["d"] / 2 + S.STANDOFF_POCKET["d_tol"] / 2
     w, h, cr, _ = S.EC11_POCKET
     webs = []
     for mx, my in B.MOUNTS:
-        d = [rrect_sd(mx - x, my - y, *S.KEY_HOLE) for y in B.ROWS for x in B.COLS]
+        d = [rrect_sd(mx - x, my - y, *key_hole_max()) for y in B.ROWS for x in B.COLS]
         d += [rrect_sd(mx - x, my - y, w, h, cr) for x, y in (B.ALTHDG, B.FREQ, B.FMS)]
         d += [math.hypot(mx - B.RANGE[0], my - B.RANGE[1]) - S.RANGE_POCKET[0] / 2]
         d += [math.hypot(mx - lx, my - ly) - S.LIGHT_HOLES[n] / 2 for n, ((lx, ly), _g, _c) in B.LEDS.items()]
@@ -496,7 +564,8 @@ def clearances():
     # ---- positions: board offset from the caps, standoffs lined up with the PCB holes ----
     pt, sc, so, sp = S.POS_TOL, S.SCREW, S.STANDOFF, S.STANDOFF_POCKET
     cap_err = math.sqrt(sum(v * v for v in S.CAP_TOL.values()))
-    cap_room, cap_room_max = cap_shift_room()
+    cap_room = cap_shift_room()[0]                      # key hole +0.1/-0 after anodising: least at nominal
+    cap_room_max = cap_shift_room(S.KEY_HOLE_TOL[0])[1]   # most in the largest hole
     board = cap_room_max + pt["centring"]              # board offset the caps allow (the most, diagonally)
     hole = B.MOUNT_HOLE
     hole_lo, hole_hi = (hole - pt["npth_d"]) / 2, (hole + pt["npth_d"]) / 2
@@ -523,7 +592,10 @@ def clearances():
     w_off = min(offset + MM.WASHER_PLAY, cb_hi - r_w_min)   # washer centre off the body hole centre, worst
     corner = min(-rrect_sd(mx - B.W / 2, my - B.H / 2, B.W + 2 * MM.o, B.H + 2 * MM.o, B.CORNER_R + MM.o)
                  for mx, my in B.MOUNTS) - cb_hi       # counterbore to the outer body surface
-    cav = MM.CLEAR - MM.PCB_OUTLINE_TOL / 2 - MM.BODY_SCALE_TOL * (B.W + 2 * MM.CLEAR) / 2
+    cav_w_tol = mjf(B.H + 2 * MM.CLEAR)                             # MJF on the cavity width (61 mm)
+    cav = MM.CLEAR - MM.PCB_OUTLINE_TOL / 2 - cav_w_tol / 2           # the routed long edges, per side
+    cav_len = (B.W + 2 * MM.CLEAR) * (1 - MM.BODY_SCALE_TOL)        # the cavity length, printed small
+    vcut = (cav_len - (B.W + MM.PCB_VCUT_TOL)) / 2                   # V-cut short edges as they come, per side
     # ---- assembly, body ----
     caps = [(x, y) for y in B.ROWS for x in B.COLS]
     protrude = max(S.INNER_TOP + S.ENC_TOL["ge10"], S.LEVER_Z1 + S.LEVER_TOL) - face_lo   # face down
@@ -533,9 +605,10 @@ def clearances():
     fx, fy = MM.FEET[0]
     notch = min(x0 + stl["notch"] - (fx + MM.FOOT_PAD / 2), stl["y0"] + stl["notch"] - (fy + MM.FOOT_PAD / 2))
     (void, void_at), (wall, wall_at), (wall2, wall2_at) = body_thin()
-    # ---- light pipes glued flush, LEDs under them ----
+    # ---- light pipes glued flush, LEDs under them: the only rows that take the bow and flatness budgets (the
+    # cap rows are for a flat board and plate, see cap_rows) ----
     pp = S.PIPE
-    led_hi = S.LED_TOP + S.LED_TOL[0]
+    led_hi = S.LED_TOP + S.LED_TOL[0] + S.SUPPORT_LIFT + S.PCB_BOW   # lifted by a post, bowed up
     lt_up, lt_dn = S.LIGHT_HOLE_TOL
     pd = S.POCKET_TOL
     wall_gap = S.WALL_GAP - (seat_tol + pcb_tol + gap_dn)   # MJF wall height, PCB, standoff gap
@@ -545,9 +618,24 @@ def clearances():
     a = math.radians(S.RKJXT_TILT)
     pz = S.RKJXT_FULCRUM
     skirt_low = pz + (rk_lo - pz) * math.cos(a) - rk["skirt_d"] / 2 * math.sin(a)
-    skirt_shift = (rk_lo - pz) * math.sin(a)            # skirt sideways at the plate face, full tilt
-    on_board = board + pt["plate"] + pt["pcb"] + S.ENC_ON_PINS   # a control's axis off its plate hole
+    # the skirt rim on the side the knob tilts away from, seen from above: radius r at the rim height h rotated
+    # by the tilt about the fulcrum reaches r cos(a) - (h - fulcrum) sin(a) from the hole axis; worst with the
+    # highest knob (lever +, bore deep) and the smallest skirt print
+    rk_hi = S.PLATE_Z1 + rk["z0"] + S.LEVER_TOL + resin    # knob bottom, highest
+    skirt_shift = (rk_hi - pz) * math.sin(a)
+    on_board = board + pt["plate"] + pt["pcb"] + S.ENC_ON_PINS   # an encoder's axis off its plate hole
+    on_board_r = board + pt["plate"] + pt["pcb"] + S.RKJXT_ON_PINS   # the RKJXT's: it floats more on its pins
+    # RKJXT hub (Alps' STEP) tilted 9 deg about the fulcrum: its full-width top edge sideways at the plate
+    hub_r, hub_z = S.RKJXT_HUB[0] / 2, S.RKJXT_HUB[1]
+    hub_out = hub_r * math.cos(a) + (hub_z - pz) * math.sin(a)
+    arrow_in = S.RANGE_ART["arrow_r"] + min(u for u, _v in S.RANGE_ART["arrow"])   # pan arrows' inner ends
     gen = S.PLATE_GEN_TOL                               # ISO 2768-m on untoleranced plate sizes
+    # RKJXT body corner (top edge at its widest) off the RANGE pocket's wall and floor, worst of each, and off
+    # the floor corner radius the drawing allows (S.RANGE_POCKET_R)
+    rk_side = (S.RANGE_POCKET[0] - gen - S.RKJXT_ACROSS - S.RKJXT_TOL) / 2 - on_board_r
+    rk_top = back_lo + S.RANGE_POCKET[1] - S.POCKET_TOL - (S.RKJXT_BODY + 0.3)
+    fr = S.RANGE_POCKET_R
+    rk_corner = fr - math.hypot(fr - rk_side, fr - rk_top) if max(rk_side, rk_top) < fr else min(rk_side, rk_top)
     # ---- outer knob, in its own frame from the slot floor its key rests on ----
     slot_tol = S.ENC_TOL["lt10"]                        # slot width and depth, +-
     key_rss = math.hypot(es["slot"], resin)            # slot floor over the PCB and the key's height in the knob
@@ -571,8 +659,8 @@ def clearances():
         (f"outer knob counterbore over the bushing, key on the slot floor (+-{es['slot_sleeve']:.2f}, resin)",
          K.outer_counterbore_top() - K.outer_key_z0() + (S.OUTER_TOP - S.SLOT_LEN) - S.SLEEVE_TOP
          - es["slot_sleeve"] - resin),
-        (f"inner knob over outer knob, pushed (shafts +-{es['inner_outer']:.2f})",
-         ik["z0"] - p - ok["z1"] - es["inner_outer"]),
+        (f"inner knob over outer knob, pushed (shafts +-{es['inner_outer']:.2f}, inner bore depth and outer key "
+         f"height +-{resin}, RSS)", ik["z0"] - p - ok["z1"] - math.sqrt(es["inner_outer"] ** 2 + 2 * resin ** 2)),
         ("inner recess over outer shaft top, pushed",
          ik["recess_top"] - p - (S.OUTER_TOP - S.PLATE_Z1) - es["inner_shaft"]),
         (f"inner recess ({ik['recess_d']}) round the 6 mm shaft, radial: recess -{hole_tol}, loose knob "
@@ -597,19 +685,30 @@ def clearances():
          f"board {board:.2f} off, plate, PCB, pins",
          (S.SHAFT_HOLE - gen - S.SLEEVE_D - S.ENC_TOL["lt10"]) / 2 - on_board),
         (f"RKJXT body ({S.RKJXT_ACROSS} across corners +{S.RKJXT_TOL}) in its {S.RANGE_POCKET[0]} pocket (-{gen}), "
-         "radial, same offsets", (S.RANGE_POCKET[0] - gen - S.RKJXT_ACROSS - S.RKJXT_TOL) / 2 - on_board),
+         f"radial: board, plate, PCB, part on its pins ({S.RKJXT_ON_PINS})",
+         rk_side),
+        (f"RKJXT hub (Ø{S.RKJXT_HUB[0]}) at full tilt in its {S.RANGE_HOLE} plate hole (-{gen}), radial, same offsets",
+         (S.RANGE_HOLE - gen) / 2 - hub_out - on_board_r),
         (f"RANGE knob over hub, pushed {push_hi:.1f} (lever -{S.LEVER_TOL}, bore +{resin})",
          rk_lo - push_hi - S.RKJXT_HUB_TOP),
         (f"RANGE skirt over plate at {S.RKJXT_TILT:.0f} deg, fulcrum {pz}, low knob, high plate",
          skirt_low - S.PLATE_Z1 - face_up),
-        ("RANGE skirt still covers its 12 mm plate hole at full tilt",
-         rk["skirt_d"] / 2 - S.RANGE_HOLE / 2 - skirt_shift - on_board),
+        (f"RANGE skirt (Ø{rk['skirt_d']} -{part_tol}, high knob, rim at cos {S.RKJXT_TILT:.0f} deg) still covers its "
+         f"{S.RANGE_HOLE} mm plate hole (+{gen}) at full tilt, lever {on_board_r:.2f} off (board, plate, PCB, "
+         f"pins), loose knob {bore_play:.2f} off it",
+         (rk["skirt_d"] - part_tol) / 2 * math.cos(a) - (S.RANGE_HOLE + gen) / 2 - skirt_shift - on_board_r
+         - bore_play),
+        (f"RANGE pan arrows (from r {arrow_in:.2f}) outside the skirt seen square on (Ø{rk['skirt_d']} +{part_tol}), "
+         f"lever {on_board_r:.2f} off, loose knob {bore_play:.2f} off it",
+         arrow_in - (rk["skirt_d"] + part_tol) / 2 - on_board_r - bore_play),
         (f"RANGE skirt rim ({rim:.2f} on the knob solid, resin -{resin}), beyond 1.0", rim - resin - 1.0),
         (f"encoder pocket (-{pd}) over encoder body (8.0 +0.3), low plate",
          back_lo + S.EC11_POCKET[3] - pd - (S.EC11_BODY + 0.3)),
         ("plate left over the encoder pockets, thin plate, beyond 1.0", t_min - S.EC11_POCKET[3] - 1.0),
         (f"RANGE pocket (-{pd}) over RKJXT body (8.6 +0.3), low plate",
-         back_lo + S.RANGE_POCKET[1] - pd - (S.RKJXT_BODY + 0.3)),
+         rk_top),
+        (f"RKJXT body corner clear of the RANGE pocket's floor corner (R{S.RANGE_POCKET_R} max on the drawing), "
+         f"{rk_side:.2f} off the wall and {rk_top:.2f} off the floor", rk_corner),
         ("plate left over the RANGE pocket, thin plate, beyond 0.6", t_min - S.RANGE_POCKET[1] - 0.6),
         *cap_rows(face_lo, back_hi),
         (f"cap shift room in its key hole ({cap_room:.2f}) over per-key RSS {cap_err:.2f}", cap_room - cap_err),
@@ -623,7 +722,10 @@ def clearances():
         ("standoff pocket to the nearest plate feature or edge, beyond 1.0", pocket_web() - 1.0),
         ("boss top bears on the PCB all round its hole (MJF -0.15)",
          MM.BOSS_R - pt["body_hole"] - offset - off - hole_hi),
-        ("PCB fits the cavity (MJF -0.4 %, outline +0.2), per side", cav),
+        (f"PCB width in the cavity (MJF -{cav_w_tol:.1f}, routed long edges +{MM.PCB_OUTLINE_TOL}), per side", cav),
+        (f"PCB length in the cavity ({cav_len:.2f} at MJF -0.4 %), V-cut short edges (+-{MM.PCB_VCUT_TOL}: "
+         f"{vcut:+.2f} as they come) sanded to {MM.PCB_SANDED_LEN} max, per side", (cav_len - MM.PCB_SANDED_LEN) / 2),
+        *usb_rows(),
         ("body screw hole round the screw, body and PCB tolerance",
          MM.SCREW_CLEAR - pt["body_hole"] - S.SCREW_D / 2 - pt["body"] - pt["pcb"]),
         (f"washer (OD {2 * r_w_min:.2f} min) bears all round the widest body hole", r_w_min - w_off - r_hole_max),
@@ -647,7 +749,8 @@ def clearances():
          sp["depth"] - sp["depth_tol"] - sp["bare"] - 1.0),
         ("washer and pan head recessed, front mounts, deep seat", head_lo - boss_floor),
         ("steel plate recess stays under the 2 mm floor (the floor is not thinned)",
-         MM.Z_FLOOR_BOT - MM.z_bottom(stl["y0"] + stl["d"]) - stl["depth"] / math.cos(math.atan(MM.SLOPE))),
+         MM.Z_FLOOR_BOT - MM.z_bottom(stl["y0"] + MM.STEEL_RECESS[1]) - stl["depth"] / math.cos(math.atan(MM.SLOPE))),
+        steel_row(),
         ("steel plate recess rim at the back wall, beyond 2.0 (JLC3DP MJF over 100 mm)", stl["y0"] + MM.o - 2.0),
         ("foot pad inside the steel plate notch, beyond 0.5", notch - 0.5),
         (f"foot pad round a {MM.FOOT_D:.0f} mm foot, per side, beyond 0.5", (MM.FOOT_PAD - MM.FOOT_D) / 2 - 0.5),
@@ -657,10 +760,11 @@ def clearances():
          f"0.4) bar the screw bosses (worst at {wall2_at})", 0.6 - wall2),
         (f"assembly blocks ({S.ASSEMBLY_BLOCK:.0f}) over the shaft tips, beyond 3", S.ASSEMBLY_BLOCK - protrude - 3),
         ("plate edge strip free for the blocks, beyond 8", edge - 8),
-        (f"highest LED (5.3 +0.4) under the lowest plate back, PCB lifted {S.SUPPORT_LIFT:.2f} by a post",
-         back_lo - led_hi - S.SUPPORT_LIFT),
-        (f"glued light pipe over the highest LED, thin plate, long pipe, PCB lifted {S.SUPPORT_LIFT:.2f} by a post "
-         f"(posts {S.SUPPORT_SHORT} short, MJF 0.3)", face_lo - (pp["len"] + pp["len_tol"]) - led_hi - S.SUPPORT_LIFT),
+        (f"highest LED ({S.LED_TOP} +{S.LED_TOL[0]}) under the lowest plate back, PCB {S.SUPPORT_LIFT:.2f} up on a "
+         f"post, bowed up {S.PCB_BOW}, plate bowed down {S.PLATE_FLAT}", back_lo - S.PLATE_FLAT - led_hi),
+        (f"glued light pipe ({pp['len']} +{pp['len_tol']}) over the highest LED, thin plate, PCB and plate bowed as "
+         f"above (posts {S.SUPPORT_SHORT} short, MJF 0.3)",
+         face_lo - S.PLATE_FLAT - (pp["len"] + pp["len_tol"]) - led_hi),
         (f"light pipe fits its hole ({pp['clear']} under, hole +{lt_up}/-{lt_dn:g}), beyond anodising "
          f"({pp['anodise']}) and resin (+{pp['resin']})", pp["clear"] - lt_dn - pp["anodise"] - pp["resin"]),
     ]
@@ -669,10 +773,11 @@ def clearances():
         rows.append((f"{name} snap-off neck ({pp['neck_d']}) inside the pipe",
                      (d - pp["clear"]) / 2 - pp["neck_d"] / 2))
         web = min(rrect_sd(lx - x, ly - y, *S.KEY_HOLE) for x, y in caps) - d / 2
+        web_lo = min(rrect_sd(lx - x, ly - y, *key_hole_max()) for x, y in caps) - (d + lt_up) / 2
         rows.append((f"{name} light hole web to the next key hole ({web:.2f}), beyond 0.8 (JLCCNC recommended)",
                      web - 0.8))
-        rows.append((f"{name} light hole web with the hole +{lt_up} ({web - lt_up / 2:.2f}), beyond 0.5 (JLCCNC "
-                     "minimum)", web - lt_up / 2 - 0.5))
+        rows.append((f"{name} light hole web with both holes at +{lt_up} ({web_lo:.2f}), beyond 0.5 (JLCCNC "
+                     "minimum)", web_lo - 0.5))
     for name, v in rows:
         print(f"  {name:106s} {v:5.2f} mm {'OK' if v > 0 else 'FAIL'}")
     assert all(v > 0 for _, v in rows), [n for n, v in rows if v <= 0]

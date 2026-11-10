@@ -7,7 +7,7 @@ come from stack.py (datasheet shaft dimensions); each part has its bottom at z =
               FMS ring has fewer, deeper flutes, so it feels different from FREQ above it.
   inner knob  dia 12, all three: D bore on the 3.5 mm inner shaft. The bore bottom sits on the shaft tip,
               so a push goes straight to the switch.
-  RANGE knob  dia 13.6 with a 15.6 skirt over the 12 mm plate hole, D bore on the RKJXT lever.
+  RANGE knob  dia 13.6 with a 16.6 skirt over the 11.2 mm plate hole, D bore on the RKJXT lever.
   light pipes clear resin rods, glued flush into the plate, the bottom clear of the LED. Both are printed as
               one part on a snap-off bar over their tops (JLC3DP's minimum resin part is 10 x 2 x 2 mm), on
               1.1 mm necks (resin pillars 1.0 min.).

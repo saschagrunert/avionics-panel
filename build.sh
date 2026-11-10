@@ -32,8 +32,17 @@ occ mech "python3 make_caps.py && python3 make_mech.py && python3 make_plate_ste
 
 echo "== firmware"
 # MicroPython (its own test suite fails to build in nixpkgs, so without it) checks the firmware compiles
-# for the board: CircuitPython uses MicroPython's parser
+# with MicroPython's parser, which CircuitPython uses
 MPY='(micropython.overrideAttrs (_: { doCheck = false; }))'
+# CircuitPython 9.2 is built on an older MicroPython: its own mpy-cross is the board's compiler. Not in
+# nixpkgs: firmware/mpy-cross.nix fetches Adafruit's build (pinned by hash) and points it at Nix's glibc
+case "$(uname -s)-$(uname -m)" in
+  Linux-x86_64 | Linux-aarch64)
+    MPY_CROSS=$(nix-build --no-out-link firmware/mpy-cross.nix)/bin/mpy-cross
+    export MPY_CROSS REQUIRE_MPY_CROSS=1
+    ;;
+  *) echo "no pinned CircuitPython mpy-cross for $(uname -sm): the firmware is only checked with MicroPython" >&2 ;;
+esac
 REQUIRE_MICROPYTHON=1 nix-shell -p "python3.withPackages (ps: [ ps.pytest ])" "$MPY" \
   --run "pytest -v && cd firmware && python3 make_buttons.py >BUTTONS.md && rm -rf __pycache__"
 

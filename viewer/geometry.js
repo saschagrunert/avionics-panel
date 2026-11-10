@@ -105,6 +105,12 @@ window.GEOMETRY = {
    ]
   ],
   "tilt_deg": 6.0,
+  "usb_open": {
+   "h": 8.4,
+   "r": 0.5,
+   "w": 15.8,
+   "z": -3.2
+  },
   "wall": 2.0,
   "wall_gap": 0.9,
   "z_bot": -7.2,
@@ -514,6 +520,11 @@ window.GEOMETRY = {
    131.405,
    37.885
   ],
+  "j1_body": [
+   8.94,
+   3.26
+  ],
+  "j1_face": -0.52,
   "ldo": [
    134.3,
    8.0
@@ -530,8 +541,8 @@ window.GEOMETRY = {
  },
  "pipe": {
   "clear": 0.3,
-  "len": 3.9,
-  "z0": 6.1
+  "len": 3.6,
+  "z0": 6.4
  },
  "plate": {
   "key_hole": [
@@ -539,20 +550,39 @@ window.GEOMETRY = {
    7.0,
    1.4
   ],
-  "range_hole": 12.0,
+  "range_hole": 11.2,
   "shaft_hole": 9.2,
   "z0": 6.0,
   "z1": 10.0
  },
+ "range_art": {
+  "arrow": [
+   [
+    0.75,
+    0.0
+   ],
+   [
+    -0.45,
+    -0.7
+   ],
+   [
+    -0.45,
+    0.7
+   ]
+  ],
+  "arrow_r": 10.1,
+  "legend_r": 12.4
+ },
  "range_knob": {
   "d": 13.6,
   "rim": 1.1,
-  "skirt_d": 15.6,
+  "skirt_d": 16.6,
   "z0": 2.3,
   "z1": 11.0
  },
  "rkjxt": {
   "body": 8.6,
+  "hub_d": 7.2,
   "hub_top": 10.5,
   "lever_d": 2.5,
   "lever_z0": 12.4,

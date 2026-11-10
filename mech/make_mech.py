@@ -4,7 +4,8 @@ The 6 degree wedge is part of the body, so no wedge feet are needed; four flat s
 sliding; they go on four flat pads. The wedge is hollow from below: a 2 mm floor under the PCB, ribs down to
 the desk plane (under the two PCB posts and between them), the screw bosses joined to the walls, a solid band
 along the front, and a recess in the bottom for an optional 2 mm steel plate as desk weight.
-BOOT hole in the floor, USB-C opening in the back wall. The front plate is CNC aluminium
+BOOT hole in the floor, USB-C opening in the back wall, open to the top so the socket clears the wall when the
+board goes in. The front plate is CNC aluminium
 (make_plate_step.py); every height is in stack.py.
 
 Stack (z = 0 is the PCB top):
@@ -32,12 +33,15 @@ from dxf import write_dxf  # noqa: E402
 from make_plate_step import rrect_prism  # noqa: E402
 from occ_util import box, common, cut, cyl, export, fuse, move, volume  # noqa: E402
 
-# PCB to cavity wall: the cavity (160.6 x 60.6) may print 0.4 % small (JLC3DP MJF) and the board outline
+# PCB to cavity wall: the cavity (161.0 x 61.0) may print 0.4 % small (JLC3DP MJF) and the routed board outline
 # is +-0.2 (JLCPCB), so 0.5 per side; walls 2.0 (JLC3DP MJF: 2.0 for parts over 100 mm), so the outline
 # (stack.OVH, shared with the plate) is 2.5 out from the PCB
 CLEAR, WALL = 0.5, 2.0
 assert abs(CLEAR + WALL - S.OVH) < 1e-9, "the body outline is the plate outline"
 PCB_OUTLINE_TOL, BODY_SCALE_TOL = 0.2, 0.004
+# The short edges carry the edge rails and are V-cut: +-0.4 (JLCPCB), too long for the cavity at worst. They
+# are sanded after breaking off the rails until the board is at most this long (docs/ordering.md)
+PCB_VCUT_TOL, PCB_SANDED_LEN = 0.4, 160.2
 UNDER = 4.0                         # room under the PCB: SMD parts, USB-C socket (3.2 mm), THT leads
 FLOOR = 2.0                         # floor under the PCB room; the wedge below it is hollow
 FRONT = 1.6                         # body under the floor top at the front edge
@@ -83,8 +87,11 @@ RIBS_Y = (30.8,)
 # optional steel plate as desk weight, 2 mm, in a recess parallel to the bottom plane: x centred, y from the
 # back wall (2.1 mm rim left) towards the front as far as the recess stays in the hollow under the 2 mm floor,
 # so every wall round it keeps JLC3DP's 2.0 mm for MJF parts over 100 mm; notched at the back corners for the
-# feet. It is taped onto the ribs, the USB-C block and the back rim.
-STEEL = dict(w=144.0, d=37.0, t=2.0, depth=2.2, y0=-0.4, notch=15.0)
+# feet. It is taped onto the ribs, the USB-C block and the back rim. The plate (w x d, steel.dxf) is `gap`
+# smaller than the recess all round (recess 144 x 37); its notches match the recess's, so it fits wherever it
+# sits in the recess.
+STEEL = dict(w=143.0, d=36.0, t=2.0, notch=15.0, gap=0.5, depth=2.2, y0=-0.4)
+STEEL_RECESS = (STEEL["w"] + 2 * STEEL["gap"], STEEL["d"] + 2 * STEEL["gap"])
 # flat pads for four self-adhesive feet up to 10 mm across (pads 12 mm), wide apart, outside the steel plate
 FOOT_D, FOOT_PAD = 10.0, 12.0
 FEET = [(15.5, 6.7), (B.W - 15.5, 6.7), (15.5, 55.5), (B.W - 15.5, 55.5)]
@@ -118,13 +125,14 @@ def slab_under_plane(x0, x1, y0, y1, h):
 
 
 def steel_x0():
-    return B.W / 2 - STEEL["w"] / 2
+    """board x of the recess's left end."""
+    return B.W / 2 - STEEL_RECESS[0] / 2
 
 
 def steel_recess():
     st = STEEL
-    x0, x1, y0 = steel_x0(), steel_x0() + st["w"], st["y0"]
-    slab = slab_under_plane(x0, x1, y0, y0 + st["d"], st["depth"] / math.cos(math.atan(SLOPE)))
+    x0, x1, y0 = steel_x0(), steel_x0() + STEEL_RECESS[0], st["y0"]
+    slab = slab_under_plane(x0, x1, y0, y0 + STEEL_RECESS[1], st["depth"] / math.cos(math.atan(SLOPE)))
     n = st["notch"]
     return cut(slab, box(x0 - 1, y0 - 1, -41, x0 + n, y0 + n, 0), box(x1 - n, y0 - 1, -41, x1 + 1, y0 + n, 0))
 
@@ -177,17 +185,29 @@ def hollow():
     return cut(h, *keep)
 
 
-# solid down to the desk plane under the USB-C opening: no thin floor between the opening and the hollow
-USB_KEEP = (16.0, 3.0)              # width, board y up to which the floor stays solid
+# USB-C opening in the back wall round the plug overmould (USB-C spec: up to 12.35 x 6.5): wide enough for the
+# board anywhere in the cavity (its sideways play set by the V-cut short edges, one of them up to 0.4 short),
+# the opening where MJF puts it against the cavity wall (+-0.51 over the 127.5 mm from the left wall) and J1's
+# placement, deep enough for the body's height tolerance under the bosses, with corners small enough for a
+# square overmould (check_fit.py). It runs on up through the top of the wall as a notch of the same width, so
+# only its bottom counts: JLC's C165948 puts the socket face 0.52 past the board edge, level with the cavity
+# wall, so a solid wall above the opening would stop the socket while the board is lowered in.
+USB_OPEN = dict(w=15.8, h=8.4, r=0.5, z=-S.PCB_T - 1.6)   # z: centre, on the socket's middle; bottom at -7.4
+# solid down to the desk plane under the USB-C opening, 0.8 wider than it each side: no thin floor between the
+# opening and the hollow
+USB_KEEP = (USB_OPEN["w"] + 1.6, 3.0)   # width, board y up to which the floor stays solid
+J1_FACE = -0.52                     # socket face, board y (2.62 ahead of its front shell tabs at 2.10)
+J1_BODY = (8.94, 3.26)              # socket width and height under the PCB (HRO TYPE-C-31-M-12)
 
 
 def usb_cutter():
-    """USB-C plug opening in the back wall (y = 0 side), plug overmould up to 12 x 6.5 mm."""
-    uz = -S.PCB_T - 1.6
-    sh = rrect_prism(B.USB_X, uz, 12.8, 7.2, 2.0, 0, o + 3)   # built in XY with the depth along Z
+    """USB-C plug opening in the back wall (y = 0 side), carried up through the top of the wall."""
+    u = USB_OPEN
+    sh = rrect_prism(B.USB_X, u["z"], u["w"], u["h"], u["r"], 0, o + 3)   # built in XY with the depth along Z
     t = gp_Trsf(); t.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Dir(1, 0, 0)), math.pi / 2)   # (x, y, z) -> (x, -z, y)
     sh = BRepBuilderAPI_Transform(sh, t, True).Shape()
-    return move(sh, dy=1.0)                                  # from y = 1 (inside the PCB edge) out through the wall
+    notch = box(B.USB_X - u["w"] / 2, -o - 2, u["z"], B.USB_X + u["w"] / 2, 1.0, S.PLATE_Z0)
+    return fuse(move(sh, dy=1.0), notch)                     # from y = 1 (inside the PCB edge) out through the wall
 
 
 def body():
@@ -224,7 +244,8 @@ if __name__ == "__main__":
     b = body()
     print(f"body {volume(b) / 1000:.1f} cm3 (PA12 about {volume(b) * 1.01e-3:.0f} g); hollow up to board y "
           f"{hollow_front()}; screw hole {2 * SCREW_CLEAR:.1f}, counterbore {2 * HEAD_R:.1f}; optional steel plate "
-          f"{STEEL['w']:.0f} x {STEEL['d']:.0f} x {STEEL['t']:.0f} mm less two {STEEL['notch']:.0f} mm corner "
+          f"{STEEL['w']:.0f} x {STEEL['d']:.0f} x {STEEL['t']:.0f} mm (recess {STEEL_RECESS[0]:.0f} x "
+          f"{STEEL_RECESS[1]:.0f}) less two {STEEL['notch']:.0f} mm corner "
           f"notches, {steel_mass():.0f} g")
     export(to_output(b), "avionics-panel-rev1-body", deflection=0.02)
     write_dxf("avionics-panel-rev1-steel.dxf", {"CUT": [steel_outline()]})   # for a laser-cutting service

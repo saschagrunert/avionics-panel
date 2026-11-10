@@ -11,13 +11,18 @@ SHIFT_MS = 3000          # SHIFT cancels itself, and a shifted knob returns to n
 SHIFT_WARN_MS = 1000     # the amber light pulses for this long before SHIFT drops out ...
 SHIFT_PULSE_MS = 125     # ... dim and bright this long each (4 Hz): starts dim, ends bright
 LIGHT_OFF, LIGHT_DIM, LIGHT_FULL = 0, 1, 2   # levels of the amber light; code.py maps them to PWM duties
-FREQ_RESET_MS = 10000    # frequency knob back to COM after this long without a turn
+FREQ_RESET_MS = 10000    # frequency knob back to COM after this long without a turn or push
 FAST_MS = 60             # detents closer than this (same ring, same direction) take the coarse step
 # MobiFlight polls the joysticks from a 20 ms timer that Windows' 15.6 ms clock stretches to about 31 ms, and
 # reads snapshots (nothing buffered): a press and a gap must both outlast one poll, or detents merge or vanish.
-PRESS_MS = 50            # one knob detent = a button held this long ...
-GAP_MS = 40              # ... then released this long before the next one: 90 ms, about 11 steps per second
-MAX_QUEUE = 8            # queued detents per button (fast spins): runs on for at most 8 x 90 = 720 ms
+# The host fetches reports every 8 ms (the HID endpoint's bInterval), and both joysticks share that endpoint:
+# with a report still pending from the last pass and both devices changing in this one, an edge can reach the
+# PC up to three frames late, so a 50 ms gap can arrive as 26 ms, shorter than a poll.
+POLL_MS = 32             # MobiFlight's poll, 31.25 ms rounded up
+HID_FRAME_MS = 8         # the host's report interval
+PRESS_MS = 56            # one knob detent = a button held this long ...
+GAP_MS = 56              # ... then released this long before the next one: 112 ms, about 9 steps per second
+MAX_QUEUE = 8            # queued detents per button (fast spins): runs on for at most 8 x 112 = 896 ms
 REPEAT_DELAY_MS = 400    # UP / DN: first repeat ...
 REPEAT_MS = 125          # ... then about 8 per second
 PAN_DELAY_MS = 300       # RANGE tilt: first repeat ...
@@ -34,10 +39,13 @@ def pulse_timing_ok(warn_ms, pulse_ms, shift_ms):
 
 
 def check_timing():
-    """Raises on timing that breaks the rules above (a plain raise: asserts vanish under -O). A held UP / DN or
-    tilt must not queue repeats faster than the pulses send them, or they run on after the release."""
+    """Raises on timing that breaks the rules above (a plain raise: asserts vanish under -O). Press and gap must
+    outlast a poll after losing three HID frames. A held UP / DN or tilt must not queue repeats faster than the
+    pulses send them, or they run on after the release."""
     if not pulse_timing_ok(SHIFT_WARN_MS, SHIFT_PULSE_MS, SHIFT_MS):
         raise ValueError("SHIFT_WARN_MS must be below SHIFT_MS and a multiple of 2 * SHIFT_PULSE_MS")
+    if min(PRESS_MS, GAP_MS) < POLL_MS + 3 * HID_FRAME_MS:
+        raise ValueError("PRESS_MS and GAP_MS must each be at least POLL_MS + 3 * HID_FRAME_MS")
     if min(REPEAT_MS, PAN_MS) < PRESS_MS + GAP_MS:
         raise ValueError("PRESS_MS + GAP_MS must not exceed REPEAT_MS and PAN_MS")
 

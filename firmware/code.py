@@ -1,8 +1,8 @@
 # code.py - Avionics Panel rev 1 (CircuitPython on the panel's RP2040).
-# Flash the "Raspberry Pi Pico" CircuitPython build (same chip, 2 MB flash, 12 MHz crystal), then copy
-# boot.py, code.py, panel.py and buttonmap.py to CIRCUITPY and replug. From then on boot.py hides CIRCUITPY
-# and the serial console unless SHIFT is held from plugging in until CIRCUITPY appears (about 2 s; boot.py
-# runs up to 1 s after power-up, docs/firmware.md).
+# Flash the CircuitPython 9.2.9 "Raspberry Pi Pico" build (docs/firmware.md, step 3; same chip, 2 MB
+# flash, 12 MHz crystal), then copy boot.py, code.py, panel.py and buttonmap.py to CIRCUITPY and replug.
+# From then on boot.py hides CIRCUITPY and the serial console unless SHIFT is held from plugging in until
+# CIRCUITPY appears (about 2 s; boot.py runs up to 1 s after power-up, docs/firmware.md).
 # Logic: panel.py. Button numbers: buttonmap.py / BUTTONS.md. Pins: pcb/board.py.
 # The Pico build drives GP25 as its status LED while booting, in safe mode and on errors; on this board
 # GP25 is the FREQ outer encoder's B line, which the encoder can pull to GND. The current is limited and
