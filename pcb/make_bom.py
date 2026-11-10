@@ -16,7 +16,9 @@ with open("avionics-panel-rev1-BOM.csv", "w", newline="") as f:
     w = csv.writer(f)
     w.writerow(["Comment", "Designator", "Footprint", "LCSC Part #", "Quantity"])
     for (value, lcsc), refs in groups.items():
-        w.writerow([value, ",".join(refs), FOOT.get(value, "0603"), lcsc, len(refs)])
+        foot = FOOT.get(value) or ("0603" if all(r.startswith(("R_", "C_")) for r in refs) else None)
+        assert foot, f"no footprint name for {value} ({', '.join(refs)}): add it to FOOT"
+        w.writerow([value, ",".join(refs), foot, lcsc, len(refs)])
 with open("avionics-panel-rev1-CPL.csv", "w", newline="") as f:
     w = csv.writer(f)
     w.writerow(["Designator", "Mid X", "Mid Y", "Layer", "Rotation"])

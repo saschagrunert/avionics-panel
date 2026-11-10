@@ -67,7 +67,6 @@ FREQ, FMS = (XR, 15.0), (XR, 45.0)          # right: frequency dual over FMS dua
 MCU = (122.6 + SHIFT_X, 25.0)   # RP2040 on the bottom, mirrored (pins 1-14 face the keys, bottom to top)
 USB_X = 118.0 + SHIFT_X
 BOOT = (MCU[0] + 0.5, 54.0)     # bridge pads on the bottom, under a hole in the case floor
-# debug pads on the top side over the RP2040 (no part body there), 2 x 2 at 2 mm, reachable with the plate off
 LEDS = {"SHIFT": ((COLS[3], ROWS[3] + 3.2 + 1.75), "GP12", "amber"),    # light pipes in the front plate
         "UNIT": ((COLS[3] + 4.3, ROWS[2] + 3.2 + 1.6), "GP15", "white")}
 

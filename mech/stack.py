@@ -56,9 +56,9 @@ KNOB_D = {"ALTHDG": 22.0, "FREQ": 22.0, "FMS": 24.0}
 # the 3D view alike. FMS at 5 keeps its long amber line about 3 mm off the plate edge.
 KNOB_LEGEND_TILT = {"ALTHDG": 15, "FREQ": 15, "FMS": 5, "RANGE": 35}
 
-# Legends, the one source for the caps (make_caps.py), the plate (make_plate_art.py) and the 3D view
-# (geometry.js). The board silkscreen (pcb/board.py) and the firmware button map (firmware/buttonmap.py)
-# keep their own copies (ASCII, CircuitPython); tests/test_labels.py checks they agree with these.
+# Legends, the one source for the caps (make_caps.py), the plate (make_plate_art.py), the board silkscreen
+# (pcb/board.py) and the 3D view (geometry.js). Only the firmware button map (firmware/buttonmap.py,
+# CircuitPython) keeps its own names; tests/test_labels.py checks they agree with these.
 # Keys: (cap label, amber shift legend under it) per key, rows top to bottom, columns left to right.
 KEY_LEGENDS = [
     [("AP", "TEST"), ("ALT", "ARM"), ("HDG", "CRS CTR"), ("MIC 1", "ADF"), ("COM 1", "NAV 1"), ("CDI", "OBS"),
@@ -68,6 +68,21 @@ KEY_LEGENDS = [
     [("UP", ""), ("FLC", ""), ("APR", "BC"), ("HOME", "UNIT"), ("FPL", "VNAV"), ("D→", "MSG"), ("MENU", "NRST")],
     [("DN", ""), ("VNV", ""), ("LVL", "½ BANK"), ("SHIFT", ""), ("PROC", "TERR"), ("CLR", "MAP"), ("ENT", "")],
 ]
+# The flip-flop icon of "COM ⇆" and "ADF ⇆": Barlow has no such glyph and fallback fonts draw it the other
+# way round, so the caps, the plate and the 3D view all fill these polygons. Units are em, from the icon's
+# left edge and the middle of the cap height (0.7 em), y down: the right arrow on top, the left one below.
+FLIP_W, FLIP_GAP = 0.6, 0.22                  # icon width, gap after the text
+
+
+def _flip_icon(w=FLIP_W, dy=0.7 * 0.24, hl=0.22, hh=0.13, lw=0.075):
+    def bar(xa, xb, y):
+        return [(xa, y - lw / 2), (xb, y - lw / 2), (xb, y + lw / 2), (xa, y + lw / 2)]
+    return [bar(0, w - hl, -dy), [(w, -dy), (w - hl, -dy - hh), (w - hl, -dy + hh)],
+            bar(hl, w, dy), [(0, dy), (hl, dy - hh), (hl, dy + hh)]]
+
+
+FLIP_ICON = _flip_icon()
+
 # Knobs: (white legend, amber legend with SHIFT or None): what the rings do, outer first, then the push.
 KNOB_LEGENDS = {
     "ALTHDG": ("ALT · HDG · PUSH SYNC", "CRS · BARO · PUSH STD"),
@@ -78,7 +93,7 @@ KNOB_LEGENDS = {
 
 # RANGE knob on the RKJXT lever
 LEVER_Z0, LEVER_Z1, LEVER_D, LEVER_FLAT = 12.4, 17.4, 2.5, 1.8
-RANGE_KNOB = dict(d=13.6, skirt_d=15.6, z0=1.8, z1=11.0)   # skirt clears the plate by about 0.4 mm at full tilt
+RANGE_KNOB = dict(d=13.6, skirt_d=15.6, z0=1.8, z1=11.0)   # skirt clears the plate by about 0.5 mm at full tilt
 
 # light pipes (clear resin), captive between the LED and the plate
 LED_TOP = 5.3

@@ -5,6 +5,7 @@ import importlib.util
 import os
 
 import buttonmap as BM
+from panel import Panel
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -53,3 +54,32 @@ def test_firmware_shift_functions_match_the_legends():
                 continue
             assert BM.shifted(key) == shift_name(key, legend), (label, legend)
             assert BM.shifted(key) in BM.BUTTON[1], key
+
+
+# the push word of each knob legend -> the button that push sends (FMS: unit button, also on device 1)
+PUSH = {"SYNC": "HDG_SYNC", "STD": "BARO_STD", "PTR": "PTR", "COM/NAV/ADF": "FREQ_PUSH", "XPDR": "XPDR_MODE",
+        "CRSR": "FMS_CRSR", "CABIN": "CABIN_LT"}
+
+
+def pushed(knob, shifted):
+    """the device 1 buttons the firmware sends for a push of this knob, plain or after SHIFT"""
+    p, names = Panel(), {b: n for n, b in BM.BUTTON[1].items()}
+    if shifted:
+        p.key("SHIFT", True, 0)
+        p.key("SHIFT", False, 1)
+    src, out = "RANGE_COM" if knob == "RANGE" else knob + "_PUSH", set()
+    for t, down in ((10, True), (500, False)):         # RANGE sends PTR on release
+        p.key(src, down, t)
+        p.tick(t + 1)
+        out |= {names[b] for b in p.buttons(1)}
+    return out
+
+
+def test_knob_push_legends_match_the_firmware():
+    # the push named on each knob ring (plain legend outside, SHIFT legend inside) is what that knob sends
+    for knob, legends in S.KNOB_LEGENDS.items():
+        for shifted, legend in enumerate(legends):
+            if legend is None:
+                continue
+            assert " · PUSH " in legend or legend.startswith("PUSH "), (knob, legend)
+            assert pushed(knob, shifted) == {PUSH[legend.split("PUSH ")[-1]]}, (knob, legend)

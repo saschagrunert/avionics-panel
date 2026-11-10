@@ -2,7 +2,9 @@
 
 DIY desktop panel for GA avionics in flight sims (G1000, GTN 750, GNS 530/430, Bendix/King, GFC 500):
 autopilot, audio, radio and FMS keys, three dual concentric knobs and a RANGE knob that tilts to pan.
-Shows up on the PC as two joysticks (unit 1 and unit 2), mapped in MobiFlight or directly in the sim.
+Shows up on the PC as two joysticks (device 1 carries everything plus unit 1, device 2 the unit 2 copies),
+mapped in MobiFlight or directly in the sim. Ready-made MobiFlight profiles are planned; until then you map
+the buttons yourself with [BUTTONS.md](firmware/BUTTONS.md).
 
 ![Top view: autopilot keys and ALT/HDG and RANGE knobs left, audio, radio and FMS keys, FREQ and FMS knobs right](renders/2-top.png)
 

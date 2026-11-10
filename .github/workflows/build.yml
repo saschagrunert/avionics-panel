@@ -1,7 +1,7 @@
 name: build
 # Regenerates every output with ./build.sh, which runs all checks (electrical, DRC, pin order, fit
-# clearances, firmware tests), then makes sure the committed board files and the button map are current.
-# The weekly run catches a nixpkgs update that changes a generator's result.
+# clearances, firmware tests), then makes sure the committed outputs are current. The weekly run catches a
+# nixpkgs update that changes a generator's result. A push to main that passes also publishes the 3D view.
 on:
   push:
     branches:
@@ -33,7 +33,9 @@ jobs:
           nix_path: nixpkgs=channel:nixpkgs-unstable
       - id: nixpkgs
         name: nixpkgs revision (cache key)
-        run: echo "rev=$(curl -sfL https://channels.nixos.org/nixpkgs-unstable/git-revision)" >>"$GITHUB_OUTPUT"
+        run: |
+          rev=$(curl -fsSL https://channels.nixos.org/nixpkgs-unstable/git-revision)
+          echo "rev=$rev" >>"$GITHUB_OUTPUT"
       # Only main saves the Nix store, which pull requests restore: one cache per pull request would push
       # the ones of main out of the repository's 10 GB.
       - uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569 # v7
@@ -47,16 +49,80 @@ jobs:
           purge-created: 0
           purge-primary-key: never
       - run: ./build.sh
+      # The board files, BOM, button map and viewer data must match; so must the set of files (new or
+      # deleted outputs). STEP, STL, PDF and PNG files also depend on the OpenCascade and matplotlib
+      # versions in nixpkgs-unstable, so a change there is a warning: a nixpkgs update must not block the
+      # build and the 3D view.
       - name: Committed outputs are up to date
         run: |
-          git diff --exit-code -- \
+          git status --short
+          fail=0
+          if ! git diff --exit-code --stat -- \
             production/avionics-panel-rev1-gerbers.zip \
             production/avionics-panel-rev1-BOM.csv \
             production/avionics-panel-rev1-CPL.csv \
             production/avionics-panel-rev1-THT-LCSC.csv \
             firmware/BUTTONS.md \
-            viewer/geometry.js
-      # STEP, STL and PNG files depend on the OpenCascade and matplotlib versions, so a change there is
-      # listed, not an error.
-      - name: Other changed outputs
-        run: git status --short
+            viewer/geometry.js; then
+            echo "::error::build.sh changed the board files, BOM, button map or viewer data: run it and commit the result"
+            fail=1
+          fi
+          if git status --porcelain | grep -v '^ M'; then
+            echo "::error::build.sh added or removed files: run it and commit the result"
+            fail=1
+          fi
+          if [ -n "$(git status --porcelain)" ] && [ "$fail" = 0 ]; then
+            echo "::warning::other outputs changed (a nixpkgs update?): run build.sh and commit them"
+          fi
+          exit "$fail"
+  # Packs the viewer without write access; deploy only publishes the artifact. Only a push to main that
+  # built and checked cleanly publishes; forks have no Pages of this repository to deploy to.
+  pages-pack:
+    name: pack the viewer
+    needs: build
+    if: github.repository == 'saschagrunert/avionics-panel' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read # checkout
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: viewer
+  pages-deploy:
+    name: deploy to Pages
+    needs: pages-pack
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    # one deployment at a time; one that started finishes, a newer one waits
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    permissions:
+      contents: read # read the tip of main
+      pages: write # publish the artifact
+      id-token: write # prove the deployment's origin to Pages
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      # Builds of two quick pushes run in parallel and the concurrency group only serialises the deploys,
+      # not their order: a build that finishes late must not replace a newer viewer. Only the commit that
+      # is still the tip of main deploys (an amended main drops the old commit altogether).
+      - id: tip
+        name: still the tip of main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tip=$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)
+          if [ "$tip" = "$GITHUB_SHA" ]; then
+            echo "current=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "::notice::main moved on to $tip: skipping the deploy of $GITHUB_SHA"
+          fi
+      - id: deployment
+        if: steps.tip.outputs.current == 'true'
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

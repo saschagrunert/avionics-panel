@@ -45,7 +45,9 @@ jobs:
           nix_path: nixpkgs=channel:nixpkgs-unstable
       - id: nixpkgs
         name: nixpkgs revision (cache key)
-        run: echo "rev=$(curl -sfL https://channels.nixos.org/nixpkgs-unstable/git-revision)" >>"$GITHUB_OUTPUT"
+        run: |
+          rev=$(curl -fsSL https://channels.nixos.org/nixpkgs-unstable/git-revision)
+          echo "rev=$rev" >>"$GITHUB_OUTPUT"
       # Only main saves; pull requests restore.
       - uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569 # v7
         with:

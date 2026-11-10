@@ -10,6 +10,7 @@ import types
 
 import buttonmap as BM
 
+NAMES = [n for row in BM.MATRIX for n in row]
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 
@@ -24,15 +25,31 @@ class Event:
 
 class Queue:
     def __init__(self):
-        self.items = []
+        self.items, self.overflowed = [], False
 
     def get(self):
         return self.items.pop(0) if self.items else None
 
+    def clear(self):
+        self.items, self.overflowed = [], False
+
 
 class Keys:
-    def __init__(self, *args, **kwargs):
-        self.events = Queue()
+    """a keypad: the keys physically held, and its event queue. reset() assumes every key released, so the
+    next scan reports the keys still held as fresh presses, as CircuitPython's keypad does."""
+
+    def __init__(self, hw, interval=0.020):
+        self.hw, self.events, self.held, self.resets, self.rescan = hw, Queue(), set(), 0, None
+        self.scan_ms = round(interval * 1000)
+
+    def reset(self):
+        self.resets += 1
+        self.rescan = self.hw.t + self.scan_ms
+
+    def scan(self):
+        if self.rescan == self.hw.t:
+            self.events.items += [Event(k, True) for k in sorted(self.held)]
+            self.rescan = None
 
 
 class Encoder:
@@ -61,8 +78,8 @@ class Joystick:
 class Hardware:
     """the stub modules, plus the clock that drives the script"""
 
-    def __init__(self, ms, script=None, busy=0):
-        self.t, self.ms, self.script = 0, ms, script or {}
+    def __init__(self, ms, script=None, busy=0, usb_from=0, usb_gap=(0, 0)):
+        self.t, self.ms, self.script, self.usb_from, self.usb_gap = 0, ms, script or {}, usb_from, usb_gap
         self.joysticks = [Joystick(busy), Joystick(busy)]
         self.matrix = self.direct = None
         self.encoders, self.leds, self.duty = [], [], {}
@@ -70,11 +87,11 @@ class Hardware:
 
         class Matrix(Keys):
             def __init__(self, *args, **kwargs):
-                super().__init__(); hw.matrix = self
+                super().__init__(hw, kwargs.get("interval", 0.020)); hw.matrix = self
 
         class Direct(Keys):
             def __init__(self, *args, **kwargs):
-                super().__init__(); hw.direct = self
+                super().__init__(hw, kwargs.get("interval", 0.020)); hw.direct = self
 
         class Enc(Encoder):
             def __init__(self, *args, **kwargs):
@@ -91,8 +108,13 @@ class Hardware:
             "pwmio": types.SimpleNamespace(PWMOut=Pwm),
             "rotaryio": types.SimpleNamespace(IncrementalEncoder=Enc),
             "usb_hid": types.SimpleNamespace(devices=self.joysticks),
+            "supervisor": types.SimpleNamespace(runtime=self),   # runtime.usb_connected, see below
             "time": types.SimpleNamespace(monotonic_ns=lambda: hw.t * 1_000_000, sleep=self.sleep),
         }
+
+    @property
+    def usb_connected(self):
+        return self.t >= self.usb_from and not self.usb_gap[0] <= self.t < self.usb_gap[1]
 
     def sleep(self, _seconds):
         if self.leds:                         # the LED as code.py left it in the pass for time self.t
@@ -102,6 +124,8 @@ class Hardware:
             raise Stop
         for action in self.script.get(self.t, ()):
             action(self)
+        for keys in (self.matrix, self.direct):
+            keys.scan()
 
     def run(self):
         saved = {n: sys.modules.get(n) for n in self.modules}
@@ -119,9 +143,16 @@ class Hardware:
         return self
 
 
-def press(name, pressed):
-    number = [n for row in BM.MATRIX for n in row].index(name)
-    return lambda hw: hw.matrix.events.items.append(Event(number, pressed))
+def press(name, pressed, lost=False):
+    """a matrix key goes down or up; lost: the keypad queue overflows and drops the event"""
+    def act(hw):
+        keys, number = (hw.direct, 0) if name == "FREQ_PUSH" else (hw.matrix, NAMES.index(name))
+        (keys.held.add if pressed else keys.held.discard)(number)
+        if lost:
+            keys.events.overflowed = True
+        else:
+            keys.events.items.append(Event(number, pressed))
+    return act
 
 
 def step(ring_index, by):
@@ -182,3 +213,54 @@ def test_boot_report_sizes_match_buttonmap():
     with open(os.path.join(HERE, "boot.py")) as f:
         sizes = [int(n) for n in re.findall(r"joystick\(\d+, (\d+)\)", f.read())]
     assert sizes == [BM.SIZE[1], BM.SIZE[2]]
+
+
+def test_no_reports_before_usb_connects():
+    # PC still booting: nothing is sent (send_report would block for 2 s), the loop and the light keep running
+    sent = {}
+
+    def count(hw):
+        sent[hw.t] = len(hw.joysticks[0].reports)
+    hw = Hardware(400, {10: [press("SHIFT", True)], 60: [press("SHIFT", False)], 150: [count], 300: [count]},
+                  usb_from=200).run()
+    assert hw.duty[100] > 0                              # the light came on while USB was down
+    assert sent[150] == 0 and sent[300] >= 1             # nothing sent before USB, then the current state
+
+
+def overflow(hw):
+    hw.matrix.events.overflowed = True
+
+
+def test_keypad_overflow_keeps_held_keys_pressed():
+    # events were lost while AP is held: the keypad is reset and re-reports AP, and the PC sees AP held
+    # throughout, not released and pressed again (which would toggle the autopilot off)
+    hw = Hardware(400, {10: [press("AP", True)], 100: [overflow]}).run()
+    reports = hw.joysticks[0].reports
+    first = next(i for i, r in enumerate(reports) if pressed(r, 1, "AP"))
+    assert hw.matrix.resets == 1 and all(pressed(r, 1, "AP") for r in reports[first:])
+
+
+def test_keypad_overflow_releases_a_lost_release():
+    # AP's release was among the lost events: once the keypad has rescanned, AP is released
+    hw = Hardware(400, {10: [press("AP", True)], 100: [press("AP", False, lost=True)]}).run()
+    reports = hw.joysticks[0].reports
+    assert any(pressed(r, 1, "AP") for r in reports) and not pressed(reports[-1], 1, "AP")
+
+
+def test_keypad_overflow_leaves_the_other_keypad_alone():
+    # the matrix overflows while the FREQ knob (its own keypad) is pushed: the push stays held
+    hw = Hardware(400, {10: [press("FREQ_PUSH", True)], 100: [overflow]}).run()
+    reports = hw.joysticks[0].reports
+    first = next(i for i, r in enumerate(reports) if pressed(r, 1, "FREQ_PUSH"))
+    assert all(pressed(r, 1, "FREQ_PUSH") for r in reports[first:]) and hw.direct.resets == 0
+
+
+def test_held_key_is_resent_after_usb_comes_back():
+    # the PC reboots while AP is held: the new host assumes everything released, so the panel sends AP again
+    sent = {}
+
+    def count(hw):
+        sent[hw.t] = len(hw.joysticks[0].reports)
+    hw = Hardware(400, {10: [press("AP", True)], 190: [count]}, usb_gap=(100, 200)).run()
+    reports = hw.joysticks[0].reports
+    assert len(reports) > sent[190] and pressed(reports[-1], 1, "AP")
