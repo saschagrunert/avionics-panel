@@ -138,7 +138,7 @@ tex = Image.new("RGB", (TEX, TEX), BLACK)
 dr = ImageDraw.Draw(tex)
 
 
-ICON_EM, ICON_GAP, ARROW_EM = 0.6, 0.22, 0.55   # flip-flop icon, its gap, the D-> arrow (em), as in the 3D view
+ARROW_EM = 0.55                                  # the D-> arrow (em), as in the 3D view
 
 
 def _width_em(label, font100):
@@ -146,12 +146,12 @@ def _width_em(label, font100):
     if label == "D→":
         return font100.getlength("D") / 100 + ARROW_EM
     if label.endswith("⇆"):
-        return font100.getlength(label[:-1].rstrip()) / 100 + ICON_GAP + ICON_EM
+        return font100.getlength(label[:-1].rstrip()) / 100 + S.FLIP_GAP + S.FLIP_W
     return font100.getlength(label) / 100
 
 
 def _legend_em():
-    """One legend size for every cap: the widest legend fills 84 % of the cap top (about 2.1 mm cap height)."""
+    """One legend size for every cap: the widest legend fills 84 % of the cap top (about 2.0 mm cap height)."""
     probe = ImageFont.truetype(FONT, 100)
     top_w = KEY["w"] - 2 * KEY["cham"]
     return min(3.1, min(top_w * 0.84 / _width_em(t, probe) for t in caps))     # em size in mm
@@ -167,7 +167,6 @@ def draw_label(cell, text, p):
     font = ImageFont.truetype(FONT, int(round(em)))
     colour = AMBER if text == "SHIFT" else WHITE
     cx, cy = x0 + CELL / 2, y0 + CELL / 2 + 0.04 * em
-    cap_h = 0.7 * em
     if text == "D→":                                 # Garmin direct-to: a D with an arrow through it
         dw = font.getlength("D")
         xl = cx - (dw + ARROW_EM * em) / 2
@@ -177,14 +176,12 @@ def draw_label(cell, text, p):
         dr.polygon([(xe, y), (xe - 0.26 * em, y - 0.17 * em), (xe - 0.26 * em, y + 0.17 * em)], fill=colour)
     elif text.endswith("⇆"):                         # flip-flop: text + two opposed arrows
         t = text[:-1].rstrip()
-        tw, iw, gap = font.getlength(t), ICON_EM * em, ICON_GAP * em
-        xl = cx - (tw + gap + iw) / 2
+        tw, gap = font.getlength(t), S.FLIP_GAP * em
+        xl = cx - (tw + gap + S.FLIP_W * em) / 2
         dr.text((xl, cy), t, font=font, fill=colour, anchor="lm")
-        ix, dy, hl, hh, lw = xl + tw + gap, cap_h * 0.24, 0.22 * em, 0.13 * em, max(1, round(0.075 * em))
-        dr.line([(ix, cy - dy), (ix + iw - hl, cy - dy)], fill=colour, width=lw)
-        dr.polygon([(ix + iw, cy - dy), (ix + iw - hl, cy - dy - hh), (ix + iw - hl, cy - dy + hh)], fill=colour)
-        dr.line([(ix + hl, cy + dy), (ix + iw, cy + dy)], fill=colour, width=lw)
-        dr.polygon([(ix, cy + dy), (ix + hl, cy + dy - hh), (ix + hl, cy + dy + hh)], fill=colour)
+        ix = xl + tw + gap
+        for poly in S.FLIP_ICON:
+            dr.polygon([(ix + x * em, cy + y * em) for x, y in poly], fill=colour)
     else:
         dr.text((cx, cy), text, font=font, fill=colour, anchor="mm")
     return x0, y0, ppm

@@ -8,12 +8,13 @@ What each key and knob does, and why it sits where it is. Button numbers for map
 - Designed for one-handed use: the other hand is on the HOTAS. Every function works with one hand.
 - Each knob sits next to its key group: ALT · HDG beside the autopilot keys, the frequency knob
   beside the radio keys, FMS beside the FMS keys.
-- The left side does the autopilot work and the right side does radios and navigation.
+- The left side does the autopilot work and the right side does radios and navigation. Two exceptions
+  keep the knob columns symmetric: the map's RANGE knob sits under ALT/HDG, and CRS and BARO share the
+  ALT/HDG knob behind SHIFT.
 - White legends are primary functions, amber legends are SHIFT functions. All caps are black. Two
   lights: amber whenever SHIFT applies (pulsing in its last second), white while unit 2 is selected.
-- Everything behind SHIFT can wait until the autopilot flies, apart from IDENT (SHIFT, VFR: VFR is the
-  plain function because squawking VFR is the common case in VFR flying). If both hands are needed, LVL
-  first.
+- Everything behind SHIFT can wait until the autopilot flies, apart from IDENT (SHIFT, VFR). If both
+  hands are needed, LVL first.
 
 ## SHIFT
 
@@ -31,7 +32,7 @@ SHIFT is tapped, never held. For keys it is one-shot; a knob keeps it while in u
   entry), a tap arms SHIFT for the next key instead, so SHIFT, VFR gives IDENT with one tap. The VFR key
   alone sends VFR, even right after a squawk entry: VFR is the plain function because squawking VFR is
   the common case in VFR flying; to ident, tap SHIFT first.
-- Keys and knobs without an amber legend still send their own shifted button. The default profiles
+- Keys and knobs without an amber legend still send their own shifted button. The planned default profiles
   map it to the same function as the plain control, so a stray SHIFT before DN or ENT does no harm,
   and the slot stays free for personal mappings. The FMS knob is the exception: with SHIFT it works the
   cockpit lighting, so a stray SHIFT before it changes a light level or toggles the cabin light instead
@@ -52,18 +53,19 @@ the autopilot.
 ## Workflows
 
 Takeoff: turn ALT (outer ring, left knob) to the cleared altitude, push the knob (HDG SYNC), press
-HDG and FLC, hold UP or DN to the climb speed. After takeoff: SHIFT, YD (where installed), then AP.
+HDG and FLC, hold UP or DN to the climb speed. After takeoff: SHIFT, FD (YD, where installed), then AP.
 Descent: set the new altitude, press VS, hold DN to -500 to -1000 ft/min; ALT captures.
 Tuning: push the frequency knob to choose COM, NAV or ADF, turn outer (MHz) and inner (kHz), then press
-COM ⇆ or NAV ⇆ (SHIFT, NAV ⇆ for the ADF). UNIT first for COM 2 / NAV 2.
-Squawk: SHIFT, then turn the frequency knob (outer: first two digits, inner: last two). IDENT: SHIFT, VFR.
+COM ⇆ or NAV ⇆ (SHIFT, NAV ⇆ for the ADF). SHIFT, HOME (UNIT) first for COM 2 / NAV 2.
+Squawk: SHIFT, then turn the frequency knob (outer: first two digits, inner: last two). Ident: SHIFT, VFR
+(IDENT).
 
 ## Knobs
 
 | Position | Part | Turn | Push | With SHIFT |
 | --- | --- | --- | --- | --- |
 | Left top | dual encoder, Ø22 / Ø13 knobs | outer ALT, inner HDG | HDG SYNC | outer CRS, inner BARO, push STD |
-| Left bottom | multi-control: turn, tilt 4 ways, push | RANGE | map pointer | none |
+| Left bottom | multi-control: turn, tilt 4 ways, push | RANGE | map pointer | own buttons, free for personal mappings |
 | Right top | dual encoder, Ø22 / Ø13 knobs | frequency: outer MHz, inner kHz (ADF: outer 100s, inner 1s) | cycles the knob through COM, NAV and ADF standby frequency (ADF only in aircraft that have one; COM/NAV is C/V on the GNS 430) | squawk code, push XPDR mode |
 | Right bottom | dual encoder, Ø24 / Ø13 knobs, the largest knob as on the G1000 | outer page group, inner page | cursor | lighting: outer panel lights, inner glareshield flood, push cabin light |
 
@@ -75,15 +77,15 @@ Reddit feedback asked for CRS and BARO on their own knob, as on the G1000 bezel.
 purpose: a knob stays shifted while it is turned (both rings, 3 s after the last detent), so setting BARO
 or a course is one tap and then turning, and a fourth dual knob would make the panel wider.
 Outer rings have a coarse knurl, inner knobs a fine one.
-Knob legends follow one pattern, all in one type size: what the rings do, outer ring first, then PUSH and
-what the push does; where one word covers both rings, it stands for both (FREQ, SQUAWK, FMS). The
-legends: ALT · HDG · PUSH SYNC, CRS · BARO · PUSH STD, RANGE · PUSH PTR (the four arrows already say
-pan), FREQ · PUSH COM/NAV/ADF, SQUAWK · PUSH XPDR, FMS · PUSH CRSR (as Garmin prints it) and
-PANEL · FLOOD · PUSH CABIN for the cockpit lighting. The texts and the angle each legend is turned
-towards the user live in `mech/stack.py`: 15°, RANGE 35°, and FMS only 5°, so the long lighting line
-keeps about 3 mm off the plate edge. The FREQ legend ends about 5.5 mm above the FMS knob; a longer one
-would run behind it. The arrow pointing away from you is hidden behind the RANGE knob when seated; the
-other three are enough.
+Knob legends follow one pattern, in one type size per colour (white 1.55 mm, amber 1.5 mm): what the
+rings do, outer ring first, then PUSH and what the push does; where one word covers both rings, it stands
+for both (FREQ, SQUAWK, FMS). The legends: ALT · HDG · PUSH SYNC, CRS · BARO · PUSH STD, RANGE · PUSH PTR
+(the four arrows already say pan), FREQ · PUSH COM/NAV/ADF, SQUAWK · PUSH XPDR, FMS · PUSH CRSR (as
+Garmin prints it) and PANEL · FLOOD · PUSH CABIN for the cockpit lighting. The texts and the angle each
+legend is turned towards the user live in `mech/stack.py`: 15°, RANGE 35°, and FMS only 5°, so the long
+lighting line keeps about 3 mm off the plate edge. The FREQ legend ends about 5.5 mm above the FMS knob;
+a longer one would run behind it. The arrow pointing away from you is hidden behind the RANGE knob when
+seated; the other three are enough.
 The cockpit lighting (Reddit feedback) sits behind SHIFT on the FMS knob instead of on knobs of its own:
 it is set once or twice per flight, a knob keeps SHIFT while it turns, so dimming is one tap and then
 turning, and more knobs would break the symmetric layout. The lighting buttons stay on the first
@@ -101,7 +103,7 @@ COM, NAV, BARO, the FMS knob and RANGE have no acceleration: frequencies already
 ring, and pages, characters and zoom steps must move exactly one per detent. The dimmers move one step
 per detent too; the profile sets the step size.
 UP and DN are keys, as on the G1000. They auto-repeat while held (first repeat after 400 ms,
-then about 8 steps per second), so -1000 ft/min takes about a second.
+then about 8 steps per second), so -1000 ft/min takes about 1.4 s.
 Knob legends are engraved on the side facing the keys; the near side of a rear knob is hidden behind
 the front knob when seated.
 
@@ -128,7 +130,8 @@ next row's caps don't hide them down to about 40° eye height (a desk is around 
 
 Audio and radio, split by an engraved line. AUDIO (left half) selects what you talk on (MIC) and
 listen to (COM; with SHIFT NAV 1, NAV 2, ADF, DME for station identifiers). It does not tune anything.
-RADIO (right half) holds the flip-flops next to the frequency knob:
+RADIO (right half) holds the CDI key, the transponder key and the flip-flops next to the frequency
+knob:
 
 | | | | |
 | --- | --- | --- | --- |
@@ -150,9 +153,9 @@ FMS, D→ / MENU / CLR / ENT next to the FMS knob as on the G1000:
 
 MAP returns to the default map page, like holding CLR on the G1000 and GNS 530/430.
 
-28 keys. UNIT switches between unit 1 and unit 2 for the FMS keys and knob (G1000 PFD/MFD, or
-GTN/430) and for the radio the frequency knob and flip-flops tune (COM 1 / NAV 1 or COM 2 / NAV 2).
-In the G1000 profile UNIT selects radio 2 only and the FMS keys always drive the MFD: on the G1000 the
-PFD and MFD share the radios, so coupling them would tune COM 2 while editing on the PFD.
-A white light next to the UNIT engraving is on while unit 2 is selected. There is no automatic
-return to unit 1, because a timeout would interrupt long flight plan edits.
+28 keys. UNIT (SHIFT, HOME) switches between unit 1 and unit 2 for the FMS keys and knob (GTN or GNS 530
+/ second unit) and for the radio the frequency knob and flip-flops tune (COM 1 / NAV 1 or COM 2 / NAV 2).
+On the G1000 UNIT selects radio 2 only and the FMS keys always drive the MFD: the PFD and MFD share the
+radios, so coupling them would tune COM 2 while editing on the PFD (the planned G1000 profile maps it
+that way). A white light next to the amber UNIT legend is on while unit 2 is selected. There is no
+automatic return to unit 1, because a timeout would interrupt long flight plan edits.

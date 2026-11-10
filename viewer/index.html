@@ -7,7 +7,6 @@
   /* the cap font is served with the page (fonts/, SIL OFL), nothing loads from a font CDN */
   @font-face { font-family: "Barlow Semi Condensed"; font-weight: 500; src: url(fonts/BarlowSemiCondensed-Medium.ttf) format("truetype"); }
   @font-face { font-family: "Barlow Semi Condensed"; font-weight: 600; src: url(fonts/BarlowSemiCondensed-SemiBold.ttf) format("truetype"); }
-  @font-face { font-family: "Barlow Semi Condensed"; font-weight: 700; src: url(fonts/BarlowSemiCondensed-Bold.ttf) format("truetype"); }
   /* layout: full-bleed 3D canvas; name and dimensions top-left, view switcher bottom-centre */
   :root {
     --bg: #e3e5e9; --ground: #d3d6db; --fg: #1c1e22; --muted: #5c6169;
@@ -58,12 +57,12 @@
   <span>drag to rotate · scroll to zoom · right-drag to pan</span>
 </div>
 <div class="bar" role="group" aria-label="View">
-  <button id="vA" class="on" type="button">Assembled</button>
-  <button id="vE" type="button">Exploded</button>
-  <button id="vT" type="button">Top</button>
-  <button id="vF" type="button">Front</button>
+  <button id="vA" class="on" type="button" aria-pressed="true">Assembled</button>
+  <button id="vE" type="button" aria-pressed="false">Exploded</button>
+  <button id="vT" type="button" aria-pressed="false">Top</button>
+  <button id="vF" type="button" aria-pressed="false">Front</button>
 </div>
-<div class="legend">anodised aluminium plate · MJF nylon wedge body, 6°<br>28 keys · 3 dual knobs · range/pan</div>
+<div class="legend"></div>
 <!-- three.js r128 (MIT, vendor/three-LICENSE) is served with the page: no request leaves the site -->
 <script src="vendor/three.min.js"></script>
 <script src="vendor/OrbitControls.js"></script>
@@ -72,7 +71,20 @@
 // ---------------- design data (mm; PCB coordinates: x to the right, y from the back edge towards the user) ----------------
 // Every dimension comes from geometry.js, which mech/make_viewer_data.py writes from pcb/board.py, mech/stack.py,
 // mech/make_mech.py and mech/make_caps.py. Only presentation lives here: labels, legends, colours, views.
+if (!window.GEOMETRY || !window.THREE || !THREE.OrbitControls) {   // a missing file would otherwise leave a blank page
+  document.body.insertAdjacentHTML('beforeend', '<div class="fail">The 3D view could not load its files (geometry.js or three.js).</div>');
+  throw new Error('geometry.js or three.js missing');
+}
 const G = window.GEOMETRY;
+// the flip-flop icon of COM ⇆ / ADF ⇆ (stack.py): polygons in em from the icon's left edge and the text middle
+const FLIP = G.flip_icon;
+function flipIcon(g, ix, y, em) {
+  for (const poly of FLIP.polys) {
+    g.beginPath();
+    poly.forEach(([x, py], i) => (i ? g.lineTo : g.moveTo).call(g, ix + x * em, y + py * em));
+    g.closePath(); g.fill();
+  }
+}
 const W = G.board.w, H = G.board.h, R = G.board.corner_r, CLEAR = G.body.clear, O = G.body.overhang;
 const WO = W + 2 * O, HO = H + 2 * O, RO = R + O;
 const PLATE_Z0 = G.plate.z0, PLATE_Z1 = G.plate.z1, Z_BOT = G.body.z_bot, Z_FLOOR = G.body.z_floor, PCB_T = G.board.t;
@@ -114,7 +126,15 @@ const AMBER = '#d9a441', WHITE_ENGR = 'rgba(228,230,234,0.92)', PLATE_BASE = '#2
 
 const backH = PLATE_Z1 - Z_BOT + SLOPE * HO;
 document.getElementById('dims').textContent =
-  `${WO.toFixed(0)} × ${HO.toFixed(0)} mm · ${(PLATE_Z1 - Z_BOT).toFixed(0)} mm at the front, ${backH.toFixed(0)} mm at the back · caps 2.5 mm proud`;
+  `${WO.toFixed(0)} × ${HO.toFixed(0)} mm · ${(PLATE_Z1 - Z_BOT).toFixed(0)} mm at the front, ${backH.toFixed(0)} mm at the back · ` +
+  `caps ${(G.keys.cap_base + G.keys.cap_height - PLATE_Z1).toFixed(1)} mm proud`;
+document.querySelector('.legend').innerHTML =
+  `anodised aluminium plate · MJF nylon wedge body, ${G.body.tilt_deg}°<br>` +
+  `${KEYS.flat().length} keys · ${Object.values(KNOBS).filter(k => k.kind === 'dual').length} dual knobs · range/pan`;
+
+// a seeded generator for the brushed texture, so the same view always renders the same pixels
+let brushSeed = 7;
+const brush = () => (brushSeed = (brushSeed * 1103515245 + 12345) % 2147483648) / 2147483648;
 
 async function main() {
   const canvas = document.getElementById('c');
@@ -127,7 +147,7 @@ async function main() {
   }
   // the legends are drawn into textures, so wait (briefly) for the condensed face
   try {
-    await Promise.race([Promise.all(['500', '600', '700'].map(w => document.fonts.load(`${w} 40px "Barlow Semi Condensed"`))),
+    await Promise.race([Promise.all(['500', '600'].map(w => document.fonts.load(`${w} 40px "Barlow Semi Condensed"`))),
                         new Promise(r => setTimeout(r, 2500))]);
   } catch (e) { /* fall back to the stack */ }
 
@@ -195,21 +215,21 @@ async function main() {
   const keyList = [];
   KEYS.forEach((row, r) => row.forEach((k, c) => { if (k) keyList.push({ x: COLS[c], y: ROWS[r], label: k[0], shift: k[1] }); }));
 
-  // text along a circle, centred on angle `mid` (0 = towards +x, y towards the user). Letters face outward on
-  // the far half and inward on the near half, so no legend is ever upside down for the seated user.
-  // one legend in one font, letters along an arc
+  // one legend in one font along a circle, centred on angle `mid` (0 = towards +x, y towards the user). The
+  // letters face outward on the far half and inward on the near half; the side is chosen once per legend,
+  // by its centre, so the ends of a long legend can lean past sideways (accepted, see docs/controls.md).
   function arcText(g, text, font, cx, cy, r, mid, color, track) {
     const near = Math.sin(mid) > 0.01;
-    g.save(); g.fillStyle = color; g.textAlign = 'center'; g.textBaseline = 'middle';
-    const chars = [...text].map(ch => ({ ch, font }));
-    const ws = chars.map(c => { g.font = c.font; return g.measureText(c.ch).width + track; });
+    g.save(); g.fillStyle = color; g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = font;
+    const chars = [...text];
+    const ws = chars.map(ch => g.measureText(ch).width + track);
     const total = ws.reduce((a, b) => a + b, 0) - track;
     let acc = 0;
-    chars.forEach((c, i) => {
+    chars.forEach((ch, i) => {
       const off = (acc + (ws[i] - track) / 2 - total / 2) / r;
       const a = near ? mid - off : mid + off;
-      g.save(); g.font = c.font; g.translate(cx + r * Math.cos(a), cy + r * Math.sin(a));
-      g.rotate(near ? a - Math.PI / 2 : a + Math.PI / 2); g.fillText(c.ch, 0, 0); g.restore();
+      g.save(); g.translate(cx + r * Math.cos(a), cy + r * Math.sin(a));
+      g.rotate(near ? a - Math.PI / 2 : a + Math.PI / 2); g.fillText(ch, 0, 0); g.restore();
       acc += ws[i];
     });
     g.restore();
@@ -336,14 +356,19 @@ async function main() {
     const X = x => (x + O) * ppm, Y = y => (y + O) * ppm;
     g.fillStyle = PLATE_BASE; g.fillRect(0, 0, c.width, c.height);
     for (let y = 0; y < c.height; y += 1) {
-      g.strokeStyle = `rgba(255,255,255,${(Math.random() * 0.05).toFixed(3)})`; g.lineWidth = 1;
+      g.strokeStyle = `rgba(255,255,255,${(brush() * 0.05).toFixed(3)})`; g.lineWidth = 1;
       g.beginPath(); g.moveTo(0, y + 0.5); g.lineTo(c.width, y + 0.5); g.stroke();
     }
     const mmFont = (mm, weight = 600) => `${weight} ${Math.round(mm * ppm / 0.72)}px ${CAP_FONT}`;
+    // width of a letter-spaced text: spaced() draws it, flipLegend() centres text and icon with it
+    const spacedWidth = (text, font, trackMm) => {
+      g.font = font;
+      const chars = [...text];
+      return chars.reduce((a, ch) => a + g.measureText(ch).width, 0) + trackMm * ppm * (chars.length - 1);
+    };
     const spaced = (text, x, y, font, color, trackMm, align = 'center') => {
-      g.font = font; g.fillStyle = color; g.textBaseline = 'middle';
-      const chars = [...text], ws = chars.map(ch => g.measureText(ch).width);
-      const total = ws.reduce((a, b) => a + b, 0) + trackMm * ppm * (chars.length - 1);
+      const total = spacedWidth(text, font, trackMm), chars = [...text], ws = chars.map(ch => g.measureText(ch).width);
+      g.fillStyle = color; g.textBaseline = 'middle';
       let cx = align === 'center' ? x - total / 2 : x;
       g.textAlign = 'left';
       chars.forEach((ch, i) => { g.fillText(ch, cx, y); cx += ws[i] + trackMm * ppm; });
@@ -373,7 +398,19 @@ async function main() {
     }
     // shift legends under the keys (amber = shifted, as on the SHIFT cap)
     // 1.7 mm tall, centred 1.6 mm below the cap: clear of the hole chamfer (0.7 mm) and of the next row's caps down to ~40° eye height
-    for (const k of keyList) if (k.shift) spaced(k.shift, X(k.x), Y(k.y + CAP[1] / 2 + 1.6), mmFont(1.7, 600), AMBER, 0.08);
+    // a legend ending in the flip-flop arrows gets the same two-arrow icon as the caps (right arrow on top)
+    const flipLegend = (text, x, y, font, em, color, trackMm) => {
+      const body = text.slice(0, -1).trimEnd();
+      const tw = spacedWidth(body, font, trackMm);
+      const x0 = x - (tw + (FLIP.gap + FLIP.w) * em) / 2;
+      spaced(body, x0, y, font, color, trackMm, 'left');
+      g.fillStyle = color; flipIcon(g, x0 + tw + FLIP.gap * em, y, em);
+    };
+    for (const k of keyList) if (k.shift) {
+      const y = Y(k.y + CAP[1] / 2 + 1.6), font = mmFont(1.7, 600);
+      if (k.shift.endsWith('⇆')) flipLegend(k.shift, X(k.x), y, font, 1.7 * ppm / 0.72, AMBER, 0.08);
+      else spaced(k.shift, X(k.x), y, font, AMBER, 0.08);
+    }
     // knob legends on arcs: white = turn, amber = with SHIFT
     // legends on the side facing the keys: seated, the near side of a rear knob is hidden behind the front knob
     for (const k of Object.values(KNOBS)) {
@@ -421,11 +458,10 @@ async function main() {
   const capsG = new THREE.Group(); assembly.add(capsG);
   const CB = G.keys.cap_chamfer, CAP_TOP = [CAP[0] - 2 * CB, CAP[1] - 2 * CB];
   const meas = document.createElement('canvas').getContext('2d');
-  const ICON_EM = 0.6;                                   // width of the flip-flop icon in em; narrow, so COM ⇆ doesn't shrink every legend
   function labelWidthEm(label) {
     meas.font = `600 100px ${CAP_FONT}`;
     if (label === 'D→') return meas.measureText('D').width / 100 + 0.55;
-    if (label.endsWith('⇆')) return meas.measureText(label.slice(0, -1).trimEnd()).width / 100 + 0.22 + ICON_EM;
+    if (label.endsWith('⇆')) return meas.measureText(label.slice(0, -1).trimEnd()).width / 100 + FLIP.gap + FLIP.w;
     return meas.measureText(label).width / 100;
   }
   const EM_MM = Math.min(3.1, ...keyList.map(k => CAP_TOP[0] * 0.84 / labelWidthEm(k.label)));
@@ -436,7 +472,6 @@ async function main() {
     g.fillStyle = bg; g.fillRect(0, 0, c.width, c.height);
     const em = EM_MM * k, cx = c.width / 2, cy = c.height / 2 + 0.04 * em;
     g.font = `600 ${em}px ${CAP_FONT}`; g.fillStyle = color; g.strokeStyle = color; g.textBaseline = 'middle';
-    const capH = 0.7 * em;
     if (label === 'D→') {                                // Garmin direct-to: a D with an arrow through it
       const dw = g.measureText('D').width, x0 = cx - (dw + 0.55 * em) / 2;
       g.textAlign = 'left'; g.fillText('D', x0, cy);
@@ -445,15 +480,9 @@ async function main() {
       g.beginPath(); g.moveTo(x0 - 0.12 * em, y); g.lineTo(xe - 0.2 * em, y); g.stroke();
       g.beginPath(); g.moveTo(xe, y); g.lineTo(xe - 0.26 * em, y - 0.17 * em); g.lineTo(xe - 0.26 * em, y + 0.17 * em); g.closePath(); g.fill();
     } else if (label.endsWith('⇆')) {                    // flip-flop: text + two opposed arrows
-      const t = label.slice(0, -1).trimEnd(), tw = g.measureText(t).width, iw = ICON_EM * em, gap = 0.22 * em;
-      const x0 = cx - (tw + gap + iw) / 2;
+      const t = label.slice(0, -1).trimEnd(), tw = g.measureText(t).width, x0 = cx - (tw + (FLIP.gap + FLIP.w) * em) / 2;
       g.textAlign = 'left'; g.fillText(t, x0, cy);
-      const ix = x0 + tw + gap, dy = capH * 0.24, hl = 0.22 * em, hh = 0.13 * em;
-      g.lineWidth = 0.075 * em;
-      g.beginPath(); g.moveTo(ix, cy - dy); g.lineTo(ix + iw - hl, cy - dy); g.stroke();
-      g.beginPath(); g.moveTo(ix + iw, cy - dy); g.lineTo(ix + iw - hl, cy - dy - hh); g.lineTo(ix + iw - hl, cy - dy + hh); g.closePath(); g.fill();
-      g.beginPath(); g.moveTo(ix + hl, cy + dy); g.lineTo(ix + iw, cy + dy); g.stroke();
-      g.beginPath(); g.moveTo(ix, cy + dy); g.lineTo(ix + hl, cy + dy - hh); g.lineTo(ix + hl, cy + dy + hh); g.closePath(); g.fill();
+      flipIcon(g, x0 + tw + FLIP.gap * em, cy, em);
     } else {
       g.textAlign = 'center'; g.fillText(label, cx, cy);
     }
@@ -536,7 +565,9 @@ async function main() {
   function go(key) {
     from.pos.copy(camera.position); from.tgt.copy(controls.target); from.explode = state.explode;
     cur = views[key]; t = reduce ? 1 : 0; controls.enabled = false;
-    for (const b of document.querySelectorAll('.bar button')) b.classList.toggle('on', b.id === 'v' + key);
+    for (const b of document.querySelectorAll('.bar button')) {
+      b.classList.toggle('on', b.id === 'v' + key); b.setAttribute('aria-pressed', String(b.id === 'v' + key));
+    }
   }
   for (const k of ['A', 'E', 'T', 'F']) document.getElementById('v' + k).addEventListener('click', () => go(k));
   // clean stills for sharing: #shot-a / -e / -t / -f / -h hide the page UI and jump to that view (h = hero close-up);

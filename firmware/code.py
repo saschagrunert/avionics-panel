@@ -12,6 +12,7 @@ import keypad
 import microcontroller
 import pwmio
 import rotaryio
+import supervisor
 import usb_hid
 from panel import Panel
 
@@ -51,29 +52,66 @@ devices = [d for d in usb_hid.devices if d.usage_page == 0x01 and d.usage == 0x0
 if len(devices) < 2:
     raise RuntimeError("joysticks missing: copy boot.py and replug the panel")
 
-matrix = keypad.KeyMatrix(ROW_PINS, COL_PINS, columns_to_anodes=True)   # diode anodes on the columns
-direct = keypad.Keys((FREQ_PUSH,), value_when_pressed=False, pull=True)
+# Both keypads scan every KEY_SCAN s, and RESYNC_MS below follows it. debounce_threshold stays at its default
+# (1), so a reset keypad reports the keys still held within one scan; a higher threshold delays that by one
+# scan per step, so RESYNC_MS would have to grow with it.
+KEY_SCAN = 0.020
+matrix = keypad.KeyMatrix(ROW_PINS, COL_PINS, columns_to_anodes=True, interval=KEY_SCAN)   # anodes on columns
+direct = keypad.Keys((FREQ_PUSH,), value_when_pressed=False, pull=True, interval=KEY_SCAN)
 encoders = [rotaryio.IncrementalEncoder(a, b, divisor=2) for _, a, b, _ in RINGS]   # 30 detents / 15 pulses
 last = [e.position for e in encoders]
 leds = [pwmio.PWMOut(SHIFT_LED, frequency=1000), pwmio.PWMOut(UNIT_LED, frequency=1000) if UNIT_LED else None]
 unit_shown = None
 shift_shown = None
-NAMES = [n for row in BM.MATRIX for n in row]
 panel = Panel()
+RESYNC_MS = 3 * round(KEY_SCAN * 1000)   # three scans: the keys still held are reported within one
+
+
+class Source:
+    """One keypad: passes its events to the panel and recovers from lost ones. After an overflow the keypad
+    is reset and reports every key still held as a fresh press. A key the panel already has down keeps its
+    press (no release and second press for the PC, which would toggle AP off again); a key it has down but
+    that is not reported again within RESYNC_MS lost its release, and only that one is released."""
+
+    def __init__(self, keys, names):
+        self.keys, self.names = keys, names
+        self.down = set()          # key numbers the panel has as pressed
+        self.resync = None         # after an overflow: (end ms, key numbers reported again)
+
+    def poll(self, t):
+        if self.keys.events.overflowed:
+            self.keys.events.clear()
+            self.keys.reset()
+            self.resync = (t + RESYNC_MS, set())
+        ev = self.keys.events.get()
+        while ev:
+            k = ev.key_number
+            if not ev.pressed:
+                self.down.discard(k)
+                panel.key(self.names[k], False, t)
+            elif self.resync and k in self.down:
+                self.resync[1].add(k)
+            else:
+                self.down.add(k)
+                panel.key(self.names[k], True, t)
+            ev = self.keys.events.get()
+        if self.resync and t >= self.resync[0]:
+            for k in [k for k in self.down if k not in self.resync[1]]:
+                self.down.discard(k)
+                panel.key(self.names[k], False, t)
+            self.resync = None
+
+
+# each keypad on its own: an overflow on one leaves the keys held on the other alone
+sources = (Source(matrix, [n for row in BM.MATRIX for n in row]), Source(direct, ["FREQ_PUSH"]))
 reports = {1: bytearray(BM.SIZE[1] // 8), 2: bytearray(BM.SIZE[2] // 8)}
 sent = {1: None, 2: None}
 print("Avionics Panel rev 1 ready")
 
 while True:
     t = time.monotonic_ns() // 1_000_000
-    ev = matrix.events.get()
-    while ev:
-        panel.key(NAMES[ev.key_number], ev.pressed, t)
-        ev = matrix.events.get()
-    ev = direct.events.get()
-    while ev:
-        panel.key("FREQ_PUSH", ev.pressed, t)
-        ev = direct.events.get()
+    for src in sources:
+        src.poll(t)
     for i, enc in enumerate(encoders):
         pos = enc.position
         if pos != last[i]:
@@ -96,8 +134,14 @@ while True:
             rep[k] = 0
         for b in panel.buttons(n):
             rep[b >> 3] |= 1 << (b & 7)
+        # send_report waits up to 2 s for the host: only send while USB is connected (not while the PC is
+        # booting or on a charger), or the loop, the light and every timer would stall
+        if not supervisor.runtime.usb_connected:
+            sent[n] = None                       # a host that comes back assumes all released: resend
+            continue
         if rep != sent[n]:
-            try:                                 # host not ready (PC booting, asleep, charger only): retry next loop
+            # a host that is asleep probably still counts as connected, so this can still block there
+            try:                                 # host not ready after all: retry next loop
                 dev.send_report(rep)
                 sent[n] = bytes(rep)
             except OSError:

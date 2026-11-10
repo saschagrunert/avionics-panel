@@ -4,6 +4,16 @@
 # Needs Nix (nix-shell) for the Python environments; stops at the first failed check.
 set -euo pipefail
 cd "$(dirname "$0")"
+case "${1:-}" in
+  "" | --route) ;;
+  *)
+    echo "usage: ./build.sh [--route]" >&2
+    exit 2
+    ;;
+esac
+export PYTHONUNBUFFERED=1 # progress shows up as it happens, also through the filters below
+# start clean: an output a generator no longer writes must not survive into production/
+rm -rf pcb/avionics-panel-rev1-* mech/avionics-panel-rev1-* # (make.py clears pcb/gerbers itself)
 GEN='python3.withPackages (ps: with ps; [ numpy scipy matplotlib scikit-image pillow ])'
 OCC='python3.withPackages (ps: with ps; [ pythonocc-core numpy matplotlib ])'
 gen() { (cd "$1" && nix-shell -p "$GEN" librsvg --run "$2"); }
@@ -21,10 +31,14 @@ echo "== body, plate, knobs, fits"
 occ mech "python3 make_mech.py && python3 make_plate_step.py && python3 make_knobs.py && python3 check_fit.py && python3 make_viewer_data.py" | sed 's/\x1b\[[0-9;]*m//g' | { grep -v '^\s*$\|\*\*\|Step File\|Transfer\|WorkSession' || true; }
 
 echo "== firmware"
-nix-shell -p "python3.withPackages (ps: [ ps.pytest ])" --run "pytest -v"
-(cd firmware && python3 buttonmap.py >BUTTONS.md && rm -rf __pycache__)
+# MicroPython (its own test suite fails to build in nixpkgs, so without it) checks the firmware compiles
+# for the board: CircuitPython uses MicroPython's parser
+MPY='(micropython.overrideAttrs (_: { doCheck = false; }))'
+REQUIRE_MICROPYTHON=1 nix-shell -p "python3.withPackages (ps: [ ps.pytest ])" "$MPY" \
+  --run "pytest -v && cd firmware && python3 make_buttons.py >BUTTONS.md && rm -rf __pycache__"
 
 echo "== copy"
+rm -f production/avionics-panel-rev1-* # a removed output then shows up as a deleted file
 cp pcb/avionics-panel-rev1-{BOM.csv,CPL.csv,THT-LCSC.csv,gerbers.zip} production/
 cp pcb/avionics-panel-rev1-schematic.pdf docs/
 cp mech/avionics-panel-rev1-{body,spacer,plate}.step mech/avionics-panel-rev1-{body,spacer}.stl \

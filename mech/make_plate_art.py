@@ -9,7 +9,6 @@ import math
 import sys
 from pathlib import Path
 
-import matplotlib
 from matplotlib.font_manager import FontProperties
 from matplotlib.textpath import TextPath, TextToPath
 
@@ -59,15 +58,7 @@ def bar(x0, y0, x1, y1, w=0.3):
     return [(x0 + nx, y0 + ny), (x1 + nx, y1 + ny), (x1 - nx, y1 - ny), (x0 - nx, y0 - ny)]
 
 
-FALLBACK = FontProperties(fname=str(Path(matplotlib.get_data_path()) / "fonts/ttf/DejaVuSans-Bold.ttf"))
-
-
-def _font(ch, fp):
-    return FALLBACK if ch == "⇆" else fp                      # Barlow has no flip-flop arrow
-
-
 def advance(ch, fp, em):
-    fp = _font(ch, fp)
     if ch == " ":
         return 0.26 * em
     w, _, _ = TTP.get_text_width_height_descent(ch, fp.copy(), ismath=False)
@@ -79,7 +70,6 @@ def glyph(ch, fp, em, x, y, rot):
     if ch == " ":
         return []
     w = advance(ch, fp, em)
-    fp = _font(ch, fp)
     tp = TextPath((0, 0), ch, size=em, prop=fp)
     out = []
     c, s = math.cos(rot), math.sin(rot)
@@ -101,6 +91,16 @@ def text(layer, s, x, y, fp, em, track=0.0, align="center"):
         layers[layer] += glyph(ch, fp, em, cx + w / 2, y, 0.0)
         cx += w + track
     return total
+
+
+def flip_legend(layer, s, x, y, fp, em, track):
+    """A legend ending in the flip-flop arrows ("ADF ⇆"): the text, then the icon from stack.py."""
+    body = s[:-1].rstrip()
+    tw = sum(advance(ch, fp, em) for ch in body) + track * (len(body) - 1)
+    x0 = x - (tw + (S.FLIP_GAP + S.FLIP_W) * em) / 2
+    text(layer, body, x0, y, fp, em, track, align="left")
+    ix = x0 + tw + S.FLIP_GAP * em
+    layers[layer] += [[(ix + px * em, y + py * em) for px, py in poly] for poly in S.FLIP_ICON]
 
 
 def arc_text(layer, segs, cx, cy, r, mid, track):
@@ -197,7 +197,9 @@ for i in range(4):                                           # pan arrows
 for rI, y in enumerate(B.ROWS):
     for cI, x in enumerate(B.COLS):
         t = SHIFT_LEGENDS[rI][cI]
-        if t:
+        if t.endswith("⇆"):
+            flip_legend("UV_ORANGE", t, x, y + CAP[1] / 2 + 1.6, SEMI, em(1.7), 0.08)
+        elif t:
             text("UV_ORANGE", t, x, y + CAP[1] / 2 + 1.6, SEMI, em(1.7), 0.08)
 
 

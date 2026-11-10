@@ -21,7 +21,7 @@ REPEAT_MS = 125          # ... then about 8 per second
 PAN_DELAY_MS = 300       # RANGE tilt: first repeat ...
 PAN_MS = 120             # ... then this often
 # RANGE tilt switches -> pan direction. Check on the first board and swap here if a direction is off.
-PAN_DIRS = {"RANGE_A": "UP", "RANGE_B": "LEFT", "RANGE_C": "DOWN", "RANGE_D": "RIGHT"}
+PAN_DIRS = {"RANGE_A": "UP", "RANGE_B": "LEFT", "RANGE_C": "DN", "RANGE_D": "RIGHT"}
 FREQ_MODES = ("COM", "NAV", "ADF")
 
 

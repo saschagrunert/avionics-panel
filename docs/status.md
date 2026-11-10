@@ -4,7 +4,8 @@ Rev 1 is designed and checked; nothing is ordered yet.
 
 ## Before ordering
 
-- Upload the current files to the three quotes (see the [checklist](ordering.md#checklist)).
+- Upload the current files to the three quotes (JLCPCB, JLC3DP, JLCCNC; see the
+  [checklist](ordering.md#checklist)).
 - JLCCNC reviews the plate before payment. Ask in the remark whether they accept the blind M2.5
   threads (1.2 mm full thread in a 2.2 mm drill, 0.8 mm left to the front), and watch for a flag on the
   0.5 mm webs between the light holes and the SHIFT and UNIT key holes; if they flag those, shrink the
@@ -26,7 +27,7 @@ Rev 1 is designed and checked; nothing is ordered yet.
 ## In the sim
 
 - Verify which GTN 750Xi functions TDS exposes as events. HOME, D→ and the knob are bezel controls;
-  FPL, PROC, MENU, CLR, ENT, MSG, NRST, TERR, VNAV, CDI and OBS are touchscreen functions on the real
+  FPL, PROC, MENU, CLR, ENT, MSG, NRST, TERR, VNAV, MAP, CDI and OBS are touchscreen functions on the real
   GTN and only work from the panel if TDS offers events for them.
 - One MobiFlight profile per avionics family (G1000, GTN 750Xi, GNS 530/430, Bendix/King, GFC 500/G3X),
   following the [compatibility tables](compatibility.md) and [BUTTONS.md](../firmware/BUTTONS.md).
@@ -56,3 +57,7 @@ Rev 1 is designed and checked; nothing is ordered yet.
 - Third review: tactile bars on the SHIFT, UP and DN caps are now part of the printed mesh, the flash
   footprint follows JLC's of C2456211 (rows 5.37 mm apart), the fan-out breakout points stay under the solder
   mask, the viewer serves its fonts and three.js itself (no Google Fonts, no CDN), Apache-2.0 license.
+- Reddit and review follow-ups (2026-11-10): the SHIFT light pulses before SHIFT drops out, cockpit
+  lighting on SHIFT and the FMS knob, VFR as the plain key with IDENT behind SHIFT, consistent knob
+  legends, one renumbering of the joystick buttons (frozen from the first build on), and the firmware
+  checked to compile with MicroPython.

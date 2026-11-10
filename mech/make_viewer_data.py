@@ -54,6 +54,7 @@ geometry = {
              "cap_chamfer": key["cham"], "cap_base": PLUNGER_TOP - key["sock_d"], "plunger_top": PLUNGER_TOP,
              "bar": bar},
     "key_legends": S.KEY_LEGENDS,
+    "flip_icon": {"w": S.FLIP_W, "gap": S.FLIP_GAP, "polys": S.FLIP_ICON},
     "knobs": {name: {"x": x, "y": y, "d": S.KNOB_D.get(name), "legend_tilt": S.KNOB_LEGEND_TILT[name],
                      "legend": S.KNOB_LEGENDS[name][0], "legend_shift": S.KNOB_LEGENDS[name][1]}
               for name, (x, y) in (("ALTHDG", B.ALTHDG), ("FREQ", B.FREQ), ("FMS", B.FMS), ("RANGE", B.RANGE))},

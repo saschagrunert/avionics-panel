@@ -3,6 +3,7 @@ import json
 import math
 import os
 import pickle
+import shutil
 import zipfile
 
 import board as B
@@ -12,7 +13,8 @@ from matplotlib.path import Path
 from matplotlib.textpath import TextPath
 
 OUT = "gerbers"
-os.makedirs(OUT, exist_ok=True)
+shutil.rmtree(OUT, ignore_errors=True)       # the zip takes every file here: no leftovers from older runs
+os.makedirs(OUT)
 FONT = FontProperties(family="DejaVu Sans", weight="bold")
 
 with open("routed.json") as f:
