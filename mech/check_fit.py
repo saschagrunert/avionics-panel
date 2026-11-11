@@ -31,6 +31,7 @@ import stack as S  # noqa: E402
 from occ_util import move  # noqa: E402
 
 assert S.PCB_HOLE == B.MOUNT_HOLE, "the board's mounting holes must be the ones the glued standoffs need"
+assert S.MID_PCB_HOLE == B.MID_HOLE, "the board's centre hole must be the one the centre standoff needs"
 
 
 def section(shape, y):
@@ -402,15 +403,42 @@ def body_measures(tri):
     return min(cb), min(wall), min(seat), min(pads)
 
 
+def mid_head_room(tri, reach):
+    """measured on the body mesh (board frame): the least room under the PCB within reach of the centre hole, from
+    the PCB underside down to the body (the centre screw's washer and pan head sit there)."""
+    x, y = B.MID_MOUNT
+    tri_m = near(tri, x, y, reach + 3.0)
+    pts = np.concatenate([ring(x, y, -S.PCB_T - 0.01, r, 36)[0] for r in np.linspace(0.0, reach, 8)])
+    return ray_hits(tri_m, pts, (0, 0, -1)).min() + 0.01
+
+
+def mid_copper():
+    """edge-to-edge distance from the centre hole's centre to the nearest copper on F or B (pads from board.py, traces
+    and vias from pcb/routed.json, geometrically; pcb/check.py measures the same on the Gerbers), and what it is."""
+    import json
+
+    from geom import item_dist, pad_geom
+    pads = B.build()
+    with open(HERE.parent / "pcb" / "routed.json") as f:
+        rd = json.load(f)
+    c = ("cap", *B.MID_MOUNT, *B.MID_MOUNT, 0.0)
+    near_ = [(item_dist(pad_geom(p), c), f"pad {p.name}") for p in pads if set(p.layers) & set("FB")]
+    near_ += [(item_dist(("cap", x1, y1, x2, y2, w / 2), c), f"{net} on {ly}") for x1, y1, x2, y2, ly, net, w in
+              rd["segments"] if ly in "FB"]
+    near_ += [(item_dist(("cap", x, y, x, y, d / 2), c), f"via {net}") for x, y, net, d, _dr in rd["vias"]]
+    return min(near_)
+
+
 def plate_measures(tri):
     """measured on the plate mesh (plate frame, back face at z 0): the narrowest encoder pocket across its lugs
-    (along x, 1 mm into the pocket) and the shallowest standoff pocket."""
+    (along x, 1 mm into the pocket), the shallowest corner standoff pocket and the centre pocket's depth."""
     widths = []
     for name in ("ALTHDG", "FREQ", "FMS"):
         cx, cy = PS.P(*getattr(B, name))
         widths.append(sum(ray_hit(tri, np.array([cx, cy, 1.0]), np.array([sx, 0.0, 0.0])) for sx in (-1.0, 1.0)))
     depths = [ray_hit(tri, np.array([*PS.P(mx, my), -1.0]), np.array([0.0, 0.0, 1.0])) - 1.0 for mx, my in B.MOUNTS]
-    return min(widths), min(depths)
+    mid = ray_hit(tri, np.array([*PS.P(*B.MID_MOUNT), -1.0]), np.array([0.0, 0.0, 1.0])) - 1.0
+    return min(widths), min(depths), mid
 
 
 def rib_width(name, z=1.5):
@@ -536,7 +564,7 @@ def cap_rows(face_lo, bow_dn):
         (f"cap seats on the plunger top: cap bottom over the switch body ({S.SWITCH_BODY_TOP:.1f}), pressed",
          c["base"] - S.KEY_TRAVEL - S.PLUNGER_TOP_TOL - S.SWITCH_BODY_TOP),
         # The plate bowed towards the board at the key nearest its middle, the board taken flat: a board bowed
-        # towards the plate (PCB_BOW, SUPPORT_LIFT) lifts the caps in the middle by up to 0.15, and with it the
+        # towards the plate (PCB_BOW, MID_PRELOAD) lifts the caps in the middle by up to 0.14, and with it the
         # socket ceiling, a cosmetic limit (the socket stays inside the cap). The pressed cap's row is in
         # clearances(), for a firm press (stack.PRESS_FIRM).
         (f"cap socket ceiling (on the plunger top, +{S.PLUNGER_TOP_TOL}) under the lowest plate face, plate bowed "
@@ -736,12 +764,13 @@ def steel_row():
             f"-{mjf(rw):.2f} / -{mjf(rd):.1f}), and between notches, per side", min(gaps))
 
 
-def pocket_web():
-    """least plate left between a standoff pocket and any other plate feature or the plate edge."""
-    r = S.STANDOFF_POCKET["d"] / 2 + S.STANDOFF_POCKET["d_tol"] / 2
+def pocket_web(centres=None, pocket=S.STANDOFF_POCKET):
+    """least plate left between a standoff pocket (the corner ones unless given) and any other plate feature or the
+    plate edge, the pocket at +d_tol and off its place by the drawing's position tolerance."""
+    r = pocket["d"] / 2 + pocket["d_tol"] / 2 + S.POS_TOL["plate"]
     w, h, cr, _ = S.EC11_POCKET
     webs = []
-    for mx, my in B.MOUNTS:
+    for mx, my in centres or B.MOUNTS:
         d = [rrect_sd(mx - x, my - y, *key_hole_max()) for y in B.ROWS for x in B.COLS]
         d += [rrect_sd(mx - x, my - y, w, h, cr) for x, y in (B.ALTHDG, B.FREQ, B.FMS)]
         d += [math.hypot(mx - B.RANGE[0], my - B.RANGE[1]) - S.RANGE_POCKET[0] / 2]
@@ -749,6 +778,89 @@ def pocket_web():
         d += [-rrect_sd(mx - B.W / 2, my - B.H / 2, B.W + 2 * S.OVH, B.H + 2 * S.OVH, B.CORNER_R + S.OVH)]
         webs.append(min(d) - r)
     return min(webs)
+
+
+def mid_standoff_rows(board, mid_depth, body_tri):
+    """the centre standoff (stack.MID_*): the corners' M2.5 hex, glued into a blind pocket in the plate back that its
+    end never reaches, screwed to the board by the corners' M2.5 pan head and washer from below, with no counterbore
+    to hold the washer. board: how far the caps let the board sit off the plate's key pattern; mid_depth: the centre
+    pocket measured on the plate; body_tri: the body mesh."""
+    pt, an = S.POS_TOL, S.ANODISE
+    ms, mp, sc, w = S.MID_STANDOFF, S.MID_POCKET, S.MID_SCREW, S.MID_WASHER
+    so, sp = S.STANDOFF, S.STANDOFF_POCKET
+    x, y = B.MID_MOUNT
+    hole, ko = B.MID_HOLE, B.MID_KEEPOUT
+    hole_lo, hole_hi = (hole - pt["npth_d"]) / 2, (hole + pt["npth_d"]) / 2
+    off = hole_hi - sc["d_min"] / 2 + pt["thread"]      # standoff axis off the hole axis: the screw's play
+    s_off = hole_hi - sc["d_min"] / 2                   # screw against the hole wall
+    w_play = (w["bore_max"] - sc["d_min"]) / 2          # washer sliding on the screw
+    w_reach = w["od"] / 2 + w_play + s_off              # washer edge from the hole centre, worst
+    float_min = (mp["d"] - an) / 2 - ms["ac"] / 2
+    need = pt["plate"] + pt["pcb"] + board - (hole_lo - sc["d"] / 2)
+    # heights over the PCB top: the centre pocket floor stands over the corner standoffs' plane by the depth
+    # difference (anodising moves all floors and the back face alike), the plate there bowed towards the board and the
+    # board bowed and sagged (stack.MID_PRELOAD) towards the plate: the standoff must never reach the floor. The
+    # other way round, back face high, both bowed apart: it must still reach the buttered band (stack.MID_GLUE) into
+    # the pocket. A board bowed away by PCB_BOW_AWAY to PCB_BOW_AWAY_MAX gets one more washer under the standoff.
+    bow = S.PLATE_FLAT * plate_bow(x, y)
+    floor_lo = (so["L"] - so["L_tol"]) - sp["depth"] + mid_depth
+    gap = floor_lo - (ms["L"] + ms["L_tol"]) - bow - S.PCB_BOW - S.MID_PRELOAD
+    floor_hi = (so["L"] + so["L_tol"]) - (sp["depth"] - sp["depth_tol"]) + mid_depth + mp["depth_tol"]
+    back_hi = (so["L"] + so["L_tol"]) - (sp["depth"] - sp["depth_tol"]) + bow
+    gap_hi = floor_hi + bow + S.PCB_BOW_AWAY - (ms["L"] - ms["L_tol"])
+    band = ms["L"] - ms["L_tol"] - back_hi - S.PCB_BOW_AWAY
+    shim_lo, shim_hi = w["t"] - w["t_tol"], w["t"] + w["t_tol"]
+    gap_shim = floor_lo - (ms["L"] + ms["L_tol"]) - bow - S.MID_PRELOAD + S.PCB_BOW_AWAY - shim_hi
+    band_shim = ms["L"] - ms["L_tol"] + shim_lo - back_hi - S.PCB_BOW_AWAY_MAX
+    # the glue band in shear carries the standoff's share of a firm press (at most all of it): the band length that
+    # takes it at MID_GLUE_SHEAR round the hex
+    glue = S.PRESS_FIRM / (6 * ms["af_min"] / math.sqrt(3) * S.MID_GLUE_SHEAR)
+    # screw: head, washer, PCB, standoff thread (no boss: the same as a corner screw clamping the board without the
+    # body while the centre standoff cures, assembly step 9)
+    pcb_tol = S.STACK_TOL["pcb"]
+    tip_lo = (sc["L"] - sc["L_tol"]) - (w["t"] + w["t_tol"]) - (S.PCB_T + pcb_tol)
+    tip_hi = (sc["L"] + sc["L_tol"]) - (w["t"] - w["t_tol"]) - (S.PCB_T - pcb_tol)
+    engaged = tip_lo - sc["tip"] - ms["chamfer"]
+    plug = ms["L"] - ms["L_tol"] - S.PLUG_DEPTH
+    room = mid_head_room(body_tri, w_reach)
+    cu, cu_at = mid_copper()
+    t_min = S.PLATE_T - S.PLATE_T_TOL
+    return [
+        (f"centre standoff on the board enters its pocket (pocket {mp['d']} anodised, board {board:.2f} off, "
+         f"screw play)", float_min - need),
+        (f"centre pocket ({mp['d']} +{mp['d_tol']}, +-{pt['plate']} on its position) to the nearest plate feature or "
+         "edge, beyond 1.0", pocket_web([B.MID_MOUNT], mp) - 1.0),
+        (f"plate left in front of the centre pocket ({mid_depth:.2f} deep measured on the plate, "
+         f"+{mp['depth_tol']}), thin plate, beyond 1.0", t_min - mid_depth - mp["depth_tol"] - 1.0),
+        (f"centre standoff never reaches its pocket floor (floating): pocket {mid_depth:.2f} deep, standoffs "
+         f"+-{ms['L_tol']}, corner pockets -{sp['depth_tol']}, plate bowed {bow:.3f} and board {S.PCB_BOW} towards "
+         f"each other, pre-load {S.MID_PRELOAD}", gap),
+        (f"centre standoff reaches its glue band ({S.MID_GLUE}) into the pocket (back face high, bowed {bow:.3f} and "
+         f"{S.PCB_BOW_AWAY} apart; floor {gap_hi:.2f} beyond its end)", band - S.MID_GLUE),
+        (f"board bowed away {S.PCB_BOW_AWAY} to {S.PCB_BOW_AWAY_MAX}, one more washer ({w['t']} +-{w['t_tol']}) under "
+         "the centre standoff: it never reaches its pocket floor", gap_shim),
+        ("the same, it still reaches its glue band into the pocket", band_shim - S.MID_GLUE),
+        (f"centre glue band ({S.MID_GLUE} of the hex) over the {glue:.2f} that carries a firm {S.PRESS_FIRM:.0f} N "
+         f"press in shear at {S.MID_GLUE_SHEAR:.0f} MPa", S.MID_GLUE - glue),
+        (f"centre screw passes the narrowest PCB hole ({hole} -{pt['npth_d']})", hole_lo - sc["d"] / 2),
+        (f"centre standoff end (AF {ms['af_min']} min, {off:.2f} off) covers the widest PCB hole all round",
+         ms["af_min"] / 2 - off - hole_hi),
+        (f"centre standoff corners (AC {ms['ac']}) inside the {ko} mm copper keep-out", ko - ms["ac"] / 2 - off),
+        (f"centre washer (OD {w['od']}, slid {w_play:.2f} on the screw against the hole wall; no counterbore) inside "
+         f"the {ko} mm copper keep-out", ko - w_reach),
+        (f"copper on F and B outside the centre keep-out ({ko}): nearest {cu_at} at {cu:.3f} (board.py, routed.json)",
+         cu - ko),
+        (f"centre washer (OD {w['od_min']} min) bears all round the widest PCB hole",
+         w["od_min"] / 2 - w_play - s_off - hole_hi),
+        (f"centre pan head (dk {sc['head_d_min']} min) covers the washer bore",
+         sc["head_d_min"] / 2 - w["bore_max"] / 2 - w_play),
+        (f"M2.5 x {sc['L']:.0f} thread engaged in the standoff with no boss (centre, and the corners clamped for the "
+         f"centre's cure), shortest stack, beyond {S.ENGAGE_MIN}", engaged - S.ENGAGE_MIN),
+        (f"screw tip with no boss (centre, corners clamped for the centre's cure) short of the wax plug "
+         f"({S.PLUG_DEPTH:.0f} deep) in the standoff's plate end, longest stack", plug - tip_hi),
+        (f"centre washer and pan head under the PCB clear of the body ({room:.2f} room measured within r "
+         f"{w_reach:.2f}, MJF -{mjf(MM.UNDER)})", room - mjf(MM.UNDER) - (w["t"] + w["t_tol"]) - sc["head_k"]),
+    ]
 
 
 def clearances():
@@ -836,11 +948,12 @@ def clearances():
     bow_rng = plate_bow(*B.RANGE)
     bow_wall = plate_bow(B.W / 2, -S.OVH)
     # a cap pressed firmly (stack.PRESS_FIRM): the board under it dips by up to PRESS_DIP and slopes by up to
-    # PRESS_SLOPE (a plate model of the bare board, see stack.py), and the cap's bottom dips under the highest plate
-    # back, bowed up. The slope tilts the cap with its plunger about the board's mid-plane, so the cap moves sideways
-    # in its hole by its height over that plane times the slope, most at the face edge: more than a cap at the edge
-    # of its per-key allowance has, so it may rub that edge on one side (documented, docs/mechanics.md). Two rows
-    # prove it cannot catch or stick: tilted, it cannot touch both sides of its hole at once (its shadow over the
+    # PRESS_SLOPE (a plate model of the bare board tied to the plate by the centre standoff, see stack.py), and the
+    # cap's bottom dips under the highest plate back, bowed up. The slope tilts the cap with its plunger about the
+    # board's mid-plane, so the cap moves sideways in its hole by its height over that plane times the slope, most
+    # at the face edge: about as much as a cap at the edge of its per-key allowance has, less than one turned on its
+    # plunger, so it may still touch that edge lightly on one side (docs/mechanics.md). Two rows prove it cannot
+    # catch or stick: tilted, it cannot touch both sides of its hole at once (its shadow over the
     # whole wall fits in the hole, turned and printed large), and while its side is free its bottom edge stands out
     # of the line of its side only by the dip times the slope, which the broken back edge (KEY_BACK_BREAK) leads
     # back in; while its side bears on the face edge, its bottom edge is pulled inside the hole outline.
@@ -863,7 +976,8 @@ def clearances():
     body_tri = body_triangles()
     (void, void_at), (wall, wall_at), (wall2, wall2_at) = body_thin(body_tri)
     cb_r, boss_wall, seat_t, pad_r = body_measures(body_tri)
-    ec_w, so_depth = plate_measures(mesh_triangles(plate))
+    ec_w, so_depth, mid_depth = plate_measures(mesh_triangles(plate))
+    mid_rows = mid_standoff_rows(board, mid_depth, body_tri)
     an = S.ANODISE
     # ---- seating (stack.SEAT_GAP, RKJXT_SEAT): an encoder stands up to SEAT_GAP proud at the edge of its base or
     # is tilted by that over it; the RKJXT's gauge spots stand up to RKJXT_SEAT proud (rkjxt_seat: the worst tilt,
@@ -874,15 +988,20 @@ def clearances():
     # the RANGE skirt's rim past the RKJXT's foot). A lift only raises the knobs, which helps the rows over the
     # plate, so those take the part tilted. ----
     sg = S.SEAT_GAP
-    tilt_e = sg / S.EC11_BASE
+    # the centre standoff's locked-in pre-load (stack.MID_PRELOAD) tilts the knobs' parts a little more, and lifts
+    # them and their far corners towards the plate (the rise also lifts the knobs, which the knob rows leave out)
+    pre_rise, pre_tilt = (S.MID_PRELOAD * k for k in S.MID_PRELOAD_KNOB)
+    tilt_e = sg / S.EC11_BASE + pre_tilt
     lift_e = sg * (S.EC11_BASE + S.EC11_LUGS + S.ENC_TOL["ge10"]) / 2 / S.EC11_BASE   # lug corners: 0.054
     tilt_r, lift_r = rkjxt_seat()                                                    # octagon corners: 0.064
+    tilt_r += pre_tilt
     dip_e = (ok["d"] - S.EC11_BASE) / 2 * tilt_e        # outer knob rim past the encoder's base edge: 0.011
     dip_r = (rk["skirt_d"] - S.RKJXT_FOOT) / 2 * tilt_r   # RANGE skirt rim past the RKJXT's foot
     # ---- light pipes glued flush, LEDs under them: the rows that take the board's bow, and the plate's flatness
     # in full (PLATE_FLAT; the other rows take plate_bow at their part) ----
     pp = S.PIPE
-    led_hi = S.LED_TOP + S.LED_TOL[0] + S.SUPPORT_LIFT + S.PCB_BOW   # lifted by a post, bowed up
+    # lifted by a post, bowed up, held up by the centre standoff's pre-load
+    led_hi = S.LED_TOP + S.LED_TOL[0] + S.SUPPORT_LIFT + S.PCB_BOW + S.MID_PRELOAD * S.MID_PRELOAD_LED
     lt_up, lt_dn = S.LIGHT_HOLE_TOL
     pd = S.POCKET_TOL
     # MJF wall height, PCB, lowest back face, bowed towards the walls
@@ -919,12 +1038,13 @@ def clearances():
         return fr - math.hypot(fr - side, fr - top) if max(side, top) < fr else min(side, top)
     # each part seated, lifted (side as seated) and tilted (top as seated); the corner takes the worse of the two
     rk_side0 = (S.RANGE_POCKET[0] - gen - an - S.RKJXT_ACROSS - S.RKJXT_TOL) / 2 - on_board_r
-    rk_top0 = back_metal_lo + S.RANGE_POCKET[1] - S.POCKET_TOL - (S.RKJXT_BODY + 0.3) - S.PLATE_FLAT * bow_rng
+    rk_top0 = (back_metal_lo + S.RANGE_POCKET[1] - S.POCKET_TOL - (S.RKJXT_BODY + 0.3) - S.PLATE_FLAT * bow_rng
+               - pre_rise - pre_tilt * (S.RKJXT_ACROSS + S.RKJXT_TOL) / 2)
     rk_side, rk_top = rk_side0 - (S.RKJXT_BODY + 0.3) * tilt_r, rk_top0 - lift_r
     rk_corner = min(floor_corner(rk_side0, rk_top), floor_corner(rk_side, rk_top0))
     ec_side0 = (ec_w - gen - an - S.EC11_LUGS - S.ENC_TOL["ge10"]) / 2 - on_board
     ec_top0 = (back_metal_lo + S.EC11_POCKET[3] - S.POCKET_TOL - (S.EC11_BODY + S.ENC_TOL["lt10"])
-               - S.PLATE_FLAT * bow_enc)
+               - S.PLATE_FLAT * bow_enc - pre_rise - pre_tilt * math.hypot((S.EC11_LUGS + S.ENC_TOL["ge10"]) / 2, 6.0))
     ec_side, ec_top = ec_side0 - (S.EC11_BODY + S.ENC_TOL["lt10"]) * tilt_e, ec_top0 - lift_e
     ec_corner = min(floor_corner(ec_side0, ec_top), floor_corner(ec_side, ec_top0))
     face_hi = S.PLATE_Z1 + face_up                      # the bushing's highest point in its plate hole
@@ -1025,8 +1145,9 @@ def clearances():
          f"(travel {S.KEY_TRAVEL}, plunger -{S.PLUNGER_TOP_TOL}, high plate bowed up, board {flex:.2f} down), tilted "
          f"{math.degrees(slope):.2f} deg with the bent board, lands on the {S.KEY_BACK_BREAK} edge break",
          S.KEY_BACK_BREAK - cap_dip * slope),
-        (f"cap pressed firmly, tilted {math.degrees(slope):.2f} deg (up to {face_shift:.2f} sideways at the face, so "
-         f"it may rub one side): it cannot wedge across its hole, turned {S.CAP_TURN:.0f} deg and printed "
+        (f"cap pressed firmly, tilted {math.degrees(slope):.2f} deg (up to {face_shift:.3f} sideways at the face "
+         f"against {cap_room - cap_err:.3f} of room, so it may touch one side): it cannot wedge across its hole, "
+         f"turned {S.CAP_TURN:.0f} deg and printed "
          f"+{cap_print}, its shadow over the {wall_h:.2f} wall ({shadow:.3f}) within twice its shift room "
          f"({cap_room_wedge:.2f})", 2 * cap_room_wedge - shadow),
         (f"cap shift room in its key hole ({cap_room:.2f}) over per-key RSS {cap_err:.2f}", cap_room - cap_err),
@@ -1040,7 +1161,9 @@ def clearances():
         (f"standoff corners (AC {so['ac']}) inside the {keepout} mm copper keep-out", keepout - so["ac"] / 2 - off),
         standoff_wall_row(),
         ("plate left in front of the standoff pockets, thin plate, beyond 1.0", t_min - sp["depth"] - 1.0),
-        ("standoff pocket to the nearest plate feature or edge, beyond 1.0", pocket_web() - 1.0),
+        (f"standoff pocket ({sp['d']} +{sp['d_tol']}, +-{pt['plate']} on its position) to the nearest plate feature "
+         "or edge, beyond 1.0", pocket_web() - 1.0),
+        *mid_rows,
         ("boss top bears on the PCB all round its hole (MJF -0.15)",
          MM.BOSS_R - pt["body_hole"] - offset - off - hole_hi),
         (f"PCB width in the cavity (MJF -{cav_w_tol:.1f}; routed long edges +{MM.PCB_OUTLINE_TOL}, or the full "
@@ -1092,10 +1215,11 @@ def clearances():
         (f"assembly blocks ({S.ASSEMBLY_BLOCK:.0f}) over the shaft tips, beyond 3", S.ASSEMBLY_BLOCK - protrude - 3),
         ("plate edge strip free for the blocks, beyond 8", edge - 8),
         (f"highest LED ({S.LED_TOP} +{S.LED_TOL[0]}) under the lowest plate back (bare pocket floors), PCB "
-         f"{S.SUPPORT_LIFT:.2f} up on a post, bowed up {S.PCB_BOW}, plate bowed down {S.PLATE_FLAT}",
+         f"{S.SUPPORT_LIFT:.2f} up on a post, bowed up {S.PCB_BOW}, held up "
+         f"{S.MID_PRELOAD * S.MID_PRELOAD_LED:.3f} by the centre standoff, plate bowed down {S.PLATE_FLAT}",
          back_lo - S.PLATE_FLAT - led_hi),
         (f"glued light pipe ({pp['len']} +{pp['len_tol']}) over the highest LED, thin plate, PCB and plate bowed as "
-         f"above (posts {S.SUPPORT_SHORT} short, MJF 0.3)",
+         f"above (post {S.SUPPORT_SHORT} short, MJF 0.3)",
          face_lo - S.PLATE_FLAT - (pp["len"] + pp["len_tol"]) - led_hi),
         (f"light pipe fits its hole ({pp['clear']} under, hole +{lt_up}/-{lt_dn:g}), beyond anodising "
          f"({pp['anodise']}) and resin (+{pp['resin']})", pp["clear"] - lt_dn - pp["anodise"] - pp["resin"]),

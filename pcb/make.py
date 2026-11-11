@@ -106,7 +106,8 @@ def grown(g, d):
 
 HOLES = ([("cap", x, y, x, y, dr / 2) for (x, y, _n, _d, dr) in vias]
          + [("cap", x, y, x, y, d / 2) for (x, y, d) in B.NPTH]
-         + [("cap", x, y, x, y, B.MOUNT_HOLE / 2) for (x, y) in B.MOUNTS])
+         + [("cap", x, y, x, y, B.MOUNT_HOLE / 2) for (x, y) in B.MOUNTS]
+         + [("cap", *B.MID_MOUNT, *B.MID_MOUNT, B.MID_HOLE / 2)])
 HOLE_BOXES = [bbox(h) for h in HOLES]
 CLEAR = {ly: [grown(pad_geom(p), MASK_GROW) for p in pads if ly in p.mask] + HOLES for ly in "FB"}
 
@@ -348,6 +349,7 @@ def plane(layer, net, fname, func):
             g.flash(g.ap("C", dr + 2 * PLANE_CLEAR), x, y)
     for (x, y) in B.MOUNTS:
         g.circle_region(x, y, B.MOUNT_HOLE / 2 + 0.6)
+    g.circle_region(*B.MID_MOUNT, B.MID_HOLE / 2 + 0.6)
     for (x, y, dd) in B.NPTH:
         g.circle_region(x, y, dd / 2 + 0.5)
     g.pol(True)
@@ -469,7 +471,8 @@ outline("avionics-Edge_Cuts.gko")
 pth = [(p.x, p.y, p.drill) for p in pads if p.drill and not p.slot] + [(x, y, dr) for (x, y, _, _, dr) in vias]
 slots = [(p.x, p.y, p.slot[0], p.slot[1]) for p in pads if p.slot]
 drill("avionics-PTH.drl", pth, True, slots)
-drill("avionics-NPTH.drl", [(x, y, B.MOUNT_HOLE) for (x, y) in B.MOUNTS] + list(B.NPTH), False)
+drill("avionics-NPTH.drl", [(x, y, B.MOUNT_HOLE) for (x, y) in B.MOUNTS] + [(*B.MID_MOUNT, B.MID_HOLE)] + list(B.NPTH),
+      False)
 
 zpath = "avionics-panel-rev1-gerbers.zip"
 with zipfile.ZipFile(zpath, "w", zipfile.ZIP_DEFLATED) as z:

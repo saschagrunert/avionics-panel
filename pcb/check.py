@@ -1042,41 +1042,46 @@ if __name__ == "__main__":
           f"{plane_bad} violations")
     bad += plane_bad
 
-    # --- mounting holes: the standoff end and the body boss press on the board round each screw hole, so no
-    # copper on F or B within B.MOUNT_KEEPOUT of a hole centre; on the inner layers only the plane itself
-    # (under the laminate, cut back round the hole) may reach into it. Measured on the Gerbers.
-    ko, ko_bad = B.MOUNT_KEEPOUT, 0
-    reach = ko + 3.0                             # look 3 mm past the keep-out to report the closest copper
-    ko_near = dict.fromkeys(LAYERS, math.inf)
+    # --- mounting holes: the standoff end and the body boss press on the board round each corner screw hole, the
+    # centre standoff's end and the washer under its screw head round the centre hole, so no copper on F or B within
+    # the hole's keep-out (B.MOUNT_KEEPOUT at the corners, B.MID_KEEPOUT in the middle) of its centre; on the inner
+    # layers only the plane itself (under the laminate, cut back round the hole) may reach into it. Measured on the
+    # Gerbers.
+    ko_bad = 0
     # the plane copper by its net (the electrical check above): every piece connected to the plane net
     plane_px = {ly: np.isin(lab[ly], [c for c in range(1, ncomp[ly] + 1) if comp_nets.get(find((ly, c))) == {pnet}])
                 for ly, pnet in B.PLANES.items()}
-    r = int(reach / PX)
-    for mx, my in B.MOUNTS:
-        i0, j0 = ij(mx, my)
-        ii, jj = np.mgrid[max(i0 - r, 0):min(i0 + r + 1, HPX), max(j0 - r, 0):min(j0 + r + 1, WPX)]
-        d = np.hypot(jj * PX - mx, ii * PX - my)
-        inside = d <= ko
-        for ly in LAYERS:
-            win = ras[ly][ii, jj] & (d <= reach)
-            if win.any():
-                ko_near[ly] = min(ko_near[ly], float(d[win].min()))
-            hit = win & inside
-            if not hit.any():
-                continue
-            if ly in B.PLANES:                   # the plane's own copper is fine, nothing else
-                if (hit & ~plane_px[ly][ii, jj]).any():
+    for kind, ko, centres in (("corner mounting-hole", B.MOUNT_KEEPOUT, B.MOUNTS),
+                              ("centre standoff hole", B.MID_KEEPOUT, [B.MID_MOUNT])):
+        reach = ko + 3.0                         # look 3 mm past the keep-out to report the closest copper
+        ko_near = dict.fromkeys(LAYERS, math.inf)
+        r = int(reach / PX)
+        for mx, my in centres:
+            i0, j0 = ij(mx, my)
+            ii, jj = np.mgrid[max(i0 - r, 0):min(i0 + r + 1, HPX), max(j0 - r, 0):min(j0 + r + 1, WPX)]
+            d = np.hypot(jj * PX - mx, ii * PX - my)
+            inside = d <= ko
+            for ly in LAYERS:
+                win = ras[ly][ii, jj] & (d <= reach)
+                if win.any():
+                    ko_near[ly] = min(ko_near[ly], float(d[win].min()))
+                hit = win & inside
+                if not hit.any():
+                    continue
+                if ly in B.PLANES:               # the plane's own copper is fine, nothing else
+                    if (hit & ~plane_px[ly][ii, jj]).any():
+                        ko_bad += 1
+                        print(f"MOUNT KEEP-OUT {ly}: copper other than the {B.PLANES[ly]} plane within {ko} mm "
+                              f"of the hole at ({mx}, {my})")
+                else:
                     ko_bad += 1
-                    print(f"MOUNT KEEP-OUT {ly}: copper other than the {B.PLANES[ly]} plane within {ko} mm "
-                          f"of the hole at ({mx}, {my})")
-            else:
-                ko_bad += 1
-                print(f"MOUNT KEEP-OUT {ly}: copper {d[hit].min():.2f} mm from the hole centre at ({mx}, {my}) "
-                      f"(keep-out {ko})")
-    ko_near["planes"] = min(ko_near[ly] for ly in B.PLANES)
-    near = {ly: f"{v:.2f} mm" if v < math.inf else f"none within {reach:.1f} mm" for ly, v in ko_near.items()}
-    print(f"mount keep-out: closest copper to a mounting-hole centre F {near['F']}, B {near['B']} (min {ko}); "
-          f"inner planes from {near['planes']}, plane copper only; {ko_bad} violations")
+                    print(f"MOUNT KEEP-OUT {ly}: copper {d[hit].min():.2f} mm from the hole centre at ({mx}, {my}) "
+                          f"(keep-out {ko})")
+        ko_near["planes"] = min(ko_near[ly] for ly in B.PLANES)
+        near = {ly: f"{v:.2f} mm" if v < math.inf else f"none within {reach:.1f} mm" for ly, v in ko_near.items()}
+        print(f"{kind} keep-out: closest copper to a hole centre F {near['F']}, B {near['B']} (min {ko}); "
+              f"inner planes from {near['planes']}, plane copper only")
+    print(f"mount keep-outs: {ko_bad} violations")
     bad += ko_bad
 
     # --- geometric clearance DRC (outer layers) ---
@@ -1100,8 +1105,8 @@ if __name__ == "__main__":
         e = min(bb[0], bb[1], B.W - bb[2], B.H - bb[3])
         if e < B.EDGE_CLEAR - 0.05:
             viol += 1; print("NEAR EDGE", it[2], it[3], round(e, 2))
-        for (x, y) in B.MOUNTS:
-            dist = item_dist(it[1], ("cap", x, y, x, y, B.MOUNT_HOLE / 2))
+        for (x, y, dd) in [(mx, my, B.MOUNT_HOLE) for (mx, my) in B.MOUNTS] + [(*B.MID_MOUNT, B.MID_HOLE)]:
+            dist = item_dist(it[1], ("cap", x, y, x, y, dd / 2))
             if dist < 0.4:
                 viol += 1; print("NEAR MOUNT", it[2], round(dist, 2))
         for (x, y, dd) in B.NPTH:
@@ -1119,7 +1124,8 @@ if __name__ == "__main__":
             d = (ln - w) / 2
             g = ("cap", p.x, p.y - d, p.x, p.y + d, w / 2) if p.h >= p.w else ("cap", p.x - d, p.y, p.x + d, p.y, w / 2)
             holes.append((g, p.net or "NC:" + p.name))
-    for k, (x, y, dd) in enumerate(list(B.NPTH) + [(mx, my, B.MOUNT_HOLE) for (mx, my) in B.MOUNTS]):
+    for k, (x, y, dd) in enumerate(list(B.NPTH) + [(mx, my, B.MOUNT_HOLE) for (mx, my) in B.MOUNTS]
+                                   + [(*B.MID_MOUNT, B.MID_HOLE)]):
         holes.append((("cap", x, y, x, y, dd / 2), f"NPTH{k}"))
     hmin = {True: (9, None), False: (9, None)}           # same net?, (gap, where)
     for i in range(len(holes)):

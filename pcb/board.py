@@ -64,6 +64,17 @@ MOUNTS = [(3.5, 3.5), (W - 3.5, 3.5), (3.5, H - 3.5), (W - 3.5, H - 3.5)]
 # no copper on F and B within this radius of a mounting-hole centre: the standoff end and the body boss press
 # on the board there (check.py measures it on the Gerbers, mech/check_fit.py fits the standoff inside it)
 MOUNT_KEEPOUT = 3.6
+# Centre standoff: the same M2.5 x 8 hex standoff as at the corners, glued into a blind pocket in the plate back,
+# ties the middle of the board to the plate, between the AUTOPILOT and AUDIO blocks midway between key rows 2 and 3,
+# so a firm key press dips the board about a third as much (mech/stack.py PRESS_FIRM). The same M2.5 screw and
+# washer as at the corners come from the bottom side, the head and washer on the board. The NPTH is the corners'
+# (close round the screw), and no copper on F and B within MID_KEEPOUT: the standoff end and the washer press on the
+# board there, and with no counterbore round it the washer can slide on the screw (check.py measures it on the
+# Gerbers, keepouts() keeps the router out, mech/check_fit.py fits both inside it). Not in MOUNTS, which are the
+# corner bosses.
+MID_MOUNT = (72.25, 30.75)
+MID_HOLE = MOUNT_HOLE
+MID_KEEPOUT = 4.5
 PLANES = {"In1": "GND", "In2": "3V3"}
 
 KEY_DX, KEY_DY, KEY_PAD, KEY_DRILL = 3.25, 2.25, 1.8, 1.0
@@ -76,7 +87,7 @@ COLS = [40.0 + COL_PITCH * k for k in range(3)] + [116.35 - COL_PITCH * k for k 
 ROWS = [12.5, 23.5, 38.0, 49.0]         # rows 2/3 lower: room for the FMS line on the plate
 # Column pull-ups (10k to 3V3, one per column): the RP2040's own pull-ups (50 to 80k) with 20 to 30 pF of column
 # copper and diodes recover too slowly between two rows of a KeyMatrix scan (about 1 us). On each column bus,
-# midway between key rows 1 and 2, clear of the key pads and of the body's support posts under the board.
+# midway between key rows 2 and 3, clear of the key pads, the body's support post and the centre standoff's washer.
 PULLUP_Y = 31.0
 KEY_LABELS = [[label.replace(" ⇆", "<>").replace("→", "->") for label, _ in row]   # silkscreen: ASCII
               for row in _STACK.KEY_LEGENDS]
@@ -785,6 +796,7 @@ def keepouts():
     k = []
     for (x, y) in MOUNTS:
         k.append(("FB", "circle", (x, y, MOUNT_KEEPOUT)))
+    k.append(("FB", "circle", (*MID_MOUNT, MID_KEEPOUT)))
     # inside the QFN fan-out square only the pre-routed fan-out may run on the bottom
     mx, my = MCU
     e = FAN_END - 0.3

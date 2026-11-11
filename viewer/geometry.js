@@ -6,6 +6,11 @@ window.GEOMETRY = {
   "h": 60.0,
   "key_pad_dx": 3.25,
   "key_pad_dy": 2.25,
+  "mid_hole": 3.0,
+  "mid_mount": [
+   72.25,
+   30.75
+  ],
   "mount_hole": 3.0,
   "mounts": [
    [
@@ -93,12 +98,8 @@ window.GEOMETRY = {
   ],
   "seat_z": -3.2,
   "support_r": 2.5,
-  "support_top": -1.85,
+  "support_top": -1.9,
   "supports": [
-   [
-    72.3,
-    30.8
-   ],
    [
     98.6,
     30.8
@@ -516,6 +517,18 @@ window.GEOMETRY = {
    "x": 85.1,
    "y": 43.1
   }
+ },
+ "mid_screw": {
+  "d": 2.5,
+  "head_d": 5.0,
+  "head_k": 1.75,
+  "length": 8.0,
+  "washer_od": 7.0,
+  "washer_t": 0.5
+ },
+ "mid_standoff": {
+  "ac": 5.77,
+  "length": 8.0
  },
  "outer_knob": {
   "d": 17.0,

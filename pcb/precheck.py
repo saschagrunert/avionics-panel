@@ -1,6 +1,6 @@
-"""Placement check before routing: clearance between all fixed copper (pads, pre-routed segments, vias), and
-the bodies of the bottom-side parts (board.BODY): each at least board.BODY_GAP from every other body and from
-every pad of another part, where that part's leads or pins sit."""
+"""Placement check before routing: clearance between all fixed copper (pads, pre-routed segments, vias), the
+bodies of the bottom-side parts (board.BODY): each at least board.BODY_GAP from every other body and from
+every pad of another part, where that part's leads or pins sit, and neither inside a mounting hole's keep-out."""
 import math
 import re
 
@@ -70,4 +70,18 @@ for i, a in enumerate(refs):
             body_bad += 1; print(f"BODY OF {a} {g:.3f} mm from pad {name} (min {B.BODY_GAP})")
 print(f"bodies: {len(body)} bottom-side parts, closest bodies {near_body[0]:.3f} mm ({near_body[1]}), closest body "
       f"to another part's pad {near_pad[0]:.3f} mm ({near_pad[1]}), min {B.BODY_GAP}; {body_bad} problems")
-raise SystemExit(1 if bad or body_bad else 0)
+
+# --- mounting holes (board.keepouts(), which keeps the router out too): no fixed copper and no bottom-side part body
+# within a hole's keep-out, where the standoff ends, the body bosses and the centre screw's washer press on the board
+ko_bad, ko_near = 0, (9.0, "")
+for x, y, ko in [(mx, my, B.MOUNT_KEEPOUT) for mx, my in B.MOUNTS] + [(*B.MID_MOUNT, B.MID_KEEPOUT)]:
+    disc = ("cap", x, y, x, y, ko)
+    near_ = [(item_dist(it[1], disc), f"{it[3]} ({it[2]})") for it in items if it[3] != "npth"]
+    near_ += [(rect_gap(r, (x, y, x, y)) - ko, ref) for ref, r in body.items()]
+    for g, what in near_:
+        ko_near = min(ko_near, (g, f"{what} at the hole ({x}, {y})"))
+        if g < 0:
+            ko_bad += 1; print(f"MOUNT KEEP-OUT: {what} {-g:.3f} mm inside the keep-out of the hole at ({x}, {y})")
+print(f"mount keep-outs: fixed copper and bottom bodies at least {ko_near[0]:.3f} mm outside ({ko_near[1]}); "
+      f"{ko_bad} problems")
+raise SystemExit(1 if bad or body_bad or ko_bad else 0)

@@ -324,7 +324,7 @@ async function main() {
     for (const [x0, y0, x1, y1] of BD.foot_bridges) {
       under(rect(clamp(x0, -CLEAR, W + CLEAR), clamp(y0, -CLEAR, H + CLEAR), clamp(x1, -CLEAR, W + CLEAR), clamp(y1, -CLEAR, H + CLEAR)));
     }
-    for (const [sx, sy] of SUPPORTS) post(sx, sy, G.body.support_r);                  // two posts under the middle of the PCB
+    for (const [sx, sy] of SUPPORTS) post(sx, sy, G.body.support_r);                  // the post under the middle of the PCB
   }
 
   // ---------------- PCB ----------------
@@ -350,8 +350,11 @@ async function main() {
     }
     g.fillStyle = '#d3d6db';
     for (const [mx, my] of MOUNTS) pad(mx, my, G.board.mount_hole / 2);
+    const [MIDX, MIDY] = G.board.mid_mount;                                     // the centre standoff's hole
+    pad(MIDX, MIDY, G.board.mid_hole / 2);
     const shape = rrectShape(W, H, R);
     for (const [mx, my] of MOUNTS) shape.holes.push(circlePath(px(mx), -pz(my), G.board.mount_hole / 2));
+    shape.holes.push(circlePath(px(MIDX), -pz(MIDY), G.board.mid_hole / 2));
     // glossier than the matte body round it, so the board still reads as its own part
     const topMat = new THREE.MeshStandardMaterial({ map: mmTexture(c, W, H), roughness: 0.4 });
     pcbG.add(slab(shape, -PCB_T, 0, [topMat, pcbSide]));
@@ -420,6 +423,19 @@ async function main() {
       hex.holes.push(circlePath(0, 0, SO.hole_d / 2));
       const so = slab(hex, 0, SO.length, brass); so.position.set(px(mx), 0, pz(my)); standoffG.add(so);
     }
+    // the centre standoff (the corners' M2.5, glued into the plate without touching its pocket floor) and its screw,
+    // which comes up from under the PCB with the board: its washer and pan head sit on the board's underside
+    const [cx, cy] = G.board.mid_mount, MS = G.mid_screw, MSO = G.mid_standoff, mhex = new THREE.Shape();
+    for (let i = 0; i < 6; i++) { const a = Math.PI / 6 + i * Math.PI / 3; (i ? mhex.lineTo : mhex.moveTo).call(mhex, MSO.ac / 2 * Math.cos(a), MSO.ac / 2 * Math.sin(a)); }
+    mhex.holes.push(circlePath(0, 0, MS.d / 2));
+    const mso = slab(mhex, 0, MSO.length, brass); mso.position.set(px(cx), 0, pz(cy)); standoffG.add(mso);
+    const headZ = -PCB_T - MS.washer_t;
+    const mw = new THREE.Mesh(new THREE.CylinderGeometry(MS.washer_od / 2, MS.washer_od / 2, MS.washer_t, 24), metal);
+    mw.position.set(px(cx), -PCB_T - MS.washer_t / 2, pz(cy)); pcbG.add(mw);
+    const mh = new THREE.Mesh(new THREE.CylinderGeometry(MS.head_d / 2 - 0.25, MS.head_d / 2, MS.head_k, 24), steel);
+    mh.position.set(px(cx), headZ - MS.head_k / 2, pz(cy)); pcbG.add(mh);
+    const ms = new THREE.Mesh(new THREE.CylinderGeometry(MS.d / 2, MS.d / 2, MS.length, 16), steel);
+    ms.position.set(px(cx), headZ + MS.length / 2, pz(cy)); pcbG.add(ms);
   }
 
   // ---------------- front plate (anodised aluminium, laser-marked and UV-printed legends) ----------------

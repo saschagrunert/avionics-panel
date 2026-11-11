@@ -18,7 +18,9 @@ flat-bottom pockets for glued standoffs; no threads, nothing on the front. Four 
 standoffs (5 mm across flats) are glued with non-sag epoxy into those pockets, already screwed onto the
 assembled board, so the board itself is the jig; M2.5 x 8 pan-head screws come from under the body: body
 boss -> PCB -> standoff thread. The standoffs alone set the plate height (standoff
-length less pocket depth), the body walls stop 0.95 mm short of the plate.
+length less pocket depth), the body walls stop 0.95 mm short of the plate. A fifth standoff, screw and washer, the
+same as at the corners, tie the middle of the board to the plate (MID_*): glued in a deeper blind pocket without
+touching its floor, it carries the press of a key but sets no height.
 """
 # datasheet values the generators share
 # TE 1-1825910-4 key plunger, from TE's own STEP model of the part (dz below the plunger top): a flat top of
@@ -133,9 +135,14 @@ RKJXT_ACROSS, RKJXT_FLATS, RKJXT_TOL = 16.4, 15.73, 0.3
 POCKET_TOL = 0.1
 
 # ---- fasteners: glued standoffs in the plate, hidden M2.5 pan-head screws from below ----
-# Standoff: M2.5 female-female hex, 5 mm across flats (4.9 min), 5.77 across corners, 8.0 +-0.1 long, brass
-# or aluminium, threaded through; the thread entry is chamfered (about 0.3).
+# Standoff: M2.5 female-female hex, 5 mm across flats (4.9 min), 5.77 across corners, 8.0 long, brass or aluminium,
+# threaded through; the thread entry is chamfered (about 0.3). Wuerth's datasheet (970080154) gives only DIN ISO
+# 2768-1 m for its length: STANDOFF_L_SPEC, +-0.2 at 8 mm. The four corner standoffs set the plate height, and
+# +-0.2 there fails the LED, knob, RKJXT, cap and body wall rows by up to 0.09 mm, so each standoff is measured on
+# arrival with calipers (docs/mechanics.md) and the corners get four within 8.0 +-0.08 on the calipers (+-0.02):
+# L_tol 0.1. The centre standoff sets no height and may be any of them (MID_STANDOFF).
 PITCH = 0.45
+STANDOFF_L_SPEC, STANDOFF_L_PICK = 0.2, 0.08
 STANDOFF = dict(thread="M2.5", af=5.0, af_min=4.9, ac=5.77, L=8.0, L_tol=0.1, chamfer=0.3)
 # Round flat-bottom pocket in the plate back: 7.0 +0.1/-0 wide, so a standoff on the assembled board (screw
 # a quarter turn back, so it can still slide by the screw's play in the PCB hole) enters it wherever the caps
@@ -148,9 +155,11 @@ STANDOFF = dict(thread="M2.5", af=5.0, af_min=4.9, ac=5.77, L=8.0, L_tol=0.1, ch
 # (check_fit.py's standoff row, 0.12 at 7.0).
 STANDOFF_POCKET = dict(d=7.0, d_tol=0.1, depth=2.0, depth_tol=0.1, bare=0.5)
 # The plate end of each standoff is plugged while it is glued, so no epoxy gets into its thread: soft wax or
-# plasticine pressed into the thread at most 2 mm deep (a toothpick marked at 2 mm), the end face scraped
-# clean. A grub screw would do too, but the shortest common M2.5 one (3 mm) can meet the screw tip.
-PLUG_DEPTH = 2.0
+# plasticine pressed into the thread at most 1 mm deep (a toothpick marked at 1 mm), the end face scraped
+# clean. The plug stays in. 1 mm, not more: the M2.5 x 8 at the centre, with no body boss under its washer, ends up
+# to 6.4 mm into its standoff, and so do the corner screws while they clamp the board without the body (assembly
+# step 9). A grub screw would do too, but the shortest common M2.5 one (3 mm) can meet the screw tip.
+PLUG_DEPTH = 1.0
 # Gap tolerance (+, -) on PLATE_Z0, the back face: standoff length and pocket depth (+0/-0.1). An anodised
 # pocket floor lifts the plate, but the back face grows towards the board by as much, so it stays; check_fit.py
 # adds the ANODISE / 2 the back face sits lower over bare floors, and the front face's growth (see ANODISE).
@@ -176,6 +185,43 @@ STACK_TOL = dict(counterbore=0.3, pcb=0.16)
 SEAT_Z = -3.2                              # counterbore seat: 1.6 of PA12 up to the PCB (1.3 at MJF -0.3)
 ENGAGE_MIN = 2.0                           # full thread engaged in the standoff, mm (about 4 turns)
 SCREW_HEAD_Z = SEAT_Z - WASHER["t"]        # nominal head bearing (for the 3D view)
+
+# ---- centre standoff: the middle of the board tied to the plate (pcb/board.py MID_MOUNT), so a firm key press
+# dips the board about a third as much and tilts it half as much (PRESS_DIP, PRESS_SLOPE) ----
+# The same parts as at the corners: an M2.5 x 8 hex standoff (STANDOFF, but not picked for its length, so at its
+# datasheet tolerance), the same M2.5 x 8 pan head (SCREW) on the same DIN 125 M3 washer (WASHER) from the bottom
+# side, its head on the board, and the same PCB hole (PCB_HOLE).
+MID_STANDOFF = dict(STANDOFF, L_tol=STANDOFF_L_SPEC)
+MID_SCREW, MID_WASHER, MID_PCB_HOLE = SCREW, WASHER, PCB_HOLE
+# Round blind pocket in the plate back, as wide as the corner pockets but deeper than the standoff can reach: the
+# epoxy on its sides holds it wherever the relaxed board puts it ("floating"), so the tolerance stack (pocket depths,
+# standoff lengths, plate and board bow, up to about 0.6 mm) cannot bend the board, which a fifth standoff seated on
+# a pocket floor would. Depth 2.7 +0.1/-0 (never shallower, unlike the other pockets: the floor must stay out of
+# reach), which leaves at least 1.1 mm of aluminium in front.
+MID_POCKET = dict(d=STANDOFF_POCKET["d"], d_tol=STANDOFF_POCKET["d_tol"], depth=2.7, depth_tol=0.1)
+# Only the last MID_GLUE of the standoff's plate end is buttered (docs/mechanics.md, assembly step 9), which it always
+# reaches into the pocket (check_fit.py): the epoxy stays inside, the excess goes ahead of the end into the deep
+# pocket, never out of its mouth between the caps. Lap shear of a structural epoxy on brass and anodised aluminium
+# is well over MID_GLUE_SHEAR (MPa); check_fit.py checks the band against the standoff's share of a firm press.
+MID_GLUE, MID_GLUE_SHEAR = 1.0, 5.0
+# The centre standoff is glued after the corners have cured (docs/mechanics.md), face down with the body off: the
+# corner screws, with their washers, are drawn gently snug onto the board (the same clamp as in use, so the board's
+# sag is the clamped one), and the centre screw is drawn snug while the epoxy is wet, so no thread play is left to
+# take up later. What stays locked in is the board's own sag face down and the epoxy's shrinkage: the plate model
+# (corners clamped, see PRESS_FIRM) gives 0.027 mm at the standoff per N spread over the board, and board, switches,
+# caps, encoders and RKJXT weigh up to about 1 N (a grillage model of the board gives 0.020 mm for 0.75 N); the sag
+# the other way in use is left out (it would only help); shrinkage of the thin epoxy band adds up to 0.01. Up to
+# MID_PRELOAD in all: the board held that much towards the plate at the standoff. From the plate model, per mm of
+# it, the LEDs rise MID_PRELOAD_LED and the knobs MID_PRELOAD_KNOB (rise, tilt in rad); check_fit.py counts it on
+# the LED, encoder and RKJXT rows. (With the corners only resting on their standoffs, not clamped, the sag would be
+# about 0.07 to 0.09 mm, more than these rows take.)
+MID_PRELOAD = 0.04
+MID_PRELOAD_LED = 0.95
+MID_PRELOAD_KNOB = (0.123, 0.0141)
+# A board bowed away from the plate in the middle shortens the centre standoff's reach into its pocket: the arrival
+# check (docs/mechanics.md) takes up to PCB_BOW_AWAY. A board bowed away by more, up to PCB_BOW_AWAY_MAX, still
+# works with one more WASHER under the centre standoff on the board's top side (check_fit.py checks both ends).
+PCB_BOW_AWAY, PCB_BOW_AWAY_MAX = 0.4, 0.8
 # Positional budget (each +-, radial unless noted): pockets and through holes to each other (drawing
 # note), PCB drill positions (JLCPCB, about 0.05; 0.075 assumed), NPTH size (JLCPCB +-0.2 on the diameter),
 # M2.5 in its thread, the board offset the caps allow (their largest shift in key holes at +0.1, about 0.40
@@ -363,18 +409,22 @@ PIPE = dict(len=3.6, len_tol=0.1, clear=0.3, neck_len=0.6, bar=(2.2, 2.0), resin
 # necks 0.1 under the thinner pipe, 1.1 at most and never under the 1.0 resin minimum: smaller light holes
 # (docs/ordering.md, Before paying) take them down with the pipes
 PIPE["neck_d"] = round(max(1.0, min(1.1, min(LIGHT_HOLES.values()) - PIPE["clear"] - 0.1)), 3)
-# The two body posts under the middle of the PCB (make_mech.py) end SUPPORT_SHORT under it, so with JLC3DP's
-# MJF +-0.3 (post height against the bosses) they lift the board by at most SUPPORT_LIFT; a firm press bends it
-# onto them.
-SUPPORT_SHORT = 0.25
+# The body post under the PCB (make_mech.py, between key columns 5 and 6) ends SUPPORT_SHORT under it, so with
+# JLC3DP's MJF +-0.3 (post height against the bosses) it never lifts the board (SUPPORT_LIFT). With the centre
+# standoff even a firm press does not reach it; it stays as a backstop.
+SUPPORT_SHORT = 0.3
 SUPPORT_LIFT = max(0.0, 0.3 - SUPPORT_SHORT)
 # A firm key press (PRESS_FIRM, about six times the switch's 1.6 N) on the bare board, from a Kirchhoff plate model
-# of it (1.6 mm FR4 at 20 GPa, no stiffening by the parts, clamped at the four mounts between standoff and boss
-# (with pinned mounts a normal press would sag it about 0.3), the posts up to SUPPORT_SHORT
-# + 0.3 short and pushing only up): the pressed key dips up to 0.69 (the front and back rows, 18 mm from the
-# posts, which do not stop them) and the board under any key slopes up to 13.8 mrad. A normal 1.6 N press sags
-# it about 0.12 and 2.3 mrad. check_fit.py takes both 10 % up (FR4's flexural modulus, about 18 to 24 GPa; 18 GPa
-# would need 11 %, about 0.008 mm more).
+# of it (1.6 mm FR4 at 20 GPa, no stiffening by the parts, clamped at the four mounts between standoff and boss,
+# the post pushing only up), tied to the plate at the centre standoff: a disc of the standoff's end (r 2.5) moved
+# as one, on the aluminium plate's compliance there (0.0017 mm/N), and tilted against the standoff's bending (brass
+# hex 5 AF over 8 mm, about 460000 N mm/rad) in series with its glue band (MID_GLUE of epoxy 1 mm thick round the
+# hex, E 2.5 GPa, G 0.9 GPa: about 46000 N mm/rad, ten times softer), every key pressed in turn. The pressed key
+# dips up to 0.193 (the front row, 18 mm in front of the standoff) and the board under any key slopes up to
+# 6.75 mrad (under the pressed key itself 5.7); without the centre standoff it was 0.69 and 13.8 mrad, with the glue
+# band taken rigid 0.175 and 6.2. A normal 1.6 N press dips it 0.031 and slopes it 1.1 mrad (0.11 and 2.2
+# without). The standoff takes up to 9.5 N of the press, in shear on its glue. check_fit.py takes dip and slope
+# 10 % up (FR4's flexural modulus, about 18 to 24 GPa; 18 GPa would need 11 %).
 PRESS_FIRM = 10.0                          # N
-PRESS_DIP, PRESS_SLOPE = 0.69 * 1.1, 0.0138 * 1.1
+PRESS_DIP, PRESS_SLOPE = 0.195 * 1.1, 0.0068 * 1.1
 PIPE["z0"] = PLATE_Z1 - PIPE["len"]        # 6.1: pipe bottom

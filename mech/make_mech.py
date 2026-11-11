@@ -2,7 +2,7 @@
 
 The 6 degree wedge is part of the body, so no wedge feet are needed; four flat silicone feet only stop it
 sliding; they go on four flat pads. The wedge is hollow from below: a 2 mm floor under the PCB, ribs down to
-the desk plane (under the two PCB posts and between them), the screw bosses joined to the walls, a solid band
+the desk plane (under the PCB post and between the blocks), the screw bosses joined to the walls, a solid band
 along the front, and a recess in the bottom for an optional 2 mm steel plate as desk weight.
 BOOT hole in the floor, USB-C opening in the back wall, open to the top as a wider notch so the socket clears the
 wall when the board goes in; a separate filler (same print) closes that notch from the back once the body is on,
@@ -12,11 +12,13 @@ is in stack.py.
 Stack (z = 0 is the PCB top):
   body     floor -7.6 .. -5.6 (-7.2 .. -5.6 at the front edge), bottom plane from -7.2 at the front to about
            -14 at the back, walls up to z 5.05 (0.95 below the plate), 4 bosses carry the PCB at z -1.6 (4 mm
-           room for the SMD parts and the USB-C socket on the underside), 2 posts 0.25 under the middle of
+           room for the SMD parts and the USB-C socket on the underside), 1 post 0.3 under the middle of
            the PCB, counterbore seats at z -3.2 (1.6 mm of PA12 up to the PCB)
   standoff 4 x M2.5 x 8 female-female hex (5 mm across flats), z 0 .. 8, glued 2 mm deep into the plate
   plate    4 mm aluminium, z 6 .. 10, 4 flat-bottom standoff pockets from below, no threads
   screws   4 x M2.5 x 8 pan head from below, one washer each: body boss -> PCB -> standoff
+  centre   1 more M2.5 x 8 hex standoff glued into a deeper pocket in the plate without touching its floor, held by
+           the same M2.5 x 8 pan head and washer from under the PCB, its head in the PCB room clear of the floor
 Height 17.2 mm at the front, rising to about 24 mm at the back.
 Output frame: X right, Y away from the user (board y flipped), Z up.
 """
@@ -77,16 +79,16 @@ BOOT_HOLE = 5.0                     # bridge the BOOT pads with a small screwdri
 # The hollow stops where it is 1 mm high: in front of that the floor is solid down to the desk plane (BOOT hole
 # and front feet). No slot or sliver under 0.8 mm anywhere: check_fit.py rasterises sections to prove it.
 HOLLOW_H_MIN = 1.0
-# The PCB is held only at its corners (about 153 mm apart) and sags about 0.1 mm under a normal key press in
-# the middle, 0.3 to 0.5 under about 5 N, as much as the switch travel. Two posts carry it there, at spots free
-# of bottom parts and pins: between the AUTOPILOT and AUDIO blocks, and between key columns 4 and 5, midway
-# between rows 1 and 2. They end stack.SUPPORT_SHORT under the PCB, so the MJF tolerance cannot bow the board
-# up towards the light pipes; a firm press bends the board onto them.
-SUPPORTS = [(72.3, 30.8), (98.6, 30.8)]
+# The centre standoff (stack.MID_STANDOFF) ties the middle of the PCB to the plate, so a firm key press bends the
+# board only about 0.2 mm. One post stays as a backstop, at a spot free of bottom parts and pins between key
+# columns 5 and 6, midway between key rows 2 and 3; it ends stack.SUPPORT_SHORT under the PCB, so the MJF tolerance
+# cannot bow the board up towards the light pipes. The post that stood between the AUTOPILOT and AUDIO blocks is
+# gone: the centre standoff took its place, its screw's head and washer sit there (the ribs under the floor stay).
+SUPPORTS = [(98.6, 30.8)]
 SUPPORT_R = 2.5
 SUPPORT_TOP = -S.PCB_T - S.SUPPORT_SHORT
-# ribs in the hollow wedge, down to the bottom plane (board coordinates): front to back under the posts and
-# between the knobs and key blocks, one across through the posts; 2.0 thick (JLC3DP MJF, parts over 100 mm)
+# ribs in the hollow wedge, down to the bottom plane (board coordinates): front to back under the post and
+# between the knobs and key blocks, one across through the post; 2.0 thick (JLC3DP MJF, parts over 100 mm)
 RIB_T = 2.0
 RIBS_X = (36.0, 72.3, 98.6, 125.0)          # 125 stays clear of the BOOT hole (x 132.1)
 RIBS_Y = (30.8,)
@@ -261,7 +263,7 @@ def body():
         shell = fuse(shell, common(corner(mx, my, BOSS_R_LOW, Z_FLOOR_TOP - 0.1, S.SEAT_Z), inside))
         shell = fuse(shell, common(corner(mx, my, BOSS_R, S.SEAT_Z - 0.1, -S.PCB_T - 0.2), inside))
         shell = fuse(shell, cyl(BOSS_R, S.SEAT_Z - 0.1, -S.PCB_T, mx, my))
-    for (px, py) in SUPPORTS:          # just under the PCB: a firm press in the middle bends it onto them
+    for (px, py) in SUPPORTS:          # just under the PCB: a backstop, the centre standoff takes the press
         shell = fuse(shell, cyl(SUPPORT_R, Z_FLOOR_TOP - 0.5, SUPPORT_TOP, px, py))
     holes = [wedge_cutter(), hollow(), steel_recess(), usb_cutter(), cyl(BOOT_HOLE / 2, -41, 0, *B.BOOT)]
     for (mx, my) in B.MOUNTS:

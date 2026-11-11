@@ -2,7 +2,8 @@
 
 4 mm aluminium (6061), black anodised. Front face (+Z) is flat: laser marking and UV print follow the
 DXF from make_plate_art.py, in the same coordinates. Back face (Z = 0): pockets for the encoder and
-RANGE bodies and 4 round flat-bottom pockets for the glued standoffs; no threads. Everything is machined
+RANGE bodies, 4 round flat-bottom pockets for the glued corner standoffs and a deeper one for the centre
+standoff; no threads. Everything is machined
 from the back in one setup.
 
 Coordinates: origin at the bottom-left corner of the plate seen from the front, X right, Y up, mm.
@@ -100,6 +101,10 @@ def build():
         tools.append(cyl(*P(mx, my), sp["d"], -e, sp["depth"]))
     features.append(("standoff pocket", f"dia {sp['d']} +{sp['d_tol']}/-0, flat bottom",
                      f"{sp['depth']} +0/-{sp['depth_tol']} deep from back", 4))
+    mp = S.MID_POCKET                                                # centre standoff: deeper, never shallower
+    tools.append(cyl(*P(*B.MID_MOUNT), mp["d"], -e, mp["depth"]))
+    features.append(("centre pocket", f"dia {mp['d']} +{mp['d_tol']}/-0, flat bottom",
+                     f"{mp['depth']} +{mp['depth_tol']}/-0 deep from back (never shallower)", 1))
     args, tl = TopTools_ListOfShape(), TopTools_ListOfShape()
     args.Append(plate)
     for t in tools:
@@ -134,7 +139,20 @@ def drawing(features, vol):
     from matplotlib.patches import Circle, FancyBboxPatch
 
     fig = plt.figure(figsize=(11.69, 8.27))
-    ax = fig.add_axes([0.04, 0.40, 0.92, 0.55])
+    notes = drawing_notes(vol)
+    # the text block under the drawing, one (text, font size, bold, monospace) per line, in figure coordinates; the
+    # drawing takes the page above it
+    lh = 1.3 / 72 / fig.get_figheight()                    # line height as a figure fraction, per point of font size
+    block = [("Features", 8.5, True, False)]
+    block += [(f"{n:<20s} {s:<30s} {d:<56s} x{q}", 7.0, False, True) for n, s, d, q in features]
+    block += [("Notes", 8.5, True, False)]
+    import textwrap
+    for n in notes:
+        block += [(("- " if i == 0 else "  ") + line, 7.0, False, False)
+                  for i, line in enumerate(textwrap.wrap(n, 190))]
+    text_h = sum(fs * lh for _, fs, _, _ in block) + 2 * 0.5 * 8.5 * lh     # half a line before each heading
+    bottom, top = 0.02, 0.95
+    ax = fig.add_axes([0.04, bottom + text_h + 0.02, 0.92, top - bottom - text_h - 0.02])
     ax.set_aspect("equal"); ax.axis("off")
     # seen from the BACK: mirror X so the drawing matches what the machinist sees
     def M(x, y):
@@ -176,12 +194,53 @@ def drawing(features, vol):
                 "flat bottom (glued standoffs, no thread)", (px, py + sp["d"] / 2), xytext=(px, PH + 3.5),
                 ha="right" if px > PW / 2 else "left", va="center", fontsize=6.5,
                 arrowprops=dict(arrowstyle="-", lw=0.5))
-    ax.set_xlim(-6, PW + 6); ax.set_ylim(-4, PH + 6)
+    mp = S.MID_POCKET
+    px, py = M(*P(*B.MID_MOUNT))
+    ax.add_patch(Circle((px, py), mp["d"] / 2, fc="#c9dcf0", ec="#1f5fa0", lw=0.8, hatch="///"))
+    ax.annotate(f"centre pocket dia {mp['d']} +{mp['d_tol']}/-0, {mp['depth']} +{mp['depth_tol']}/-0 deep (never "
+                "shallower; glued standoff), flat bottom", (px, py - mp["d"] / 2), xytext=(px, -2.0), ha="center",
+                va="top", fontsize=6.5, arrowprops=dict(arrowstyle="-", lw=0.5))
+    ax.set_xlim(-6, PW + 6); ax.set_ylim(-4.5, PH + 6)
     ax.set_title("Avionics Panel rev 1 front plate, seen from the BACK (machined side)", fontsize=11, loc="left")
 
-    tx = fig.add_axes([0.04, 0.01, 0.92, 0.38]); tx.axis("off")
-    rows = [f"{n:<20s} {s:<30s} {d:<52s} x{q}" for n, s, d, q in features]
-    notes = [
+    y = bottom + text_h
+    texts = []
+    for t, fs, bold, mono in block:
+        if bold:
+            y -= 0.5 * 8.5 * lh
+        texts.append(fig.text(0.04, y, t, fontsize=fs, va="top", weight="bold" if bold else "normal",
+                              family="monospace" if mono else None))
+        y -= fs * lh
+    check_layout(fig, ax, texts)
+    fig.savefig("avionics-panel-rev1-plate-drawing.pdf", metadata={"CreationDate": None})   # reproducible
+    fig.savefig("avionics-panel-rev1-plate-drawing.png", dpi=110)
+    print(f"drawing written: {len(notes)} notes in {len(block)} lines")
+
+
+def check_layout(fig, ax, texts):
+    """every line of the text block on the page and clear of the drawing's own labels, and every label on the page:
+    a note that falls off the page would be lost to the machinist."""
+    fig.canvas.draw()
+    r = fig.canvas.get_renderer()
+    page = fig.bbox
+    labels = [*ax.texts, ax.title]
+    bad = []
+    for t in texts + labels:
+        bb = t.get_window_extent(r)
+        if bb.x0 < page.x0 or bb.y0 < page.y0 or bb.x1 > page.x1 or bb.y1 > page.y1:
+            bad.append(f"off the page: {t.get_text()[:60]!r}")
+    for t in texts:
+        bb = t.get_window_extent(r)
+        for lab in labels:
+            if bb.overlaps(lab.get_window_extent(r)):
+                bad.append(f"{t.get_text()[:40]!r} overlaps the label {lab.get_text()[:40]!r}")
+    if bad:
+        raise SystemExit("plate drawing layout: " + "; ".join(bad))
+
+
+def drawing_notes(vol):
+    """the notes on the drawing, one paragraph each."""
+    return [
         f"Material 6061 aluminium, {S.PLATE_T:.1f} +-{S.PLATE_T_TOL} mm thick before anodising. Outline {PW:.1f} "
         f"x {PH:.1f} mm, corner R{B.CORNER_R + OVH:.1f}. "
         f"Volume {vol / 1000:.1f} cm3. Units mm, general tolerance ISO 2768-m; flatness {S.PLATE_FLAT} over the "
@@ -189,14 +248,19 @@ def drawing(features, vol):
         "middle).",
         "Front face (+Z in the STEP) is flat: no pockets or fastener holes on the front, and no chamfers beyond "
         "the edge break below.",
-        f"Positions of the 4 standoff pockets and all through holes: +-{S.POS_TOL['plate']} to each other (the "
+        f"Positions of the 5 standoff pockets and all through holes: +-{S.POS_TOL['plate']} to each other (the "
         "key caps and the board must line up).",
         f"NO THREADS. 4 x round pockets dia {S.STANDOFF_POCKET['d']} +{S.STANDOFF_POCKET['d_tol']}/-0 from the "
         f"back, flat bottom (end mill, no drill point), {S.STANDOFF_POCKET['depth']} +0/-"
-        f"{S.STANDOFF_POCKET['depth_tol']} mm deep; metal standoffs are glued into them later. Pocket depths "
-        f"+0, never deeper: at least {S.PLATE_T - S.PLATE_T_TOL - S.RANGE_POCKET[1]:.2f} mm of material must stay "
-        "to the front face under every pocket; "
-        "nothing may break through or mark the front face.",
+        f"{S.STANDOFF_POCKET['depth_tol']} mm deep; metal standoffs are glued into them later. These and the "
+        f"encoder and RANGE pockets: depths +0, never deeper: at least "
+        f"{S.PLATE_T - S.PLATE_T_TOL - S.RANGE_POCKET[1]:.2f} mm of material must stay to the front face under "
+        "every pocket; nothing may break through or mark the front face.",
+        f"Centre pocket (between the key blocks) dia {S.MID_POCKET['d']} +{S.MID_POCKET['d_tol']}/-0 like the "
+        f"corner pockets, but {S.MID_POCKET['depth']} +{S.MID_POCKET['depth_tol']}/-0 mm deep: the one pocket that "
+        "must never be shallower (a standoff is glued in it without touching its floor), flat bottom. At least "
+        f"{S.PLATE_T - S.PLATE_T_TOL - S.MID_POCKET['depth'] - S.MID_POCKET['depth_tol']:.2f} mm stays to the front "
+        "face.",
         f"Encoder pockets and RANGE pocket: floor corner (inside radius between wall and floor) at most "
         f"{S.POCKET_FLOOR_R} mm; the parts' top corners come within about 0.1 mm of the pocket walls or floors.",
         "Finish: black anodised, matte (bead blasted before anodising); the pockets may be anodised or bare, but "
@@ -210,19 +274,6 @@ def drawing(features, vol):
         "Deburr all edges: edge break at most 0.2 on the front outline and hole edges; on the back edges of the "
         f"key holes {S.KEY_BACK_BREAK} to 0.2 (a lead-in for the key caps).",
     ]
-    y = 0.98
-    tx.text(0, y, "Features", fontsize=9, weight="bold", va="top"); y -= 0.06
-    for r in rows:
-        tx.text(0, y, r, fontsize=7.5, family="monospace", va="top"); y -= 0.038
-    y -= 0.03
-    tx.text(0, y, "Notes", fontsize=9, weight="bold", va="top"); y -= 0.06
-    import textwrap
-    for n in notes:
-        for i, line in enumerate(textwrap.wrap(n, 175)):
-            tx.text(0, y, ("- " if i == 0 else "  ") + line, fontsize=7.5, va="top"); y -= 0.038
-    fig.savefig("avionics-panel-rev1-plate-drawing.pdf", metadata={"CreationDate": None})   # reproducible
-    fig.savefig("avionics-panel-rev1-plate-drawing.png", dpi=110)
-    print("drawing written")
 
 
 if __name__ == "__main__":

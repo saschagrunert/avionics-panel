@@ -30,7 +30,8 @@ part = {ref: (x, y) for ref, _v, _l, x, y, _r, _s in B.PARTS}
 
 geometry = {
     "board": {"w": B.W, "h": B.H, "corner_r": B.CORNER_R, "t": S.PCB_T, "mounts": B.MOUNTS,
-              "mount_hole": B.MOUNT_HOLE, "key_pad_dx": B.KEY_DX, "key_pad_dy": B.KEY_DY},
+              "mount_hole": B.MOUNT_HOLE, "key_pad_dx": B.KEY_DX, "key_pad_dy": B.KEY_DY, "mid_mount": B.MID_MOUNT,
+              "mid_hole": B.MID_HOLE},
     "body": {"clear": MM.CLEAR, "wall": MM.WALL, "overhang": S.OVH, "z_bot": MM.Z_BOT,
              "z_floor": MM.Z_FLOOR_TOP, "wall_gap": S.WALL_GAP, "tilt_deg": S.BODY_TILT, "boss_r": MM.BOSS_R,
              "boss_hole_r": MM.SCREW_CLEAR, "supports": MM.SUPPORTS, "support_r": MM.SUPPORT_R,
@@ -63,6 +64,9 @@ geometry = {
     "screw": {"head_z": S.SCREW_HEAD_Z, "length": S.SCREW_L, "head_d": S.SCREW["head_d"], "head_k": S.SCREW["head_k"],
               "washer_od": S.WASHER["od"]},
     "standoff": {"ac": S.STANDOFF["ac"], "length": S.STANDOFF["L"], "hole_d": S.SCREW_D},
+    "mid_screw": {"length": S.MID_SCREW["L"], "d": S.MID_SCREW["d"], "head_d": S.MID_SCREW["head_d"],
+                  "head_k": S.MID_SCREW["head_k"], "washer_od": S.MID_WASHER["od"], "washer_t": S.MID_WASHER["t"]},
+    "mid_standoff": {"ac": S.MID_STANDOFF["ac"], "length": S.MID_STANDOFF["L"]},
     "parts": {"usb_x": B.USB_X, "j1_face": MM.J1_FACE, "j1_body": MM.J1_BODY, "mcu": part["U1"],
               "flash": part["U2"], "xtal": part["Y1"], "ldo": part["U3"]},
 }
