@@ -19,6 +19,11 @@ import supervisor
 import usb_hid
 from panel import KEY_SCAN_MS, Panel
 
+try:                               # the pads' drive strength (drive_12ma below); a build without it still runs
+    import memorymap
+except ImportError:
+    memorymap = None
+
 P = microcontroller.pin            # GPIO names work on any RP2040 build (the Pico board renames some)
 
 # Bench test on a plain Raspberry Pi Pico: GP23, GP24, GP25 and GP29 are not on its header. With
@@ -33,7 +38,11 @@ ROW_PINS = (P.GPIO11, P.GPIO8, P.GPIO5, P.GPIO2, P.GPIO0)
 COL_PINS = (P.GPIO1, P.GPIO3, P.GPIO4, P.GPIO6, P.GPIO7, P.GPIO9, P.GPIO10)
 FREQ_PUSH = P.GPIO13               # direct input, switch to GND
 SHIFT_LED, UNIT_LED = P.GPIO12, P.GPIO15
-LED_DUTY = (0x6000, 0x3000)        # SHIFT (amber), UNIT (white) brightness, 0..0xFFFF
+LED_GPIOS = (12, 15)               # their GPIO numbers: both pads drive 12 mA (drive_12ma below)
+# SHIFT (amber), UNIT (white) brightness, 0..0xFFFF. At full duty the amber LED takes about 13.5 mA (75 R) and the
+# white one about 8.5 mA (22 R), both pads at 12 mA drive; these duties, about 28 and 25 % of full, leave three to
+# four times that up to full duty for tuning on the first board (docs/electronics.md).
+LED_DUTY = (0x4800, 0x4000)
 # SHIFT light duty per panel level (off, dim, full). Dim starts at 1/4 of full: the eye is not linear, so it
 # looks like about half the brightness, a clear pulse that should stay visible through the light pipe in
 # daylight. Tune it on the first board with the amber LED behind its pipe: in PICO_TEST the SHIFT light is
@@ -68,6 +77,27 @@ direct = keypad.Keys((FREQ_PUSH,), value_when_pressed=False, pull=True, interval
 encoders = [rotaryio.IncrementalEncoder(a, b, divisor=2) for _, a, b, _ in RINGS]   # 30 detents / 15 pulses
 last = [e.position for e in encoders]
 leds = [pwmio.PWMOut(SHIFT_LED, frequency=1000), pwmio.PWMOut(UNIT_LED, frequency=1000) if UNIT_LED else None]
+PADS_BANK0 = 0x4001C000            # RP2040 pad control: one 32-bit register per GPIO, from offset 4
+DRIVE_12MA = 0x30                  # its DRIVE field, bits 5:4: 3 is 12 mA (reset 1, 4 mA)
+
+
+def drive_12ma(gpio):
+    """The pad's drive strength to 12 mA, so the series resistor, not the pad, sets the LED current. CircuitPython
+    has no call for it: memorymap writes the RP2040's pad register (32-bit, read, modify, write). After PWMOut, which
+    leaves the drive field alone. If it fails the light stays at the 4 mA drive, dimmer (docs/firmware.md)."""
+    if memorymap is None:
+        print("LED drive strength not set: no memorymap in this build")
+        return
+    try:
+        reg = memorymap.AddressRange(start=PADS_BANK0 + 4 + 4 * gpio, length=4)
+        reg[0:4] = (int.from_bytes(reg[0:4], "little") | DRIVE_12MA).to_bytes(4, "little")
+    except (ValueError, RuntimeError, OSError) as e:
+        print("LED drive strength not set on GP", gpio, e)
+
+
+if not PICO_TEST:                  # the Pico's onboard LED has a resistor of its own
+    for gp in LED_GPIOS:
+        drive_12ma(gp)
 unit_shown = None
 shift_shown = None
 panel = Panel()

@@ -1,15 +1,17 @@
 """CNC front plate for the Avionics Panel rev 1: STEP model for JLCCNC plus a 2D drawing of the back.
 
-4 mm aluminium (6061), black anodised. Front face (+Z) is flat: laser marking and UV print follow the
-DXF from make_plate_art.py, in the same coordinates. Back face (Z = 0): pockets for the encoder and
-RANGE bodies and 4 round flat-bottom pockets for the glued standoffs; no threads. Everything is machined
-from the back in one setup.
+6061 aluminium, milled from 12 mm stock, black anodised: a 4 mm web and four round bosses on its back at the
+corner mounts, each tapped M3 from its end face, 10.05 mm high in all. Front face (+Z) is flat: laser marking and
+UV print follow the DXF from make_plate_art.py, in the same coordinates. Back face (Z = 0): pockets for the encoder
+and RANGE bodies and the bosses, which stand down to the PCB. Everything but the front face is machined from the
+back in one setup; the front may be faced in a second one.
 
 Coordinates: origin at the bottom-left corner of the plate seen from the front, X right, Y up, mm.
 Needs pythonocc-core (nix-shell nix/shells.nix -A occ, from the repository root).
 """
 import math
 import sys
+import textwrap
 
 from OCC.Core.BRepAlgoAPI import BRepAlgoAPI_Cut
 from OCC.Core.BRepBuilderAPI import BRepBuilderAPI_MakeEdge, BRepBuilderAPI_MakeFace, BRepBuilderAPI_MakeWire
@@ -28,13 +30,18 @@ from OCC.Core.TopTools import TopTools_ListOfShape
 sys.path.insert(0, "../pcb")
 import board as B  # noqa: E402
 import stack as S  # noqa: E402
-from occ_util import write_step  # noqa: E402
+from occ_util import fuse, move, revolve, write_step  # noqa: E402
 
 OVH, T = S.OVH, S.PLATE_T
 AMBER_HEX, AMBER_RGB, AMBER_REF = S.AMBER["hex"], ", ".join(map(str, S.AMBER["rgb"])), S.AMBER["ref"]
 PW, PH = B.W + 2 * OVH, B.H + 2 * OVH
 LIGHT_TOL = f"+{S.LIGHT_HOLE_TOL[0]}/-{S.LIGHT_HOLE_TOL[1]:g}"      # light holes: never smaller
 KEY_TOL = f"+{S.KEY_HOLE_TOL[0]}/-{S.KEY_HOLE_TOL[1]:g}"            # key holes, after anodising
+BOSS, TAP = S.BOSS, S.TAP
+STOCK = 12.0                     # plate stock, mm: web and bosses are 10.05 (up to 10.2), the next common size
+# The drawing: the page is split between the plan view (above) and the text block (below). The plan view keeps at
+# least DRAWING_MIN of the page height, so a longer text block fails the build instead of shrinking it unreadable.
+DRAWING_MIN = 0.45
 
 
 def P(x, y):
@@ -68,8 +75,18 @@ def cyl(cx, cy, d, z0, z1):
     return BRepPrimAPI_MakeCylinder(gp_Ax2(gp_Pnt(cx, cy, z0), gp_Dir(0, 0, 1)), d / 2, z1 - z0).Shape()
 
 
+def tap_hole():
+    """the tapped hole of a boss as the cutter, its mouth at z = 0 going up: the countersink, the tap drill and its
+    118 degree point (the thread itself is the drawing's callout)."""
+    r, c, d = TAP["drill"] / 2, TAP["cham"], TAP["depth"]
+    return revolve([(0, -0.5), (r + c + 0.5, -0.5), (r + c, 0), (r, c), (r, d), (0, d + TAP["point"])])
+
+
 def build():
     plate = rrect_prism(PW / 2, PH / 2, PW, PH, B.CORNER_R + OVH, 0.0, T)
+    h = BOSS["h"]
+    for (mx, my) in B.MOUNTS:                                       # bosses down to the PCB top
+        plate = fuse(plate, cyl(*P(mx, my), BOSS["d"], -h, 0.01))
     tools, features = [], []
     e = 0.5                                                 # through tools overshoot both faces
     for y in B.ROWS:
@@ -80,8 +97,8 @@ def build():
     for name in ("ALTHDG", "FREQ", "FMS"):
         cx, cy = P(*getattr(B, name))
         tools.append(cyl(cx, cy, S.SHAFT_HOLE, -e, T + e))
-        w, h, r, dpt = S.EC11_POCKET
-        tools.append(rrect_prism(cx, cy, w, h, r, -e, dpt))
+        w, hh, r, dpt = S.EC11_POCKET
+        tools.append(rrect_prism(cx, cy, w, hh, r, -e, dpt))
     features.append(("encoder hole", f"dia {S.SHAFT_HOLE}", "through", 3))
     features.append(("encoder pocket", f"{S.EC11_POCKET[0]} x {S.EC11_POCKET[1]} R{S.EC11_POCKET[2]}",
                      f"{S.EC11_POCKET[3]} +0/-{S.POCKET_TOL} deep from back, floor corner R{S.POCKET_FLOOR_R} max", 3))
@@ -95,46 +112,101 @@ def build():
         (lx, ly), _, _ = B.LEDS[name]
         tools.append(cyl(*P(lx, ly), d, -e, T + e))
         features.append((f"{name} light hole", f"dia {d} {LIGHT_TOL}", "through", 1))
-    sp = S.STANDOFF_POCKET
-    for (mx, my) in B.MOUNTS:                                        # flat bottom, no drill point
-        tools.append(cyl(*P(mx, my), sp["d"], -e, sp["depth"]))
-    features.append(("standoff pocket", f"dia {sp['d']} +{sp['d_tol']}/-0, flat bottom",
-                     f"{sp['depth']} +0/-{sp['depth_tol']} deep from back", 4))
+    for (mx, my) in B.MOUNTS:
+        tools.append(move(tap_hole(), *P(mx, my), -h))
+    features.append(("boss", f"dia {BOSS['d']}, root R{BOSS['root_r']} max",
+                     f"{BOSS['h']} +-{BOSS['h_tol']} high from back, end face flat", 4))
+    features.append(("tapped hole", f"{TAP['thread']} in each boss",
+                     f"full thread {TAP['full']} min, drill {TAP['drill']} x {TAP['depth']} deep", 4))
     args, tl = TopTools_ListOfShape(), TopTools_ListOfShape()
     args.Append(plate)
     for t in tools:
         tl.Append(t)
     cut = BRepAlgoAPI_Cut()
     cut.SetArguments(args); cut.SetTools(tl); cut.SetRunParallel(True); cut.Build()
-    assert cut.IsDone(), "boolean cut failed"
+    if not cut.IsDone():                                    # a plain raise: asserts vanish under -O
+        raise RuntimeError("boolean cut failed")
     return cut.Shape(), features
 
 
 def main():
     shape, features = build()
-    assert BRepCheck_Analyzer(shape).IsValid(), "invalid solid"
+    if not BRepCheck_Analyzer(shape).IsValid():
+        raise RuntimeError("invalid solid")
     props = GProp_GProps(); brepgprop.VolumeProperties(shape, props)
     nf = 0; ex = TopExp_Explorer(shape, TopAbs_FACE)
     while ex.More():
         nf += 1; ex.Next()
     vol = props.Mass()
-    print(f"plate {PW:.1f} x {PH:.1f} x {T:.1f} mm, {vol / 1000:.1f} cm3, {vol * 2.70e-3:.0f} g (6061), {nf} faces")
-
+    print(f"plate {PW:.1f} x {PH:.1f} x {T:.1f} mm web, bosses {BOSS['h']} high, {vol / 1000:.1f} cm3, "
+          f"{vol * 2.70e-3:.0f} g (6061), {nf} faces; from {STOCK:.0f} mm stock, "
+          f"{(PW * PH * STOCK - vol) / 1000:.0f} cm3 milled off")
     write_step(shape, "avionics-panel-rev1-plate")
     BRepMesh_IncrementalMesh(shape, 0.02, False, 0.2, True)
     StlAPI_Writer().Write(shape, "avionics-panel-rev1-plate-ref.stl")
     drawing(features, vol)
 
 
+def drawing_notes(vol):
+    """the notes on the drawing, one paragraph each."""
+    t_min = S.PLATE_T - S.PLATE_T_TOL
+    skin = BOSS["h"] - BOSS["h_tol"] + t_min - TAP["depth"] - TAP["point"]
+    return [
+        f"Material 6061 aluminium, machined from {STOCK:.0f} mm plate: the web {S.PLATE_T:.1f} +-"
+        f"{S.PLATE_T_TOL} mm thick before anodising, the 4 bosses on its back, {S.BOSS['h'] + S.PLATE_T:.2f} mm "
+        f"high in all (the front may be faced). Outline {PW:.1f} x {PH:.1f} mm, corner "
+        f"R{B.CORNER_R + OVH:.1f}. Volume {vol / 1000:.1f} cm3. Units mm, general tolerance ISO 2768-m; flatness "
+        f"{S.PLATE_FLAT} over the whole web after bead blasting and anodising (the plate is held only at its bosses).",
+        "Front face (+Z in the STEP) is flat: no pockets or fastener holes on the front, and no chamfers beyond "
+        "the edge break below.",
+        f"Positions of the 4 bosses and their tapped holes and of all through holes: +-{S.POS_TOL['plate']} to each "
+        "other (the key caps, the board and the screws must line up).",
+        f"Bosses: dia {BOSS['d']} +-{BOSS['d_tol']}, {BOSS['h']} +-{BOSS['h_tol']} high from the back face of the web, "
+        f"each end face flat and square to its hole (they carry the plate on the board); root R{BOSS['root_r']} max.",
+        f"Threads: 4 x {TAP['thread']}, one in each boss from its end face, full thread at least {TAP['full']} deep, "
+        f"tap drill dia {TAP['drill']} x {TAP['depth']} deep plus the drill point, {TAP['cham']} x 90 deg countersink: "
+        f"at least {skin:.2f} mm of metal stays in front of the drill point. The threads must gauge {TAP['thread']} "
+        "after anodising: mask them while anodising, or cut them again afterwards. The boss end faces may be "
+        "anodised or bare, but all four alike.",
+        f"Pocket depths +0, never deeper: at least {t_min - S.RANGE_POCKET[1]:.2f} mm of material must stay to the "
+        "front face under every pocket; nothing may break through or mark the front face.",
+        f"Encoder pockets and RANGE pocket: floor corner (inside radius between wall and floor) at most "
+        f"{S.POCKET_FLOOR_R} mm; the parts' top corners come within about 0.1 mm of the pocket walls or floors.",
+        "Finish: black anodised, matte (bead blasted before anodising); the pockets may be anodised or bare, but "
+        "all pockets alike (all anodised or all bare).",
+        "Marking on the front per avionics-panel-rev1-plate.dxf, same origin (bottom-left, seen from the front): "
+        f"layer LASER = laser marking, layer UV_AMBER = UV print in amber, matched to {AMBER_HEX} (RGB {AMBER_RGB}, "
+        f"about {AMBER_REF}) if possible, otherwise the standard orange. Layer CUT = outline and through holes "
+        "for reference. DXF units mm; fill closed contours even-odd (letter counters are separate contours).",
+        f"Key holes {S.KEY_HOLE[0]} x {S.KEY_HOLE[1]} {KEY_TOL} after anodising (never smaller: the key caps "
+        f"centre the board in them). Light holes {LIGHT_TOL} (never smaller: the light pipes slide in them). "
+        "Deburr all edges: edge break at most 0.2 on the front outline and hole edges; on the back edges of the "
+        f"key holes {S.KEY_BACK_BREAK} to 0.2 (a lead-in for the key caps); the light holes' back edges sharp, "
+        f"deburred only ({S.LIGHT_HOLE_BACK_BREAK} max: the light pipes' shoulders bear there).",
+    ]
+
+
 def drawing(features, vol):
-    """A4 drawing of the back face: pockets, plus notes for the order."""
+    """A4 drawing of the back face: pockets, bosses and threads, plus notes for the order."""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     from matplotlib.patches import Circle, FancyBboxPatch
 
     fig = plt.figure(figsize=(11.69, 8.27))
-    ax = fig.add_axes([0.04, 0.40, 0.92, 0.55])
+    notes = drawing_notes(vol)
+    # the text block under the drawing, one (text, font size, bold, monospace) per line, in figure coordinates, laid
+    # out from its own height; the drawing takes the page above it
+    lh = 1.3 / 72 / fig.get_figheight()                    # line height as a figure fraction, per point of font size
+    block = [("Features", 8.5, True, False)]
+    block += [(f"{n:<20s} {s:<32s} {d:<60s} x{q}", 7.0, False, True) for n, s, d, q in features]
+    block += [("Notes", 8.5, True, False)]
+    for n in notes:
+        block += [(("- " if i == 0 else "  ") + line, 7.0, False, False)
+                  for i, line in enumerate(textwrap.wrap(n, 190))]
+    text_h = sum(fs * lh for _, fs, _, _ in block) + 2 * 0.5 * 8.5 * lh     # half a line before each heading
+    bottom, top = 0.02, 0.95
+    ax = fig.add_axes([0.04, bottom + text_h + 0.02, 0.92, top - bottom - text_h - 0.02])
     ax.set_aspect("equal"); ax.axis("off")
     # seen from the BACK: mirror X so the drawing matches what the machinist sees
     def M(x, y):
@@ -167,62 +239,61 @@ def drawing(features, vol):
     for name, d in S.LIGHT_HOLES.items():
         (lx, ly), _, _ = B.LEDS[name]
         ax.add_patch(Circle(M(*P(lx, ly)), d / 2, fc="white", ec="k", lw=0.6))
-    sp = S.STANDOFF_POCKET
-    for (mx, my) in B.MOUNTS:
+    for (mx, my) in B.MOUNTS:                                        # bosses (raised) with their tapped holes
         px, py = M(*P(mx, my))
-        ax.add_patch(Circle((px, py), sp["d"] / 2, fc="#c9dcf0", ec="#1f5fa0", lw=0.8, hatch="///"))
+        ax.add_patch(Circle((px, py), BOSS["d"] / 2, fc="#9aa3ad", ec="k", lw=0.8))
+        ax.add_patch(Circle((px, py), TAP["drill"] / 2, fc="white", ec="k", lw=0.6))
+        ax.add_patch(Circle((px, py), 1.5, fc="none", ec="k", lw=0.4, ls=(0, (2, 1.5))))   # thread major dia
     px, py = M(*P(*B.MOUNTS[0]))                                     # one label for all four, above the plate
-    ax.annotate(f"4 x pocket dia {sp['d']} +{sp['d_tol']}/-0, {sp['depth']} +0/-{sp['depth_tol']} deep, "
-                "flat bottom (glued standoffs, no thread)", (px, py + sp["d"] / 2), xytext=(px, PH + 3.5),
-                ha="right" if px > PW / 2 else "left", va="center", fontsize=6.5,
+    ax.annotate(f"4 x boss dia {BOSS['d']}, {BOSS['h']} +-{BOSS['h_tol']} high, {TAP['thread']} full thread "
+                f"{TAP['full']} min (drill {TAP['drill']} x {TAP['depth']})", (px, py + BOSS["d"] / 2),
+                xytext=(px, PH + 3.5), ha="right" if px > PW / 2 else "left", va="center", fontsize=6.5,
                 arrowprops=dict(arrowstyle="-", lw=0.5))
     ax.set_xlim(-6, PW + 6); ax.set_ylim(-4, PH + 6)
     ax.set_title("Avionics Panel rev 1 front plate, seen from the BACK (machined side)", fontsize=11, loc="left")
 
-    tx = fig.add_axes([0.04, 0.01, 0.92, 0.38]); tx.axis("off")
-    rows = [f"{n:<20s} {s:<30s} {d:<52s} x{q}" for n, s, d, q in features]
-    notes = [
-        f"Material 6061 aluminium, {S.PLATE_T:.1f} +-{S.PLATE_T_TOL} mm thick before anodising. Outline {PW:.1f} "
-        f"x {PH:.1f} mm, corner R{B.CORNER_R + OVH:.1f}. "
-        f"Volume {vol / 1000:.1f} cm3. Units mm, general tolerance ISO 2768-m; flatness {S.PLATE_FLAT} over the "
-        "whole plate after bead blasting and anodising (held at its corners, LEDs close under its back in the "
-        "middle).",
-        "Front face (+Z in the STEP) is flat: no pockets or fastener holes on the front, and no chamfers beyond "
-        "the edge break below.",
-        f"Positions of the 4 standoff pockets and all through holes: +-{S.POS_TOL['plate']} to each other (the "
-        "key caps and the board must line up).",
-        f"NO THREADS. 4 x round pockets dia {S.STANDOFF_POCKET['d']} +{S.STANDOFF_POCKET['d_tol']}/-0 from the "
-        f"back, flat bottom (end mill, no drill point), {S.STANDOFF_POCKET['depth']} +0/-"
-        f"{S.STANDOFF_POCKET['depth_tol']} mm deep; metal standoffs are glued into them later. Pocket depths "
-        f"+0, never deeper: at least {S.PLATE_T - S.PLATE_T_TOL - S.RANGE_POCKET[1]:.2f} mm of material must stay "
-        "to the front face under every pocket; "
-        "nothing may break through or mark the front face.",
-        f"Encoder pockets and RANGE pocket: floor corner (inside radius between wall and floor) at most "
-        f"{S.POCKET_FLOOR_R} mm; the parts' top corners come within about 0.1 mm of the pocket walls or floors.",
-        "Finish: black anodised, matte (bead blasted before anodising); the pockets may be anodised or bare, but "
-        "all pockets alike (all anodised or all bare).",
-        "Marking on the front per avionics-panel-rev1-plate.dxf, same origin (bottom-left, seen from the front): "
-        f"layer LASER = laser marking, layer UV_AMBER = UV print in amber, matched to {AMBER_HEX} (RGB {AMBER_RGB}, "
-        f"about {AMBER_REF}) if possible, otherwise the standard orange. Layer CUT = outline and through holes "
-        "for reference. DXF units mm; fill closed contours even-odd (letter counters are separate contours).",
-        f"Key holes {S.KEY_HOLE[0]} x {S.KEY_HOLE[1]} {KEY_TOL} after anodising (never smaller: the key caps "
-        f"centre the board in them). Light holes {LIGHT_TOL} (never smaller: light pipes are glued into them). "
-        "Deburr all edges: edge break at most 0.2 on the front outline and hole edges; on the back edges of the "
-        f"key holes {S.KEY_BACK_BREAK} to 0.2 (a lead-in for the key caps).",
-    ]
-    y = 0.98
-    tx.text(0, y, "Features", fontsize=9, weight="bold", va="top"); y -= 0.06
-    for r in rows:
-        tx.text(0, y, r, fontsize=7.5, family="monospace", va="top"); y -= 0.038
-    y -= 0.03
-    tx.text(0, y, "Notes", fontsize=9, weight="bold", va="top"); y -= 0.06
-    import textwrap
-    for n in notes:
-        for i, line in enumerate(textwrap.wrap(n, 175)):
-            tx.text(0, y, ("- " if i == 0 else "  ") + line, fontsize=7.5, va="top"); y -= 0.038
+    y = bottom + text_h
+    texts = []
+    for t, fs, bold, mono in block:
+        if bold:
+            y -= 0.5 * 8.5 * lh
+        texts.append(fig.text(0.04, y, t, fontsize=fs, va="top", weight="bold" if bold else "normal",
+                              family="monospace" if mono else None))
+        y -= fs * lh
+    check_layout(fig, ax, texts)
     fig.savefig("avionics-panel-rev1-plate-drawing.pdf", metadata={"CreationDate": None})   # reproducible
     fig.savefig("avionics-panel-rev1-plate-drawing.png", dpi=110)
-    print("drawing written")
+    print(f"drawing written: {len(notes)} notes in {len(block)} lines, drawing {ax.get_position().height:.2f} of the "
+          f"page (min {DRAWING_MIN})")
+
+
+def check_layout(fig, ax, texts):
+    """The drawing as the machinist gets it: every line of the text block and every label on the page, no line of
+    the text block on a label, no two labels on each other, and the plan view at least DRAWING_MIN of the page high.
+    A note that falls off the page or under a label would be lost; a squeezed plan view unreadable."""
+    fig.canvas.draw()
+    r = fig.canvas.get_renderer()
+    page = fig.bbox
+    labels = [*ax.texts, ax.title]
+    bad = []
+    if ax.get_position().height < DRAWING_MIN:
+        bad.append(f"the plan view is {ax.get_position().height:.2f} of the page high (min {DRAWING_MIN}): the "
+                   "notes take too much room")
+    for t in texts + labels:
+        bb = t.get_window_extent(r)
+        if bb.x0 < page.x0 or bb.y0 < page.y0 or bb.x1 > page.x1 or bb.y1 > page.y1:
+            bad.append(f"off the page: {t.get_text()[:60]!r}")
+    for t in texts:
+        bb = t.get_window_extent(r)
+        for lab in labels:
+            if bb.overlaps(lab.get_window_extent(r)):
+                bad.append(f"{t.get_text()[:40]!r} overlaps the label {lab.get_text()[:40]!r}")
+    for i, a in enumerate(labels):
+        for b in labels[i + 1:]:
+            if a.get_window_extent(r).overlaps(b.get_window_extent(r)):
+                bad.append(f"the labels {a.get_text()[:40]!r} and {b.get_text()[:40]!r} overlap")
+    if bad:
+        raise SystemExit("plate drawing layout: " + "; ".join(bad))
 
 
 if __name__ == "__main__":

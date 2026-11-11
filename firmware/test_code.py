@@ -1,6 +1,6 @@
 """Host smoke tests for code.py: runs its main loop against stub CircuitPython modules.
 
-code.py itself needs the hardware (keypad, rotaryio, pwmio, usb_hid), so these stubs stand in for it:
+code.py itself needs the hardware (keypad, rotaryio, pwmio, usb_hid, memorymap), so these stubs stand in for it:
 the tests script key presses and encoder steps per millisecond and record the HID reports it sends.
 """
 import os
@@ -71,6 +71,29 @@ class PWM:
         self._duty, self.writes = value, self.writes + 1
 
 
+PAD_RESET = 0x56                     # an RP2040 PADS_BANK0 GPIO register after reset: IE, 4 mA, PDE, SCHMITT
+
+
+class Registers:
+    """memorymap.AddressRange over the RP2040's pad registers: 32-bit words, read as reset until written"""
+
+    def __init__(self, hw):
+        self.hw = hw
+
+    def range(self, start, length):
+        hw = self.hw
+
+        class AddressRange:
+            def __getitem__(self, key):
+                assert (key.start, key.stop, start % 4, length) == (0, 4, 0, 4)   # whole aligned words only
+                return hw.regs.get(start, PAD_RESET).to_bytes(4, "little")
+
+            def __setitem__(self, key, value):
+                assert (key.start, key.stop, len(value)) == (0, 4, 4)
+                hw.regs[start] = int.from_bytes(value, "little")
+        return AddressRange()
+
+
 class Joystick:
     """one of the two devices. Both share one USB HID interface, as on the board: send_report waits for that
     interface, so the host's polling (hw.busy, hw.block) is the same for both"""
@@ -93,7 +116,8 @@ class Joystick:
 class Hardware:
     """the stub modules, plus the clock that drives the script"""
 
-    def __init__(self, ms, script=None, busy=0, usb_from=0, usb_gap=(0, 0), pico_test=False, edits=(), wrap=65536):
+    def __init__(self, ms, script=None, busy=0, usb_from=0, usb_gap=(0, 0), pico_test=False, edits=(), wrap=65536,
+                 memorymap=True):
         self.t, self.ms, self.script, self.usb_from, self.usb_gap = 0, ms, script or {}, usb_from, usb_gap
         self.wrap = wrap                      # ms at which supervisor.ticks_ms wraps (CircuitPython: 65.536 s)
         self.pico_test, self.edits = pico_test, edits      # edits: (old, new) source lines, as on a first board
@@ -102,7 +126,7 @@ class Hardware:
         self.waits = {}                       # ms: how long a good send in that pass waits for the host
         self.joysticks = [Joystick(self), Joystick(self)]
         self.matrix = self.direct = None
-        self.encoders, self.leds, self.duty = [], [], {}
+        self.encoders, self.leds, self.duty, self.regs = [], [], {}, {}
         self.sleeps, self.reloads, self.printed = [], [], []
         hw = self
 
@@ -127,6 +151,7 @@ class Hardware:
         pins = types.SimpleNamespace(**{f"GPIO{i}": f"GP{i}" for i in range(30)})
         self.modules = {
             "keypad": types.SimpleNamespace(KeyMatrix=Matrix, Keys=Direct),
+            "memorymap": types.SimpleNamespace(AddressRange=Registers(self).range),
             "microcontroller": types.SimpleNamespace(pin=pins),
             "pwmio": types.SimpleNamespace(PWMOut=Pwm),
             "rotaryio": types.SimpleNamespace(IncrementalEncoder=Enc),
@@ -136,6 +161,8 @@ class Hardware:
             "time": types.SimpleNamespace(monotonic_ns=lambda: hw.t * 1_000_000, sleep=self.sleep),
             "traceback": types.SimpleNamespace(print_exception=self.printed.append),
         }
+        if not memorymap:                    # a CircuitPython build without memorymap: the import fails
+            self.modules["memorymap"] = None
 
     def ticks_ms(self, t=None):
         """supervisor.ticks_ms at ms t (default now): wraps at 2**29, first at self.wrap"""
@@ -357,6 +384,22 @@ def test_unit_light_is_written_only_on_a_change():
                         110: [press("HOME", True)], 160: [press("HOME", False)]}).run()
     unit = hw.leds[1]
     assert unit.duty_cycle > 0 and unit.writes == 2         # off at the start, on after SHIFT, HOME
+
+
+def test_both_light_pads_drive_12_ma():
+    # the LEDs' series resistors assume the 12 mA pad drive: DRIVE (bits 5:4) set on GP12 and GP15 only, the rest
+    # of each register as it was; the Pico bench leaves its onboard LED's pad alone
+    regs = Hardware(50).run().regs
+    pads = {0x4001C004 + 4 * gp: PAD_RESET | 0x30 for gp in (12, 15)}
+    assert regs == pads and all(v & 0x30 == 0x30 and v & ~0x30 == PAD_RESET & ~0x30 for v in regs.values())
+    assert Hardware(50, pico_test=True).run().regs == {}
+
+
+def test_lights_work_without_memorymap():
+    # a build without memorymap: code.py runs on and the lights still follow SHIFT, at the pads' default drive
+    tap = {50: [press("SHIFT", True)], 60: [press("SHIFT", False)]}
+    hw = Hardware(100, tap, memorymap=False).run()
+    assert hw.regs == {} and hw.leds[0].duty_cycle > 0 and not hw.printed
 
 
 def test_shift_light_is_written_only_on_a_change():

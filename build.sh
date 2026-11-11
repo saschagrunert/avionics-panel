@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Regenerate every output, run all checks and copy the results to production/ and renders/.
-# Usage: ./build.sh [--route]    --route also re-runs the board routing (seed 11, a few minutes) first.
+# Usage: ./build.sh [--route]    --route also re-runs the board routing (seed 5, a few minutes) first.
 # Needs Nix (nix-shell) for the Python environments, all from the nixpkgs revision locked in flake.lock
 # (read through nix/nixpkgs.nix, so without the flakes feature).
 # The independent sections run in parallel. Each one stops at its first failed step and prints its output in
@@ -45,7 +45,7 @@ firmware() {
 BOARD="python3 make.py >/dev/null && python3 check.py && python3 render.py >/dev/null && python3 make_bom.py >/dev/null && python3 make_schematic.py"
 if [ "${1:-}" = --route ]; then
   echo "== placement check and routing"
-  gen pcb "python3 precheck.py && python3 run_route.py 11"
+  gen pcb "python3 precheck.py && python3 run_route.py 5"
 else
   BOARD="python3 precheck.py && $BOARD"
 fi

@@ -121,7 +121,7 @@ const FRAME = { x0: COLS[0] - CAP[0] / 2 - FRAME_M, x1: COLS[6] + CAP[0] / 2 + F
                 vAP: (COLS[2] + COLS[3]) / 2, vRadio: (COLS[4] + COLS[5]) / 2,          // AUDIO: talk / listen; RADIO: tuning
                 hFMS: (ROWS[1] + CAP[1] / 2 + 2.6 + ROWS[2] - CAP[1] / 2) / 2 };
 const MOUNTS = G.board.mounts, SUPPORTS = G.body.supports;
-const SCREW_HEAD_Z = G.screw.head_z, SCREW_L = G.screw.length, LED_TOP = G.led_top, PIPE_Z0 = G.pipe.z0;
+const SCREW_HEAD_Z = G.screw.head_z, SCREW_L = G.screw.length, PIPE_Z0 = G.pipe.z0;
 const USB_X = G.parts.usb_x, MCU = G.parts.mcu, FLASH = G.parts.flash, XTAL = G.parts.xtal, LDO = G.parts.ldo;   // bottom side
 const CAP_FONT = '"Barlow Semi Condensed", "Arial Narrow", "Roboto Condensed", sans-serif';
 const AMBER = G.amber, WHITE_ENGR = 'rgba(228,230,234,0.92)', PLATE_BASE = '#2d2f33';
@@ -276,7 +276,7 @@ async function main() {
     ring.lineTo(cw - cr, -ch); ring.quadraticCurveTo(cw, -ch, cw, -ch + cr);
     ring.lineTo(cw, ch - cr); ring.quadraticCurveTo(cw, ch, cw - cr, ch);
     ring.lineTo(nr, ch); ring.lineTo(nr, oh);
-    const walls = slab(ring, Z_BOT, PLATE_Z0 - BD.wall_gap, bodyMat);   // walls stop short: the standoffs set the plate height
+    const walls = slab(ring, Z_BOT, PLATE_Z0 - BD.wall_gap, bodyMat);   // walls stop short: the plate's bosses set its height
     shearBottom(walls, Z_BOT); bodyG.add(walls);
     // the wall under the notch, from the desk plane up to the opening's bottom, and beside the opening up to the
     // ledges level with its top (make_mech.py)
@@ -299,7 +299,7 @@ async function main() {
     for (const x of BD.ribs_x) under(rect(x - BD.rib_t / 2, -CLEAR, x + BD.rib_t / 2, BD.hollow_front));
     for (const y of BD.ribs_y) under(rect(-CLEAR, y - BD.rib_t / 2, W + CLEAR, y + BD.rib_t / 2));
     for (const [fx, fy] of BD.feet) under(disc(fx, fy, BD.foot_pad / 2));                // flat pads for the feet
-    // screw bosses joined to their corner walls: wide round the washer counterbore, narrower on the PCB
+    // screw bosses joined to their corner walls: wide round the counterbore, narrower on the PCB
     const corner = (mx, my, r, hole) => {
       const sx = mx < W / 2 ? -1 : 1, sy = my < H / 2 ? -1 : 1, xw = sx < 0 ? -CLEAR : W + CLEAR, yw = sy < 0 ? -CLEAR : H + CLEAR;
       const pts = [[xw, yw], [mx - sx * r, yw], [mx - sx * r, my]];
@@ -352,6 +352,8 @@ async function main() {
     for (const [mx, my] of MOUNTS) pad(mx, my, G.board.mount_hole / 2);
     const shape = rrectShape(W, H, R);
     for (const [mx, my] of MOUNTS) shape.holes.push(circlePath(px(mx), -pz(my), G.board.mount_hole / 2));
+    const [CUT_W, CUT_H, CUT_R] = G.led.cutout;                              // the LEDs shine up through these
+    for (const L of LIGHTS) shape.holes.push(rrectPath(CUT_W, CUT_H, CUT_R, px(L.x), -pz(L.y)));
     // glossier than the matte body round it, so the board still reads as its own part
     const topMat = new THREE.MeshStandardMaterial({ map: mmTexture(c, W, H), roughness: 0.4 });
     pcbG.add(slab(shape, -PCB_T, 0, [topMat, pcbSide]));
@@ -391,34 +393,27 @@ async function main() {
         shaft(E.inner_d / 2, E.outer_top, E.inner_top);
       } else { shaft(J.hub_d / 2, J.body, J.hub_top); shaft(J.lever_d / 2, J.hub_top, J.lever_z1); }   // RKJXT hub and lever
     }
-    for (const L of LIGHTS) {                                                    // 3 mm LEDs under the light pipes
-      const led = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.5, LED_TOP - 0.8, 24), M({ color: L.emissive, roughness: 0.3, transparent: true, opacity: 0.75 }));
-      led.position.set(px(L.x), (LED_TOP - 0.8) / 2, pz(L.y)); pcbG.add(led);
-      const dome = new THREE.Mesh(new THREE.SphereGeometry(1.5, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), led.material);
-      dome.position.set(px(L.x), LED_TOP - 1.5 + 0.7, pz(L.y)); dome.scale.y = 0.8 / 1.5; pcbG.add(dome);
+    const LL = G.led.lens;
+    for (const L of LIGHTS) {                       // reverse-mount 1206 LEDs on the bottom, the lens up in the cutout
+      box(pcbG, 3.2, 0.28, 1.6, L.x, L.y, under(0.28), metal);
+      box(pcbG, LL.l, LL.h, LL.w, L.x, L.y, -PCB_T, M({ color: L.emissive, roughness: 0.3, transparent: true, opacity: 0.8 }));
     }
   }
 
-  // ---------------- screws (below the body) and standoffs (glued into the plate, down to the PCB) ----------------
+  // ---------------- screws (below the body): M3 flanged button heads, no washers ----------------
   const screwG = new THREE.Group(); assembly.add(screwG);
-  const standoffG = new THREE.Group(); assembly.add(standoffG);
   {
     const steel = M({ color: 0x2a2b2e, roughness: 0.45, metalness: 0.8 });     // black oxide
-    const brass = M({ color: 0xc9a650, roughness: 0.35, metalness: 0.9 });
-    const SC = G.screw, washerH = G.body.seat_z - SCREW_HEAD_Z;                 // the washer between seat and head
+    const SC = G.screw, FL = 0.6;                                               // flange rim
     for (const [mx, my] of MOUNTS) {
-      const washers = new THREE.Mesh(new THREE.CylinderGeometry(SC.washer_od / 2, SC.washer_od / 2, washerH, 24), metal);
-      washers.position.set(px(mx), SCREW_HEAD_Z + washerH / 2, pz(my)); screwG.add(washers);
-      const head = new THREE.Mesh(new THREE.CylinderGeometry(SC.head_d / 2 - 0.3, SC.head_d / 2, SC.head_k, 24), steel);
-      head.position.set(px(mx), SCREW_HEAD_Z - SC.head_k / 2, pz(my)); screwG.add(head);   // pan head
-      const slot = new THREE.Mesh(new THREE.BoxGeometry(SC.head_d * 0.7, 0.05, 0.5), dark);
-      slot.position.set(px(mx), SCREW_HEAD_Z - SC.head_k - 0.02, pz(my)); screwG.add(slot);
-      const shank = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.2, SCREW_L, 16), steel);
+      const flange = new THREE.Mesh(new THREE.CylinderGeometry(SC.flange_d / 2, SC.flange_d / 2, FL, 32), steel);
+      flange.position.set(px(mx), SCREW_HEAD_Z - FL / 2, pz(my)); screwG.add(flange);
+      const head = new THREE.Mesh(new THREE.CylinderGeometry(SC.head_d / 2 - 0.6, SC.head_d / 2, SC.head_k - FL, 24), steel);
+      head.position.set(px(mx), SCREW_HEAD_Z - FL - (SC.head_k - FL) / 2, pz(my)); screwG.add(head);   // button
+      const hex = new THREE.Mesh(new THREE.CylinderGeometry(SC.hex / Math.sqrt(3), SC.hex / Math.sqrt(3), 0.05, 6), dark);
+      hex.position.set(px(mx), SCREW_HEAD_Z - SC.head_k - 0.02, pz(my)); screwG.add(hex);   // 2 mm hex socket
+      const shank = new THREE.Mesh(new THREE.CylinderGeometry(SC.d / 2, SC.d / 2, SCREW_L, 16), steel);
       shank.position.set(px(mx), SCREW_HEAD_Z + SCREW_L / 2, pz(my)); screwG.add(shank);
-      const SO = G.standoff, hex = new THREE.Shape();                            // M2.5 female-female hex standoff
-      for (let i = 0; i < 6; i++) { const a = Math.PI / 6 + i * Math.PI / 3; (i ? hex.lineTo : hex.moveTo).call(hex, SO.ac / 2 * Math.cos(a), SO.ac / 2 * Math.sin(a)); }
-      hex.holes.push(circlePath(0, 0, SO.hole_d / 2));
-      const so = slab(hex, 0, SO.length, brass); so.position.set(px(mx), 0, pz(my)); standoffG.add(so);
     }
   }
 
@@ -521,16 +516,25 @@ async function main() {
     geo.rotateX(-Math.PI / 2); geo.translate(0, PLATE_Z0 + bs, 0);
     const plate = new THREE.Mesh(geo, [topMat, plateSide]); plate.castShadow = true; plate.receiveShadow = true;
     plateG.add(plate);
-    // annunciators: light-pipe lenses flush with the plate, LEDs on the PCB
+    const BO = G.boss;                                                    // the bosses, milled with the plate, tapped M3
+    for (const [mx, my] of MOUNTS) {
+      const sh = new THREE.Shape(); sh.absarc(0, 0, BO.d / 2, 0, Math.PI * 2, false);
+      sh.holes.push(circlePath(0, 0, BO.tap_d / 2));
+      const b = slab(sh, 0, PLATE_Z0 + 0.01, plateSide); b.position.set(px(mx), 0, pz(my)); plateG.add(b);   // to the PCB
+    }
+    // annunciators: stepped light pipes standing on the board over the LEDs, their tops a little under the face
+    const PP = G.pipe;
     for (const L of LIGHTS) {
       const lensMat = new THREE.MeshStandardMaterial({ color: L.color, emissive: L.emissive, emissiveIntensity: L.on, roughness: 0.3 });
       lensMat.color.convertSRGBToLinear(); lensMat.emissive.convertSRGBToLinear();
-      const lens = new THREE.Mesh(new THREE.CylinderGeometry(L.r, L.r, 0.1, 32), lensMat);   // flat lens, flush with the plate
-      lens.position.set(px(L.x), PLATE_Z1 + 0.03, pz(L.y)); plateG.add(lens);
-      const pipeMat = M({ color: 0xdfe6ea, roughness: 0.15, transparent: true, opacity: 0.55 });   // clear resin, glued flush
-      const rr = L.r - G.pipe.clear / 2;                                   // slip fit in its hole
-      const rod = new THREE.Mesh(new THREE.CylinderGeometry(rr, rr, G.pipe.len, 24), pipeMat);   // clear of its LED
-      rod.position.set(px(L.x), PIPE_Z0 + G.pipe.len / 2, pz(L.y)); pipeG.add(rod);
+      const rr = L.r - PP.clear / 2;                                       // slip fit in its hole
+      const lens = new THREE.Mesh(new THREE.CylinderGeometry(rr, rr, 0.1, 32), lensMat);   // the lit top of the pipe
+      lens.position.set(px(L.x), PIPE_Z0 + PP.len - 0.05, pz(L.y)); pipeG.add(lens);
+      const pipeMat = M({ color: 0xdfe6ea, roughness: 0.15, transparent: true, opacity: 0.55 });   // clear resin
+      const rod = new THREE.Mesh(new THREE.CylinderGeometry(rr, rr, PP.len - PP.base_len - 0.1, 24), pipeMat);
+      rod.position.set(px(L.x), PIPE_Z0 + (PP.base_len + PP.len - 0.1) / 2, pz(L.y)); pipeG.add(rod);
+      const base = new THREE.Mesh(new THREE.CylinderGeometry(PP.base_d / 2, PP.base_d / 2, PP.base_len, 24), pipeMat);
+      base.position.set(px(L.x), PIPE_Z0 + PP.base_len / 2, pz(L.y)); pipeG.add(base);   // shoulder under the plate back
     }
   }
 
@@ -633,9 +637,9 @@ async function main() {
   }
 
   // ---------------- place on the ground and set up views ----------------
-  // explode offsets (mm): PCB lifts its bottom parts out of the body, the plate with its glued standoffs and
-  // light pipes clears the key switches, caps and knobs clear the plate and the shaft tips
-  const EXPLODE = [[screwG, -30], [pcbG, 18], [standoffG, 46], [pipeG, 46], [plateG, 46], [capsG, 62], [outerG, 64], [innerG, 78]];
+  // explode offsets (mm): PCB lifts its bottom parts out of the body, the plate with its bosses and the light
+  // pipes clears the key switches, caps and knobs clear the plate and the shaft tips
+  const EXPLODE = [[screwG, -30], [pcbG, 18], [pipeG, 46], [plateG, 46], [capsG, 62], [outerG, 64], [innerG, 78]];
   assembly.updateMatrixWorld(true);
   const bb = new THREE.Box3().setFromObject(assembly);
   assembly.position.y = -bb.min.y + 0.01;

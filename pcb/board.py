@@ -4,10 +4,11 @@ Knob set ALT/HDG + RANGE (Alps RKJXT, turn / 4-way tilt / push) left, FREQ + FMS
 lights, BOOT as bridge pads under a hole in the case floor, SWD debug points.
 
 Top view (component side), mm, origin top-left, y down. Layer stack: F (signals), In1 = GND plane,
-In2 = 3V3 plane, B (signals). Switches, knobs, the RANGE control and the LEDs (THT) sit on top; every SMD
-part (RP2040, flash, USB-C, regulator, diodes, passives) is on the bottom, so JLCPCB's Economic assembly
-does one SMD side and the through-hole parts are soldered by hand. Standard assembly of both sides (the full
-variant, docs/ordering.md) has JLCPCB fit the through-hole parts too, from a top-side CPL.
+In2 = 3V3 plane, B (signals). Switches, knobs and the RANGE control (THT) sit on top; every SMD part (RP2040,
+flash, USB-C, regulator, diodes, passives, the two reverse-mount LEDs that shine up through cutouts in the board)
+is on the bottom, so JLCPCB's Economic assembly does one SMD side and the through-hole parts are soldered by hand.
+Standard assembly of both sides (the full variant, docs/ordering.md) has JLCPCB fit the through-hole parts too,
+from a top-side CPL.
 
 Footprint sources:
   RP2040 QFN-56: RP2040 datasheet fig. 165 (pads 0.20 x 0.875, pitch 0.40, 7.75/6.00, EP 3.20)
@@ -59,10 +60,10 @@ POUR_CLEAR = 0.30
 EDGE_CLEAR = 0.50
 VIA_D, VIA_DRILL = 0.60, 0.30
 SVIA_D, SVIA_DRILL = 0.50, 0.30     # small vias (USB-C, fan-out ends): JLC standard 0.3 mm drill, 0.45 mm pad min.
-MOUNT_HOLE = 3.0      # close round the M2.5 screw: it lines up the glued standoff while the epoxy cures (mech/stack.py)
+MOUNT_HOLE = 3.8      # round the M3 screw: the board floats on the screws, where the caps centre it (mech/stack.py)
 MOUNTS = [(3.5, 3.5), (W - 3.5, 3.5), (3.5, H - 3.5), (W - 3.5, H - 3.5)]
-# no copper on F and B within this radius of a mounting-hole centre: the standoff end and the body boss press
-# on the board there (check.py measures it on the Gerbers, mech/check_fit.py fits the standoff inside it)
+# no copper on F and B within this radius of a mounting-hole centre: the plate boss and the body boss press on
+# the board there (check.py measures it on the Gerbers, mech/check_fit.py fits the plate boss inside it)
 MOUNT_KEEPOUT = 3.6
 PLANES = {"In1": "GND", "In2": "3V3"}
 
@@ -86,11 +87,20 @@ MCU = (122.6 + SHIFT_X, 25.0)   # RP2040 on the bottom, mirrored (pins 1-14 face
 USB_X = 118.0 + SHIFT_X
 BOOT = (MCU[0] + 0.5, 54.0)     # bridge pads on the bottom, under a hole in the case floor
 # Light pipes in the front plate over the LEDs. In the 4 mm aluminium plate each light hole keeps a web of at
-# least 0.8 mm (JLCCNC's minimum metal wall) to the next key hole: SHIFT 0.85 mm to the key above, UNIT
-# 0.86 mm to the key up and to the left (0.75 / 0.76 with both holes at their +0.1 limit, over JLCCNC's
-# 0.5). SHIFT's 3.8 mm LED flange clears the switch body above by 0.35 mm.
-LEDS = {"SHIFT": ((COLS[3], ROWS[3] + 3.2 + 2.05), "GP12", "amber"),
-        "UNIT": ((COLS[3] + 4.3, ROWS[2] + 3.2 + 1.9), "GP15", "white")}
+# least 0.8 mm (JLCCNC's minimum metal wall) to the next key hole. Each LED is a reverse-mount 1206 on the bottom
+# that shines up through a cutout in the board (LED_CUTOUT); its light pipe stands on the board over it, with a
+# base wide enough to stand on the board round the cutout, clear of the switch bodies and out from under the key
+# holes (mech/check_fit.py): SHIFT 5.75 mm below its key's centre, UNIT midway between key rows 2 and 3.
+LEDS = {"SHIFT": ((COLS[3], ROWS[3] + 5.75), "GP12", "amber"),
+        "UNIT": ((COLS[3] + 4.3, (ROWS[2] + ROWS[3]) / 2), "GP15", "white")}
+# The cutout under each LED: 2.2 mm along the pads by 2.4 mm across, R0.5 corners (a 1.0 mm router), round LiteOn's
+# 1.5 x 1.6 mm lens (LiteOn's land pattern: 2.1 x 2.3, sharp corners); in the Edge_Cuts layer. The pads stop
+# LED_CUT_CLEAR short of it, JLCPCB's copper-to-routed-edge minimum, and still reach 0.3 mm under the terminals on
+# the LED's face (0.75 to 1.6 mm off its centre; LiteOn's own pattern reaches 0.55 mm under them).
+LED_CUTOUT = (2.2, 2.4, 0.5)
+LED_CUT_CLEAR = 0.2
+LED_PAD = (1.15, 1.6)                   # along, across; inner edge at LED_CUTOUT[0] / 2 + LED_CUT_CLEAR
+CUTOUTS = []                            # (x, y, w, h, r) of every cutout in the board, filled by build()
 
 # GPIO plan (RP2040 GPIO number -> function)
 # matrix lines leave the RP2040 (pins 14..2, top to bottom on the mirrored chip) in the order the
@@ -272,27 +282,30 @@ def add_rkjxt(pads, ref, cx, cy, enc_a, enc_b):
 
 
 def add_led(pads, name, x, y, gpio, colour):
-    """3 mm THT LED under a light pipe in the front plate; series resistor on the bottom."""
+    """Reverse-mount 1206 LED on the bottom under a light pipe, its lens up in a cutout through the board, and its
+    series resistor beside it. LiteOn's C230 package (LTST-C230KSKT amber, LTW-C230DS white): cathode west (pad 1
+    of JLC's footprint on the left, rotation 180 on the bottom), anode east."""
+    w, h, r = LED_CUTOUT
+    CUTOUTS.append((x, y, w, h, r))
+    pl, pw = LED_PAD
+    off = w / 2 + LED_CUT_CLEAR + pl / 2
     anode = f"LED_{name}_A"
-    pads.append(Pad(f"LED_{name}.A", anode, x + 1.27, y, "circle", 1.6, 1.6, "FB", 0.9))   # anode next to R pad 2
-    pads.append(Pad(f"LED_{name}.K", "GND", x - 1.27, y, "rect", 1.6, 1.6, "FB", 0.9))
-    # XINGLIGHT XL-302UYC (yellow 588 nm, the closest 3 mm amber, clear lens) / XL-302UWC (white, clear lens).
-    # Amber about 3 mA from a 3.3 V GPIO. The white LED's forward voltage is 2.7 to 3.0 V at a few mA (3.2 V
-    # typical at 20 mA), so it gets a small resistor: 22R gives roughly 2 to 7 mA over that spread, with the
-    # GPIO driver's own resistance (default 4 mA drive) in series. The firmware sets both brightnesses with PWM.
-    led_part, res, res_lcsc = {"amber": ("XL-302UYC", "330R", "C23138"),
-                               "white": ("XL-302UWC", "22R", "C23345")}[colour]
-    # Top-side CPL rotation (full variant): JLC's two LED footprints number their pins the other way round. Pin 1
-    # of the amber C2895466 is the cathode, of the white C2895458 the anode, both on the left at rotation 0.
-    rot = {"XL-302UYC": 0, "XL-302UWC": 180}[led_part]
-    part(f"LED_{name}", led_part, {"XL-302UYC": "C2895466", "XL-302UWC": "C2895458"}[led_part], x, y, rot, "top")
-    # The resistor lies in line beside the anode pad, its anode end 0.55 mm from it (the same net, so a bridge to
-    # it or a remelt of its joint while the anode is soldered is harmless) and its GPIO end beyond: the LED is
-    # soldered by hand right next to it, so no pad of another net may come near the LED's pads (check.py:
-    # HAND_SMD_MIN). The cathode (GND) pad sat 0.28 mm from the GPIO end before. Beside, not below: SHIFT is near
-    # the board edge, every part body but J1's stays 2.5 mm from it (JLCPCB's terms).
-    off, length, _ = CHIP["0603"]
-    chip(pads, f"R_{name}", x + 1.27 + 0.8 + 0.55 + length / 2 + off, y, gpio, anode, res, res_lcsc, flip=True)
+    pads.append(smd(f"LED_{name}.K", "GND", x - off, y, pl, pw))
+    pads.append(smd(f"LED_{name}.A", anode, x + off, y, pl, pw))
+    plane_via((x - off, y), "GND", -(pl / 2 + 0.95), 0)     # west of the cathode, room for the silk bar between
+    # Amber about 13.5 mA from GP12 at 12 mA drive strength (the firmware sets it), 75 R (the basic part between 51
+    # and 100): 8.6 to 17.2 mA over the GPIO's output voltage and the LED's forward voltage, under its 30 mA. White:
+    # forward voltage 2.8 to 3.6 V at 20 mA (+-0.1 per bin), close to the 3.3 V supply, so a small resistor: 22 R
+    # keeps it at about 19 mA at most, under its 20 mA DC limit, with the strongest GPIO and the lowest forward
+    # voltage. The firmware sets both brightnesses with PWM (docs/electronics.md).
+    led_part, lcsc, res, res_lcsc = {"amber": ("LTST-C230KSKT", "C125108", "75R", "C4275"),
+                                     "white": ("LTW-C230DS", "C575513", "22R", "C23345")}[colour]
+    part(f"LED_{name}", led_part, lcsc, x, y, 180, foot="1206 reverse")
+    # The resistor in line east of the anode pad, its anode end 0.3 mm from it (the same net) and its GPIO end
+    # beyond. Beside, not below: SHIFT is near the board edge, every part body but J1's stays 2.5 mm from it
+    # (JLCPCB's terms).
+    roff, rlen, _ = CHIP["0603"]
+    chip(pads, f"R_{name}", x + off + pl / 2 + 0.3 + rlen / 2 + roff, y, gpio, anode, res, res_lcsc, flip=True)
 
 
 # ---------------- RP2040 (bottom side, mirrored top-to-bottom) ----------------
@@ -535,7 +548,8 @@ LDO_PX = 1.2                    # U3's pad centres east and west of LDO (add_sup
 # Leads reaching past a body (SOT-23, SOIC, SOD-123) sit on their pads: precheck.py keeps every body BODY_GAP
 # clear of every other body and of every pad of another part.
 BODY = {"0603": (1.6, 0.8), "0402": (1.0, 0.5), "1206": (3.2, 1.6), "SOD-123": (2.7, 1.6), "SOT-23": (1.6, 2.9),
-        "SOT-23-6": (2.9, 1.6), "SOIC-8 150mil": (4.9, 3.9), "LQFN-56 7x7": (7.0, 7.0), "3225 4-pad": (3.2, 2.5)}
+        "SOT-23-6": (2.9, 1.6), "SOIC-8 150mil": (4.9, 3.9), "LQFN-56 7x7": (7.0, 7.0), "3225 4-pad": (3.2, 2.5),
+        "1206 reverse": (3.2, 1.6)}
 BODY_GAP = 0.2
 
 
@@ -558,7 +572,8 @@ XTAL = (121.7 + SHIFT_X, 15.6)      # crystal centre, over the XIN fan-out end
 
 def build():
     pads = []
-    for lst in (DIODES, NPTH, PARTS, FOOTPRINT, CPL_XY, FIXED_SEGS, FIXED_VIAS, BUS_PADS, JOINED, BUS_COPPER):
+    for lst in (DIODES, NPTH, CUTOUTS, PARTS, FOOTPRINT, CPL_XY, FIXED_SEGS, FIXED_VIAS, BUS_PADS, JOINED,
+                BUS_COPPER):
         lst.clear()
     # key matrix (switches on top, diodes underneath on the bottom)
     for r, y in enumerate(ROWS):
@@ -850,7 +865,7 @@ def add_matrix_lanes(pads):
     xr = COLS[-1] + KEY_DX                      # right end of the row lines
     rowy = [y - KEY_DY for y in ROWS]
     bands = {6: ROWS[0] + 3.95, 5: ROWS[0] + 4.7, 4: ROWS[1] + 3.95, 3: ROWS[1] + 4.7,
-             2: ROWS[2] + 6.3, 1: ROWS[2] + 7.05, 0: ROWS[3] + 3.6}   # rows 2/3: below the UNIT light
+             2: ROWS[2] + 3.6, 1: ROWS[3] - 3.55, 0: ROWS[3] + 3.6}   # rows 2/3: either side of the UNIT cutout
 
     def path(net, pts):
         for (x1, y1), (x2, y2) in pairwise(pts):
@@ -914,4 +929,8 @@ def keepouts():
     k.append(("F", "rect", (USB_X - 2.6, 7.6, USB_X + 1.4, ESD[1] - ESD_PY - 0.5)))
     for (x, y, d) in NPTH:
         k.append(("FB", "circle", (x, y, d / 2 + 0.4)))
+    # the LED cutouts: copper JLCPCB's 0.2 mm from the routed edge, and the router's clearance on top
+    for (x, y, w, h, _r) in CUTOUTS:
+        e = LED_CUT_CLEAR + CLEAR
+        k.append(("FB", "rect", (x - w / 2 - e, y - h / 2 - e, x + w / 2 + e, y + h / 2 + e)))
     return k

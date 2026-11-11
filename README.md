@@ -60,7 +60,8 @@ Production files, by supplier (details in [Ordering](docs/ordering.md)):
   [outer FMS](production/avionics-panel-rev1-knob-outer-fms.step),
   [inner](production/avionics-panel-rev1-knob-inner.step),
   [RANGE](production/avionics-panel-rev1-knob-range.step), plus `-tight` and `-loose` fit variants)
-- Local: standoffs, screws, consumables (see [Ordering](docs/ordering.md)), optional
+- JLCMC: the M3 screws, a separate order (see [Ordering](docs/ordering.md))
+- Local: feet, a few consumables and tools (see [Ordering](docs/ordering.md)), optional
   [steel plate](production/avionics-panel-rev1-steel.dxf)
 
 Renders: [hero](renders/1-hero.png), [top](renders/2-top.png), [exploded](renders/3-exploded.png),
@@ -78,10 +79,10 @@ nix-shell nix/shells.nix -A gen
 ```
 
 Inside `pcb/`: `python3 precheck.py` (placement clearances and bottom-side part bodies),
-`python3 run_route.py 11` (routing, writes `routed.json`; seed 11 routes every net without a detour and
-within the USB length limits, as do 3, 4, 6, 9 and 10 of seeds 1 to 14; `run_route.py <seed> x` writes
+`python3 run_route.py 5` (routing, writes `routed.json`; seed 5 routes every net without a detour and
+within the USB length limits, as do 1, 2, 3, 4, 7, 9, 13 and 14 of seeds 1 to 14; `run_route.py <seed> x` writes
 `routed_<seed>.json` instead, for trying seeds in parallel), `python3 make.py` (Gerbers),
-`python3 check.py` (electrical check, DRC, drills, paste, mask dams, hand-soldering clearances,
+`python3 check.py` (electrical check, DRC, drills, paste, mask dams, the LED cutouts, hand-soldering clearances,
 decoupling with a capacitor of its own per IOVDD pin, net lengths and USB, the ESD array in line and the fuse
 ahead of every load, nothing under the USB-C shell, legend clearances, JLC footprints and CPL rotations,
 through-hole footprints and their top-side CPL, bottom-side pin order, on the Gerbers),

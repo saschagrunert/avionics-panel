@@ -54,10 +54,10 @@ write_cpl("avionics-panel-rev1-CPL.csv", SMD)
 full = write_bom("avionics-panel-rev1-BOM-full.csv", SMD + TOP)
 write_cpl("avionics-panel-rev1-CPL-full.csv", SMD + TOP)
 # Through-hole parts on the top side, for hand soldering (economic variant only). One panel, plus spares where
-# a part is cheap or easy to damage, raised to LCSC's minimum order where it has one (both LEDs: 20). Quantity is
-# what to order, Needed what one board takes. Upload to LCSC's BOM tool.
-SPARE = {"1-1825910-4": 2, "XL-302UYC": 4, "XL-302UWC": 4}
-MOQ = {"C2895466": 20, "C2895458": 20}
+# a part is cheap or easy to damage, raised to LCSC's minimum order where it has one. Quantity is what to order,
+# Needed what one board takes. Upload to LCSC's BOM tool.
+SPARE = {"1-1825910-4": 2}
+MOQ = {}
 tht = OrderedDict()
 for ref, value, lcsc, *_ in TOP:
     tht.setdefault((value, lcsc), []).append(ref)
