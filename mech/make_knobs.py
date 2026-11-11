@@ -7,7 +7,7 @@ come from stack.py (datasheet shaft dimensions); each part has its bottom at z =
               FMS ring has fewer, deeper flutes, so it feels different from FREQ above it.
   inner knob  dia 12, all three: D bore on the 3.5 mm inner shaft. The bore bottom sits on the shaft tip,
               so a push goes straight to the switch.
-  RANGE knob  dia 13.6 with a 16.6 skirt over the 11.2 mm plate hole, D bore on the RKJXT lever.
+  RANGE knob  dia 13.6 with a 16.6 skirt over the 11.1 mm plate hole, D bore on the RKJXT lever.
   light pipes clear resin rods, glued flush into the plate, the bottom clear of the LED. Both are printed as
               one part on a snap-off bar over their tops (JLC3DP's minimum resin part is 10 x 2 x 2 mm), on
               1.1 mm necks (resin pillars 1.0 min.).
@@ -50,12 +50,18 @@ def outer_knob(flutes="outer", fit=S.FIT):
     return cut(body, cyl(outer_counterbore_d() / 2, -1, outer_counterbore_top()), bore)
 
 
+def inner_d_len():
+    """length of the inner knob's D bore from the shaft tip down: 0.7 short of the shaft's 7.0 mm D flat
+    (+-0.3), so the bore end, not the round shaft under a short flat, sets the knob height (check_fit.py)."""
+    return S.FLAT_LEN - 0.7
+
+
 def inner_knob(fit=S.FIT):
     ik = S.INNER_KNOB
     h = ik["z1"] - ik["z0"]
     rec_top = ik["recess_top"] - ik["z0"]
     tip = S.INNER_TOP - S.PLATE_Z1 - ik["z0"]                                 # bore bottom on the shaft tip
-    flat0 = tip - S.FLAT_LEN + 0.2
+    flat0 = tip - inner_d_len()
     body = knurl("inner", ik["d"] / 2, h)
     return cut(body, cyl(ik["recess_d"] / 2, -1, rec_top), cyl(S.INNER_D / 2 + 0.1, -1, flat0 + 0.01),
                dbore(S.INNER_D + fit, S.INNER_FLAT + fit, flat0, tip))

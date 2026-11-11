@@ -37,12 +37,12 @@ SHIFT is tapped, never held. For keys it is one-shot; a knob keeps it while in u
   knob at a time. The VFR key alone sends VFR, even right after a squawk entry: VFR is the plain
   function because squawking VFR is the common case in VFR flying; to ident, tap SHIFT first.
 - Keys and knobs without an amber legend still send their own shifted button. The planned default profiles
-  map it to the same function as the plain control, so a stray SHIFT before DN or ENT does no harm,
-  and the slot stays free for personal mappings. The FMS knob is the exception: with SHIFT it works the
-  cockpit lighting, so a stray SHIFT before it changes a light level or toggles the cabin light instead
-  of paging. The amber light shows it, and turning back, or pushing again, undoes it. After dimming, the
-  knob stays on the lighting for 3 s like any shifted knob: wait for the amber light to go out before
-  paging.
+  ([#13][issue-13]) map it to the same function as the plain control, so a stray SHIFT before DN or ENT
+  does no harm, and the slot stays free for personal mappings. The FMS knob is the exception: with SHIFT
+  it works the cockpit lighting, so a stray SHIFT before it changes a light level or toggles the cabin
+  light instead of paging. The amber light shows it, and turning back, or pushing again, undoes it. After
+  dimming, the knob stays on the lighting for 3 s like any shifted knob: wait for the amber light to go out
+  before paging.
 - The cap has a small raised bar near its front edge, so it can be found without looking.
   UP (bar at the back edge) and DN (bar at the front edge) are told apart the same way.
 - It sits in the centre of the bottom row: shortest average travel to both sides.
@@ -83,9 +83,9 @@ or a course is one tap and then turning, and a fourth dual knob would make the p
 Outer rings have a coarse knurl, inner knobs a fine one. The FMS ring's knurl is coarser and deeper
 again (14 flutes instead of 24), so FREQ and FMS, the same size one above the other, are told apart by
 feel without looking.
-Knob legends follow one pattern, in one type size per colour (white 1.55 mm, amber 1.5 mm): what the
-rings do, outer ring first, then PUSH and what the push does; where one word covers both rings, it stands
-for both (FREQ, SQUAWK, FMS). The legends: ALT · HDG · PUSH SYNC, CRS · BARO · PUSH STD, RANGE · PUSH PTR
+Knob legends follow one pattern, in one type size for white and amber (1.55 mm, a 6.1 pt font):
+what the rings do, outer ring first, then PUSH and what the push does; where one word covers both rings, it
+stands for both (FREQ, SQUAWK, FMS). The legends: ALT · HDG · PUSH SYNC, CRS · BARO · PUSH STD, RANGE · PUSH PTR
 (the four arrows already say pan), FREQ · PUSH COM/NAV/ADF, SQUAWK · PUSH XPDR, FMS · PUSH CRSR (as
 Garmin prints it) and PANEL · FLOOD · PUSH CABIN for the cockpit lighting. The texts and the angle each
 legend is turned towards the user live in `mech/stack.py`: ALT/HDG and FMS 20°, FREQ 10°, RANGE 35°.
@@ -171,3 +171,5 @@ On the G1000 UNIT selects radio 2 only and the FMS keys always drive the MFD: th
 radios, so coupling them would tune COM 2 while editing on the PFD (the planned G1000 profile maps it
 that way). A white light next to the amber UNIT legend is on while unit 2 is selected. There is no
 automatic return to unit 1, because a timeout would interrupt long flight plan edits.
+
+[issue-13]: https://github.com/saschagrunert/avionics-panel/issues/13

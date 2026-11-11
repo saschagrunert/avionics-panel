@@ -291,6 +291,23 @@ POLL_MS = 31.25
 HID_FRAME_MS = 8
 
 
+def mobiflight_counts(on):
+    """on: {ms: button pressed?}. The presses MobiFlight counts, for every phase of its poll, with every press
+    edge or every release edge three HID frames late (shortening the press or the gap)"""
+    late, counts = 3 * HID_FRAME_MS, set()
+    for edges in ("press", "release"):
+        # a pulse [a, b) arrives as [a + late, b) or as [a, b + late) (press and gap are longer than late)
+        if edges == "press":
+            pc = {t: on[t] and on.get(t - late, False) for t in on}
+        else:
+            pc = {t: on[t] or on.get(t - late, False) for t in on}
+        for phase in range(32):
+            polls = [t for t in sorted(pc) if (t - phase) % POLL_MS < 1]
+            seen = [pc[t] for t in polls]
+            counts.add(sum(b and not a for a, b in zip([False] + seen, seen)))
+    return counts
+
+
 def test_detent_pulses_survive_mobiflight_polling():
     # a quick spin of the FMS knob (one step per detent): whatever the phase of the poll, MobiFlight counts
     # every queued detent, and the run-on after the spin stays below 0.9 s. That holds even when every press
@@ -302,18 +319,333 @@ def test_detent_pulses_survive_mobiflight_polling():
     trace.update(pressed_trace(s, 1500))
     on = {t: "FMS_INNER_CW" in trace[t] for t in trace}
     assert max(t for t in on if on[t]) < 900
-    late = 3 * HID_FRAME_MS
-    for edges in ("press", "release"):
-        # a pulse [a, b) arrives as [a + late, b) or as [a, b + late) (press and gap are longer than late)
-        if edges == "press":
-            pc = {t: on[t] and on.get(t - late, False) for t in on}
-        else:
-            pc = {t: on[t] or on.get(t - late, False) for t in on}
-        for phase in range(32):
-            polls = [t for t in sorted(pc) if (t - phase) % POLL_MS < 1]
-            seen = [pc[t] for t in polls]
-            presses = sum(b and not a for a, b in zip([False] + seen, seen))
-            assert presses == P.MAX_QUEUE, (edges, phase)
+    assert mobiflight_counts(on) == {P.MAX_QUEUE}
+
+
+def key_trace(s, presses, name, button=None, dev=1, after=500):
+    """presses: (down ms, up ms) from now, of key or push `name`. {ms: `button` (default: name) pressed?}"""
+    t0, out = s.t, {}
+    events = sorted([(t0 + a, True) for a, _ in presses] + [(t0 + b, False) for _, b in presses])
+    for t, down in events:
+        while s.t < t:
+            s.run(1)
+            out[s.t] = (button or name) in {s.names[dev][b] for b in s.p.buttons(dev)}
+        s.p.key(name, down, s.t)
+    for _ in range(after):
+        s.run(1)
+        out[s.t] = (button or name) in {s.names[dev][b] for b in s.p.buttons(dev)}
+    return out
+
+
+# A release waits BOUNCE_MS for a bounce: the Sim's key() comes after the tick of its ms, so a release that used
+# to show in the next tick now shows BOUNCE_MS - 1 ticks later than that
+LATE = P.BOUNCE_MS - 1
+
+
+def runs(on):
+    """(first ms, length) of each run of pressed ms"""
+    out, start = [], None
+    for t in sorted(on):
+        if on[t] and start is None:
+            start = t
+        elif not on[t] and start is not None:
+            out.append((start, t - start)); start = None
+    return out
+
+
+def test_quick_tap_is_held_long_enough_for_mobiflight():
+    # a 10 ms tap: the keypad reports it, the PC sees it for PRESS_MS, so every poll phase counts it
+    s = Sim()
+    on = key_trace(s, [(0, 10)], "AP")
+    assert [n for _, n in runs(on)] == [P.PRESS_MS] and mobiflight_counts(on) == {1}
+
+
+def test_long_press_is_released_after_the_bounce_window():
+    s = Sim()
+    on = key_trace(s, [(0, 300)], "AP")
+    assert [n for _, n in runs(on)] == [300 + LATE]
+
+
+def test_fast_double_tap_stays_two_presses():
+    # CLR twice, or a flip-flop: 15 ms taps 35 ms apart, faster than a finger, but past BOUNCE_MS. The second
+    # press waits until the first was shown for PRESS_MS and released for GAP_MS, and MobiFlight counts both in
+    # every phase
+    assert P.BOUNCE_MS < 35
+    s = Sim()
+    on = key_trace(s, [(0, 15), (50, 65)], "CLR")
+    (a, n1), (b, n2) = runs(on)
+    assert n1 == n2 == P.PRESS_MS and b - (a + n1) == P.GAP_MS
+    assert mobiflight_counts(on) == {2}
+
+
+def test_fast_triple_tap_stays_three_presses():
+    s = Sim()
+    on = key_trace(s, [(0, 10), (45, 55), (90, 100)], "CLR")
+    assert [n for _, n in runs(on)] == [P.PRESS_MS] * 3 and mobiflight_counts(on) == {3}
+
+
+def test_quick_tap_then_a_held_press_stays_two_presses():
+    # the second press comes while the first is still shown and is then held: the first ends after PRESS_MS,
+    # the second follows the gap and stays down until its release
+    s = Sim()
+    t0 = s.t
+    on = key_trace(s, [(0, 15), (50, 400)], "AP")
+    assert runs(on) == [(t0 + 1, P.PRESS_MS), (t0 + 1 + P.PRESS_MS + P.GAP_MS, 400 - P.PRESS_MS - P.GAP_MS + LATE)]
+
+
+def test_presses_still_to_show_are_capped():
+    # 20 presses, each just past BOUNCE_MS after the last (faster than a finger, and than the PC is shown them):
+    # once MAX_QUEUE are owed the rest are dropped, as for knob detents, so the run-on stays bounded
+    s = Sim()
+    every = P.BOUNCE_MS + 1
+    t0 = s.t
+    on = key_trace(s, [(every * i, every * i + 1) for i in range(20)], "AP", after=2000)
+    started = [a for a, _ in runs(on) if a <= t0 + every * 19]       # shown by the last press
+    assert len(runs(on)) == len(started) + P.MAX_QUEUE < 20
+
+
+def test_second_press_held_waits_for_the_gap_then_stays_held():
+    # released after a long press and pressed again BOUNCE_MS later, then held: the release goes out with the
+    # new press, which is down again after GAP_MS, and held until its release
+    s = Sim()
+    t0 = s.t
+    on = key_trace(s, [(0, 200), (200 + P.BOUNCE_MS, 600)], "AP")
+    second = t0 + 200 + P.BOUNCE_MS + P.GAP_MS
+    assert runs(on) == [(t0 + 1, 200 + LATE), (second, 600 - 200 - P.GAP_MS)]   # first tick at t0 + 1
+
+
+def test_fast_double_push_stays_two_presses():
+    # pushes follow the same rule: two quick pushes of the FREQ knob step the mode twice and send two C/V
+    s = Sim()
+    on = key_trace(s, [(0, 15), (50, 65)], "FREQ_PUSH")
+    assert len(runs(on)) == 2 and mobiflight_counts(on) == {2} and s.p.freq_mode_name == "ADF"
+    on = key_trace(s, [(0, 15), (50, 65)], "ALTHDG_PUSH", "HDG_SYNC")
+    assert len(runs(on)) == 2 and mobiflight_counts(on) == {2}
+
+
+def test_quick_taps_of_different_keys_do_not_wait():
+    # the gap is per button: AP right after VS goes down at once
+    s = Sim()
+    s.p.key("VS", True, s.t); s.run(10); s.p.key("VS", False, s.t)
+    s.p.key("AP", True, s.t); s.run(1)
+    assert {s.names[1][b] for b in s.p.buttons(1)} == {"VS", "AP"}
+
+
+def test_key_state_is_forgotten_after_the_gap():
+    s = Sim()
+    key_trace(s, [(0, 10), (50, 60)], "AP")
+    assert s.p.shown == {}
+
+
+# A switch that bounces for longer than a keypad scan: code.py passes on every change it scans
+def test_bounce_right_after_the_press_is_one_press():
+    # pressed, open again 3 ms later, closed 3 ms after that (as after a stalled pass, which reads several scans
+    # at once): one press, as long as a tap, and its later release changes nothing
+    s = Sim()
+    t0 = s.t
+    on = key_trace(s, [(0, 3), (6, 100)], "AP")
+    assert runs(on) == [(t0 + 1, 100 + LATE)] and mobiflight_counts(on) == {1}
+
+
+def test_chatter_one_scan_apart_is_one_press():
+    # opens and closes every 22 ms (one scan, picked up late) for a while, then held: one press, held from the
+    # first press to the last release, never a second press to toggle AP off again
+    s = Sim()
+    t0 = s.t
+    on = key_trace(s, [(0, 22), (44, 66), (88, 110), (132, 300)], "AP")
+    assert runs(on) == [(t0 + 1, 300 + LATE)] and mobiflight_counts(on) == {1}
+
+
+def hold_trace(events, ms, shifted=False):
+    """A fresh panel (SHIFT tapped first if shifted), then events (ms from now, key, pressed): per ms the light
+    level and the buttons pressed on both devices"""
+    s = Sim()
+    if shifted:
+        s.key("SHIFT")
+    t0, out = s.t, []
+    for _ in range(ms):
+        for at, name, down in events:
+            if s.t - t0 == at:
+                s.p.key(name, down, s.t)
+        s.run(1)
+        out.append((s.p.shift_level(s.t), s.p.buttons(1), s.p.buttons(2)))
+    return out
+
+
+def presses(trace, dev, name):
+    """the presses of a button in a hold_trace"""
+    b = BM.BUTTON[dev][name]
+    on = [b in entry[dev] for entry in trace]                # entry: (level, device 1, device 2)
+    return sum(now and not before for before, now in zip([False] + on, on))
+
+
+def dropout(key, at, events):
+    """events with key open for one scan (KEY_SCAN_MS) from ms at"""
+    return sorted(events + [(at, key, False), (at + P.KEY_SCAN_MS, key, True)], key=lambda e: e[0])
+
+
+def test_chatter_keeps_an_up_hold():
+    # UP held 2 s, with a one-scan dropout right after the press: the same steps as a clean hold, the repeats
+    # included, not one step as for a short tap
+    clean = [(0, "UP", True), (2000, "UP", False)]
+    trace = hold_trace(clean, 2600)
+    assert presses(trace, 1, "UP") == 1 + len(range(P.REPEAT_DELAY_MS, 2000, P.REPEAT_MS))
+    assert hold_trace(dropout("UP", 20, clean), 2600) == trace
+
+
+def test_chatter_delays_a_repeat_but_does_not_lose_it():
+    # the dropout comes as a repeat is due: the repeat waits for the bounce to end, and the count stays. The
+    # repeats after it keep their cadence, so a hold let go just after one of them was due sends it too, as a
+    # clean hold of the same length does
+    clean = [(0, "UP", True), (2000, "UP", False)]
+    due = P.REPEAT_DELAY_MS + 2 * P.REPEAT_MS
+    late = hold_trace(dropout("UP", due - 5, clean), 2600)
+    assert presses(late, 1, "UP") == presses(hold_trace(clean, 2600), 1, "UP")
+    for n in (1, 2):                                       # let go n repeats after the delayed one, and later
+        for after in range(1, 3 * P.REPEAT_MS, 5):
+            clean = [(0, "UP", True), (due + n * P.REPEAT_MS + after, "UP", False)]
+            ms = clean[-1][0] + 400
+            assert presses(hold_trace(dropout("UP", due - 5, clean), ms), 1, "UP") == \
+                presses(hold_trace(clean, ms), 1, "UP"), (n, after)
+
+
+def test_a_stalled_pass_sends_one_late_repeat():
+    # a loop pass stalls while UP is held, past two or more repeats: one repeat for the time missed, then the
+    # usual cadence from there, not a burst of the missed ones that would run on after the release. Past one
+    # repeat only, the next one keeps its time, due right after the late one
+    for late, n in ((P.REPEAT_MS - 1, 2), (P.REPEAT_MS, 1), (2000, 1)):
+        s = Sim()
+        s.p.key("UP", True, s.t); s.run(1000); s.take()
+        s.t = s.p.repeat["UP"][2] + late - 1               # stalled: time passed, no tick() ran
+        s.run(P.REPEAT_MS - 1); s.p.key("UP", False, s.t); s.run(1000)
+        assert s.take() == [(1, "UP")] * n, late
+
+
+def test_the_cadence_restarts_at_a_long_stall():
+    # after a stall past several repeats, the next repeat is due exactly REPEAT_MS after the late one: held a
+    # millisecond less sends only the late one, held to that tick sends the next one too
+    for held, n in ((P.REPEAT_MS - 1, 1), (P.REPEAT_MS, 2)):
+        s = Sim()
+        s.p.key("UP", True, s.t); s.run(1000); s.take()
+        s.t = s.p.repeat["UP"][2] + 2049                  # stalled, not a whole number of repeats: no tick() ran
+        s.run(1 + held); s.p.key("UP", False, s.t); s.run(1000)
+        assert s.take() == [(1, "UP")] * n, held
+
+
+def test_release_just_before_a_repeat_sends_no_extra_step():
+    # the release waits BOUNCE_MS for a bounce; a repeat due in that time is not sent
+    for key, button, delay in (("UP", "UP", P.REPEAT_DELAY_MS), ("RANGE_A", "PAN_UP", P.PAN_DELAY_MS)):
+        events = [(0, key, True), (delay - P.BOUNCE_MS // 2, key, False)]
+        assert presses(hold_trace(events, 1000), 1, button) == 1, key
+
+
+def test_chatter_keeps_a_tilt_repeating():
+    # a RANGE tilt held 1.5 s, the direction switch dropping out for a scan twice: it pans as a clean tilt
+    clean = [(0, "RANGE_COM", True), (0, "RANGE_A", True), (1500, "RANGE_A", False), (1500, "RANGE_COM", False)]
+    trace = hold_trace(clean, 2000)
+    assert presses(trace, 1, "PAN_UP") > 8 and presses(trace, 1, "PTR") == 0
+    assert hold_trace(dropout("RANGE_A", 900, dropout("RANGE_A", 100, clean)), 2000) == trace
+
+
+def test_chatter_keeps_a_shifted_push_shifted():
+    # SHIFT, then the FMS push held 4 s with a one-scan dropout after 1 s: SHIFT stays with the knob until 3 s
+    # after the release, as for a clean push (docs/controls.md), and the push sends one CABIN_LT
+    clean = [(0, "FMS_PUSH", True), (4000, "FMS_PUSH", False)]
+    trace = hold_trace(clean, 7500, shifted=True)
+    assert all(level == P.LIGHT_FULL for level, _, _ in trace[:4000 + P.SHIFT_MS - P.SHIFT_WARN_MS])
+    assert trace[-1][0] == P.LIGHT_OFF and presses(trace, 1, "CABIN_LT") == 1
+    assert hold_trace(dropout("FMS_PUSH", 1000, clean), 7500, shifted=True) == trace
+
+
+def test_bounce_window_counts_from_the_scans():
+    # the keypad scanned the release and the new press one scan apart, but a pass that waited for the host picked
+    # the press up 17 ms late, 37 ms after the release: still a bounce, by the scan times code.py passes on
+    s = Sim()
+    t0 = s.t
+    s.p.key("AP", True, s.t); s.run(100)
+    s.p.key("AP", False, s.t)
+    s.t += P.KEY_SCAN_MS + 17                              # the next pass: no tick() in between
+    s.p.key("AP", True, s.t, s.t - 17)
+    s.run(200); s.p.key("AP", False, s.t); s.run(200)
+    assert s.take() == [(1, "AP")] and s.t == t0 + 100 + P.KEY_SCAN_MS + 17 + 400
+    s.p.key("AP", True, s.t); s.run(100)                   # the same 37 ms by the scan times: a new press
+    s.p.key("AP", False, s.t)
+    s.t += 37
+    s.p.key("AP", True, s.t, s.t)
+    s.run(200); s.p.key("AP", False, s.t); s.run(200)
+    assert s.take() == [(1, "AP"), (1, "AP")]
+
+
+def test_key_works_normally_after_a_bounce():
+    # a bounce, then the key released and later pressed and released normally: both presses and both releases
+    # reach the PC, nothing stays held (AP stuck down would block the autopilot key)
+    s = Sim()
+    on = key_trace(s, [(0, 5), (25, 60), (300, 400)], "AP")
+    assert len(runs(on)) == 2 and not on[s.t] and s.p.held == {} and s.p.pending == {}
+    on = key_trace(s, [(0, 100), (120, 200)], "AP")          # and another bounce after it
+    assert len(runs(on)) == 1 and not on[s.t] and s.p.held == {} and s.p.pending == {}
+
+
+def test_release_is_applied_at_once_when_no_bounce():
+    # code.py's resync after a keypad overflow: a release it is sure of goes out at once, and a press right
+    # after it is a new press, not a bounce
+    s = Sim()
+    s.p.key("AP", True, s.t); s.run(100)
+    s.p.release("AP", s.t); s.run(1)
+    assert s.p.buttons(1) == set()
+    s.p.key("AP", True, s.t); s.run(200); s.p.key("AP", False, s.t); s.run(200)
+    assert s.take() == [(1, "AP"), (1, "AP")]
+
+
+def test_release_bounce_of_a_long_press_is_not_a_press():
+    s = Sim()
+    on = key_trace(s, [(0, 300), (322, 330)], "AP")
+    assert [n for _, n in runs(on)] == [330 + LATE]
+
+
+def test_double_tap_80_ms_apart_stays_two_presses():
+    s = Sim()
+    on = key_trace(s, [(0, 15), (95, 110)], "CLR")
+    assert len(runs(on)) == 2 and mobiflight_counts(on) == {2}
+
+
+def test_bounce_does_not_change_state_twice():
+    # a bounce on the SHIFT key does not cancel it, one on a shifted key sends no plain press after the shifted
+    # one, one on HOME in SHIFT does not switch UNIT back, one on the FREQ push steps the mode once
+    s = Sim()
+    key_trace(s, [(0, 5), (25, 60)], "SHIFT")
+    assert s.p.shift_active(s.t)
+    key_trace(s, [(0, 5), (25, 60)], "AP")
+    assert [n for _, n in s.take()] == ["TEST"]
+    key_trace(s, [(0, 60)], "SHIFT")
+    key_trace(s, [(0, 5), (25, 60)], "HOME")
+    assert s.p.unit == 2
+    key_trace(s, [(0, 5), (25, 60)], "FREQ_PUSH")
+    assert s.p.freq_mode_name == "NAV" and [n for _, n in s.take()] == ["FREQ_PUSH"]
+
+
+def test_bounce_does_not_repeat_a_step():
+    # UP and a RANGE tilt send one step per press, then repeat: a bounce sends no second step, and the centre
+    # push sends one PTR
+    s = Sim()
+    key_trace(s, [(0, 5), (25, 60)], "UP")
+    key_trace(s, [(0, 5), (25, 60)], "RANGE_A")
+    key_trace(s, [(0, 5), (25, 60)], "RANGE_COM")
+    assert [n for _, n in s.take()] == ["UP", "PAN_UP", "PTR"]
+
+
+def test_bounce_window_boundary():
+    # a press BOUNCE_MS after the release is a new press, one just before it is a bounce. Also when one pass
+    # (after a stall) reads both: the RANGE centre push, released and pushed again, sends PTR for each push
+    for gap, n in ((P.BOUNCE_MS, 2), (P.BOUNCE_MS - 1, 1)):
+        s = Sim()
+        on = key_trace(s, [(0, 10), (10 + gap, 20 + gap)], "CLR")
+        assert len(runs(on)) == n
+        s.p.key("RANGE_COM", True, s.t); s.run(100)
+        s.t += 100                                         # stalled: both scans come in the next pass
+        s.p.key("RANGE_COM", False, s.t, s.t - 60); s.p.key("RANGE_COM", True, s.t, s.t - 60 + gap)
+        s.run(100); s.p.key("RANGE_COM", False, s.t); s.run(300)
+        assert [name for _, name in s.take()] == ["CLR"] * n + ["PTR"] * n
 
 
 def test_timing_rules_keep_repeats_from_piling_up(monkeypatch):
@@ -328,6 +660,18 @@ def test_timing_rules_keep_repeats_from_piling_up(monkeypatch):
             m.setattr(P, name, step - 1)
             with pytest.raises(ValueError):
                 P.check_timing()
+
+
+def test_timing_rules_keep_the_bounce_window_above_a_scan(monkeypatch):
+    # a bounce one scan long must fall in the window, with half a scan to spare for a scan held off
+    import pytest
+    least = P.KEY_SCAN_MS * 3 // 2
+    with monkeypatch.context() as m:
+        m.setattr(P, "BOUNCE_MS", least)
+        P.check_timing()
+        m.setattr(P, "BOUNCE_MS", least - 1)
+        with pytest.raises(ValueError):
+            P.check_timing()
 
 
 def test_timing_rules_keep_press_and_gap_above_a_poll(monkeypatch):
@@ -390,6 +734,12 @@ def test_two_slow_detents_after_a_stall_stay_slow():
     s.t += 2000                                              # stalled: time passed, no tick() ran
     s.p.turn("ALTHDG_OUTER", 2, s.t); s.run(500)
     assert [n for _, n in s.take()] == ["ALT_100_UP"] * 2
+    s.t += P.FAST_MS + 1                                     # a pass just longer than FAST_MS is a stall too
+    s.p.turn("ALTHDG_OUTER", 2, s.t); s.run(500)
+    assert [n for _, n in s.take()] == ["ALT_100_UP"] * 2
+    s.t += P.FAST_MS                                         # one of FAST_MS is not
+    s.p.turn("ALTHDG_OUTER", 2, s.t); s.run(500)
+    assert [n for _, n in s.take()] == ["ALT_1000_UP"] * 2
 
 
 def light_and_edges(s, ms):
@@ -456,15 +806,20 @@ def test_held_shifted_tilt_survives_a_stalled_pass():
 
 
 def test_held_shifted_push_survives_a_stalled_pass():
-    # the same when the stalled pass first reads an input: the release, then a turn of the same knob
-    s = Sim()
-    s.key("SHIFT"); s.take()
-    s.p.key("ALTHDG_PUSH", True, s.t); s.run(100)
-    s.t += P.SHIFT_MS + 500                                  # stalled: time passed, no tick() ran
-    s.p.key("ALTHDG_PUSH", False, s.t)
-    assert s.p.shift_active(s.t) and s.p.shift_until == s.t + P.SHIFT_MS
-    s.turn("ALTHDG_INNER", 1)
-    assert s.take() == [(1, "BARO_STD"), (1, "BARO_UP")]
+    # the same when the stalled pass first reads an input: the release, then a turn of the same knob. Also for a
+    # release from code.py's resync after a keypad overflow, which is applied at once
+    for resync in (False, True):
+        s = Sim()
+        s.key("SHIFT"); s.take()
+        s.p.key("ALTHDG_PUSH", True, s.t); s.run(100)
+        s.t += P.SHIFT_MS + 500                              # stalled: time passed, no tick() ran
+        if resync:
+            s.p.release("ALTHDG_PUSH", s.t)
+        else:
+            s.p.key("ALTHDG_PUSH", False, s.t)
+        assert s.p.shift_active(s.t) and s.p.shift_until == s.t + P.SHIFT_MS
+        s.turn("ALTHDG_INNER", 1)
+        assert s.take() == [(1, "BARO_STD"), (1, "BARO_UP")]
 
 
 def test_shifted_push_held_keeps_the_light():

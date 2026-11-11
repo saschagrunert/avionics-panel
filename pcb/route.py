@@ -96,8 +96,8 @@ def bias_maps(net):
     if net in _BIAS:
         return _BIAS[net]
     extra = _BIAS[net] = np.zeros((2, NY, NX), np.float32)
-    for layers, (x0, y0, x1, y1), nets, cost in B.route_bias():
-        if net in nets:
+    for layers, (x0, y0, x1, y1), pays, cost in B.route_bias():
+        if not pays(net):
             continue
         m = (x0 <= XS) & (x1 >= XS) & (y0 <= YS) & (y1 >= YS)
         for ly in layers:

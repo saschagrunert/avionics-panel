@@ -5,7 +5,7 @@ import importlib.util
 import os
 
 import buttonmap as BM
-from panel import Panel
+from panel import BOUNCE_MS, Panel
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -68,9 +68,9 @@ def pushed(knob, shifted):
         p.key("SHIFT", True, 0)
         p.key("SHIFT", False, 1)
     src, out = "RANGE_COM" if knob == "RANGE" else knob + "_PUSH", set()
-    for t, down in ((10, True), (500, False)):         # RANGE sends PTR on release
+    for t, down in ((10, True), (500, False)):         # RANGE sends PTR on release, BOUNCE_MS after it
         p.key(src, down, t)
-        p.tick(t + 1)
+        p.tick(t + BOUNCE_MS)
         out |= {names[b] for b in p.buttons(1)}
     return out
 

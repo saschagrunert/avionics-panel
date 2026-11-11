@@ -87,13 +87,13 @@ def build():
         tools.append(rrect_prism(cx, cy, w, h, r, -e, dpt))
     features.append(("encoder hole", f"dia {S.SHAFT_HOLE}", "through", 3))
     features.append(("encoder pocket", f"{S.EC11_POCKET[0]} x {S.EC11_POCKET[1]} R{S.EC11_POCKET[2]}",
-                     f"{S.EC11_POCKET[3]} +0/-{S.POCKET_TOL} deep from back", 3))
+                     f"{S.EC11_POCKET[3]} +0/-{S.POCKET_TOL} deep from back, floor corner R{S.POCKET_FLOOR_R} max", 3))
     cx, cy = P(*B.RANGE)
     tools.append(cyl(cx, cy, S.RANGE_HOLE, -e, T + e))
     tools.append(cyl(cx, cy, S.RANGE_POCKET[0], -e, S.RANGE_POCKET[1]))
     features.append(("RANGE hole", f"dia {S.RANGE_HOLE}", "through", 1))
     features.append(("RANGE pocket", f"dia {S.RANGE_POCKET[0]}",
-                     f"{S.RANGE_POCKET[1]} +0/-{S.POCKET_TOL} deep from back", 1))
+                     f"{S.RANGE_POCKET[1]} +0/-{S.POCKET_TOL} deep from back, floor corner R{S.POCKET_FLOOR_R} max", 1))
     for name, d in S.LIGHT_HOLES.items():
         (lx, ly), _, _ = B.LEDS[name]
         tools.append(cyl(*P(lx, ly), d, -e, T + e))
@@ -189,8 +189,8 @@ def drawing(features, vol):
     tx = fig.add_axes([0.04, 0.01, 0.92, 0.38]); tx.axis("off")
     rows = [f"{n:<20s} {s:<30s} {d:<52s} x{q}" for n, s, d, q in features]
     notes = [
-        f"Material 6061 aluminium, {S.PLATE_T:.1f} +-{S.PLATE_T_TOL} mm. Outline {PW:.1f} x {PH:.1f} mm, "
-        f"corner R{B.CORNER_R + OVH:.1f}. "
+        f"Material 6061 aluminium, {S.PLATE_T:.1f} +-{S.PLATE_T_TOL} mm thick before anodising. Outline {PW:.1f} "
+        f"x {PH:.1f} mm, corner R{B.CORNER_R + OVH:.1f}. "
         f"Volume {vol / 1000:.1f} cm3. Units mm, general tolerance ISO 2768-m; flatness {S.PLATE_FLAT} over the "
         "whole plate after bead blasting and anodising (held at its corners, LEDs close under its back in the "
         "middle).",
@@ -201,18 +201,21 @@ def drawing(features, vol):
         f"NO THREADS. 4 x round pockets dia {S.STANDOFF_POCKET['d']} +{S.STANDOFF_POCKET['d_tol']}/-0 from the "
         f"back, flat bottom (end mill, no drill point), {S.STANDOFF_POCKET['depth']} +0/-"
         f"{S.STANDOFF_POCKET['depth_tol']} mm deep; metal standoffs are glued into them later. Pocket depths "
-        "+0, never deeper: at least 0.7 mm of material must stay to the front face under every pocket; "
+        f"+0, never deeper: at least {S.PLATE_T - S.PLATE_T_TOL - S.RANGE_POCKET[1]:.2f} mm of material must stay "
+        "to the front face under every pocket; "
         "nothing may break through or mark the front face.",
-        f"RANGE pocket dia {S.RANGE_POCKET[0]}: sharp floor corner, inside radius at most {S.RANGE_POCKET_R} mm "
-        "(the part's corners come within 0.17 mm of its wall, 0.10 mm of its floor).",
-        "Finish: black anodised, matte (bead blasted before anodising); the pockets may be anodised.",
+        f"Encoder pockets and RANGE pocket: floor corner (inside radius between wall and floor) at most "
+        f"{S.POCKET_FLOOR_R} mm; the parts' top corners come within about 0.1 mm of the pocket walls or floors.",
+        "Finish: black anodised, matte (bead blasted before anodising); the pockets may be anodised or bare, but "
+        "all pockets alike (all anodised or all bare).",
         "Marking on the front per avionics-panel-rev1-plate.dxf, same origin (bottom-left, seen from the front): "
-        f"layer LASER = laser marking, layer UV_AMBER = UV print in amber {AMBER_HEX} (RGB {AMBER_RGB}, about "
-        f"{AMBER_REF}). Layer CUT = outline and through holes for reference. DXF units mm; fill closed contours "
-        "even-odd (letter counters are separate contours).",
+        f"layer LASER = laser marking, layer UV_AMBER = UV print in amber, matched to {AMBER_HEX} (RGB {AMBER_RGB}, "
+        f"about {AMBER_REF}) if possible, otherwise the standard orange. Layer CUT = outline and through holes "
+        "for reference. DXF units mm; fill closed contours even-odd (letter counters are separate contours).",
         f"Key holes {S.KEY_HOLE[0]} x {S.KEY_HOLE[1]} {KEY_TOL} after anodising (never smaller: the key caps "
         f"centre the board in them). Light holes {LIGHT_TOL} (never smaller: light pipes are glued into them). "
-        "Deburr all edges: edge break at most 0.2 on the front outline and hole edges.",
+        "Deburr all edges: edge break at most 0.2 on the front outline and hole edges; on the back edges of the "
+        f"key holes {S.KEY_BACK_BREAK} to 0.2 (a lead-in for the key caps).",
     ]
     y = 0.98
     tx.text(0, y, "Features", fontsize=9, weight="bold", va="top"); y -= 0.06
@@ -222,7 +225,7 @@ def drawing(features, vol):
     tx.text(0, y, "Notes", fontsize=9, weight="bold", va="top"); y -= 0.06
     import textwrap
     for n in notes:
-        for i, line in enumerate(textwrap.wrap(n, 150)):
+        for i, line in enumerate(textwrap.wrap(n, 175)):
             tx.text(0, y, ("- " if i == 0 else "  ") + line, fontsize=7.5, va="top"); y -= 0.038
     fig.savefig("avionics-panel-rev1-plate-drawing.pdf", metadata={"CreationDate": None})   # reproducible
     fig.savefig("avionics-panel-rev1-plate-drawing.png", dpi=110)

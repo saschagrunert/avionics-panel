@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Regenerate every output, run all checks and copy the results to production/ and renders/.
-# Usage: ./build.sh [--route]    --route also re-runs the board routing (seed 3, a few minutes).
+# Usage: ./build.sh [--route]    --route also re-runs the board routing (seed 11, a few minutes).
 # Needs Nix (nix-shell) for the Python environments; stops at the first failed check.
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -21,7 +21,7 @@ occ() { (cd "$1" && nix-shell -p "$OCC" --run "$2"); }
 
 echo "== board"
 gen pcb "python3 precheck.py"
-[ "${1:-}" = "--route" ] && gen pcb "python3 run_route.py 3"
+[ "${1:-}" = "--route" ] && gen pcb "python3 run_route.py 11"
 gen pcb "python3 make.py >/dev/null && python3 check.py && python3 render.py >/dev/null && python3 make_bom.py >/dev/null && python3 make_schematic.py"
 
 echo "== plate artwork"

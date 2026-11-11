@@ -57,6 +57,11 @@ Navigators:
 | RANGE, pan, push PTR | RANGE knob + joystick | map zoom | RNG keys |
 | UNIT (SHIFT, HOME) | radio 2 only; the FMS keys stay on the MFD | GTN / second unit | 530 / 430 |
 
+The GTN 750Xi column assumes that the TDS GTN exposes its touchscreen functions (FPL, PROC, MENU, CLR,
+ENT, MSG, NRST, TERR, VNAV, MAP, CDI, OBS) as events or variables MobiFlight can send. That is not checked
+yet: check which ones it exposes before relying on them; the rest stay on the touchscreen. The planned
+GTN profile ([#13][issue-13]) will say which.
+
 Radios, transponder, audio:
 
 | Panel | G1000 | GTN / GNS | Bendix/King |
@@ -78,3 +83,5 @@ for everything use the outer ring only.
 Deliberately not on the panel: volume and squelch, the G1000 softkeys, the KR 87 timer, the KN 62 DME
 mode switch and the Collins IND-450 DME, marker audio (MKR), COM 3, KNS 81 RNAV waypoint entry,
 weather radar controls (RDR 1150XL), soft ride, autothrottle and the G3000 touch controllers.
+
+[issue-13]: https://github.com/saschagrunert/avionics-panel/issues/13

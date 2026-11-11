@@ -8,6 +8,7 @@ import sys
 import types
 
 import buttonmap as BM
+import panel as P
 import pytest
 
 NAMES = [n for row in BM.MATRIX for n in row]
@@ -19,8 +20,8 @@ class Stop(BaseException):
 
 
 class Event:
-    def __init__(self, key_number, pressed):
-        self.key_number, self.pressed = key_number, pressed
+    def __init__(self, key_number, pressed, timestamp):
+        self.key_number, self.pressed, self.timestamp = key_number, pressed, timestamp
 
 
 class Queue:
@@ -48,7 +49,7 @@ class Keys:
 
     def scan(self):
         if self.rescan == self.hw.t:
-            self.events.items += [Event(k, True) for k in sorted(self.held)]
+            self.events.items += [Event(k, True, self.hw.ticks_ms()) for k in sorted(self.held)]
             self.rescan = None
 
 
@@ -86,16 +87,19 @@ class Joystick:
             hw.t += hw.block
             raise OSError("USB busy")
         self.reports.append(bytes(report))
+        hw.t += hw.waits.pop(hw.t, 0)
 
 
 class Hardware:
     """the stub modules, plus the clock that drives the script"""
 
-    def __init__(self, ms, script=None, busy=0, usb_from=0, usb_gap=(0, 0), pico_test=False, edits=()):
+    def __init__(self, ms, script=None, busy=0, usb_from=0, usb_gap=(0, 0), pico_test=False, edits=(), wrap=65536):
         self.t, self.ms, self.script, self.usb_from, self.usb_gap = 0, ms, script or {}, usb_from, usb_gap
+        self.wrap = wrap                      # ms at which supervisor.ticks_ms wraps (CircuitPython: 65.536 s)
         self.pico_test, self.edits = pico_test, edits      # edits: (old, new) source lines, as on a first board
         self.busy = busy                      # sends that fail next, whichever device sends
         self.block = 0                        # ms a failing send blocks (2000 on the board); skips scripts
+        self.waits = {}                       # ms: how long a good send in that pass waits for the host
         self.joysticks = [Joystick(self), Joystick(self)]
         self.matrix = self.direct = None
         self.encoders, self.leds, self.duty = [], [], {}
@@ -127,10 +131,15 @@ class Hardware:
             "pwmio": types.SimpleNamespace(PWMOut=Pwm),
             "rotaryio": types.SimpleNamespace(IncrementalEncoder=Enc),
             "usb_hid": types.SimpleNamespace(devices=self.joysticks),
-            "supervisor": types.SimpleNamespace(runtime=self, reload=self.reload),   # runtime.usb_connected, below
+            "supervisor": types.SimpleNamespace(runtime=self, reload=self.reload,    # runtime.usb_connected, below
+                                                ticks_ms=self.ticks_ms),
             "time": types.SimpleNamespace(monotonic_ns=lambda: hw.t * 1_000_000, sleep=self.sleep),
             "traceback": types.SimpleNamespace(print_exception=self.printed.append),
         }
+
+    def ticks_ms(self, t=None):
+        """supervisor.ticks_ms at ms t (default now): wraps at 2**29, first at self.wrap"""
+        return ((self.t if t is None else t) - self.wrap) % (1 << 29)
 
     @property
     def usb_connected(self):
@@ -178,15 +187,16 @@ class Hardware:
         return self
 
 
-def press(name, pressed, lost=False):
-    """a matrix key goes down or up; lost: the keypad queue overflows and drops the event"""
+def press(name, pressed, lost=False, late=0):
+    """a matrix key goes down or up; lost: the keypad queue overflows and drops the event; late: the keypad
+    scanned it this many ms before code.py gets it (a pass that waited for the host)"""
     def act(hw):
         keys, number = (hw.direct, 0) if name == "FREQ_PUSH" else (hw.matrix, NAMES.index(name))
         (keys.held.add if pressed else keys.held.discard)(number)
         if lost:
             keys.events.overflowed = True
         else:
-            keys.events.items.append(Event(number, pressed))
+            keys.events.items.append(Event(number, pressed, hw.ticks_ms(hw.t - late)))
     return act
 
 
@@ -236,10 +246,11 @@ def test_failed_sends_back_off():
 
 def test_backoff_ends_with_a_good_send():
     # after the host starts reading, a send goes through and the next change is sent at once again; a later
-    # failure starts the back-off from 1 s again
+    # failure starts the back-off from 1 s again (AP's release reaches the panel's report BOUNCE_MS later)
     def fail_once(hw):
         hw.busy = 1
-    hw = Hardware(9600, {8000: [press("AP", True)], 8500: [fail_once, press("AP", False)]}, busy=3).run()
+    script = {8000: [press("AP", True)], 8500 - P.BOUNCE_MS: [fail_once, press("AP", False)]}
+    hw = Hardware(9600, script, busy=3).run()
     tries = hw.joysticks[0].tries
     assert tries[:4] == [0, 1000, 3000, 7000]                # 3 failed, the fourth went through
     first = next(t for t in tries if t >= 8000)
@@ -466,6 +477,59 @@ def test_keypad_overflow_leaves_the_other_keypad_alone():
     assert all(pressed(r, 1, "FREQ_PUSH") for r in reports[first:]) and hw.direct.resets == 0
 
 
+def times_pressed(hw, device, name):
+    """(ms, pressed?) of every report sent to device (no failed sends: tries are the send times)"""
+    j = hw.joysticks[device - 1]
+    assert len(j.tries) == len(j.reports)
+    return [(t, pressed(r, device, name)) for t, r in zip(j.tries, j.reports)]
+
+
+def presses_sent(hw, device, name):
+    on = [p for _, p in times_pressed(hw, device, name)]
+    return sum(b and not a for a, b in zip([False] + on, on))
+
+
+def test_keypad_overflow_releases_a_lost_release_after_three_scans():
+    # the reset keypad reports the keys still held within one scan: a key not reported again in three scans
+    # (RESYNC_MS) is released then, not before
+    hw = Hardware(400, {10: [press("AP", True)], 100: [press("AP", False, lost=True)]}).run()
+    sent = times_pressed(hw, 1, "AP")
+    assert [t for t, p in sent if not p][-1] == 100 + 3 * P.KEY_SCAN_MS
+    assert all(p for t, p in sent if 10 <= t < 100 + 3 * P.KEY_SCAN_MS)
+
+
+def test_press_right_after_a_resync_release_is_a_new_press():
+    # AP's release was lost, and AP is pressed again 10 ms after the resync released it: that is a new press
+    # for the PC (the resync release is no switch bounce), released again later
+    end = 100 + 3 * P.KEY_SCAN_MS
+    hw = Hardware(600, {10: [press("AP", True)], 100: [press("AP", False, lost=True)],
+                        end + 10: [press("AP", True)], 400: [press("AP", False)]}).run()
+    assert presses_sent(hw, 1, "AP") == 2 and not times_pressed(hw, 1, "AP")[-1][1]
+
+
+def test_bounce_is_judged_by_the_scan_times():
+    # the keypad scans AP's release and, a scan later, its new press (a bounce), but the pass in between waits
+    # 37 ms for the host, so code.py reads the press 38 ms after the release; supervisor.ticks_ms wraps in
+    # between. By the scan times it is still a bounce: one press for the PC, held until its release
+    def wait(hw):
+        hw.waits[100] = 37
+    scan = 100 + P.KEY_SCAN_MS
+    hw = Hardware(600, {10: [press("AP", True)], 100: [press("AP", False), step(0, 1), wait],
+                        138: [press("AP", True, late=138 - scan)], 400: [press("AP", False)]}, wrap=130).run()
+    assert 100 in hw.joysticks[0].tries and not [t for t in hw.duty if 100 < t < 137]   # no pass in the wait
+    assert presses_sent(hw, 1, "AP") == 1 and not times_pressed(hw, 1, "AP")[-1][1]
+
+
+def test_release_read_late_keeps_its_scan_time():
+    # AP's release is scanned during a pass that waits for the host and read 28 ms late; AP is pressed again 35 ms
+    # after the release, more than BOUNCE_MS by the scans: a new press, and a second AP for the PC
+    def wait(hw):
+        hw.waits[100] = 37
+    hw = Hardware(700, {10: [press("AP", True)], 100: [step(0, 1), wait], 138: [press("AP", False, late=28)],
+                        145: [press("AP", True)], 400: [press("AP", False)]}).run()
+    assert presses_sent(hw, 1, "AP") == 2 and not times_pressed(hw, 1, "AP")[-1][1]
+
+
 def test_held_key_is_resent_after_usb_comes_back():
     # the PC reboots while AP is held: the new host assumes everything released, so the panel sends AP again
     sent = {}
@@ -475,3 +539,27 @@ def test_held_key_is_resent_after_usb_comes_back():
     hw = Hardware(400, {10: [press("AP", True)], 190: [count]}, usb_gap=(100, 200)).run()
     reports = hw.joysticks[0].reports
     assert len(reports) > sent[190] and pressed(reports[-1], 1, "AP")
+
+
+# Neither the key switches (TE FSM) nor the encoder pushes give a bounce time in their datasheets; 10 ms is a
+# common upper figure for small tactile switches.
+SWITCH_BOUNCE_MS = 10
+
+
+def test_key_scan_outlasts_switch_bounce():
+    # debounce_threshold 1: a key's state changes on the first scan that reads it differently. A scan interval
+    # longer than the bounce means the next scan reads it settled, so one press is one event
+    hw = Hardware(5).run()
+    for keys in (hw.matrix, hw.direct):
+        assert keys.kwargs["interval"] * 1000 == P.KEY_SCAN_MS and keys.kwargs.get("debounce_threshold", 1) == 1
+        assert keys.kwargs["interval"] * 1000 >= SWITCH_BOUNCE_MS
+
+
+def test_loop_pass_keeps_the_step_within_the_repeats():
+    # tick() runs once per pass, so a press and a gap each last up to one pass longer than set, and the next
+    # press starts one pass after the gap ends: three passes per step. A step must still fit in the UP / DN
+    # and tilt repeats (panel.check_timing), or they pile up and run on. Only the loop's own sleep is
+    # measured here; the work in a pass (send_report waits for the endpoint) comes on top
+    hw = Hardware(50).run()
+    pass_ms = 1000 * max(hw.sleeps)
+    assert P.PRESS_MS + P.GAP_MS + 3 * pass_ms <= min(P.REPEAT_MS, P.PAN_MS)

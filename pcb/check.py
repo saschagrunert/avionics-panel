@@ -15,6 +15,9 @@
 12. no exposed SMD pad of another net near a through-hole pad (solder bridges; hand-soldered in either variant)
 13. JLCPCB's footprint of every through-hole part against our holes (positions, drills reported), and at its
    top-side CPL position and rotation (full variant) on our holes pin by pin
+14. no copper on B under J1's shell but J1's own pads
+15. the legend clear of mask openings and holes, and inside the board outline by SILK_EDGE
+(precheck.py checks the placement before routing: fixed copper clearances and the bottom-side part bodies.)
 """
 import functools
 import heapq
@@ -27,13 +30,17 @@ import numpy as np
 from geom import (
     DETOUR_FACTOR,
     DETOUR_SLACK,
+    USB_MAX,
+    USB_SKEW,
     bbox,
     boxes_near,
     detour_limits,
     item_dist,
     net_lengths,
     pad_geom,
+    usb_lengths,
 )
+from matplotlib.path import Path
 from PIL import Image, ImageDraw
 from scipy import ndimage
 
@@ -85,6 +92,15 @@ def gerber_ops(fname):
 
 
 def raster(fname):
+    return draw_ops(gerber_ops(fname))
+
+
+def pad_ops(pads):
+    """Pads as flash operations of gerber_ops, for draw_ops."""
+    return [("flash", ({"rect": "R", "circle": "C"}.get(p.shape, "O"), p.w, p.h), (p.x, p.y)) for p in pads]
+
+
+def draw_ops(ops):
     img = Image.new("L", (WPX, HPX), 0)
     dr = ImageDraw.Draw(img)
     col = 255
@@ -92,7 +108,7 @@ def raster(fname):
     def P(q):
         return (q[0] / PX, q[1] / PX)
 
-    for op in gerber_ops(fname):
+    for op in ops:
         if op[0] == "dark":
             col = 255 if op[1] else 0
         elif op[0] == "region":
@@ -264,9 +280,11 @@ def flashes(fname):
     out = []
     for op in gerber_ops(fname):
         if op[0] == "dark":
-            assert op[1], f"{fname}: clear polarity not expected"
+            if not op[1]:                   # a plain raise, as below: asserts vanish under -O
+                raise ValueError(f"{fname}: clear polarity not expected")
             continue
-        assert op[0] == "flash", f"{fname}: only flashes expected"
+        if op[0] != "flash":
+            raise ValueError(f"{fname}: only flashes expected")
         (k, a, b), (x, y) = op[1], op[2]
         if k == "R":
             out.append(("rect", x - a / 2, y - b / 2, x + a / 2, y + b / 2, 0.0))
@@ -323,7 +341,8 @@ def holes_and_paste(pads, vias, pth, npth):
             if p is None:
                 print(f"PLATED HOLE WITHOUT PAD at ({x:.2f}, {y:.2f})"); bad += 1; continue
             if p.slot:                          # make.py drills slots along y only, so the pad must be tall
-                assert p.h >= p.w, f"{p.name}: slot along a wide pad, make.py only drills vertical slots"
+                if p.h < p.w:
+                    raise ValueError(f"{p.name}: slot along a wide pad, make.py only drills vertical slots")
                 ring = min(p.w - p.slot[0], p.h - p.slot[1]) / 2
             else:
                 ring = (min(p.w, p.h) - t) / 2
@@ -388,16 +407,19 @@ def holes_and_paste(pads, vias, pth, npth):
 
 # The through-hole parts on the top are soldered by hand from the bottom, where the SMD parts sit: a solder
 # bridge from an iron-soldered pin to an SMD pad of another net is a short that is hard to see and to clear (an
-# LED's GND pad 0.28 mm from its resistor's GPIO pad was one). Every exposed SMD pad of another net keeps
-# HAND_SMD_MIN of copper from every hand-soldered pad: room for the iron's tip and a fillet.
+# LED's GND pad 0.28 mm from its resistor's GPIO pad was one). J1's four shell tabs (pin-in-paste) are filled
+# with solder by hand from the top too, and the excess comes out on the bottom (docs/mechanics.md). Every exposed
+# SMD pad of another net keeps HAND_SMD_MIN of copper from every hand-soldered pad: room for the iron's tip and a
+# fillet.
 HAND_SMD_MIN = 1.0
 
 
 def hand_solder(pads):
     """Exposed SMD pads (a mask opening) of another net near the plated holes of the top-side (hand-soldered)
-    parts, measured copper to copper."""
+    parts and J1's shell tabs, measured copper to copper."""
     top = {ref for ref, *_r, side in B.PARTS if side == "top"}
     tht = [p for p in pads if p.drill and not p.pip and p.name.split(".")[0] in top]
+    tht += [p for p in pads if p.pip and p.name.startswith("J1.SH")]     # the shell tabs
     smd = [p for p in pads if not p.drill and len(p.layers) == 1 and p.layers in p.mask]
     bad, near = 0, (9.0, "")
     for t in tht:
@@ -414,7 +436,7 @@ def hand_solder(pads):
             if d < HAND_SMD_MIN - 1e-6:
                 bad += 1
                 print(f"HAND-SOLDERED PAD {t.name} ({t.net}) {d:.3f} mm from SMD pad {p.name} ({p.net})")
-    print(f"hand soldering: {len(tht)} through-hole pads, closest SMD pad of another net {near[0]:.3f} mm "
+    print(f"hand soldering: {len(tht)} hand-soldered pads, closest SMD pad of another net {near[0]:.3f} mm "
           f"(min {HAND_SMD_MIN}), {near[1]}; {bad} problems")
     return bad
 
@@ -516,7 +538,8 @@ def tht_footprints(pads):
         _ref, mx, my, layer, crot = B.cpl(ref, x, y, rot, side)
         cx, cy = mx, B.H - my                                   # back from JLC's frame (y up) to the board's
         cw, probs = cpl_fit(ref, lcsc, fp, cx, cy, crot, ours)
-        assert layer == "Top"
+        if layer != "Top":
+            raise ValueError(f"{ref}: through-hole part not on the top in the CPL")
         t["cpl"].add(crot); t["cw"] = max(t["cw"], cw); t["off"].add((round(cx - x, 2), round(cy - y, 2)))
         if probs:
             bad += 1
@@ -585,8 +608,8 @@ def mask_dams(pads):
 #   50 DVDD on C_1V1): at most OWN_CAP_MAX of copper. Raspberry Pi's minimal design puts each capacitor
 #   right at its pin; the limit keeps the supply side of the loop at about 2 nH, the order of the
 #   capacitor's own ESL plus its GND via (a 0.25 mm trace 0.2 mm over the 3V3 plane has about 0.3 nH/mm).
-# - Exceptions, no capacitor of their own: IOVDD 1, 10, 22, 26, 33 and USB_VDD / IOVDD 48, 49 sit inside the
-#   fan-out (every lane around the chip is taken), so they drop straight into the 3V3 plane (at most
+# - Exceptions, no capacitor of their own: IOVDD 1, 10, 22, 33, RUN 26 (tied to 3V3) and USB_VDD / IOVDD 48, 49
+#   sit inside the fan-out (every lane around the chip is taken), so they drop straight into the 3V3 plane (at most
 #   PLANE_ENTRY_MAX of copper to the via) and share C_D0 to C_D3, C_FL and C_BULK on it. DVDD 23 on the
 #   north side has no room between the crystal and the fan-out; it reaches the 1V1 capacitors over the
 #   top layer through V23. Their paths are reported, not limited.
@@ -747,13 +770,6 @@ def cap_vias(pads, vias):
     return bad
 
 
-# USB: all trace on D+ (USB_DP_C from the two USB-C contacts to R_DP, USB_DP on to the RP2040) and on D- at
-# most USB_MAX each, and within USB_SKEW of each other. Full speed (12 Mbit/s, 4 ns edges) would tolerate far
-# more; the limits catch a router detour on the one pair that has any timing at all.
-USB_MAX, USB_SKEW = 50.0, 10.0
-USB_LINES = {"D+": ("USB_DP_C", "USB_DP"), "D-": ("USB_DN_C", "USB_DM")}
-
-
 def lengths(pads, segments):
     """Every net's routed length against geom.detour_limits (DETOUR_FACTOR times its shortest tree plus
     DETOUR_SLACK), and the USB pair."""
@@ -770,12 +786,106 @@ def lengths(pads, segments):
     rows.sort(reverse=True)
     print(f"lengths: {len(rows)} nets, routed length at most {DETOUR_FACTOR} x shortest tree + {DETOUR_SLACK:.0f} "
           "mm; closest to the limit: " + ", ".join(f"{n} {g:.1f} / {lim:.1f}" for _r, n, g, _t, lim in rows[:4]))
-    usb = {k: sum(length.get(n, 0.0) for n in nets) for k, nets in USB_LINES.items()}
+    usb, ok = usb_lengths(length)
     skew = abs(usb["D+"] - usb["D-"])
-    ok = max(usb.values()) <= USB_MAX and skew <= USB_SKEW
     bad += not ok
     print(f"USB: D+ {usb['D+']:.1f} mm, D- {usb['D-']:.1f} mm (max {USB_MAX:.0f}), skew {skew:.1f} mm "
           f"(max {USB_SKEW:.0f})  {'OK' if ok else 'FAIL'}")
+    return bad
+
+
+def j1_shell(ras_b, pads):
+    """No copper on the bottom under J1's grounded shell (board.J1_BODY) but J1's own pads: a trace there has
+    only the solder mask between it and the shell. Measured on the bottom copper Gerber."""
+    x0, y0, x1, y1 = B.J1_BODY
+    own = ndimage.binary_dilation(draw_ops(pad_ops([p for p in pads if p.name.startswith("J1.") and "B" in p.layers])))
+    i0, j0 = ij(max(x0, 0.0), max(y0, 0.0))
+    i1, j1 = ij(x1, y1)
+    foreign = ras_b & ~own
+    hit = foreign[i0:i1 + 1, j0:j1 + 1]
+    bad = 0
+    lab, n = ndimage.label(hit)
+    for c in range(1, n + 1):
+        ys, xs = np.nonzero(lab == c)
+        bad += 1
+        print(f"COPPER UNDER J1 on B at ({(xs.mean() + j0) * PX:.2f}, {(ys.mean() + i0) * PX:.2f}), "
+              f"{len(xs) * PX * PX:.2f} mm2")
+    if bad:
+        print(f"J1 shell: foreign bottom copper under it; {bad} problems")
+        return bad
+    # the closest foreign copper outside the shell, for the report
+    ys, xs = np.nonzero(foreign)
+    dx = np.maximum(np.maximum(x0 - xs * PX, xs * PX - x1), 0)
+    dy = np.maximum(np.maximum(y0 - ys * PX, ys * PX - y1), 0)
+    print(f"J1 shell: no bottom copper under it but J1's pads, closest other copper {np.hypot(dx, dy).min():.2f} mm "
+          f"from its outline; 0 problems")
+    return bad
+
+
+# JLCPCB clips the legend off pads and holes. Every legend pixel keeps SILK_CLEAR from every mask opening on its
+# side and from every hole, measured on the Gerbers (to 0.05 mm, the raster).
+SILK_CLEAR = 0.15
+
+
+def silk_clear(pth, npth):
+    bad = 0
+    holes = draw_ops([("flash", ("C", d, d), (x, y)) for x, y, d in pth + npth])
+    for side, (sk, mk) in {"F": ("avionics-F_Silkscreen.gto", "avionics-F_Mask.gts"),
+                           "B": ("avionics-B_Silkscreen.gbo", "avionics-B_Mask.gbs")}.items():
+        legend = raster(sk)
+        dist = ndimage.distance_transform_edt(~(raster(mk) | holes)) * PX
+        lab, n = ndimage.label(legend & (dist < SILK_CLEAR - 1e-6))
+        for c in range(1, n + 1):
+            ys, xs = np.nonzero(lab == c)
+            bad += 1
+            print(f"LEGEND ON A PAD OR HOLE on {side} at ({xs.mean() * PX:.2f}, {ys.mean() * PX:.2f}), "
+                  f"{dist[lab == c].min():.2f} mm")
+        print(f"legend {side}: closest to a mask opening or hole {dist[legend].min():.2f} mm (min {SILK_CLEAR})")
+    return bad
+
+
+# JLCPCB publishes no legend-to-outline figure. It keeps copper 0.2 mm from a routed edge and mills the outline to
+# +-0.2 mm: legend closer than SILK_EDGE to the outline may be clipped or run off the edge (make.py: T()).
+SILK_EDGE = 0.3
+
+
+def silk_edge():
+    """Every legend shape inside the board outline (the Edge_Cuts Gerber) by SILK_EDGE. Measured on the Gerber
+    vertices: the outline is convex, so a shape's closest point to it is a vertex of a region, or an end of a line
+    or a dot less its radius. Not on the raster, which ends at the board edge and would not see legend beyond it."""
+    edge = [(op[2], op[3]) for op in gerber_ops("avionics-Edge_Cuts.gko") if op[0] == "line"]
+    inside = Path([a for a, _b in edge] + [edge[-1][1]])
+    ax, ay, bx, by = (np.array(v) for v in zip(*[(*a, *b) for a, b in edge], strict=True))
+    ux, uy = bx - ax, by - ay
+    bad, worst = 0, {}
+    for side, fname in (("F", "avionics-F_Silkscreen.gto"), ("B", "avionics-B_Silkscreen.gbo")):
+        shapes, dark = [], True                    # (points, radius) of every dark legend shape
+        for op in gerber_ops(fname):
+            if op[0] == "dark":
+                dark = op[1]
+            elif not dark:
+                continue                           # a letter's counter, inside the letter
+            elif op[0] == "region":
+                shapes.append((op[1], 0.0))
+            elif op[0] == "line":
+                shapes.append(([op[2], op[3]], op[1][1] / 2))
+            elif op[0] == "flash":
+                shapes.append(([op[2]], math.hypot(op[1][1], op[1][2]) / 2 if op[1][0] == "R" else op[1][1] / 2))
+        worst[side] = math.inf
+        for pts, r in shapes:
+            q = np.array(pts)
+            px, py = q[:, :1], q[:, 1:]
+            u = np.clip(((px - ax) * ux + (py - ay) * uy) / (ux * ux + uy * uy), 0, 1)
+            d = np.hypot(px - (ax + u * ux), py - (ay + u * uy)).min(axis=1)
+            d = np.where(inside.contains_points(q), d, -d) - r      # negative: beyond the outline
+            i = int(d.argmin())
+            worst[side] = min(worst[side], float(d[i]))
+            if d[i] < SILK_EDGE - 1e-6:
+                bad += 1
+                print(f"LEGEND AT THE BOARD EDGE on {side} at ({q[i, 0]:.2f}, {q[i, 1]:.2f}), {d[i]:.2f} mm inside "
+                      "the outline")
+    print(f"legend to board outline: closest F {worst['F']:.2f} mm, B {worst['B']:.2f} mm (min {SILK_EDGE}); "
+          f"{bad} problems")
     return bad
 
 
@@ -981,6 +1091,9 @@ if __name__ == "__main__":
     hole_bad += decoupling(pads, rd["segments"], rd["vias"])
     hole_bad += cap_vias(pads, rd["vias"])
     hole_bad += lengths(pads, rd["segments"])
+    hole_bad += j1_shell(ras["B"], pads)
+    hole_bad += silk_clear(pth, npth)
+    hole_bad += silk_edge()
     pin_bad = pin_order(pads)
     print(f"pin order (bottom parts): {pin_bad} problems")
     pin_bad += footprints(pads)

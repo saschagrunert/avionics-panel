@@ -70,7 +70,8 @@ class Boot:
             "supervisor": types.SimpleNamespace(set_usb_identification=call("set_usb_identification")),
             "time": types.SimpleNamespace(sleep=sleep),
             "usb_cdc": types.SimpleNamespace(disable=call("usb_cdc.disable")),
-            "usb_hid": types.SimpleNamespace(Device=device, enable=self.enable),
+            "usb_hid": types.SimpleNamespace(Device=device, enable=self.enable,
+                                             set_interface_name=call("usb_hid.set_interface_name")),
             "usb_midi": types.SimpleNamespace(disable=call("usb_midi.disable")),
         }
 
@@ -116,6 +117,15 @@ def test_usb_name_and_interfaces():
         boot = Boot(shift=shift).run()
         assert boot.calls.count(("set_usb_identification", "DIY", "Avionics Panel")) == 1
         assert boot.calls.count(("usb_midi.disable",)) == 1
+
+
+def test_hid_interface_carries_the_name():
+    # on a composite device (SHIFT mode) Windows names the joysticks after the HID interface, not the product:
+    # without this they would show as "CircuitPython HID". CircuitPython reads it when USB starts, after boot.py
+    for shift in (False, True):
+        boot = Boot(shift=shift).run()
+        assert [c for c in boot.calls if c[0] == "usb_hid.set_interface_name"] == [
+            ("usb_hid.set_interface_name", "Avionics Panel")]
 
 
 def test_shift_is_read_after_the_column_settles():

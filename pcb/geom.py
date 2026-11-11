@@ -102,6 +102,19 @@ def net_lengths(segments):
     return out
 
 
+# USB: all trace on D+ (USB_DP_C from the two USB-C contacts to R_DP, USB_DP on to the RP2040) and on D- at
+# most USB_MAX each, and within USB_SKEW of each other. Full speed (12 Mbit/s, 4 ns edges) would tolerate far
+# more; the limits catch a router detour on the one pair that has any timing at all.
+USB_MAX, USB_SKEW = 50.0, 10.0
+USB_LINES = {"D+": ("USB_DP_C", "USB_DP"), "D-": ("USB_DN_C", "USB_DM")}
+
+
+def usb_lengths(length):
+    """({"D+": mm, "D-": mm}, within USB_MAX and USB_SKEW) from net_lengths()."""
+    usb = {k: sum(length.get(n, 0.0) for n in nets) for k, nets in USB_LINES.items()}
+    return usb, max(usb.values()) <= USB_MAX and abs(usb["D+"] - usb["D-"]) <= USB_SKEW
+
+
 def detour_limits(pads, nets):
     """{net: (shortest tree, longest acceptable routed length)} for the given nets, over their pad centres:
     one pass over the pads for all of them."""

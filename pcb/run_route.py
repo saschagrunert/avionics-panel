@@ -11,7 +11,7 @@ import time
 import board as B
 import numpy as np
 import route as R
-from geom import detour_limits, net_lengths
+from geom import detour_limits, net_lengths, usb_lengths
 
 seed = int(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1].isdigit() else 0
 pads = B.build()
@@ -141,6 +141,8 @@ if __name__ == "__main__":
         router, failed = run(fixed_first + mov)   # check.py allows) go first next time, and the area round
         length = net_lengths(merge_fixed_vias(router.segments, router.vias)[0])   # them costs the others more
         detour = [n for n in bynet if n not in failed and length.get(n, 0) > limit[n]]
+        if not usb_lengths(length)[1]:          # the USB pair over check.py's length or skew limit
+            detour += [n for n in ("USB_DN_C", "USB_DP_C") if n not in failed + detour]
         if best is None or (len(failed), len(detour)) < (len(best[1]), len(best[2])):
             best = (router, failed, detour)
         if not failed and not detour:
@@ -149,9 +151,9 @@ if __name__ == "__main__":
             R.add_history(n, bynet[n])
         mov = [n for n in mov if n in failed + detour] + [n for n in mov if n not in failed + detour]
     router, failed, detour = best
+    segments, vias = merge_fixed_vias(router.segments, router.vias)   # the board's vias, as routed.json has them
     with open(f"routed_{seed}.json" if len(sys.argv) > 2 else "routed.json", "w") as f:
-        segments, vias = merge_fixed_vias(router.segments, router.vias)
         json.dump({"segments": segments, "vias": vias, "failed": failed}, f)
     L = sum(net_lengths(router.segments).values())
-    print(f"seed {seed}: failed {failed} detours {detour} vias {len(router.vias)} length {L:.0f} mm  "
+    print(f"seed {seed}: failed {failed} detours {detour} vias {len(vias)} length {L:.0f} mm  "
           f"({time.time()-t0:.0f}s)")

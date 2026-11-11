@@ -6,10 +6,10 @@ matrix, knobs and lights) is drawn from the same netlist by [make_schematic.py](
 which fails if any pad of the board is missing from it.
 
 RP2040 with W25Q16 flash, 12 MHz crystal, XC6206 regulator and USB-C, all on the bottom of a 4-layer
-board (signals / GND / 3V3 / signals). Fully routed (`run_route.py 3`: 119 vias, 3.48 m of trace) and
+board (signals / GND / 3V3 / signals). Fully routed (`run_route.py 11`: 129 vias, 3.51 m of trace) and
 checked on the Gerbers: 119 nets, 0 shorts, 0 opens, closest copper 0.150 mm, 0 DRC violations, and every
 bottom-side part has mirrored pin order. Closest holes on different nets 0.544 mm (JLCPCB minimum 0.5),
-on the same net 0.350 mm (minimum 0.254); `check.py` checks both by net. Apart from the GND vias in the
+on the same net 0.500 mm (minimum 0.254); `check.py` checks both by net. Apart from the GND vias in the
 RP2040's exposed pad, no via sits in or within 0.1 mm of an SMD pad, and none within 0.1 mm of a paste
 opening (the router keeps them out, `check.py` checks it). Paste is on every assembled pad and nowhere
 else, the drills (0.3 mm plated, 0.6 mm unplated) and annular rings (0.1 mm on vias, 0.15 mm on pads)
@@ -19,13 +19,39 @@ about 0.8 mm3 of slot around each tab: a fillet on the bottom at most. They are 
 well, by hand in the economic assembly variant ([Mechanics](mechanics.md#hand-soldering)), by JLCPCB in the
 full one ([Ordering](ordering.md#assembly-variants)).
 
+Before routing, `precheck.py` checks the bodies of the bottom-side parts as well as the fixed copper: every
+body at least 0.2 mm from every other body and from every pad of another part, where that part's leads or
+pins sit. The sizes are nominal (`board.BODY`): from JLC's package names where they give them, which match
+the datasheets (SOT-23 2.9 x 1.6, SOIC-8 4.9 x 3.9, SOD-123F 2.7 x 1.6, crystal 3.2 x 2.5, LQFN-56 7 x 7),
+the EIA sizes for the chip parts (0603 1.6 x 0.8, 0402 1.0 x 0.5) and the HRO drawing for J1 (8.94 x 7.35).
+The closest bodies are C_1V0 and C_1V2, 0.30 mm apart. Before this check, C_IN sat 0.1 mm under a corner of the
+regulator, which JLCPCB would have placed tilted on it, and C_FL was 0.145 mm from the flash. U3's pads
+reach 1.75 mm from its centre line (JLC's footprint 1.77, the leads up to 1.5), so each joint gets a toe
+fillet. J1's shell is grounded and has only the solder mask between it and the bottom copper, so nothing
+but J1's own pads runs under it: the router keeps out of the whole body on the bottom, and `check.py`
+checks it on the Gerbers (three encoder lines, GP18, GP20 and GP21, ran there before). The ALT/HDG lines
+now cross J1 on the top layer; the top-layer link between the two VBUS contacts turns between the shell
+pegs, close to the pad row, to leave them room.
+
+The legend is at least 1.0 mm high (capital letters, measured on the font; the lowercase text has an
+x-height of 0.82 mm) with 0.26 mm strokes and lines at least 0.16 mm wide, over JLCPCB's minimum of 1.0
+mm and 0.153 mm, and `check.py` keeps it 0.15 mm clear of every mask opening and hole and 0.3 mm inside
+the board outline (JLCPCB gives no figure for that; it keeps copper 0.2 mm from a milled edge, and the
+legend is closest at 0.9 mm). `make.py` moves a part name or key legend to the nearest free spot if a
+via lands on it or it would come too near the edge, and a diode's cathode bar up to
+0.3 mm sideways if a via would cut it short (D_RANGE_D's stays cut: it would have to move 0.7 mm). The
+front has a "K" at each light's cathode (the square pad).
+
 The through-hole parts are soldered from the bottom, among the SMD parts: by hand in the economic
 variant, by JLCPCB (by hand or selectively) in the full one. `check.py` keeps every exposed SMD pad of
 another net at least 1.0 mm (copper to copper) from every through-hole pad, room for the iron and a
-fillet without a bridge; the closest is 1.24 mm (a key pin to its own diode's cathode pad). Before, each
-LED's cathode (GND) pad sat 0.28 mm from its resistor's GPIO pad, so a bridge would have shorted the
-GPIO. It also fits JLC's footprints of the through-hole parts (keys, encoders, RANGE control, LEDs; saved
-with their holes by `footprints/fetch.py`) onto our holes by position: all agree, and the drills follow
+fillet without a bridge; the closest is 1.24 mm (a key pin to its own diode's cathode pad). The same
+holds for J1's four shell tabs, filled from the top, where excess solder comes out on the bottom: the
+closest is 1.025 mm, J1's own VBUS contact. Before, each LED's cathode (GND) pad sat 0.28 mm from its
+resistor's GPIO pad, so a bridge would have shorted the GPIO, and C_IN's VBUS pad 0.80 mm from a shell
+tab. C_IN now sits between U3 and J1, its VBUS pad 1.9 mm from the tab.
+`check.py` also fits JLC's footprints of the through-hole parts (keys, encoders, RANGE control, LEDs;
+saved with their holes by `footprints/fetch.py`) onto our holes by position: all agree, and the drills follow
 the datasheets (keys 1.0 mm, JLC 1.2; PEC11D 1.2 mm per Bourns, JLC 1.1; RKJXT 1.1 mm, JLC 1.2; LEDs 0.9
 mm). The RKJXT holes are drilled 1.1 mm: Alps specifies 1.0 +0.2/-0, and JLCPCB's plated holes can finish
 up to 0.08 mm under the drill; the 1.7 mm pads keep a 0.3 mm ring. Its locating peg (Ø1 -0.1) goes into a
@@ -36,8 +62,9 @@ plate allows for ([Mechanics](mechanics.md#hand-soldering)).
 No net takes a detour: `check.py` fails any net whose routed length exceeds 1.5 times its shortest
 8-direction tree plus 15 mm (`geom.py`), and the router rips up and reroutes such a net like a failed one.
 The UNIT light (GP15) had gone round the whole board (341 mm) before; it now runs 81 mm (limit 94). USB:
-D+ 46.1 mm and D- 42.3 mm of trace from the USB-C contacts through the 27 R resistors to the RP2040, 3.8 mm
-apart (`check.py` limits: 50 mm each, 10 mm skew).
+D+ 46.9 mm and D- 42.7 mm of trace from the USB-C contacts through the 27 R resistors to the RP2040, 4.2 mm
+apart (`check.py` limits: 50 mm each, 10 mm skew; the router rips up and reroutes the pair like a detour
+when it breaks them).
 
 The USB series resistors stay 27 R (C25190), the value in Raspberry Pi's datasheet and minimal design: with
 the RP2040's driver it sets the source impedance the full-speed specification asks for (28 to 44 ohm per
@@ -53,8 +80,9 @@ rotation, offline: every JLC pad must land on our pad with the same number, cent
 edges within 0.25 mm. The CPL follows JLC's convention for the bottom side as KiBot's JLCPCB filter and the
 kicad-jlcpcb-tools plugin write it (180 minus KiCad's bottom angle): seen from the bottom, the part is JLC's
 footprint turned counter-clockwise by the rotation. U1 and J1 are at 180, U2 at 0, U3 at 180, Y1 at 0, the
-diodes at 0, the resistors and capacitors at 180 (horizontal) or 270 (vertical). The bottom silkscreen has a
-pin 1 corner mark at U1 and pin 1 dots at U2, U3 and Y1 for the placement preview
+diodes at 0, the resistors and capacitors at 180 (horizontal) or 270 (vertical), except the two LED
+resistors R_SHIFT and R_UNIT at 0 (horizontal, pad 1 on the GPIO side to the east). The bottom silkscreen
+has a pin 1 corner mark at U1 and pin 1 dots at U2, U3 and Y1 for the placement preview
 ([ordering.md](ordering.md#placement-preview)).
 
 In the full assembly variant JLCPCB also places the through-hole parts on the top, from the same CPL
@@ -88,8 +116,8 @@ distance through a plane) and fails a pin with a capacitor of its own above 6 mm
 whose nearest capacitor is under 1 uF. Exceptions, reported but not limited: DVDD pin 23 on the north side
 has no room between the crystal and the fan-out and reaches the 1V1 capacitors over the top layer through
 the 1V1 vias under the chip (about 10 mm; the vias are probe points on the top and tented on the bottom),
-and the other IOVDD pins and USB_VDD sit inside the fan-out, reach the 3V3 plane within 2 mm of copper and
-share C_D0 to C_D3, C_FL and C_BULK on it.
+and the other IOVDD pins, USB_VDD and RUN (pin 26, tied to 3V3) sit inside the fan-out, reach the 3V3 plane
+within 2 mm of copper and share C_D0 to C_D3, C_FL and C_BULK on it.
 
 | GPIO | Use |
 | --- | --- |
@@ -109,12 +137,13 @@ share C_D0 to C_D3, C_FL and C_BULK on it.
 The RANGE control's "Push" pin is common to its five switches; centre push = com without A-D.
 
 Each of the seven columns has a 10 k pull-up to 3V3 (R_PU0 to R_PU6, C25804), on its bus between key
-rows 1 and 2. KeyMatrix drives a row low and reads the columns about 1 us later; after a row with a
-pressed key, a column has to come back up through the RP2040's own pull-up (50 to 80 k) with 20 to 30 pF of
-copper (90 to 170 mm) and five diodes on it, a time constant of 1 to 2.4 us, long enough for a phantom
-press in the same column of the next row. With 10 k in parallel the column passes the input high threshold
-well under 1 us later, also while that 10 k charges the released row through the pressed key's diode. A
-pressed key draws about 0.3 mA through its pull-ups.
+rows 1 and 2. KeyMatrix drives a row low and reads the columns at once, then drives that row high and
+waits about 1 us before the next row; after a row with a pressed key, a column has to come back up through
+the RP2040's own pull-up (50 to 80 k) with 20 to 30 pF of copper (90 to 170 mm) and five diodes on it, a
+time constant of 1 to 2.4 us, long enough for a phantom press in the same column of the next row. The
+released row is driven high, so the pressed key's diode turns off at once and only the column's pull-ups
+lift it: with 10 k in parallel (a time constant of 0.2 to 0.3 us) the column passes the input high
+threshold well under 1 us later. A pressed key draws about 0.3 mA through its pull-ups.
 
 The encoders feed the RP2040 directly: CircuitPython's `rotaryio` decodes the quadrature in one PIO state
 machine per ring (7 of the 8), with no polling and no external decoder. A quadrature-to-up/down converter
@@ -128,7 +157,8 @@ The board's two lights are XINGLIGHT XL-302UYC (yellow 588 nm, the
 closest 3 mm amber, C2895466) with 330 R (C23138), and XL-302UWC (white, C2895458) with 22 R (C23345).
 Amber runs at about 3 mA from the GPIO. The white LED's forward voltage is 2.7 to 3.0 V at a few mA, close
 to the 3.3 V supply, so it gets a small resistor: roughly 2 to 7 mA over that spread. The firmware sets both
-brightnesses with PWM. Check the white light on the first board; if it is still too dim, fit 0 R.
+brightnesses with PWM. Check the white light on the first board; if it is too dim, raise `LED_DUTY[1]` in
+`code.py` first, then bridge R_UNIT's pads or fit a 0 R (C21189) ([Firmware](firmware.md)).
 The LEDs sit where their light holes keep at least 0.8 mm of aluminium to the next key hole (JLCCNC's
 minimum wall): 0.85 mm for SHIFT, 0.86 mm for UNIT (0.75 and 0.76 mm with both holes at their +0.1 limit,
 above JLCCNC's 0.5 mm absolute minimum). Each series resistor lies on the bottom in line beside its LED's
