@@ -18,7 +18,7 @@ starts with `avionics-panel-rev1-`, which the tables below leave out (`body.step
 | J1 shell tabs | soldered by hand from the top | soldered by JLCPCB, asked for in the order remark (below) |
 | Edge rails | none: the milled outline fits the body as delivered ([edge rails](#edge-rails)) | one rail of at least 10 mm on the long edge away from J1, removed on arrival ([edge rails](#edge-rails)) |
 | Order remark | the J1 overhang ([edge rails](#edge-rails)) | the edge-rail remark and the [through-hole remark](#full-variant-through-hole-parts-at-jlcpcb) |
-| Extended parts (2026-11-11) | RP2040, flash, crystal, J1, and the 27 R (a preferred extended part: no fee in Economic assembly) | the same plus the five through-hole parts |
+| Extended parts (2026-11-11) | RP2040, flash, crystal, J1 and the fuse F1 (a fee each); the 27 R and the ESD array U4 are preferred extended parts, no fee in Economic assembly | the same plus the five through-hole parts (a fee each, the 27 R and U4 included) |
 | Quote 2026-11-09 (both predate the latest changes: re-quote) | about €72 for 2 boards, plus about €37 at LCSC for one set of through-hole parts | €227.43 for 2 fully populated boards (see [quotes](#parts-and-quotes)) |
 | On arrival | [mechanics](mechanics.md#on-arrival), then the hand-soldering in the bring-up | [mechanics](mechanics.md#on-arrival): remove the rail, then the full-variant checks; the iron only for the J1 tabs and any rework |
 | Bring-up | the encoders and the RANGE control go on last, after the board has been tested | every part is on from the start: a board that turns out dead takes its encoders and RANGE control with it; the second board is the spare |
@@ -112,6 +112,21 @@ too, but flagged as a preferred extended part on 2026-11-11, which carries no fe
 moves parts between these classes, so the quote may show a fee for them. They stay 27 R, the value in
 Raspberry Pi's design ([Electronics](electronics.md)); 22 R (C23345, basic, already on the board for the
 white LED) would save that fee. The column pull-ups (10 k, C25804) are a basic part.
+
+The USB protection adds two parts ([Electronics](electronics.md#usb-protection)), both in JLCPCB's library
+(stock on 2026-11-11):
+
+| Part | JLC part | Library | JLC stock | Fee, economic | Fee, full |
+| --- | --- | --- | --- | --- | --- |
+| U4: hongjiacheng SRV05-4 ESD array, SOT-23-6 | C7420376 | preferred extended | 308828 | none | about $3 |
+| F1: Bourns MF-NSMF050-2 PTC fuse, 0.5 A hold, 13.2 V, 1206 | C75464 | extended | 65039 | about $3 | about $3 |
+
+No ESD array for USB is a basic part (the basic TVS diodes are for 12 V and up or SMB-sized), and no
+resettable fuse at all is basic or preferred extended, so F1 carries the fee in both variants and U4 only in
+the full one: about $3 more in the economic variant, about $6 in the full one. The IOVDD capacitors (C_IO1,
+C_IO10, C_IO22, C_IO49) and C_1V1 are the 0402 100 nF C1525, a basic part already on the board (Economic
+assembly places 0402), and C_IN is now the 10 uF C19702 of C_OUT0, also basic; C_D0 is gone. R_IN, the 1 ohm
+that damps the hot-plug ringing (C22936, 0603), and R_CC2, now an 0402 5.1k (C25905), are basic parts too.
 
 JLCCNC remark: "No threads. 4 x round flat-bottom pockets dia 7.0 +0.1/-0 from the back, 2.0 +0/-0.1 mm deep
 (see plate-drawing.pdf). Plate 4.0 ±0.1 before anodising; all pocket depths +0/-0.1: at least 0.65 mm must
@@ -245,7 +260,14 @@ round the preview shows the board:
   and the phantom presses the 10 k column pull-ups prevent come back. `columns_to_anodes=False` keeps the
   roles but reads the columns against internal pull-downs, which R_PU0 to R_PU6 overpower (every key
   would read pressed) until they come off the board. Neither is a plan: check the diodes in the preview.
-- The resistors and capacitors have no polarity: only check they sit on their pads.
+- U4 (ESD array, the SOT-23-6 below J1): JLC's pin 1 mark at our pin 1 dot, just beyond the corner pin
+  that is away from J1 on the fuse's side. Turned by 180 degrees its VCC pin would sit on GND and its clamp
+  diode forward across the fused VBUS: plugged in, that burns the 1 ohm R_IN open (it gives way long before
+  the fuse trips, [Electronics](electronics.md#usb-protection)) and the board stays dead until U4 and R_IN
+  are replaced (a U4 that carried the fault current is likely damaged). Check it; bring-up step 1 also
+  tests for it with the multimeter's diode mode.
+- F1 (fuse, the 1206 between U4 and the regulator) and the resistors and capacitors have no polarity: only
+  check they sit on their pads.
 
 The CPL gives every bottom rotation in JLCPCB's convention for the bottom side (seen from the bottom, the
 part is JLC's library footprint turned counter-clockwise by the rotation, as KiBot's JLCPCB filter and the
@@ -391,7 +413,7 @@ and consumables.
    - Economic: Economic assembly, bottom side; upload `BOM.csv` and `CPL.csv`; Edge Rails/Fiducials: none,
      with the J1 remark ([edge rails](#edge-rails)).
    - Full: Standard assembly, both sides; upload `BOM-full.csv` and `CPL-full.csv`, check that the BOM step
-     finds all 23 lines with stock for 2 boards (six encoders; if not, see
+     finds all 27 lines with stock for 2 boards (six encoders; if not, see
      [above](#full-variant-through-hole-parts-at-jlcpcb)); Edge Rails/Fiducials: Added by JLCPCB, one rail
      of at least 10 mm on the long edge away from J1, with the edge-rail remark and the through-hole remark
      after it.

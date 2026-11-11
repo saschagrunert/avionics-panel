@@ -1,0 +1,11 @@
+{
+ "lcsc": "C75464",
+ "title": "MF-NSMF050-2",
+ "package": "F1206",
+ "source": "JLCPCB / EasyEDA library footprint, https://easyeda.com/api/products/C75464/components, fetched 2026-11-11",
+ "frame": "top view, mm, x right, y down, from the footprint origin; pads: number, x, y, size x, size y",
+ "pads": [
+  ["1", -1.445, 0.0, 1.19, 1.728],
+  ["2", 1.445, 0.0, 1.19, 1.728]
+ ]
+}

@@ -24,7 +24,7 @@ def is_fixed_end(p):
     if p.net == "QSPI_SS" and p.name != "R_BOOT.1":
         return True
     return (p.name in B.BUS_PADS or p.name in B.JOINED or bool(re.match(r"U1\.\d+$", p.name))
-            or (p.name.startswith("J1.") and not p.name.startswith(("J1.E", "J1.SH"))))
+            or (p.name.startswith("J1.") and not p.name.startswith("J1.SH")))
 
 bynet = {}
 for p in pads:
