@@ -150,7 +150,7 @@ echo "== copy"
 rm -f production/avionics-panel-rev1-* # a removed output then shows up as a deleted file
 cp pcb/avionics-panel-rev1-{BOM,CPL,BOM-full,CPL-full,THT-LCSC}.csv pcb/avionics-panel-rev1-gerbers.zip production/
 cp pcb/avionics-panel-rev1-schematic.pdf docs/
-cp mech/avionics-panel-rev1-{body,plate}.step mech/avionics-panel-rev1-body.stl \
+cp mech/avionics-panel-rev1-{body,plate,usb-filler}.step mech/avionics-panel-rev1-{body,usb-filler}.stl \
   mech/avionics-panel-rev1-knob-* mech/avionics-panel-rev1-lightpipes.* \
   mech/avionics-panel-rev1-caps-{A,B,C,D}.zip mech/avionics-panel-rev1-caps-single-{A,B,C,D}.zip \
   mech/avionics-panel-rev1-{plate,steel}.dxf \

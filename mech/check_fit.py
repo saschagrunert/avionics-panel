@@ -261,9 +261,10 @@ def body_thin(tri, res=0.1):
     (board frame), with where."""
     ux = B.USB_X
     planes = [(2, z) for z in (-2.5, -4.0, -6.0, -6.5, -7.0, -7.7, -8.3, -9.0, -10.5, -12.0, -13.5)]
-    uw = (MM.USB_OPEN["w"] + MM.USB_KEEP[0]) / 4        # in the walls beside the USB-C opening
-    planes += [(0, x) for x in (3.5, 9.0, 15.5, 22.5, 54.0, 85.0, 112.0, ux - uw, ux, ux + uw, B.BOOT[0],
-                                150.0, 156.5)]
+    uw = (MM.USB_OPEN["w"] + MM.USB_KEEP[0]) / 4        # in the walls beside the USB-C opening, under the ledges
+    nw = MM.USB_NOTCH_W / 2 + 0.5                       # and just beside the notch
+    planes += [(0, x) for x in (3.5, 9.0, 15.5, 22.5, 54.0, 85.0, 112.0, ux - nw, ux - uw, ux, ux + uw, ux + nw,
+                                B.BOOT[0], 150.0, 156.5)]
     planes += [(1, y) for y in (-1.5, 0.5, 2.0, 3.5, 6.7, 20.0, 40.0, 47.8, 55.5, 57.0)]
     void, wall, wall2 = (0.0, "none"), (0.0, "none"), (0.0, "none")
     keep_r = MM.BOSS_R_LOW + 0.5        # the screw bosses: fastener features, checked against 1.5 by their own rows
@@ -603,6 +604,10 @@ def rkjxt_seat(step=0.25):
     return tilt, lift
 
 
+FILLER_PUTTY_MIN = 0.2           # adhesive putty between the USB-C filler and the notch, per side at least
+FILLER_FRICTION = 0.2           # static friction, PA12 on PA12 (MJF, dry): at least this, assumed
+
+
 def mjf(length):
     """JLC3DP MJF tolerance on a length (+-): 0.3 up to 100 mm, 0.4 % above."""
     return max(0.3, 0.004 * length)
@@ -625,7 +630,8 @@ def usb_rows():
     ow, oh, orr = u["w"] - 2 * hole, u["h"] - 2 * hole, u["r"] - hole
     zc = -S.PCB_T - j1h / 2 - u["z"]                    # plug centre, on the socket's middle, over the opening's
     # a square overmould (no corner radius) off centre by the float and J1 in x, J1 and the body height in z:
-    # least clearance to the opening, whose top is open (the notch, as wide as the opening)
+    # least clearance to the opening. Its top is the filler on the ledges (filler_rows), level with the opening's
+    # square top corners; J1 and the body both hang from the PCB underside, so the PCB thickness drops out
     xs = np.linspace(-om_w / 2, om_w / 2, 241)
     zs = np.linspace(-om_h / 2, om_h / 2, 131)
     ex = np.concatenate([xs, xs, np.full_like(zs, -om_w / 2), np.full_like(zs, om_w / 2)])
@@ -634,7 +640,7 @@ def usb_rows():
     for sx in (-1, 1):
         for sz in (-1, 1):
             x, z = ex + sx * (float_ + place), ez + zc + sz * (place + z_tol)
-            sd = np.minimum(rrect_sd(x, z, ow, oh, orr), rrect_sd(x, z - 50, ow, 100, 0))   # opening and notch
+            sd = np.minimum(rrect_sd(x, z, ow, oh, orr), rrect_sd(x, z - oh / 4, ow, oh / 2, 0))   # square top
             om = min(om, -sd.max())
     return [
         (f"USB-C socket ({j1w} wide, {-MM.J1_FACE:.2f} past the PCB edge) passes the wall notch: board "
@@ -644,9 +650,80 @@ def usb_rows():
          f"height {z_tol})", (-S.PCB_T - j1h - place - z_tol) - (bot + hole)),
         (f"USB-C socket ({j1h} high, J1 {place}) over the body floor under the PCB ({MM.UNDER} room, MJF "
          f"-{mjf(MM.UNDER)})", MM.UNDER - j1h - place - mjf(MM.UNDER)),
-        (f"USB-C overmould ({om_w} x {om_h}, square) in the {u['w']} x {u['h']} R{u['r']} opening: board "
-         f"{float_:.2f} off, J1 {place}, body height {z_tol}, MJF -{hole}", om),
+        (f"USB-C overmould ({om_w} x {om_h}, square) in the {u['w']} x {u['h']} opening (R{u['r']} below, its top "
+         f"the filler on the ledges): board {float_:.2f} off, J1 {place}, body height {z_tol}, MJF -{hole}", om),
     ]
+
+
+def filler_rows(back_lo, bow_dn):
+    """the USB-C notch filler (make_mech.USB_FILLER) in the notch, on the two ledges beside the opening (MJF on
+    both): room for the putty on its sides, its ends on the ledges, its top under the plate back, the slope it
+    rests on, and its inner end in the cavity. The plate back over it is at its lowest (bare pocket floors) and
+    bowed bow_dn towards the board there. The opening's top edge over the plug is usb_rows' overmould row."""
+    u, f, hole = MM.USB_OPEN, MM.USB_FILLER, S.POS_TOL["body_hole"]
+    n_w, top = MM.USB_NOTCH_W, MM.USB_TOP
+    gap_lo = (n_w - 2 * hole - (f["w"] + mjf(f["w"]))) / 2        # notch printed small, filler large
+    gap_hi = (n_w + 2 * hole - (f["w"] - mjf(f["w"]))) / 2        # and the other way round
+    # pushed against one side of the notch (printed large), the filler (printed small) still reaches this far over
+    # the far ledge, past the opening's edge (printed large)
+    bear = (f["w"] - mjf(f["w"])) - (n_w / 2 + hole) - (u["w"] / 2 + hole)
+    # the ledges hang from the PCB underside (bosses): highest with the body high (MJF from the boss top), the
+    # notch printed small and a thin board (the plate sits on the board's top); lowest the other way round
+    z_tol, pcb_tol = mjf(S.PCB_T + top), S.STACK_TOL["pcb"]
+    ledge_hi, ledge_lo = top + z_tol + hole + pcb_tol, top - z_tol - hole - pcb_tol
+    head = back_lo - bow_dn - (ledge_hi + f["h"] + mjf(f["h"]))
+    # on the desk the board's back edge stands higher by the body's tilt: the filler's weight pulls it inward
+    # with tan(tilt) of itself, which friction on the ledges must hold (the putty on its sides comes on top)
+    pull = math.tan(math.radians(S.BODY_TILT))
+    # flush outside (feeler blade): its inner end is past the cavity wall line by the filler printed long and the
+    # wall thin, and the board may lie against the back wall. J1's front shell tabs and their solder fillets
+    # stand up through the board under that end, maybe higher than the filler's bottom, and it spans both of
+    # them in x, so only y keeps them apart
+    poke = mjf(f["d"]) + mjf(MM.WALL) - (MM.WALL - f["d"])
+    return [
+        (f"USB-C filler ({f['w']:.1f} +{mjf(f['w']):.1f}) in the {n_w:.1f} notch (MJF -{2 * hole:.1f}) leaves "
+         f"room for the putty, {gap_lo:.2f} per side, beyond {FILLER_PUTTY_MIN}", gap_lo - FILLER_PUTTY_MIN),
+        (f"USB-C filler putty gap per side, at most {gap_hi:.2f} (notch +{2 * hole:.1f}, filler -{mjf(f['w']):.1f}), "
+         "within 1.0", 1.0 - gap_hi),
+        (f"USB-C filler pushed to one side of the notch rests on the far ledge ({MM.USB_LEDGE} wide, opening "
+         f"+{2 * hole:.1f}, filler -{mjf(f['w']):.1f}): {bear:.2f} on it, beyond 0.5", bear - 0.5),
+        (f"USB-C filler (h {f['h']:g} +{mjf(f['h']):.1f}) on the highest ledges (body {z_tol}, MJF {hole}, "
+         f"PCB -{pcb_tol}) under the lowest plate back (bowed {bow_dn:.3f} down)", head),
+        (f"USB-C filler on the ledges does not slide inward: the {S.BODY_TILT:g} deg tilt pulls with {pull:.3f} of "
+         f"its weight, under PA12 on PA12's friction ({FILLER_FRICTION}, assumed; a ratio)", FILLER_FRICTION - pull,
+         ""),
+        (f"USB-C filler on the lowest ledges over the PCB top, where it reaches over the board (body {z_tol}, MJF "
+         f"{hole}, PCB +{pcb_tol})", ledge_lo),
+        (f"USB-C filler flush outside: its inner end at most {poke:.1f} into the cavity, short of J1's shell tabs "
+         f"and their fillets ({MM.J1_TABS_IN} in from the board edge, board against the back wall)",
+         MM.J1_TABS_IN - poke),
+    ]
+
+
+def standoff_wall_row():
+    """the corner standoffs between the cavity walls, a hex corner (AC) pointing at the wall. On its screw a
+    standoff stays within the screw's play in the body hole of that hole's axis (the hole 0.15 large on the
+    radius, the screw at its smallest, the thread's play), and MJF puts the hole within 0.3 of its 4.0 from the
+    walls (a length). At the end of that play a corner can just touch the PA12 wall (about 0.03 into it): that
+    only stops the body there, which still floats on its four screws, so the row asks for less. With the body
+    anywhere its screws let it sit, the four standoffs fit between the walls at once: across the cavity (MJF on
+    its length and width) each pair of hex corners, the standoffs off their PCB holes by the screw's play there
+    and the holes off position, leaves this much per side. (Without the screws, the body lowered over the
+    board, a board pushed against a wall can bring a corner to the wall; the screws centre it again.)"""
+    pt, sc, so = S.POS_TOL, S.SCREW, S.STANDOFF
+    play = MM.SCREW_CLEAR + pt["body_hole"] - sc["d_min"] / 2
+    a = np.linspace(0, 2 * np.pi, 720, endpoint=False)
+    cav = (B.W + 2 * MM.CLEAR, B.H + 2 * MM.CLEAR, B.CORNER_R + MM.CLEAR)
+    wall = float(-rrect_sd(np.array(B.MOUNTS[0][0] - B.W / 2), np.array(B.MOUNTS[0][1] - B.H / 2), *cav))
+    room = min(float(-rrect_sd(mx + play * np.cos(a) - B.W / 2, my + play * np.sin(a) - B.H / 2, *cav).max())
+               for mx, my in B.MOUNTS)
+    touch = room - pt["thread"] - mjf(wall) - so["ac"] / 2       # at the end of the play: about -0.03, contact
+    off = (B.MOUNT_HOLE + pt["npth_d"]) / 2 - sc["d_min"] / 2 + pt["thread"]   # standoff off its PCB hole axis
+    reach = so["ac"] / 2 + off + pt["pcb"]
+    xs, ys = sorted({mx for mx, _ in B.MOUNTS}), sorted({my for _, my in B.MOUNTS})
+    span = min(cav[0] - mjf(cav[0]) - (xs[-1] - xs[0]), cav[1] - mjf(cav[1]) - (ys[-1] - ys[0])) / 2 - reach
+    return (f"corner standoffs (AC {so['ac']}) fit between the cavity walls at once, per side (at the end of the "
+            f"body's {play:.2f} screw play a corner may touch a wall: {touch:+.3f})", span)
 
 
 def steel_row():
@@ -961,6 +1038,7 @@ def clearances():
         (f"standoff end (AF {so['af_min']} min, {off:.2f} off) covers the widest PCB hole all round",
          so["af_min"] / 2 - off - hole_hi),
         (f"standoff corners (AC {so['ac']}) inside the {keepout} mm copper keep-out", keepout - so["ac"] / 2 - off),
+        standoff_wall_row(),
         ("plate left in front of the standoff pockets, thin plate, beyond 1.0", t_min - sp["depth"] - 1.0),
         ("standoff pocket to the nearest plate feature or edge, beyond 1.0", pocket_web() - 1.0),
         ("boss top bears on the PCB all round its hole (MJF -0.15)",
@@ -972,6 +1050,7 @@ def clearances():
         (f"through-hole leads (trimmed to {S.LEAD_MAX} under the PCB) over the body floor ({MM.UNDER} room, MJF "
          f"-{mjf(MM.UNDER)})", MM.UNDER - mjf(MM.UNDER) - S.LEAD_MAX),
         *usb_rows(),
+        *filler_rows(back_lo, S.PLATE_FLAT * plate_bow(B.USB_X, -S.OVH)),
         ("body screw hole round the screw, body and PCB tolerance",
          MM.SCREW_CLEAR - pt["body_hole"] - S.SCREW_D / 2 - pt["body"] - pt["pcb"]),
         (f"washer (OD {2 * r_w_min:.2f} min) bears all round the widest body hole", r_w_min - w_off - r_hole_max),
@@ -1031,10 +1110,11 @@ def clearances():
                      web - 0.8))
         rows.append((f"{name} light hole web with both holes at +{lt_up} ({web_lo:.2f}), beyond 0.5 (JLCCNC "
                      "minimum)", web_lo - 0.5))
-    for name, v in rows:
-        print(f"  {name:106s} {v:5.2f} mm {'OK' if v > 0 else 'FAIL'}")
-    if any(v <= 0 for _, v in rows):                 # a plain raise: asserts vanish under -O
-        raise SystemExit(f"fit check failed: {[n for n, v in rows if v <= 0]}")
+    rows = [(r[0], r[1], r[2] if len(r) > 2 else "mm") for r in rows]   # a margin in mm unless a row says
+    for name, v, unit in rows:
+        print(f"  {name:106s} {v:5.2f} {unit:2s} {'OK' if v > 0 else 'FAIL'}")
+    if any(v <= 0 for _, v, _ in rows):              # a plain raise: asserts vanish under -O
+        raise SystemExit(f"fit check failed: {[n for n, v, _ in rows if v <= 0]}")
 
 
 if __name__ == "__main__":

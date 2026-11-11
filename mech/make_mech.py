@@ -4,13 +4,14 @@ The 6 degree wedge is part of the body, so no wedge feet are needed; four flat s
 sliding; they go on four flat pads. The wedge is hollow from below: a 2 mm floor under the PCB, ribs down to
 the desk plane (under the two PCB posts and between them), the screw bosses joined to the walls, a solid band
 along the front, and a recess in the bottom for an optional 2 mm steel plate as desk weight.
-BOOT hole in the floor, USB-C opening in the back wall, open to the top so the socket clears the wall when the
-board goes in. The front plate is CNC aluminium
-(make_plate_step.py); every height is in stack.py.
+BOOT hole in the floor, USB-C opening in the back wall, open to the top as a wider notch so the socket clears the
+wall when the board goes in; a separate filler (same print) closes that notch from the back once the body is on,
+resting on the two ledges beside the opening. The front plate is CNC aluminium (make_plate_step.py); every height
+is in stack.py.
 
 Stack (z = 0 is the PCB top):
   body     floor -7.6 .. -5.6 (-7.2 .. -5.6 at the front edge), bottom plane from -7.2 at the front to about
-           -14 at the back, walls up to z 5.1 (0.9 below the plate), 4 bosses carry the PCB at z -1.6 (4 mm
+           -14 at the back, walls up to z 5.05 (0.95 below the plate), 4 bosses carry the PCB at z -1.6 (4 mm
            room for the SMD parts and the USB-C socket on the underside), 2 posts 0.25 under the middle of
            the PCB, counterbore seats at z -3.2 (1.6 mm of PA12 up to the PCB)
   standoff 4 x M2.5 x 8 female-female hex (5 mm across flats), z 0 .. 8, glued 2 mm deep into the plate
@@ -193,26 +194,61 @@ def hollow():
 # USB-C opening in the back wall round the plug overmould (USB-C spec: up to 12.35 x 6.5): wide enough for the
 # board anywhere in the cavity (its sideways play set by the short edges, taken as V-cut: one up to 0.4 short),
 # the opening where MJF puts it against the cavity wall (+-0.51 over the 127.5 mm from the left wall) and J1's
-# placement, deep enough for the body's height tolerance under the bosses, with corners small enough for a
-# square overmould (check_fit.py). It runs on up through the top of the wall as a notch of the same width, so
-# only its bottom counts: JLC's C165948 puts the socket face 0.52 past the board edge, level with the cavity
-# wall, so a solid wall above the opening would stop the socket while the board is lowered in.
+# placement, high enough for the body's height tolerance under the bosses, with bottom corners small enough for
+# a square overmould and square top corners (check_fit.py). It runs on up through the top of the wall as a notch,
+# USB_LEDGE wider on each side: JLC's C165948 puts the socket face 0.52 past the board edge, level with the cavity
+# wall, so a solid wall above the opening would stop the socket while the board is lowered in. Where the notch
+# widens, the wall under it ends in two flat ledges level with the opening's top, for the filler below.
 USB_OPEN = dict(w=15.8, h=8.4, r=0.5, z=-S.PCB_T - 1.6)   # z: centre, on the socket's middle; bottom at -7.4
-# solid down to the desk plane under the USB-C opening, 0.8 wider than it each side: no thin floor between the
+USB_LEDGE = 2.5                     # ledge per side: the notch is 20.8 wide
+USB_NOTCH_W = USB_OPEN["w"] + 2 * USB_LEDGE
+USB_TOP = USB_OPEN["z"] + USB_OPEN["h"] / 2               # 1.0: the opening's top, the ledges
+# solid down to the desk plane under the USB-C opening, 0.8 wider than it on each side: no thin floor between the
 # opening and the hollow
 USB_KEEP = (USB_OPEN["w"] + 1.6, 3.0)   # width, board y up to which the floor stays solid
 J1_FACE = -0.52                     # socket face, board y (2.62 ahead of its front shell tabs at 2.10)
 J1_BODY = (8.94, 3.26)              # socket width and height under the PCB (HRO TYPE-C-31-M-12)
+# J1's front shell tabs come up through the board at y 2.10 (board.add_usb), their pads from y 1.2; the solder
+# fillets on top may spread a little past the pad, so the filler stays short of y 1.0
+J1_TABS_IN = 1.0
+# Filler for the notch above the USB-C opening, printed with the body (MJF PA12, black). It goes in from the back
+# once the body is on, the panel face up, and rests on the two ledges: its bottom is the opening's top edge, set
+# by the body like the rest of the opening, and it spans the opening, so it cannot drop into the plug's path. A
+# feeler gauge blade laid across the back wall pushes it flush. Nothing in the wall can stop it moving inward: a
+# lip wider than the notch does not go in from outside, and a step in the notch would leave body walls under
+# JLC3DP's 2.0.
+# Friction on the ledges holds it against the 6 degree slope (check_fit.py), and a dab of removable adhesive putty
+# (Blu Tack) on each side face holds it in use; the side gap leaves room for the putty at both MJF extremes. Not
+# glue: it has to come out before the body goes back on the board (it would stop the socket on the way in), and
+# press-fit ribs cannot hold over MJF's +-0.3 on both the notch and the filler (a 1.2 mm window).
+# w: the notch less the putty gap on each side; d: the wall; h: from the ledges to 0.2 under the wall top, so it
+# stays under the plate back on the highest ledges; cham: lead-in on its inner vertical edges.
+USB_FILLER_GAP = 0.55
+USB_FILLER = dict(w=USB_NOTCH_W - 2 * USB_FILLER_GAP, d=WALL, h=3.85, cham=0.3)
 
 
 def usb_cutter():
-    """USB-C plug opening in the back wall (y = 0 side), carried up through the top of the wall."""
+    """USB-C plug opening in the back wall (y = 0 side), carried up through the top of the wall as the wider
+    notch: its top corners square, the ledges level with its top."""
     u = USB_OPEN
     sh = rrect_prism(B.USB_X, u["z"], u["w"], u["h"], u["r"], 0, o + 3)   # built in XY with the depth along Z
     t = gp_Trsf(); t.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Dir(1, 0, 0)), math.pi / 2)   # (x, y, z) -> (x, -z, y)
     sh = BRepBuilderAPI_Transform(sh, t, True).Shape()
-    notch = box(B.USB_X - u["w"] / 2, -o - 2, u["z"], B.USB_X + u["w"] / 2, 1.0, S.PLATE_Z0)
-    return fuse(move(sh, dy=1.0), notch)                     # from y = 1 (inside the PCB edge) out through the wall
+    top = box(B.USB_X - u["w"] / 2, -o - 2, u["z"], B.USB_X + u["w"] / 2, 1.0, USB_TOP + 0.01)   # square top corners
+    notch = box(B.USB_X - USB_NOTCH_W / 2, -o - 2, USB_TOP, B.USB_X + USB_NOTCH_W / 2, 1.0, S.PLATE_Z0)
+    return fuse(fuse(move(sh, dy=1.0), top), notch)          # from y = 1 (inside the PCB edge) out through the wall
+
+
+def usb_filler():
+    """the notch filler in its place (board frame): flush with the back wall, on the ledges."""
+    f = USB_FILLER
+    x0, x1, y0, y1, c = B.USB_X - f["w"] / 2, B.USB_X + f["w"] / 2, -o, -o + f["d"], f["cham"]
+    poly = BRepBuilderAPI_MakePolygon()
+    for x, y in ((x0, y0), (x1, y0), (x1, y1 - c), (x1 - c, y1), (x0 + c, y1), (x0, y1 - c)):
+        poly.Add(gp_Pnt(x, y, USB_TOP))
+    poly.Close()
+    face = BRepBuilderAPI_MakeFace(poly.Wire()).Face()
+    return BRepPrimAPI_MakePrism(face, gp_Vec(0, 0, f["h"])).Shape()
 
 
 def body():
@@ -253,4 +289,7 @@ if __name__ == "__main__":
           f"{STEEL_RECESS[1]:.0f}) less two {STEEL['notch']:.0f} mm corner "
           f"notches, {steel_mass():.0f} g")
     export(to_output(b), "avionics-panel-rev1-body", deflection=0.02)
+    f = USB_FILLER
+    print(f"USB-C filler {f['w']:g} x {f['d']:g} x {f['h']:g} mm")
+    export(to_output(usb_filler()), "avionics-panel-rev1-usb-filler")
     write_dxf("avionics-panel-rev1-steel.dxf", {"CUT": [steel_outline()]})   # for a laser-cutting service

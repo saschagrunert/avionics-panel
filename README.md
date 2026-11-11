@@ -53,6 +53,7 @@ Production files, by supplier (details in [Ordering](docs/ordering.md)):
   [drawing](production/avionics-panel-rev1-plate-drawing.pdf),
   [marking DXF](production/avionics-panel-rev1-plate.dxf)
 - JLC3DP: [body](production/avionics-panel-rev1-body.step),
+  [USB-C filler](production/avionics-panel-rev1-usb-filler.step),
   key caps in four fit sets ([A](production/avionics-panel-rev1-caps-A.zip),
   [B](production/avionics-panel-rev1-caps-B.zip), [C](production/avionics-panel-rev1-caps-C.zip),
   [D](production/avionics-panel-rev1-caps-D.zip); one file per cap in `caps-single-A.zip` etc.),

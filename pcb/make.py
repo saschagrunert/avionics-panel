@@ -93,6 +93,13 @@ NUDGE = sorted(((0.25 * i, 0.25 * j) for i in range(-12, 13) for j in range(-4, 
                key=lambda d: (math.hypot(d[0], 2 * d[1]), d))
 
 
+# Every mask opening is its pad grown by MASK_GROW per side. Black mask needs 0.13 mm dams (JLCPCB; check.py:
+# MASK_DAM), and the closest pads (the RP2040's, the USB-C contacts, C_X2 and R_X) are 0.2 mm apart: 0.035
+# leaves 0.13 between them. JLCPCB's LDI exposure takes openings down to the pad size (1:1) and aligns to
+# +-0.02 mm on multilayer boards, so the mask stays off every pad (check.py: MASK_MIN_GROW).
+MASK_GROW = 0.035
+
+
 def grown(g, d):
     return g[:5] + (g[5] + d,) if g[0] == "cap" else ("rect", g[1] - d, g[2] - d, g[3] + d, g[4] + d, 0.0)
 
@@ -101,7 +108,7 @@ HOLES = ([("cap", x, y, x, y, dr / 2) for (x, y, _n, _d, dr) in vias]
          + [("cap", x, y, x, y, d / 2) for (x, y, d) in B.NPTH]
          + [("cap", x, y, x, y, B.MOUNT_HOLE / 2) for (x, y) in B.MOUNTS])
 HOLE_BOXES = [bbox(h) for h in HOLES]
-CLEAR = {ly: [grown(pad_geom(p), 0.05) for p in pads if ly in p.mask] + HOLES for ly in "FB"}  # mask: 0.05 over
+CLEAR = {ly: [grown(pad_geom(p), MASK_GROW) for p in pads if ly in p.mask] + HOLES for ly in "FB"}
 
 
 OUTLINE = rounded_rect(0, 0, B.W, B.H, B.CORNER_R)    # the Edge_Cuts polygon (outline()): its corner chords count
@@ -178,7 +185,7 @@ def line(layer, pts, w, step=0.05):
 
 
 # --- back silkscreen: all SMD parts live here ---
-# Cathode bars 0.9 mm east of the cathode pad's centre, 0.225 mm from its mask opening. Where a via would cut
+# Cathode bars 0.9 mm east of the cathode pad's centre, 0.24 mm from its mask opening. Where a via would cut
 # one short, the bar moves sideways by the least that keeps it whole, if that is at most 0.3 mm away from the pad
 # (0.025 towards it) and leaves it BAR_GAP from every mask opening (check.py: SILK_CLEAR) and HOLE_GAP from every
 # hole.
@@ -191,7 +198,7 @@ def bar_clear(x, y, items, gap):
     return all(item_dist(g, h) >= gap - 1e-6 for h in items if boxes_near(bbox(h), bbox(g), gap))
 
 
-MASK_B = [grown(pad_geom(p), 0.05) for p in pads if "B" in p.mask]
+MASK_B = [grown(pad_geom(p), MASK_GROW) for p in pads if "B" in p.mask]
 for _name, x, y in B.DIODES:
     bx = x + BAR_X
     if not bar_clear(bx, y, HOLES, HOLE_GAP):
@@ -378,7 +385,7 @@ def mask(layer, fname, func):
     g = Gerber(fname, func)
     for p in pads:
         if layer in p.mask:          # breakout points of the fan-out and the 1V1 vias on the bottom stay under the mask
-            pad_flash(g, p, 0.05)
+            pad_flash(g, p, MASK_GROW)
     g.save()
 
 
