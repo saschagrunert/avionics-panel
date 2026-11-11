@@ -14,6 +14,10 @@ def board_mask():
     for (x, y, d) in holes:
         r = d / 2 / PX
         dr.ellipse([x / PX - r, y / PX - r, x / PX + r, y / PX + r], fill=0)
+    B.build()                                       # the LED cutouts, milled through the board
+    for (x, y, w, h, cr) in B.CUTOUTS:
+        dr.polygon([(px / PX, py / PX) for px, py in rounded_rect(x - w / 2, y - h / 2, x + w / 2, y + h / 2, cr)],
+                   fill=0)
     return np.array(img) > 127
 
 

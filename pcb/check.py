@@ -12,12 +12,14 @@
    IOVDD pin over the outer layers, and every decoupling capacitor with its own plane vias
 9. routed length of every net against its shortest tree (no detours), USB D+ / D- length and skew
 10. JLCPCB's footprint of every bottom-side part on our pads at its CPL rotation (pad numbers, positions)
-11. no copper on F or B within the mounting-hole keep-out (standoff end, body boss), only the plane inside
+11. no copper on F or B within the mounting-hole keep-out (plate boss, body boss), only the plane inside, and
+   copper on every layer clear of the LED cutouts
 12. no exposed SMD pad of another net near a through-hole pad (solder bridges; hand-soldered in either variant)
 13. JLCPCB's footprint of every through-hole part against our holes (positions, drills reported), and at its
    top-side CPL position and rotation (full variant) on our holes pin by pin
 14. no copper on B under J1's shell but J1's own pads
-15. the legend clear of mask openings and holes, and inside the board outline by SILK_EDGE
+15. the legend clear of mask openings and holes, inside the board outline and outside the LED cutouts by
+   SILK_EDGE
 16. USB protection: the ESD array in line on D+ and D- right behind J1, the damping resistor and the fuse in
     VBUS ahead of every load
 (precheck.py checks the placement before routing: fixed copper clearances and the bottom-side part bodies.)
@@ -42,6 +44,7 @@ from geom import (
     net_lengths,
     pad_geom,
     pt_seg,
+    rounded_rect,
     usb_lengths,
 )
 from matplotlib.path import Path
@@ -203,7 +206,14 @@ def pin_order(pads):
 # our own land sizes (diodes, SOT-23, 0603, 0402 differ from JLC's by up to 0.22 mm at an edge).
 FP_POS_TOL, FP_EDGE_TOL = 0.15, 0.25
 FP_PIN = {"C81598": {"K": "1", "A": "2"}, "C2040": {"EP": "57"},          # our pad name -> JLC's pad number
-          "C165948": {"SH1a": "1", "SH1b": "2", "SH-1b": "3", "SH-1a": "4"}}
+          "C165948": {"SH1a": "1", "SH1b": "2", "SH-1b": "3", "SH-1a": "4"},
+          "C125108": {"K": "1", "A": "2"}, "C575513": {"K": "1", "A": "2"}}
+# The reverse-mount LEDs (LiteOn's C230 package): our pads stop JLCPCB's 0.2 mm short of the cutout (board.py
+# LED_CUTOUT), JLC's footprint of C125108 runs them to 0.05 mm from its 1.9 mm cutout, so the inner edges differ by
+# up to 0.3 and the centres by 0.18: these two get that much. JLC's footprint of the white LTW-C230DS (C575513), the
+# same package, draws its pads 0.3 mm into a 2.3 mm round hole; it is checked against the amber one's footprint.
+FP_TOL = {"C125108": (0.2, 0.32)}
+FP_SAME = {"C575513": "C125108"}
 
 
 def jlc_place(x, y, rot):
@@ -215,7 +225,7 @@ def jlc_place(x, y, rot):
 @functools.cache
 def jlc_pads(lcsc):
     """the pads of JLC's footprint of one part (footprints/<LCSC>.json), read once per part type."""
-    with open(f"footprints/{lcsc}.json") as f:
+    with open(f"footprints/{FP_SAME.get(lcsc, lcsc)}.json") as f:
         return json.load(f)["pads"]
 
 
@@ -225,6 +235,7 @@ def footprint_fit(ref, lcsc, cx, cy, rot, ours):
     alias = FP_PIN.get(lcsc, {})
     mine = {alias.get(pin, pin): p for pin, p in ours.items()}
     worst_c, worst_e, bad = 0.0, 0.0, []
+    pos_tol, edge_tol = FP_TOL.get(FP_SAME.get(lcsc, lcsc), (FP_POS_TOL, FP_EDGE_TOL))
     for num, x, y, w, h in ref_pads:
         dx, dy = jlc_place(x, y, rot)
         X, Y = cx + dx, cy + dy
@@ -237,7 +248,7 @@ def footprint_fit(ref, lcsc, cx, cy, rot, ours):
         e = max(abs(p.x - p.w / 2 - (X - w / 2)), abs(p.x + p.w / 2 - (X + w / 2)),
                 abs(p.y - p.h / 2 - (Y - h / 2)), abs(p.y + p.h / 2 - (Y + h / 2)))
         worst_c, worst_e = max(worst_c, c), max(worst_e, e)
-        if c > FP_POS_TOL or e > FP_EDGE_TOL:
+        if c > pos_tol or e > edge_tol:
             near = min((q for q in mine.values()), key=lambda q: math.hypot(q.x - X, q.y - Y))
             bad.append(f"JLC pad {num} lands at ({X:.2f}, {Y:.2f}), {c:.2f} mm from {p.name} ({p.net}), "
                        f"edges off by {e:.2f}; nearest is {near.name} ({near.net})")
@@ -301,6 +312,8 @@ def flashes(fname):
     return out
 
 
+# JLCPCB keeps copper this far from a routed edge (the LED cutouts; the outline has its own EDGE_CLEAR)
+ROUTED_EDGE_CU = 0.2
 # JLCPCB standard process (no surcharge): 0.3 mm smallest plated drill, 0.5 mm smallest unplated hole,
 # via pad at least 0.15 mm over the drill (0.45 mm on 0.3), component pads with a wider ring
 MIN_DRILL, MIN_NPTH = 0.3, 0.5
@@ -410,11 +423,11 @@ def holes_and_paste(pads, vias, pth, npth):
 
 
 # The through-hole parts on the top are soldered by hand from the bottom, where the SMD parts sit: a solder
-# bridge from an iron-soldered pin to an SMD pad of another net is a short that is hard to see and to clear (an
-# LED's GND pad 0.28 mm from its resistor's GPIO pad was one). J1's four shell tabs (pin-in-paste) are filled
-# with solder by hand from the top too, and the excess comes out on the bottom (docs/mechanics.md). Every exposed
-# SMD pad of another net keeps HAND_SMD_MIN of copper from every hand-soldered pad: room for the iron's tip and a
-# fillet.
+# bridge from an iron-soldered pin to an SMD pad of another net is a short that is hard to see and to clear (a
+# through-hole LED's GND pad 0.28 mm from its resistor's GPIO pad was one). J1's four shell tabs (pin-in-paste)
+# are filled with solder by hand from the top too, and the excess comes out on the bottom (docs/mechanics.md).
+# Every exposed SMD pad of another net keeps HAND_SMD_MIN of copper from every hand-soldered pad: room for the
+# iron's tip and a fillet.
 HAND_SMD_MIN = 1.0
 
 
@@ -455,7 +468,7 @@ def hand_solder(pads):
 # footprint turned counter-clockwise by the rotation, its origin on the CPL position). Every JLC hole must land
 # on our hole of the pin TH_PIN names for it, within FP_POS_TOL, every unplated one on one of ours, and none of
 # ours may be left over. A wrong rotation misses the holes or, on a symmetric hole pattern, puts a pin on the
-# wrong hole: the LEDs' cathode on the anode pad, an encoder's A on B.
+# wrong hole: an encoder's A on B.
 TH_PIN = {                                  # JLC's pin number -> our pins it may land on
     # key: pins 1-2 and 3-4 are joined inside, so 0 and 180 are the same switch (the 6.5 x 4.5 pattern misses at 90)
     "C589907": dict.fromkeys("1234", ("A", "B", "C", "D")),
@@ -463,8 +476,6 @@ TH_PIN = {                                  # JLC's pin number -> our pins it ma
                   "8": ("B",), "9": ("MP-1",), "10": ("MP1",)},     # JLC's symbol: 1-3 and 6-8 A C B, 4 / 5 switch
     "C160841": {"5": ("PUSH",), "6": ("COM",), "7": ("ENCB",), "8": ("ENCA",), "9": ("ECOM",), "10": ("GND",),
                 "A": ("A",), "B": ("B",), "C": ("C",), "D": ("D",)},
-    "C2895466": {"1": ("K",), "2": ("A",)},                         # amber: pin 1 is the cathode
-    "C2895458": {"1": ("A",), "2": ("K",)},                         # white: pin 1 is the anode
 }
 
 
@@ -1031,14 +1042,34 @@ def silk_clear(pth, npth):
 SILK_EDGE = 0.3
 
 
+def contours(fname):
+    """The closed contours of an outline Gerber, each as its list of line segments ((x0, y0), (x1, y1))."""
+    out = []
+    for op in gerber_ops(fname):
+        if op[0] != "line":
+            continue
+        if out and math.dist(out[-1][-1][1], op[2]) < 1e-6:
+            out[-1].append((op[2], op[3]))
+        else:
+            out.append([(op[2], op[3])])
+    return out
+
+
 def silk_edge():
-    """Every legend shape inside the board outline (the Edge_Cuts Gerber) by SILK_EDGE. Measured on the Gerber
-    vertices: the outline is convex, so a shape's closest point to it is a vertex of a region, or an end of a line
-    or a dot less its radius. Not on the raster, which ends at the board edge and would not see legend beyond it."""
-    edge = [(op[2], op[3]) for op in gerber_ops("avionics-Edge_Cuts.gko") if op[0] == "line"]
-    inside = Path([a for a, _b in edge] + [edge[-1][1]])
-    ax, ay, bx, by = (np.array(v) for v in zip(*[(*a, *b) for a, b in edge], strict=True))
-    ux, uy = bx - ax, by - ay
+    """Every legend shape inside the board outline (the Edge_Cuts Gerber) and outside each LED cutout by
+    SILK_EDGE. Measured on the Gerber vertices: the outline and the cutouts are convex, so a shape's closest point
+    to them is a vertex of a region, or an end of a line or a dot less its radius. Not on the raster, which ends at
+    the board edge and would not see legend beyond it."""
+    def width(c):
+        return max(a[0] for a, _b in c) - min(a[0] for a, _b in c)
+    cs = sorted(contours("avionics-Edge_Cuts.gko"), key=width, reverse=True)   # the outline, the widest, first
+    if len(cs) != 1 + len(B.CUTOUTS):
+        print(f"EDGE CUTS: {len(cs)} contours, expected the outline and {len(B.CUTOUTS)} cutouts")
+        return 1
+    loops = []
+    for k, edge in enumerate(cs):
+        ax, ay, bx, by = (np.array(v) for v in zip(*[(*a, *b) for a, b in edge], strict=True))
+        loops.append((Path([a for a, _b in edge] + [edge[-1][1]]), ax, ay, bx - ax, by - ay, k == 0))
     bad, worst = 0, {}
     for side, fname in (("F", "avionics-F_Silkscreen.gto"), ("B", "avionics-B_Silkscreen.gbo")):
         shapes, dark = [], True                    # (points, radius) of every dark legend shape
@@ -1057,17 +1088,19 @@ def silk_edge():
         for pts, r in shapes:
             q = np.array(pts)
             px, py = q[:, :1], q[:, 1:]
-            u = np.clip(((px - ax) * ux + (py - ay) * uy) / (ux * ux + uy * uy), 0, 1)
-            d = np.hypot(px - (ax + u * ux), py - (ay + u * uy)).min(axis=1)
-            d = np.where(inside.contains_points(q), d, -d) - r      # negative: beyond the outline
-            i = int(d.argmin())
-            worst[side] = min(worst[side], float(d[i]))
-            if d[i] < SILK_EDGE - 1e-6:
-                bad += 1
-                print(f"LEGEND AT THE BOARD EDGE on {side} at ({q[i, 0]:.2f}, {q[i, 1]:.2f}), {d[i]:.2f} mm inside "
-                      "the outline")
-    print(f"legend to board outline: closest F {worst['F']:.2f} mm, B {worst['B']:.2f} mm (min {SILK_EDGE}); "
-          f"{bad} problems")
+            for inside, ax, ay, ux, uy, outline in loops:
+                u = np.clip(((px - ax) * ux + (py - ay) * uy) / (ux * ux + uy * uy), 0, 1)
+                d = np.hypot(px - (ax + u * ux), py - (ay + u * uy)).min(axis=1)
+                ins = inside.contains_points(q)
+                d = np.where(ins if outline else ~ins, d, -d) - r      # negative: off the board
+                i = int(d.argmin())
+                worst[side] = min(worst[side], float(d[i]))
+                if d[i] < SILK_EDGE - 1e-6:
+                    bad += 1
+                    where = "AT THE BOARD EDGE" if outline else "AT AN LED CUTOUT"
+                    print(f"LEGEND {where} on {side} at ({q[i, 0]:.2f}, {q[i, 1]:.2f}), {d[i]:.2f} mm from it")
+    print(f"legend to board outline and LED cutouts: closest F {worst['F']:.2f} mm, B {worst['B']:.2f} mm (min "
+          f"{SILK_EDGE}); {bad} problems")
     return bad
 
 
@@ -1172,7 +1205,7 @@ if __name__ == "__main__":
           f"{plane_bad} violations")
     bad += plane_bad
 
-    # --- mounting holes: the standoff end and the body boss press on the board round each screw hole, so no
+    # --- mounting holes: the plate boss and the body boss press on the board round each screw hole, so no
     # copper on F or B within B.MOUNT_KEEPOUT of a hole centre; on the inner layers only the plane itself
     # (under the laminate, cut back round the hole) may reach into it. Measured on the Gerbers.
     ko, ko_bad = B.MOUNT_KEEPOUT, 0
@@ -1209,6 +1242,23 @@ if __name__ == "__main__":
           f"inner planes from {near['planes']}, plane copper only; {ko_bad} violations")
     bad += ko_bad
 
+    # --- LED cutouts (milled through the board, in Edge_Cuts): no copper inside on any layer, the inner planes
+    # pulled back by PLANE_MIN and more, on the Gerbers; the outer layers to the design items in the DRC below
+    cut_ops = [("region", rounded_rect(x - w / 2, y - h / 2, x + w / 2, y + h / 2, r)) for x, y, w, h, r in B.CUTOUTS]
+    cut_px = draw_ops(cut_ops)
+    cut_dist = ndimage.distance_transform_edt(~cut_px) * PX
+    cut_bad, cut_near = 0, {}
+    for ly, img in ras.items():
+        d = cut_dist[img]
+        cut_near[ly] = float(d.min()) if d.size else math.inf
+        lim = PLANE_MIN if ly in B.PLANES else 0.0
+        if cut_near[ly] < lim + PX / 2 - 1e-6 or (img & cut_px).any():
+            cut_bad += 1
+            print(f"LED CUTOUT {ly}: copper {cut_near[ly]:.2f} mm from a cutout (min {lim})")
+    print(f"LED cutouts: {len(B.CUTOUTS)}, closest copper F {cut_near['F']:.2f}, B {cut_near['B']:.2f}, planes "
+          f"{min(cut_near[ly] for ly in B.PLANES):.2f} mm (raster {PX}); {cut_bad} violations")
+    bad += cut_bad
+
     # --- geometric clearance DRC (outer layers) ---
     with open("design.json") as f:
         items = json.load(f)["items"]
@@ -1238,6 +1288,12 @@ if __name__ == "__main__":
             dist = item_dist(it[1], ("cap", x, y, x, y, dd / 2))
             if dist < 0.15:
                 viol += 1; print("NEAR NPTH", it[2], it[3], round(dist, 2))
+        for (x, y, w, h, _r) in B.CUTOUTS:        # JLCPCB: copper 0.2 mm from a routed edge
+            if not boxes_near(bb, (x - w / 2, y - h / 2, x + w / 2, y + h / 2), 1.0):
+                continue
+            dist = item_dist(it[1], ("rect", x - w / 2, y - h / 2, x + w / 2, y + h / 2, 0.0))
+            if dist < ROUTED_EDGE_CU - 1e-6:
+                viol += 1; print("NEAR LED CUTOUT", it[2], it[3], round(dist, 3))
     # hole to hole, by net (JLCPCB: 0.5 mm between holes of different nets, 0.254 mm on the same net).
     # Plated holes carry their net; NPTH and mounting holes count as their own net. Slots are capsules.
     holes = [(("cap", v[0], v[1], v[0], v[1], v[4] / 2), v[2]) for v in rd["vias"]]

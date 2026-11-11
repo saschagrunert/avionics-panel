@@ -162,10 +162,9 @@ takes over. Do the [arrival checks](mechanics.md#on-arrival) first.
    crystal) to RPI-RP2. The firmware is checked against 9.2.9, the version `mpy-cross.nix` pins; newer
    versions are untested, and the board page on circuitpython.org no longer offers 9.2. The board restarts
    with a CIRCUITPY drive.
-4. Economic variant: solder the 28 keys and the two LEDs (seated flat, cathode to the square pad, see
-   [Mechanics](mechanics.md#hand-soldering)), but not yet the encoders and the RANGE control: they are
-   the expensive parts, and a board that turns out dead in the next steps would take them with it. Full
-   variant: nothing to solder.
+4. Economic variant: solder the 28 keys (seated flat, see [Mechanics](mechanics.md#hand-soldering)), but
+   not yet the encoders and the RANGE control: they are the expensive parts, and a board that turns out dead
+   in the next steps would take them with it. Full variant: nothing to solder.
 5. Copy `boot.py`, `code.py`, `panel.py` and `buttonmap.py` from the repository to CIRCUITPY (the
    repository's `code.py`, with `PICO_TEST = False` and `divisor=2`, not the copy edited for the Pico
    bench), then replug with SHIFT held until CIRCUITPY appears: `boot.py` only runs at power-up, and SHIFT
@@ -179,7 +178,8 @@ takes over. Do the [arrival checks](mechanics.md#on-arrival) first.
    longer appear. If they still do, SHIFT reads as held (row GP2, column GP6). Test the joysticks only
    from this plain replug on, not in SHIFT mode (see above).
 6. Windows "Set up USB game controllers" (joy.cpl) must show two "Avionics Panel" devices, but it only
-   shows 32 buttons per device. Check every key and both lights with MobiFlight's input view or a
+   shows 32 buttons per device. Check every key and both lights (before the plate goes on, the LEDs shine up
+   through their cutouts in the board, on the top side) with MobiFlight's input view or a
    DirectInput tester that shows all 128 buttons (for example Pointy's Joystick Test), against
    [BUTTONS.md](../firmware/BUTTONS.md). Device 2
    only responds while UNIT 2 is selected (SHIFT, HOME). Both devices show the same name in MobiFlight,
@@ -247,14 +247,19 @@ On the first board, after step 7:
   is the FREQ outer encoder's B line (harmless, limited current). Check that the FREQ outer ring counts
   normally once `code.py` runs. A custom board definition would avoid it. Moving that line to the spare
   GP14 was tried: its fan-out is boxed in, and none of 13 router seeds could route it.
-- The white UNIT light: judge it behind its light pipe once the panel is assembled. The firmware drives it
-  at `LED_DUTY[1]` = 0x3000 in [code.py](../firmware/code.py), about 19 % of full, so raise that first (up
-  to 0xFFFF; the SHIFT light uses `LED_DUTY[0]`). Only if it is still too dim at full duty, bridge
-  R_UNIT's pads with solder or fit a 0603 0 R (for example C21189, a few cents at LCSC) in its place
-  ([Electronics](electronics.md#lights)). The Pico bench can't tell: `PICO_TEST` prints the UNIT state
-  instead of lighting an LED.
+- The lights: judge both behind their light pipes once the panel is assembled. `code.py` sets the drive
+  strength of their pads (GP12, GP15) to 12 mA, which its series resistor needs, by writing the RP2040's pad
+  registers through `memorymap` (CircuitPython has no call for it); should that fail, it prints "LED drive
+  strength not set" on the console (open it as in step 5) and the lights stay dimmer at the 4 mA default. It
+  drives SHIFT at `LED_DUTY[0]` = 0x4800 and UNIT at `LED_DUTY[1]` = 0x4000 in
+  [code.py](../firmware/code.py), about 28 and 25 % of full, which leaves three to four times that. Change
+  those first (up to 0xFFFF). Only if the white light is still too dim at full
+  duty (a part from the highest forward voltage bin), bridge R_UNIT's pads with solder or fit a 0603 0 R (for
+  example C21189, a few cents at LCSC) in its place ([Electronics](electronics.md#lights)), then keep
+  `LED_DUTY[1]` at 0x8000 or less. The Pico bench
+  can't tell: `PICO_TEST` puts the SHIFT light on the Pico's own LED and prints the UNIT state instead.
 
-Then the panel goes together: [Assembly and gluing](mechanics.md#assembly-and-gluing).
+Then the panel goes together: [Assembly](mechanics.md#assembly).
 
 ### Pico bench
 

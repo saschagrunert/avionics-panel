@@ -30,7 +30,7 @@ import make_plate_step as PS  # noqa: E402
 import stack as S  # noqa: E402
 from occ_util import move  # noqa: E402
 
-assert S.PCB_HOLE == B.MOUNT_HOLE, "the board's mounting holes must be the ones the glued standoffs need"
+assert S.PCB_HOLE == B.MOUNT_HOLE, "the board's mounting holes must be the ones the screws and bosses need"
 
 
 def section(shape, y):
@@ -101,16 +101,20 @@ from OCC.Core.gp import gp_Ax1, gp_Trsf  # noqa: E402
 t = gp_Trsf(); t.SetRotation(gp_Ax1(gp_Pnt(px, py, 0), gp_Dir(0, 0, 1)), -math.pi / 2)
 rot = BRepBuilderAPI_Transform(plate, t, True).Shape()        # board +y (towards the user) now points to -x
 draw(ax, rot, py, "#1f5fa0", dx=-px, dz=S.PLATE_Z0)
-part(ax, -6, -S.PCB_T, 12, S.PCB_T, fc="#c8d8c0")
-part(ax, -1.5, 0, 3.0, S.LED_TOP)                           # LED
+cw = B.LED_CUTOUT[1]                                        # the cutout across the pads (along board y)
+part(ax, -6, -S.PCB_T, 6 - cw / 2, S.PCB_T, fc="#c8d8c0")
+part(ax, cw / 2, -S.PCB_T, 6 - cw / 2, S.PCB_T, fc="#c8d8c0")
+ll = S.LED_LENS
+part(ax, -0.8, -S.PCB_T - 0.28, 1.6, 0.28)                  # reverse-mount LED: substrate under the board,
+part(ax, -ll["w"] / 2, -S.PCB_T, ll["w"], ll["h"], fc="#f3d58a")   # its lens up in the cutout
 key_dy = ly - B.ROWS[3]                                     # key centre is this far towards the back
 part(ax, key_dy - S.CAP["h"] / 2, S.CAP["base"], S.CAP["h"], S.CAP["height"], fc="#555", ec="#222")   # key cap, plunger
 pipe = move(K.light_pipe("SHIFT"), 0, 0, 0)
 tp = gp_Trsf(); tp.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1)), -math.pi / 2)
-draw(ax, BRepBuilderAPI_Transform(pipe, tp, True).Shape(), 0, "k", dx=0, dz=S.PIPE["z0"])
+draw(ax, BRepBuilderAPI_Transform(pipe, tp, True).Shape(), 0, "k", dx=0, dz=S.PIPE["z0"])   # on the board
 ax.set_title("SHIFT light pipe\n(front of the panel on the left)")
 
-for ax, xl in zip(axes, ((-14, 14), (-11, 11), (-6, 9)), strict=True):
+for ax, xl in zip(axes, ((-14, 14), (-11, 11), (-6, 9)), strict=True):   # z from under the LED
     ax.set_aspect("equal"); ax.grid(alpha=0.3); ax.set_xlim(*xl); ax.set_ylim(-3, 31 if ax is axes[0] else 22)
     ax.axhline(S.PLATE_Z1, color="#1f5fa0", lw=0.3, ls=":")
 fig.tight_layout()
@@ -404,13 +408,22 @@ def body_measures(tri):
 
 def plate_measures(tri):
     """measured on the plate mesh (plate frame, back face at z 0): the narrowest encoder pocket across its lugs
-    (along x, 1 mm into the pocket) and the shallowest standoff pocket."""
+    (along x, 1 mm into the pocket), the bosses' height (from below, between the tapped hole and the boss edge;
+    the lowest and the highest) and the deepest tapped hole (up its axis from the boss end to the drill point)."""
     widths = []
     for name in ("ALTHDG", "FREQ", "FMS"):
         cx, cy = PS.P(*getattr(B, name))
         widths.append(sum(ray_hit(tri, np.array([cx, cy, 1.0]), np.array([sx, 0.0, 0.0])) for sx in (-1.0, 1.0)))
-    depths = [ray_hit(tri, np.array([*PS.P(mx, my), -1.0]), np.array([0.0, 0.0, 1.0])) - 1.0 for mx, my in B.MOUNTS]
-    return min(widths), min(depths)
+    up, z0 = np.array([0.0, 0.0, 1.0]), -20.0
+    rb = (S.TAP["drill"] / 2 + S.TAP["cham"] + S.BOSS["d"] / 2) / 2      # between the countersink and the boss edge
+    heights, depths = [], []
+    for mx, my in B.MOUNTS:
+        px, py = PS.P(mx, my)
+        end = ray_hit(tri, np.array([px + rb, py, z0]), up) + z0                 # the boss end face
+        heights.append(-end)
+        hole = ray_hit(tri, np.array([px, py, z0]), up) + z0                     # the drill point's tip
+        depths.append(hole - end)
+    return min(widths), (min(heights), max(heights)), max(depths)
 
 
 def rib_width(name, z=1.5):
@@ -572,12 +585,12 @@ def key_hole_max():
 
 
 def plate_bow(x, y):
-    """how far a bowed plate stands off the plane of its four standoffs at board point (x, y), per mm of bow read
-    on glass (docs/mechanics.md, On arrival): the worst of a dome (the reading is the plate's corners against its
+    """how far a bowed plate stands off the plane of its four bosses at board point (x, y), per mm of bow (the
+    drawing's flatness): the worst of a dome (the reading is the plate's corners against its
     middle), a bow along the plate (its ends against its middle) and a bow across it (its long edges against its
     middle line)."""
     hx, hy = B.W / 2 + S.OVH, B.H / 2 + S.OVH                          # plate half length and width
-    sx, sy = B.W / 2 - B.MOUNTS[0][0], B.H / 2 - B.MOUNTS[0][1]         # standoffs off the middle
+    sx, sy = B.W / 2 - B.MOUNTS[0][0], B.H / 2 - B.MOUNTS[0][1]         # bosses off the middle
     dx, dy = x - B.W / 2, y - B.H / 2
     dome = (sx * sx + sy * sy - dx * dx - dy * dy) / (hx * hx + hy * hy)
     along = (sx * sx - dx * dx) / (hx * hx)
@@ -700,30 +713,25 @@ def filler_rows(back_lo, bow_dn):
     ]
 
 
-def standoff_wall_row():
-    """the corner standoffs between the cavity walls, a hex corner (AC) pointing at the wall. On its screw a
-    standoff stays within the screw's play in the body hole of that hole's axis (the hole 0.15 large on the
-    radius, the screw at its smallest, the thread's play), and MJF puts the hole within 0.3 of its 4.0 from the
-    walls (a length). At the end of that play a corner can just touch the PA12 wall (about 0.03 into it): that
-    only stops the body there, which still floats on its four screws, so the row asks for less. With the body
-    anywhere its screws let it sit, the four standoffs fit between the walls at once: across the cavity (MJF on
-    its length and width) each pair of hex corners, the standoffs off their PCB holes by the screw's play there
-    and the holes off position, leaves this much per side. (Without the screws, the body lowered over the
-    board, a board pushed against a wall can bring a corner to the wall; the screws centre it again.)"""
-    pt, sc, so = S.POS_TOL, S.SCREW, S.STANDOFF
+def boss_wall_rows():
+    """the plate's corner bosses between the cavity walls. The body sits on its four screws, which the bosses
+    locate: each body hole stays within the screw's play of its axis (the hole 0.15 large on the radius, the M3 at
+    its smallest), and MJF puts the hole within 0.3 of its 4.0 from the walls (a length). At the end of that play
+    a boss stays clear of the wall; and with the body anywhere its screws let it sit, the four bosses fit between
+    the walls at once across the cavity (MJF on its length and width, the bosses where the plate puts them)."""
+    pt, sc, bo = S.POS_TOL, S.SCREW, S.BOSS
+    r = (bo["d"] + bo["d_tol"]) / 2
     play = MM.SCREW_CLEAR + pt["body_hole"] - sc["d_min"] / 2
     a = np.linspace(0, 2 * np.pi, 720, endpoint=False)
     cav = (B.W + 2 * MM.CLEAR, B.H + 2 * MM.CLEAR, B.CORNER_R + MM.CLEAR)
     wall = float(-rrect_sd(np.array(B.MOUNTS[0][0] - B.W / 2), np.array(B.MOUNTS[0][1] - B.H / 2), *cav))
     room = min(float(-rrect_sd(mx + play * np.cos(a) - B.W / 2, my + play * np.sin(a) - B.H / 2, *cav).max())
                for mx, my in B.MOUNTS)
-    touch = room - pt["thread"] - mjf(wall) - so["ac"] / 2       # at the end of the play: about -0.03, contact
-    off = (B.MOUNT_HOLE + pt["npth_d"]) / 2 - sc["d_min"] / 2 + pt["thread"]   # standoff off its PCB hole axis
-    reach = so["ac"] / 2 + off + pt["pcb"]
     xs, ys = sorted({mx for mx, _ in B.MOUNTS}), sorted({my for _, my in B.MOUNTS})
-    span = min(cav[0] - mjf(cav[0]) - (xs[-1] - xs[0]), cav[1] - mjf(cav[1]) - (ys[-1] - ys[0])) / 2 - reach
-    return (f"corner standoffs (AC {so['ac']}) fit between the cavity walls at once, per side (at the end of the "
-            f"body's {play:.2f} screw play a corner may touch a wall: {touch:+.3f})", span)
+    span = min(cav[0] - mjf(cav[0]) - (xs[-1] - xs[0]), cav[1] - mjf(cav[1]) - (ys[-1] - ys[0])) / 2 - r - pt["plate"]
+    return [(f"plate bosses (Ø{bo['d']} +{bo['d_tol']}) clear of the cavity walls ({wall:.1f}, MJF -{mjf(wall)}) at "
+             f"the end of the body's {play:.2f} screw play", room - mjf(wall) - r),
+            ("plate bosses fit between the cavity walls at once (MJF on the cavity, plate positions), per side", span)]
 
 
 def steel_row():
@@ -736,9 +744,10 @@ def steel_row():
             f"-{mjf(rw):.2f} / -{mjf(rd):.1f}), and between notches, per side", min(gaps))
 
 
-def pocket_web():
-    """least plate left between a standoff pocket and any other plate feature or the plate edge."""
-    r = S.STANDOFF_POCKET["d"] / 2 + S.STANDOFF_POCKET["d_tol"] / 2
+def boss_web():
+    """least plate web left between a boss (with its root radius) and any pocket, through hole or the plate edge."""
+    bo = S.BOSS
+    r = (bo["d"] + bo["d_tol"]) / 2 + bo["root_r"]
     w, h, cr, _ = S.EC11_POCKET
     webs = []
     for mx, my in B.MOUNTS:
@@ -749,6 +758,139 @@ def pocket_web():
         d += [-rrect_sd(mx - B.W / 2, my - B.H / 2, B.W + 2 * S.OVH, B.H + 2 * S.OVH, B.CORNER_R + S.OVH)]
         webs.append(min(d) - r)
     return min(webs)
+
+
+def pipe_gaps(back_lo, back_hi):
+    """the gap from the board top to the plate back at a light (the light pipes' rows): smallest (the plate back at its
+    lowest and bowed PLATE_FLAT down, the board bowed PCB_BOW up and lifted by a post) and largest (both the other
+    way); the room left over the pipe's base in the smallest (base long, a sanded stub left on), and its shoulder's
+    distance off the plate back in the largest (base short)."""
+    pp = S.PIPE
+    g_min = back_lo - S.PLATE_FLAT - S.PCB_BOW - S.SUPPORT_LIFT
+    g_max = back_hi + S.PLATE_FLAT + S.PCB_BOW
+    return g_min, g_max, g_min - (pp["base_len"] + pp["len_tol"] + pp["stub"]), g_max - (pp["base_len"] - pp["len_tol"])
+
+
+def visible(recess, a, r_hole, off, light=None, caps=(), view=S.CAP_VIEW_DEG, n=161):
+    """the share of a light pipe's top (radius a, off the hole's axis by `off` towards the seat, +y on the board)
+    that an eye at `view` degrees sees through its hole (radius r_hole) from `recess` below the face: a point of the
+    top is seen when the sightline from it leaves the hole at the face and then passes over every key cap in its way
+    (the caps at `caps`, the light's hole axis at `light` in board coordinates; the face at its nominal height)."""
+    u = np.linspace(-a, a, n)
+    x, y = np.meshgrid(u, u)
+    top = x * x + y * y <= a * a
+    rise = math.tan(math.radians(view))
+    seen = top & (x * x + (y + off + recess / rise) ** 2 <= r_hole * r_hole)
+    if light is not None:
+        c = S.CAP
+        cap_top = c["base"] + c["height"]
+        face = S.BOSS["h"] + S.PLATE_T + S.ANODISE
+        px, py = light[0] + x, light[1] + y + off                    # the top's points on the board
+        for dy in np.arange(0.0, 12.0, 0.05):                        # along the sightline towards the seat
+            z = face - recess + dy * rise
+            for kx, ky in caps:
+                inside = -rrect_sd(px - kx, py + dy - ky, c["w"], c["h"], c["r"])   # depth inside the outline
+                height = cap_top - np.maximum(0.0, c["cham"] - inside)          # its 45 deg top chamfer
+                seen &= ~((inside > 0) & (z < height))
+    return seen.sum() / top.sum()
+
+
+def pipe_rows(back_lo, back_hi, board, caps):
+    """The light pipes (stack.PIPE) over the reverse-mount LEDs in their board cutouts (board.LED_CUTOUT). Each
+    stands on the board, captive under the plate: the rows for never proud, never clamped, the top's depth under the
+    face and how much of it shows from the seat, the shoulder, the cutout under the base, the LED's lens and light
+    under it, and the base against the switch bodies and the key holes (a firmly pressed cap dips under the plate
+    back). Every pipe length at +-len_tol (JLC3DP's resin), a sanded stub left on. The plate takes PLATE_FLAT in full
+    here, the board PCB_BOW either way and the posts' lift up."""
+    pp, ll, pt = S.PIPE, S.LED_LENS, S.POS_TOL
+    lt_up = S.LIGHT_HOLE_TOL[0]
+    t_min, t_max = S.PLATE_T - S.PLATE_T_TOL, S.PLATE_T + S.PLATE_T_TOL
+    base_lo, base_hi = (pp["base_d"] - pp["resin"]) / 2, (pp["base_d"] + pp["resin"]) / 2
+    cw, ch, cr = B.LED_CUTOUT
+    route = 0.1                                          # JLCPCB's routed cutout, per side (assumed: the outline +-0.2)
+    g_min, g_max, room, off = pipe_gaps(back_lo, back_hi)
+    # the top under the face with the shoulder on the plate back (lifted): thinnest bare plate and long rod, thickest
+    # plate anodised on both faces and short rod; in use, resting on the board: nominal (a 4.0 plate anodised on both
+    # faces, bosses at 6.05, the pipe as drawn) and deepest (the shoulder `off` the plate back)
+    bear_lo = t_min - pp["top_len"] - pp["len_tol"]
+    bear_hi = t_max + S.ANODISE - (pp["top_len"] - pp["len_tol"])
+    nominal = S.PLATE_T + S.ANODISE - pp["top_len"] + S.BOSS["h"] - pp["base_len"]
+    deep = bear_hi + off
+    rows = [
+        (f"light pipe never proud: its shoulder on the plate back, the top ({pp['top_len']} +{pp['len_tol']}) under "
+         f"the thinnest plate face ({t_min})", bear_lo),
+        (f"light pipe never clamped: its base ({pp['base_len']} +{pp['len_tol']}, a {pp['stub']} stub left on) under "
+         f"the smallest gap ({g_min:.3f}: plate back low, bowed {S.PLATE_FLAT} down, board {S.PCB_BOW:.2f} up and "
+         f"{S.SUPPORT_LIFT:.2f} on a post, where the board is too stiff for any clamp)", room),
+        (f"LED lens ({ll['h']} +{ll['tol']} over the substrate, solder {ll['solder']}) inside the thinnest board "
+         f"(-{S.STACK_TOL['pcb']}), under the pipe base", S.PCB_T - S.STACK_TOL["pcb"] - ll["h"] - ll["tol"]
+         - ll["solder"]),
+        (f"light pipe base (Ø{pp['base_d']} -{pp['resin']}) cannot drop into the LED cutout ({cw} x {ch}, routed "
+         f"+{2 * route})", 2 * base_lo - (min(cw, ch) + 2 * route)),
+    ]
+    # the lens (+tol) in the cutout (routed small, R at its corners), the LED placed off by `place`
+    hw, hh = (cw - 2 * route) / 2, (ch - 2 * route) / 2
+    a = np.linspace(0, 2 * np.pi, 72, endpoint=False)
+    lx_, ly_ = (ll["l"] + ll["tol"]) / 2, (ll["w"] + ll["tol"]) / 2
+    corners = np.array([(sx * lx_, sy * ly_) for sx in (-1, 1) for sy in (-1, 1)])
+    lens = max(float(rrect_sd(corners[:, 0] + ll["place"] * math.cos(t), corners[:, 1] + ll["place"] * math.sin(t),
+                              2 * hw, 2 * hh, cr).max()) for t in a)
+    rows.append((f"LED lens ({ll['l']} x {ll['w']} +{ll['tol']}, placed {ll['place']} off) clear of its cutout ({cw} x "
+                 f"{ch} R{cr}, routed -{route} per side)", -lens))
+    lens_depth = S.PCB_T - S.STACK_TOL["pcb"] - ll["h"] - ll["tol"] - ll["solder"]
+    for name, d in S.LIGHT_HOLES.items():
+        (lx, ly), _, _ = B.LEDS[name]
+        rod = d - pp["clear"]
+        float_ = (d + lt_up - (rod - pp["resin"])) / 2              # the pipe off its hole's axis, at most
+        on_board = float_ + board + pt["plate"] + pt["pcb"]           # and off the cutout's centre
+        reach = base_hi + float_                                      # its base edge from the hole's axis
+        sw = S.SWITCH_BODY / 2 + S.CAP_TOL["switch"]
+        sw_gap = min(float(rrect_sd(np.array(lx - x), np.array(ly - y), 2 * sw, 2 * sw, 0.0)) for x, y in caps)
+        key_gap = min(rrect_sd(lx - x, ly - y, *key_hole_max()) for x, y in caps)
+        # off the cutout's centre by on_board across it (its narrow way, routed large), the base's centre may lie
+        # over the cutout: it then rests on the cutout's near edge and can tip about it, as far as the rod in its
+        # hole lets it (the shortest length in it, the shoulder off the plate back at worst); the base's far rim
+        # dips by its distance from that edge times the tilt
+        in_hole = pp["top_len"] - pp["len_tol"] - max(0.0, off)
+        tilt = 2 * float_ / in_hole
+        lever = max(0.0, (min(cw, ch) / 2 + route) - (on_board - base_lo))
+        dip = lever * tilt
+        r_seat = (d + lt_up) / 2
+        a_min = (rod - pp["resin"]) / 2
+        # the key caps in front of the light (towards the seat) shade it too: the UNIT light sits 2.3 mm behind the
+        # SHIFT cap's back edge, within its width (moving it is issue #23)
+        near_caps = [(x, y) for x, y in caps if 0 < y - ly < 12 and abs(x - lx) < 10]
+        seen_lift = visible(bear_hi, a_min, r_seat, r_seat - a_min, (lx, ly), near_caps)   # rod against near side
+        seen_nom = visible(nominal, rod / 2, d / 2, 0.0, (lx, ly), near_caps)
+        seen_near = visible(nominal, a_min, r_seat, r_seat - a_min, (lx, ly), near_caps)
+        seen_deep = visible(deep, a_min, r_seat, r_seat - a_min, (lx, ly), near_caps)
+        seen_open = visible(nominal, rod / 2, d / 2, 0.0)                   # the hole alone
+        rows += [
+            (f"{name} pipe shoulder (Ø{pp['base_d']} -{pp['resin']}) cannot pass its {d} hole (+{lt_up})",
+             2 * base_lo - d - lt_up),
+            (f"{name} pipe shoulder on the flat plate back: beyond its hole (+{lt_up}) and the hole's back edge break "
+             f"({S.LIGHT_HOLE_BACK_BREAK} at most, drawing)", base_lo - r_seat - S.LIGHT_HOLE_BACK_BREAK),
+            (f"{name} pipe base (Ø{pp['base_d']} -{pp['resin']}) on the board round the cutout ({cw} x {ch} +"
+             f"{2 * route}): {on_board:.2f} off its centre it may tip about the cutout's edge, but the rod "
+             f"({in_hole:.2f} in its hole) holds it within {math.degrees(tilt):.1f} deg, so its rim dips {dip:.2f}, "
+             f"above the LED lens ({lens_depth:.2f} under the board top)", lens_depth - dip),
+            (f"{name} pipe base over the LED: covers the die ({ll['die']}) with the pipe {float_:.2f} off its hole and "
+             f"the board {board:.2f} off the plate (plate, PCB, LED placed {ll['place']})",
+             base_lo - on_board - ll["place"] - ll["die"] / 2),
+            (f"{name} pipe base (reach {reach + board + pt['plate'] + pt['pcb']:.2f} from the board's light axis) "
+             f"clear of the switch bodies ({S.SWITCH_BODY} +{S.CAP_TOL['switch']} on its pins)",
+             sw_gap - reach - board - pt["plate"] - pt["pcb"]),
+            (f"{name} pipe base (reach {reach:.2f}, hole positions +-{pt['plate']}) out from under the key holes "
+             f"(+{S.KEY_HOLE_TOL[0]}): a firmly pressed cap dips under the plate back inside its hole's outline",
+             key_gap - reach - pt["plate"]),
+            (f"{name} light seen from {S.CAP_VIEW_DEG:.0f} deg in use, resting on the board, past its hole and the "
+             f"key caps in front: {100 * seen_nom:.0f} % of its top in the nominal stack ({nominal:.2f} deep; "
+             f"{100 * seen_open:.0f} % past the hole alone, {100 * seen_near:.0f} % with the rod against the near "
+             f"side), {100 * seen_deep:.0f} % at the worst depth ({deep:.2f}, the shoulder {off:.2f} off the plate "
+             f"back), {100 * seen_lift:.0f} % lifted onto its shoulder ({bear_hi:.2f}); reported, at least a "
+             "tenth nominal (a ratio)", seen_nom - 0.1, ""),
+        ]
+    return rows
 
 
 def clearances():
@@ -779,17 +921,17 @@ def clearances():
     cb_bot = {n: flute_bottom(S.FLUTES[n], ring_r, K.outer_counterbore_top(), ok["z1"] - ok["z0"]) for n in rings}
     fp, ff = S.FLUTES["outer"], S.FLUTES["outer_fms"]
     knurls = [(n, ring_r) for n in rings] + [("inner", ik["d"] / 2), ("range", rk["d"] / 2)]
-    # ---- plate: back on the standoffs (6.0 +0.2/-0.1 over the PCB top), thickness +-0.1; depths from the back.
-    # Anodising (stack.ANODISE): the pocket floors keep their place to the standoff ends, the back face sits up
-    # to ANODISE / 2 lower over bare floors, the front face up to ANODISE higher over anodised ones ----
+    # ---- plate: back on the bosses (6.0 +0.1/-0 over the PCB top), thickness +-0.1; depths from the back.
+    # Anodising (stack.ANODISE): the back face sits up to ANODISE / 2 lower over bare boss ends, the front face up
+    # to ANODISE higher over anodised ones ----
     gap_up, gap_dn = S.GAP_TOL
     t_min = S.PLATE_T - S.PLATE_T_TOL
     back_metal_lo = S.PLATE_Z0 - gap_dn                 # the back the pocket depths count from, lowest
     back_lo, back_hi = back_metal_lo - S.ANODISE / 2, S.PLATE_Z0 + gap_up   # the back face itself
     face_lo = back_metal_lo + t_min                     # unanodised (anodising only raises it)
     face_up = gap_up + S.PLATE_T_TOL + S.ANODISE        # plate face over its nominal height, worst
-    # ---- positions: board offset from the caps, standoffs lined up with the PCB holes ----
-    pt, sc, so, sp = S.POS_TOL, S.SCREW, S.STANDOFF, S.STANDOFF_POCKET
+    # ---- positions: board offset from the caps; the plate's bosses locate the screws, the board floats on them ----
+    pt, sc, bo, tp = S.POS_TOL, S.SCREW, S.BOSS, S.TAP
     cap_err = math.sqrt(sum(v * v for v in S.CAP_TOL.values()))
     cap_room = cap_shift_room()[0]                      # key hole +0.1/-0 after anodising: least at nominal
     cap_room_turn = cap_shift_room(turn=S.CAP_TURN)[0]   # the same cap turned on its plunger
@@ -797,27 +939,30 @@ def clearances():
     board = cap_room_max + pt["centring"]              # board offset the caps allow (the most, diagonally)
     hole = B.MOUNT_HOLE
     hole_lo, hole_hi = (hole - pt["npth_d"]) / 2, (hole + pt["npth_d"]) / 2
-    off = hole_hi - sc["d_min"] / 2 + pt["thread"]     # standoff axis off the PCB hole axis: the screw's play
-    float_min = (sp["d"] - S.ANODISE) / 2 - so["ac"] / 2    # standoff float in its pocket (anodised)
+    # the caps put the board where they centre it, the bosses the screws where the plate has them: the PCB hole
+    # must pass the screw there (key pattern to boss pattern on the plate, the board's holes, centring, thread)
+    need = pt["plate"] + pt["pcb"] + pt["centring"] + pt["thread"]
+    off = hole_hi - sc["d_min"] / 2 + pt["thread"]     # the board off a screw's axis, at most (its hole's play)
+    boss_lo, boss_hi = (bo["d"] - bo["d_tol"]) / 2, (bo["d"] + bo["d_tol"]) / 2
     keepout = B.MOUNT_KEEPOUT                         # pcb/check.py checks the copper against the same radius
-    # ---- screws: head, one washer, counterbore seat, boss, PCB, standoff thread ----
+    # ---- screws: flange on the counterbore seat, body boss, PCB, plate boss thread ----
     seat_tol, pcb_tol = S.STACK_TOL["counterbore"], S.STACK_TOL["pcb"]
-    w, wt = S.WASHER, S.WASHER["t"]
     seat_pcb = -S.SEAT_Z                                # counterbore seat to the PCB top (boss 1.6 + PCB 1.6)
-    tip_lo = (sc["L"] - sc["L_tol"]) - (wt + w["t_tol"]) - (seat_pcb + seat_tol + pcb_tol)
-    tip_hi = (sc["L"] + sc["L_tol"]) - (wt - w["t_tol"]) - (seat_pcb - seat_tol - pcb_tol)
-    engaged = tip_lo - sc["tip"] - so["chamfer"]
-    plug = so["L"] - so["L_tol"] - S.PLUG_DEPTH          # wax plug in the plate end while gluing: its bottom
-    # head and washer recessed: the bottom plane rises to the front, so take its highest point under the
-    # counterbore (the washer stays inside it) at the front mounts, with MJF +0.3
+    tip_lo = (sc["L"] - sc["L_tol"]) - (seat_pcb + seat_tol + pcb_tol)   # into the plate boss, from its end face
+    tip_hi = (sc["L"] + sc["L_tol"]) - (seat_pcb - seat_tol - pcb_tol)
+    engaged = tip_lo - sc["tip"] - tp["cham"]
+    # flange and head recessed: the bottom plane rises to the front, so take its highest point under the
+    # counterbore (the flange stays inside it) at the front mounts, with MJF +0.3
     cb_hi = MM.HEAD_R + pt["body_hole"]
     boss_floor = max(MM.z_bottom(min(my + cb_hi, B.H + MM.o)) for _, my in B.MOUNTS) + seat_tol
-    head_lo = (S.SEAT_Z - seat_tol) - (wt + w["t_tol"]) - sc["head_k"]
-    # ---- washer on the body: slides on the screw, held over the hole by the counterbore wall ----
+    head_lo = (S.SEAT_Z - seat_tol) - sc["head_k"]
+    # ---- flange on the body, no washer: the shank against the widest hole wall, or the flange against the
+    # counterbore wall, whichever comes first ----
     r_hole_max = MM.SCREW_CLEAR + pt["body_hole"]
     offset = MM.SCREW_OFFSET                            # screw against the widest body hole wall
-    r_w_min, r_w_max = w["od_min"] / 2, w["od"] / 2
-    w_off = min(offset + MM.WASHER_PLAY, cb_hi - r_w_min)   # washer centre off the body hole centre, worst
+    fl_lo, fl_hi = sc["flange_d_min"] / 2, sc["flange_d"] / 2
+    co_stop = MM.HEAD_R - pt["body_hole"] - fl_hi       # the largest flange meets the smallest counterbore's wall
+    fl_off = min(offset, cb_hi - fl_lo)                 # the screw off the body hole's axis, at most
     corner = min(-rrect_sd(mx - B.W / 2, my - B.H / 2, B.W + 2 * MM.o, B.H + 2 * MM.o, B.CORNER_R + MM.o)
                  for mx, my in B.MOUNTS) - cb_hi       # counterbore to the outer body surface
     cav_w_tol = mjf(B.H + 2 * MM.CLEAR)                             # MJF on the cavity width (61 mm)
@@ -863,7 +1008,7 @@ def clearances():
     body_tri = body_triangles()
     (void, void_at), (wall, wall_at), (wall2, wall2_at) = body_thin(body_tri)
     cb_r, boss_wall, seat_t, pad_r = body_measures(body_tri)
-    ec_w, so_depth = plate_measures(mesh_triangles(plate))
+    ec_w, (boss_h_lo, boss_h_hi), tap_depth = plate_measures(mesh_triangles(plate))
     an = S.ANODISE
     # ---- seating (stack.SEAT_GAP, RKJXT_SEAT): an encoder stands up to SEAT_GAP proud at the edge of its base or
     # is tilted by that over it; the RKJXT's gauge spots stand up to RKJXT_SEAT proud (rkjxt_seat: the worst tilt,
@@ -879,10 +1024,7 @@ def clearances():
     tilt_r, lift_r = rkjxt_seat()                                                    # octagon corners: 0.064
     dip_e = (ok["d"] - S.EC11_BASE) / 2 * tilt_e        # outer knob rim past the encoder's base edge: 0.011
     dip_r = (rk["skirt_d"] - S.RKJXT_FOOT) / 2 * tilt_r   # RANGE skirt rim past the RKJXT's foot
-    # ---- light pipes glued flush, LEDs under them: the rows that take the board's bow, and the plate's flatness
-    # in full (PLATE_FLAT; the other rows take plate_bow at their part) ----
     pp = S.PIPE
-    led_hi = S.LED_TOP + S.LED_TOL[0] + S.SUPPORT_LIFT + S.PCB_BOW   # lifted by a post, bowed up
     lt_up, lt_dn = S.LIGHT_HOLE_TOL
     pd = S.POCKET_TOL
     # MJF wall height, PCB, lowest back face, bowed towards the walls
@@ -919,12 +1061,14 @@ def clearances():
         return fr - math.hypot(fr - side, fr - top) if max(side, top) < fr else min(side, top)
     # each part seated, lifted (side as seated) and tilted (top as seated); the corner takes the worse of the two
     rk_side0 = (S.RANGE_POCKET[0] - gen - an - S.RKJXT_ACROSS - S.RKJXT_TOL) / 2 - on_board_r
-    rk_top0 = back_metal_lo + S.RANGE_POCKET[1] - S.POCKET_TOL - (S.RKJXT_BODY + 0.3) - S.PLATE_FLAT * bow_rng
+    # the board bowed towards the plate there too, by PCB_BOW in the same shape (held at the same mounts)
+    rk_top0 = (back_metal_lo + S.RANGE_POCKET[1] - S.POCKET_TOL - (S.RKJXT_BODY + 0.3)
+               - (S.PLATE_FLAT + S.PCB_BOW) * bow_rng)
     rk_side, rk_top = rk_side0 - (S.RKJXT_BODY + 0.3) * tilt_r, rk_top0 - lift_r
     rk_corner = min(floor_corner(rk_side0, rk_top), floor_corner(rk_side, rk_top0))
     ec_side0 = (ec_w - gen - an - S.EC11_LUGS - S.ENC_TOL["ge10"]) / 2 - on_board
     ec_top0 = (back_metal_lo + S.EC11_POCKET[3] - S.POCKET_TOL - (S.EC11_BODY + S.ENC_TOL["lt10"])
-               - S.PLATE_FLAT * bow_enc)
+               - (S.PLATE_FLAT + S.PCB_BOW) * bow_enc)
     ec_side, ec_top = ec_side0 - (S.EC11_BODY + S.ENC_TOL["lt10"]) * tilt_e, ec_top0 - lift_e
     ec_corner = min(floor_corner(ec_side0, ec_top), floor_corner(ec_side, ec_top0))
     face_hi = S.PLATE_Z1 + face_up                      # the bushing's highest point in its plate hole
@@ -1012,9 +1156,11 @@ def clearances():
          arrow_in - (rk["skirt_d"] + part_tol) / 2 - on_board_r - bore_play - (rk_hi + lift_r) * tilt_r),
         (f"RANGE skirt rim ({rim:.2f} on the knob solid, resin -{resin}), beyond 1.0", rim - resin - 1.0),
         (f"encoder pocket (-{pd}) over encoder body (8.0 +0.3), low plate, bowed {S.PLATE_FLAT * bow_enc:.3f} down, "
+         f"board {S.PCB_BOW * bow_enc:.3f} up, "
          f"lugs {lift_e:.2f} up (seated within {sg})", ec_top),
         ("plate left over the encoder pockets, thin plate, beyond 1.0", t_min - S.EC11_POCKET[3] - 1.0),
         (f"RANGE pocket (-{pd}) over RKJXT body (8.6 +0.3), low plate, bowed {S.PLATE_FLAT * bow_rng:.3f} down, "
+         f"board {S.PCB_BOW * bow_rng:.3f} up, "
          f"corners {lift_r:.3f} up (gauge spots within {S.RKJXT_SEAT} of the reference)", rk_top),
         (f"RKJXT body corner clear of the RANGE pocket's floor corner (R{fr} max on the drawing), lifted "
          f"({rk_side0:.2f} off the wall, {rk_top:.2f} off the floor) or tilted ({rk_side:.2f}, {rk_top0:.2f})",
@@ -1032,16 +1178,18 @@ def clearances():
         (f"cap shift room in its key hole ({cap_room:.2f}) over per-key RSS {cap_err:.2f}", cap_room - cap_err),
         (f"cap turned {S.CAP_TURN:.0f} deg on its plunger (squared on a rule): shift room ({cap_room_turn:.2f}) over "
          f"per-key RSS {cap_err:.2f}", cap_room_turn - cap_err),
-        (f"screw passes the narrowest PCB hole ({hole} -{pt['npth_d']})", hole_lo - S.SCREW_D / 2),
-        (f"standoff on the board enters its pocket (pocket {sp['d']}, board {board:.2f} off, screw play)",
-         float_min - (pt["plate"] + pt["pcb"] + board - (hole_lo - S.SCREW_D / 2))),
-        (f"standoff end (AF {so['af_min']} min, {off:.2f} off) covers the widest PCB hole all round",
-         so["af_min"] / 2 - off - hole_hi),
-        (f"standoff corners (AC {so['ac']}) inside the {keepout} mm copper keep-out", keepout - so["ac"] / 2 - off),
-        standoff_wall_row(),
-        ("plate left in front of the standoff pockets, thin plate, beyond 1.0", t_min - sp["depth"] - 1.0),
-        ("standoff pocket to the nearest plate feature or edge, beyond 1.0", pocket_web() - 1.0),
-        ("boss top bears on the PCB all round its hole (MJF -0.15)",
+        (f"M3 passes the narrowest PCB hole ({hole} -{pt['npth_d']}) where the caps centre the board (plate, PCB, "
+         f"centring, thread: {need:.3f})", hole_lo - S.SCREW_D / 2 - need),
+        (f"plate boss end (Ø{bo['d']} -{bo['d_tol']}) covers the widest PCB hole all round, the board {off:.2f} off "
+         "the screw", boss_lo - off - hole_hi),
+        (f"plate boss (Ø{bo['d']} +{bo['d_tol']}, the board {off:.2f} off) inside the {keepout} mm copper keep-out",
+         keepout - boss_hi - off),
+        *boss_wall_rows(),
+        (f"plate boss (root R{bo['root_r']}) to the nearest pocket, hole or plate edge, beyond 1.0",
+         boss_web() - 1.0),
+        (f"plate bosses {boss_h_lo:.3f} to {boss_h_hi:.3f} high (measured on the plate) are the stack's {bo['h']}",
+         0.01 - max(abs(boss_h_lo - bo["h"]), abs(boss_h_hi - bo["h"]))),
+        ("body boss top bears on the PCB all round its hole (MJF -0.15)",
          MM.BOSS_R - pt["body_hole"] - offset - off - hole_hi),
         (f"PCB width in the cavity (MJF -{cav_w_tol:.1f}; routed long edges +{MM.PCB_OUTLINE_TOL}, or the full "
          f"variant's V-cut rail edge +{MM.PCB_VCUT_TOL}), per side", cav),
@@ -1051,33 +1199,35 @@ def clearances():
          f"-{mjf(MM.UNDER)})", MM.UNDER - mjf(MM.UNDER) - S.LEAD_MAX),
         *usb_rows(),
         *filler_rows(back_lo, S.PLATE_FLAT * plate_bow(B.USB_X, -S.OVH)),
-        ("body screw hole round the screw, body and PCB tolerance",
-         MM.SCREW_CLEAR - pt["body_hole"] - S.SCREW_D / 2 - pt["body"] - pt["pcb"]),
-        (f"washer (OD {2 * r_w_min:.2f} min) bears all round the widest body hole", r_w_min - w_off - r_hole_max),
-        ("washer lies flat in the counterbore wherever the screw sits",
-         MM.HEAD_R - pt["body_hole"] - r_w_max - max(0.0, offset - MM.WASHER_PLAY)),
-        ("pan head (dk 4.7 min) covers the washer bore",
-         sc["head_d_min"] / 2 - w["bore_max"] / 2 - MM.WASHER_PLAY),
+        (f"body screw hole ({2 * MM.SCREW_CLEAR:.1f} -{2 * pt['body_hole']}) round the M3 where the bosses put it "
+         f"(body {pt['body']}, plate {pt['plate']})",
+         MM.SCREW_CLEAR - pt["body_hole"] - S.SCREW_D / 2 - pt["body"] - pt["plate"]),
+        (f"flange (dc {2 * fl_lo:.2f} min, no washer) covers the widest body hole all round, the screw {fl_off:.2f} "
+         "off",
+         fl_lo - fl_off - r_hole_max),
+        (f"flange (dc {2 * fl_hi:.1f} max) in the smallest counterbore: its wall stops it {co_stop:.2f} off centre, "
+         f"before the shank meets the hole wall ({offset:.2f}); there its rim (c {sc['flange_c']} min) stands taller "
+         f"than the floor corner (R{S.CB_FLOOR_R} max)", min(co_stop, sc["flange_c"] - S.CB_FLOOR_R)),
         ("counterbore to the outer body wall (MJF), beyond 1.5 (JLC3DP fastener features)", corner - 1.5),
-        (f"counterbore (R{cb_r:.2f} measured on the body) is the one the washer rows take (R{MM.HEAD_R})",
+        (f"counterbore (R{cb_r:.2f} measured on the body) is the one the flange rows take (R{MM.HEAD_R})",
          0.05 - abs(cb_r - MM.HEAD_R)),
         (f"body boss wall round the counterbore ({boss_wall:.2f} measured on the body; counterbore and boss MJF "
          f"+-{seat_tol} on the diameter), beyond 1.5 (JLC3DP fastener features)", boss_wall - seat_tol - 1.5),
         (f"PA12 between counterbore seat and PCB ({seat_t:.2f} measured on the body), beyond 1.5 (JLC3DP fastener "
          "features)", seat_t - 1.5),
         # at MJF -0.3 the seat is 1.3: it lies flat on the PCB and only takes the screw's compression between
-        # washer and board, so 1.2 is the floor there; 1.5 holds for the walls that stand free (the boss above)
+        # flange and board, so 1.2 is the floor there; 1.5 holds for the walls that stand free (the boss above)
         (f"PA12 between counterbore seat and PCB ({seat_t:.2f}, MJF -{seat_tol}; in compression on the PCB), "
          "beyond 1.2", seat_t - seat_tol - 1.2),
-        (f"body walls under the plate, worst (MJF, PCB, standoff gap, back face over bare pocket floors, bowed "
-         f"{S.PLATE_FLAT * bow_wall:.3f} down), beyond 0.2", wall_gap - 0.2),
-        (f"M2.5 x {sc['L']:.0f} thread engaged in the standoff, shortest stack, beyond {S.ENGAGE_MIN}",
-         engaged - S.ENGAGE_MIN),
-        (f"screw tip short of the wax plug ({S.PLUG_DEPTH:.0f} deep) in the standoff's plate end, longest stack",
-         plug - tip_hi),
-        (f"epoxy band on the standoff sides (pocket {so_depth:.2f} deep measured on the plate, -{sp['depth_tol']}, "
-         f"{sp['bare']} bare at the end), beyond 1.0", so_depth - sp["depth_tol"] - sp["bare"] - 1.0),
-        ("washer and pan head recessed, front mounts, deep seat", head_lo - boss_floor),
+        (f"body walls ({S.WALL_GAP} under the plate) never touch it (MJF {seat_tol}, PCB -{pcb_tol}, boss "
+         f"-{gap_dn:g}, back face over bare boss ends, bowed {S.PLATE_FLAT * bow_wall:.3f} down)", wall_gap),
+        (f"M3 x {sc['L']:.0f} full thread engaged in the plate boss (tip {tip_lo:.2f} in, less {sc['tip']} incomplete "
+         f"and the {tp['cham']} countersink), shortest stack, beyond {S.ENGAGE_MIN}", engaged - S.ENGAGE_MIN),
+        (f"screw tip ({tip_hi:.2f} into the boss, longest stack) short of the end of the full thread ({tp['full']})",
+         tp["full"] - tip_hi),
+        (f"plate in front of the tap drill point ({tap_depth:.2f} deep measured on the plate), low boss, thin plate, "
+         "beyond 1.0", bo["h"] - bo["h_tol"] + t_min - tap_depth - 1.0),
+        ("flange and button head recessed, front mounts, deep seat", head_lo - boss_floor),
         ("steel plate recess stays under the 2 mm floor (the floor is not thinned)",
          MM.Z_FLOOR_BOT - MM.z_bottom(stl["y0"] + MM.STEEL_RECESS[1]) - stl["depth"] / math.cos(math.atan(MM.SLOPE))),
         steel_row(),
@@ -1091,25 +1241,21 @@ def clearances():
          f"0.4) bar the screw bosses (worst at {wall2_at})", 0.6 - wall2),
         (f"assembly blocks ({S.ASSEMBLY_BLOCK:.0f}) over the shaft tips, beyond 3", S.ASSEMBLY_BLOCK - protrude - 3),
         ("plate edge strip free for the blocks, beyond 8", edge - 8),
-        (f"highest LED ({S.LED_TOP} +{S.LED_TOL[0]}) under the lowest plate back (bare pocket floors), PCB "
-         f"{S.SUPPORT_LIFT:.2f} up on a post, bowed up {S.PCB_BOW}, plate bowed down {S.PLATE_FLAT}",
-         back_lo - S.PLATE_FLAT - led_hi),
-        (f"glued light pipe ({pp['len']} +{pp['len_tol']}) over the highest LED, thin plate, PCB and plate bowed as "
-         f"above (posts {S.SUPPORT_SHORT} short, MJF 0.3)",
-         face_lo - S.PLATE_FLAT - (pp["len"] + pp["len_tol"]) - led_hi),
         (f"light pipe fits its hole ({pp['clear']} under, hole +{lt_up}/-{lt_dn:g}), beyond anodising "
          f"({pp['anodise']}) and resin (+{pp['resin']})", pp["clear"] - lt_dn - pp["anodise"] - pp["resin"]),
+        (f"light pipe snap-off necks ({pp['neck_d']}, the resin minimum) inside the base bottom (-{pp['resin']})",
+         (pp["base_d"] - pp["resin"]) / 2 - pp["neck_d"] / 2),
+        *pipe_rows(back_lo, back_hi, board, caps),
     ]
     for name, d in S.LIGHT_HOLES.items():
         (lx, ly), _, _ = B.LEDS[name]
-        rows.append((f"{name} snap-off neck ({pp['neck_d']}) inside the pipe",
-                     (d - pp["clear"]) / 2 - pp["neck_d"] / 2))
         web = min(rrect_sd(lx - x, ly - y, *S.KEY_HOLE) for x, y in caps) - d / 2
-        web_lo = min(rrect_sd(lx - x, ly - y, *key_hole_max()) for x, y in caps) - (d + lt_up) / 2
+        web_lo = (min(rrect_sd(lx - x, ly - y, *key_hole_max()) for x, y in caps) - (d + lt_up) / 2
+                  - pt["plate"])
         rows.append((f"{name} light hole web to the next key hole ({web:.2f}), beyond 0.8 (JLCCNC recommended)",
                      web - 0.8))
-        rows.append((f"{name} light hole web with both holes at +{lt_up} ({web_lo:.2f}), beyond 0.5 (JLCCNC "
-                     "minimum)", web_lo - 0.5))
+        rows.append((f"{name} light hole web with both holes at +{lt_up} and {pt['plate']} off position "
+                     f"({web_lo:.2f}), beyond 0.5 (JLCCNC minimum)", web_lo - 0.5))
     rows = [(r[0], r[1], r[2] if len(r) > 2 else "mm") for r in rows]   # a margin in mm unless a row says
     for name, v, unit in rows:
         print(f"  {name:106s} {v:5.2f} {unit:2s} {'OK' if v > 0 else 'FAIL'}")

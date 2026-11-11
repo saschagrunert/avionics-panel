@@ -8,9 +8,10 @@ come from stack.py (datasheet shaft dimensions); each part has its bottom at z =
   inner knob  dia 12, all three: D bore on the 3.5 mm inner shaft. The bore bottom sits on the shaft tip,
               so a push goes straight to the switch.
   RANGE knob  dia 13.6 with a 16.6 skirt over the 11.1 mm plate hole, D bore on the RKJXT lever.
-  light pipes clear resin rods, glued flush into the plate, the bottom clear of the LED. Both are printed as
-              one part on a snap-off bar over their tops (JLC3DP's minimum resin part is 10 x 2 x 2 mm), on
-              1.1 mm necks (resin pillars 1.0 min.).
+  light pipes clear resin, stepped: a base that stands on the board over the LED's cutout, up to a shoulder
+              under the plate back, and the rod through the plate hole; captive, no glue. Both are printed as
+              one part on a snap-off bar under their bases (JLC3DP's minimum resin part is 10 x 2 x 2 mm), on
+              1.0 mm necks (resin pillars 1.0 min.).
 Fits get tested on the first print (stack.FIT): the knobs are held by friction only, so one outer ring, one FMS
 ring, one inner and the RANGE knob also come with a bore 0.2 tighter and 0.2 looser (stack.FIT_VARIANTS); keep
 whichever grips, or open a tight bore with a drill of the shaft size and file the D flat.
@@ -85,21 +86,23 @@ def range_knob(fit=S.FIT):
 
 
 def light_pipe(name):
-    """a plain rod in the plate hole, glued flush with the face (bottom at z = 0)."""
+    """the stepped light pipe (bottom at z = 0, on the board): the base up to the shoulder, then the rod, a slip
+    fit in its plate hole (stack.PIPE)."""
     pp = S.PIPE
-    return cyl((S.LIGHT_HOLES[name] - pp["clear"]) / 2, 0, pp["len"])  # loose: glued, and resin varies
+    base = cyl(pp["base_d"] / 2, 0, pp["base_len"] + 0.01)
+    return fuse(base, cyl((S.LIGHT_HOLES[name] - pp["clear"]) / 2, pp["base_len"], pp["len"]))
 
 
 def light_pipe_pair(pitch=12.0):
     """Both light pipes on one snap-off bar: JLC3DP prints resin parts from 2 x 2 x 10 mm only. The bar runs
-    over the pipe tops on thin necks; sand the stub off with the top before gluing the pipes in."""
+    under the bases on thin necks, so the visible tops stay as printed; sand the stubs flat after breaking off."""
     from occ_util import move
     shift, unit = light_pipe("SHIFT"), move(light_pipe("UNIT"), dx=pitch)
     pp = S.PIPE
-    top, nr, neck = pp["len"], pp["neck_d"] / 2, pp["neck_len"]        # neck: the stub left after breaking off
-    necks = fuse(cyl(nr, top - 0.01, top + neck + 0.01), cyl(nr, top - 0.01, top + neck + 0.01, pitch, 0))
+    nr, neck = pp["neck_d"] / 2, pp["neck_len"]                          # neck: the stub left after breaking off
+    necks = fuse(cyl(nr, -neck - 0.01, 0.01), cyl(nr, -neck - 0.01, 0.01, pitch, 0))
     bw, bh = pp["bar"]                                                    # at least 2 x 2: the part's minimum
-    bar = box(-bw / 2, -bw / 2, top + neck, pitch + bw / 2, bw / 2, top + neck + bh)
+    bar = box(-bw / 2, -bw / 2, -neck - bh, pitch + bw / 2, bw / 2, -neck)
     return fuse(fuse(shift, unit), fuse(necks, bar))
 
 

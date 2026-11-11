@@ -106,7 +106,8 @@ def grown(g, d):
 
 HOLES = ([("cap", x, y, x, y, dr / 2) for (x, y, _n, _d, dr) in vias]
          + [("cap", x, y, x, y, d / 2) for (x, y, d) in B.NPTH]
-         + [("cap", x, y, x, y, B.MOUNT_HOLE / 2) for (x, y) in B.MOUNTS])
+         + [("cap", x, y, x, y, B.MOUNT_HOLE / 2) for (x, y) in B.MOUNTS]
+         + [("rect", x - w / 2, y - h / 2, x + w / 2, y + h / 2, 0.0) for (x, y, w, h, _r) in B.CUTOUTS])
 HOLE_BOXES = [bbox(h) for h in HOLES]
 CLEAR = {ly: [grown(pad_geom(p), MASK_GROW) for p in pads if ly in p.mask] + HOLES for ly in "FB"}
 
@@ -140,9 +141,9 @@ def T(layer, s, x, y, size=SILK):
 
 
 # --- front silkscreen (hidden under the front plate: assembly aid only) ---
-# Key legends under each key. The SHIFT light sits where the SHIFT key's legend would go, and its own name
-# below it names the key as well; HOME's legend moves left, clear of the UNIT light's polarity mark.
-KEY_LABEL_DX = {"SHIFT": None, "HOME": -1.5}
+# Key legends under each key. The SHIFT light's cutout sits where the SHIFT key's legend would go, and its own
+# name beside it names the key as well.
+KEY_LABEL_DX = {"SHIFT": None}
 for r, y in enumerate(B.ROWS):
     for c, x in enumerate(B.COLS):
         dx = KEY_LABEL_DX.get(B.KEY_LABELS[r][c], 0.0)
@@ -150,13 +151,10 @@ for r, y in enumerate(B.ROWS):
             T("F", B.KEY_LABELS[r][c], x + dx, y + 4.6)
 for ref, (x, y) in (("ALT/HDG", B.ALTHDG), ("FREQ", B.FREQ), ("FMS", B.FMS), ("RANGE", B.RANGE)):
     T("F", ref, x, y + 2.6)
-# The lights: name below, "K" at the cathode (the square pad), the polarity for whoever fits them (by hand in
-# the economic variant, JLCPCB in the full one). SHIFT's "K" west of the pad; UNIT's north-west, as HOME's
-# legend takes the west.
-LED_K = {"SHIFT": (-2.85, 0.0), "UNIT": (-2.55, -1.6)}
+# The lights: the name beside each cutout (the LED is on the bottom, its light pipe stands on the top over the
+# cutout)
 for name, ((lx, ly), _gp, _colour) in B.LEDS.items():
-    T("F", name, lx, ly + 1.9)
-    T("F", "K", lx + LED_K[name][0], ly + LED_K[name][1])
+    T("F", name, lx + 4.0, ly)
 T("F", "AVIONICS PANEL rev 1", (B.COLS[2] + B.COLS[3]) / 2, 2.6)
 
 
@@ -205,6 +203,11 @@ for _name, x, y in B.DIODES:
         bx = next((bx + d for d in BAR_SHIFT
                    if bar_clear(bx + d, y, HOLES, HOLE_GAP) and bar_clear(bx + d, y, MASK_B, BAR_GAP)), bx)
     line("B", [(bx, y - 0.75), (bx, y + 0.75)], BAR_W)   # cathode bar
+# the LEDs' cathode bars west of the cathode pad, between it and its GND via
+for name in B.LEDS:
+    k = next(p for p in pads if p.name == f"LED_{name}.K")
+    bx = k.x - k.w / 2 - MASK_GROW - BAR_GAP - BAR_W / 2
+    line("B", [(bx, k.y - 0.75), (bx, k.y + 0.75)], BAR_W)
 mx, my = B.MCU
 # pin 1 corner, close to the chip: C_IO1 (pin 1's capacitor) sits further out
 line("B", [(mx - 3.2, my + 3.95), (mx - 3.9, my + 3.95), (mx - 3.9, my + 3.25)], 0.16)
@@ -361,6 +364,9 @@ def plane(layer, net, fname, func):
         g.circle_region(x, y, B.MOUNT_HOLE / 2 + 0.6)
     for (x, y, dd) in B.NPTH:
         g.circle_region(x, y, dd / 2 + 0.5)
+    for (x, y, w, h, r) in B.CUTOUTS:            # the LED cutouts: plane copper 0.5 mm back from the routed edge
+        e = 0.5
+        g.region(rounded_rect(x - w / 2 - e, y - h / 2 - e, x + w / 2 + e, y + h / 2 + e, r + e))
     g.pol(True)
     foreign = [(q.x, q.y, max(q.slot) if q.slot else q.drill) for q in pads if q.drill and q.net != net]
     foreign += [(x, y, dr) for (x, y, vnet, _d, dr) in vias if vnet != net]
@@ -443,6 +449,9 @@ def outline(fname):
     n = g.ap("C", 0.1)
     pts = rounded_rect(0, 0, B.W, B.H, B.CORNER_R)
     g.line(n, pts + [pts[0]])
+    for (x, y, w, h, r) in B.CUTOUTS:            # the LED cutouts, milled out of the board
+        pts = rounded_rect(x - w / 2, y - h / 2, x + w / 2, y + h / 2, r)
+        g.line(n, pts + [pts[0]])
     g.save()
 
 

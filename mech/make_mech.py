@@ -11,12 +11,11 @@ is in stack.py.
 
 Stack (z = 0 is the PCB top):
   body     floor -7.6 .. -5.6 (-7.2 .. -5.6 at the front edge), bottom plane from -7.2 at the front to about
-           -14 at the back, walls up to z 5.05 (0.95 below the plate), 4 bosses carry the PCB at z -1.6 (4 mm
+           -14 at the back, walls up to z 5.35 (0.65 below the plate), 4 bosses carry the PCB at z -1.6 (4 mm
            room for the SMD parts and the USB-C socket on the underside), 2 posts 0.25 under the middle of
            the PCB, counterbore seats at z -3.2 (1.6 mm of PA12 up to the PCB)
-  standoff 4 x M2.5 x 8 female-female hex (5 mm across flats), z 0 .. 8, glued 2 mm deep into the plate
-  plate    4 mm aluminium, z 6 .. 10, 4 flat-bottom standoff pockets from below, no threads
-  screws   4 x M2.5 x 8 pan head from below, one washer each: body boss -> PCB -> standoff
+  plate    6061 from 12 mm stock: the 4 mm web at z 6 .. 10 and 4 bosses dia 5.5 down to the PCB top, tapped M3
+  screws   4 x M3 x 8 flanged button head (ISO 7380-2) from below, no washer: body boss -> PCB -> plate boss
 Height 17.2 mm at the front, rising to about 24 mm at the back.
 Output frame: X right, Y away from the user (board y flipped), Z up.
 """
@@ -59,16 +58,15 @@ def _up(v):
 
 
 # The body locates nothing. Its screw hole is as small as passes the screw wherever the body's MJF tolerance
-# over 153 mm and the PCB holes (the screws sit in the standoffs, which line up with them) put the hole
-# (stack.POS_TOL), so the DIN 125 washer under the head still bears all round it with the screw against the
-# hole wall. The counterbore clears that washer in the same worst case.
+# over 153 mm and the plate's tapped bosses (the screws sit in them) put it (stack.POS_TOL), so the screw's flange
+# (ISO 7380-2, dc 6.32 min) still covers it all round with the screw against the hole wall.
 _PT = S.POS_TOL
-SCREW_CLEAR = _up(S.SCREW_D / 2 + _PT["body"] + _PT["pcb"] + _PT["body_hole"])          # 1.85: hole 3.7
+SCREW_CLEAR = _up(S.SCREW_D / 2 + _PT["body"] + _PT["plate"] + _PT["body_hole"])        # 2.1: hole 4.2
 SCREW_OFFSET = SCREW_CLEAR + _PT["body_hole"] - S.SCREW["d_min"] / 2   # screw against the widest hole wall
-WASHER_PLAY = (S.WASHER["bore_max"] - S.SCREW["d_min"]) / 2           # washer sliding on the screw
-# Counterbore: wide enough that the washer lies flat wherever the screw sits (worst case it slides on the
-# screw towards the middle), narrow enough that its wall keeps the washer over the body hole all round.
-HEAD_R = 4.2                        # counterbore 8.4; check_fit.py checks both limits
+# Counterbore: the flange (7.0 max) fits it wherever the screw sits; its wall stops the flange (0.55 off centre)
+# before the shank meets the body hole wall (0.82), a co-stop, so the counterbore's floor corner stays sharp
+# (stack.CB_FLOOR_R); the flange then still covers the hole all round. check_fit.py checks both.
+HEAD_R = 4.2                        # counterbore 8.4
 BOSS_R = 4.0                        # boss top on the PCB (PA12 on solder mask past the 3.6 mm copper keep-out)
 # boss round the counterbore, joined to the walls: JLC3DP asks for fastener walls over 1.5, which it keeps with
 # the counterbore and the boss both printed 0.3 off on the diameter (check_fit.py measures it on the body)
@@ -221,8 +219,8 @@ J1_TABS_IN = 1.0
 # (Blu Tack) on each side face holds it in use; the side gap leaves room for the putty at both MJF extremes. Not
 # glue: it has to come out before the body goes back on the board (it would stop the socket on the way in), and
 # press-fit ribs cannot hold over MJF's +-0.3 on both the notch and the filler (a 1.2 mm window).
-# w: the notch less the putty gap on each side; d: the wall; h: from the ledges to 0.2 under the wall top, so it
-# stays under the plate back on the highest ledges; cham: lead-in on its inner vertical edges.
+# w: the notch less the putty gap on each side; d: the wall; h: from the ledges to 1.15 under the plate back, so it
+# stays under it on the highest ledges; cham: lead-in on its inner vertical edges.
 USB_FILLER_GAP = 0.55
 USB_FILLER = dict(w=USB_NOTCH_W - 2 * USB_FILLER_GAP, d=WALL, h=3.85, cham=0.3)
 

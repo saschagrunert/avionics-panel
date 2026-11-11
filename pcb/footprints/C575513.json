@@ -1,0 +1,11 @@
+{
+ "lcsc": "C575513",
+ "title": "LTW-C230DS",
+ "package": "LED-SMD_L3.2-W1.6-RD-EH-1",
+ "source": "JLCPCB / EasyEDA library footprint, https://easyeda.com/api/products/C575513/components, fetched 2026-11-11",
+ "frame": "top view, mm, x right, y down, from the footprint origin; pads: number, x, y, size x, size y",
+ "pads": [
+  ["1", -1.637, 0.0, 1.635, 1.728],
+  ["2", 1.637, 0.0, 1.635, 1.728]
+ ]
+}

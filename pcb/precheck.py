@@ -1,6 +1,6 @@
-"""Placement check before routing: clearance between all fixed copper (pads, pre-routed segments, vias), and
-the bodies of the bottom-side parts (board.BODY): each at least board.BODY_GAP from every other body and from
-every pad of another part, where that part's leads or pins sit."""
+"""Placement check before routing: clearance between all fixed copper (pads, pre-routed segments, vias) and to
+the LED cutouts, and the bodies of the bottom-side parts (board.BODY): each at least board.BODY_GAP from every
+other body and from every pad of another part, where that part's leads or pins sit."""
 import math
 import re
 
@@ -20,6 +20,11 @@ for (x, y, net, d, _dr) in B.FIXED_VIAS:
 for (x, y, d) in B.NPTH:
     for ly in "FB":
         items.append((ly, ("cap", x, y, x, y, d / 2 + 0.05), "NPTH", "npth"))
+cg = 0.2 - B.CLEAR                         # the LED cutouts: CLEAR from this is JLCPCB's 0.2 from a routed edge
+for (x, y, w, h, _r) in B.CUTOUTS:
+    for ly in "FB":
+        items.append((ly, ("rect", x - w / 2 - cg, y - h / 2 - cg, x + w / 2 + cg, y + h / 2 + cg, 0.0), "CUTOUT",
+                      "cutout"))
 
 bb = [bbox(i[1]) for i in items]
 bad = 0

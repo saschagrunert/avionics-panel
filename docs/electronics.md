@@ -7,7 +7,7 @@ which fails if any pad of the board is missing from it.
 
 RP2040 with W25Q16 flash, 12 MHz crystal, XC6206 regulator and USB-C with an ESD array and a fuse
 ([USB protection](#usb-protection)), all on the bottom of a 4-layer board (signals / GND / 3V3 / signals).
-Fully routed (`run_route.py 11`: 132 vias, 3.52 m of trace) and checked on the Gerbers: 121 nets, 0 shorts,
+Fully routed (`run_route.py 5`: 127 vias, 3.53 m of trace) and checked on the Gerbers: 121 nets, 0 shorts,
 0 opens, closest copper 0.150 mm, 0 DRC violations, and every bottom-side part has mirrored pin order.
 Closest holes on different nets 0.544 mm (JLCPCB minimum 0.5), on the same net 0.318 mm (minimum 0.254);
 `check.py` checks both by net. Apart from the GND vias in the
@@ -41,33 +41,31 @@ The legend is at least 1.0 mm high (capital letters, measured on the font; the l
 x-height of 0.82 mm) with 0.26 mm strokes and lines at least 0.16 mm wide, over JLCPCB's minimum of 1.0
 mm and 0.153 mm, and `check.py` keeps it 0.15 mm clear of every mask opening and hole and 0.3 mm inside
 the board outline (JLCPCB gives no figure for that; it keeps copper 0.2 mm from a milled edge, and the
-legend is closest at 0.9 mm). `make.py` moves a part name or key legend to the nearest free spot if a
-via lands on it or it would come too near the edge, and a diode's cathode bar up to
-0.3 mm sideways if a via would cut it short (D_RANGE_D's stays cut: it would have to move 0.7 mm). The
-front has a "K" at each light's cathode (the square pad).
+legend is closest at 0.65 mm; the same 0.3 mm holds round the two LED cutouts). `make.py` moves a part name
+or key legend to the nearest free spot if a via lands on it or it would come too near the edge, and a diode's
+cathode bar up to 0.3 mm sideways if a via would cut it short (D_RANGE_D's stays cut: it would have to move
+0.7 mm). The bottom has a cathode bar beside each LED's cathode pad, for the placement preview.
 
-The through-hole parts are soldered from the bottom, among the SMD parts: by hand in the economic
-variant, by JLCPCB (by hand or selectively) in the full one. `check.py` keeps every exposed SMD pad of
-another net at least 1.0 mm (copper to copper) from every through-hole pad, room for the iron and a
-fillet without a bridge; the closest is 1.24 mm (a key pin to its own diode's cathode pad). The same
-holds for J1's four shell tabs, filled from the top, where excess solder comes out on the bottom: the
-closest is 1.025 mm, J1's own VBUS contact. Before, each LED's cathode (GND) pad sat 0.28 mm from its
-resistor's GPIO pad, so a bridge would have shorted the GPIO, and C_IN's VBUS pad 0.80 mm from a shell
-tab. C_IN now sits between U3 and J1, its VBUS_F pad 1.9 mm from the tab.
-`check.py` also fits JLC's footprints of the through-hole parts (keys, encoders, RANGE control, LEDs;
-saved with their holes by `footprints/fetch.py`) onto our holes by position: all agree, and the drills follow
-the datasheets (keys 1.0 mm, JLC 1.2; PEC11D 1.2 mm per Bourns, JLC 1.1; RKJXT 1.1 mm, JLC 1.2; LEDs 0.9
-mm). The RKJXT holes are drilled 1.1 mm: Alps specifies 1.0 +0.2/-0, and JLCPCB's plated holes can finish
-up to 0.08 mm under the drill; the 1.7 mm pads keep a 0.3 mm ring. Its locating peg (Ø1 -0.1) goes into a
-1.3 mm unplated hole as in JLC's footprint: Alps asks for 1.1 +0.1/-0, but JLCPCB holds unplated holes to
-±0.2, and at 0.9 mm the peg would not go in. The part then floats up to 0.26 mm on its pins, which the
-plate allows for ([Mechanics](mechanics.md#hand-soldering)).
+The through-hole parts are soldered from the bottom, among the SMD parts: by hand in the economic variant, by
+JLCPCB (by hand or selectively) in the full one. `check.py` keeps every exposed SMD pad of another net at
+least 1.0 mm (copper to copper) from every through-hole pad, room for the iron and a fillet without a bridge;
+the closest is 1.24 mm (a key pin to its own diode's cathode pad). The same holds for J1's four shell tabs,
+filled from the top, where excess solder comes out on the bottom: the closest is 1.025 mm, J1's own VBUS
+contact; C_IN sits between U3 and J1, its VBUS_F pad 1.9 mm from the tab. `check.py` also fits JLC's
+footprints of the through-hole parts (keys, encoders, RANGE control; saved with their holes by
+`footprints/fetch.py`) onto our holes by position: all agree, and the drills follow the datasheets (keys 1.0
+mm, JLC 1.2; PEC11D 1.2 mm per Bourns, JLC 1.1; RKJXT 1.1 mm, JLC 1.2). The RKJXT holes are drilled 1.1 mm:
+Alps specifies 1.0 +0.2/-0, and JLCPCB's plated holes can finish up to 0.08 mm under the drill; the 1.7 mm
+pads keep a 0.3 mm ring. Its locating peg (Ø1 -0.1) goes into a 1.3 mm unplated hole as in JLC's footprint:
+Alps asks for 1.1 +0.1/-0, but JLCPCB holds unplated holes to ±0.2, and at 0.9 mm the peg would not go in. The
+part then floats up to 0.26 mm on its pins, which the plate allows for
+([Mechanics](mechanics.md#hand-soldering)).
 
 No net takes a detour: `check.py` fails any net whose routed length exceeds 1.5 times its shortest
 8-direction tree plus 15 mm (`geom.py`), and the router rips up and reroutes such a net like a failed one.
-The UNIT light (GP15) had gone round the whole board (341 mm) before; it now runs 81 mm (limit 94). USB:
-D+ 48.6 mm and D- 41.3 mm of trace from the USB-C contacts through the ESD array and the 27 R resistors to
-the RP2040, 7.3 mm apart (`check.py` limits: 50 mm each, 10 mm skew; the router rips up and reroutes the
+The UNIT light (GP15) runs 82 mm (limit 94). USB:
+D+ 47.8 mm and D- 41.1 mm of trace from the USB-C contacts through the ESD array and the 27 R resistors to
+the RP2040, 6.7 mm apart (`check.py` limits: 50 mm each, 10 mm skew; the router rips up and reroutes the
 pair like a detour when it breaks them).
 
 The USB series resistors stay 27 R (C25190), the value in Raspberry Pi's datasheet and minimal design: with
@@ -77,26 +75,29 @@ of trace, but it is a departure from the reference on a board that has to work f
 extended part at JLCPCB, flagged preferred, so it carries no fee in Economic assembly
 ([ordering.md](ordering.md)).
 
-JLCPCB places the bottom-side parts by its own library footprints. [pcb/footprints/](../pcb/footprints/)
-keeps the pads of each one (number, position, size; saved from JLC's EasyEDA library by
-`footprints/fetch.py`, source and date in each file), and `check.py` fits them onto our pads at the CPL
-rotation, offline: every JLC pad must land on our pad with the same number, centres within 0.15 mm and
-edges within 0.25 mm. The CPL follows JLC's convention for the bottom side as KiBot's JLCPCB filter and the
-kicad-jlcpcb-tools plugin write it (180 minus KiCad's bottom angle): seen from the bottom, the part is JLC's
-footprint turned counter-clockwise by the rotation. U1 and J1 are at 180, U2 at 0, U3 at 180, U4 at 0, Y1 at
-0, the diodes at 0, the resistors, capacitors and the fuse at 180 (horizontal) or 270 (vertical), except the two
-LED resistors R_SHIFT and R_UNIT at 0 (horizontal, pad 1 on the GPIO side to the east). The bottom silkscreen
-has a pin 1 corner mark at U1 and pin 1 dots at U2, U3, U4 and Y1 for the placement preview
+JLCPCB places the bottom-side parts by its own library footprints. [pcb/footprints/](../pcb/footprints/) keeps
+the pads of each one (number, position, size; saved from JLC's EasyEDA library by `footprints/fetch.py`,
+source and date in each file), and `check.py` fits them onto our pads at the CPL rotation, offline: every JLC
+pad must land on our pad with the same number, centres within 0.15 mm and edges within 0.25 mm. The two LEDs
+get 0.2 and 0.32 mm: our pads stop 0.2 mm short of the board cutout (JLCPCB's copper-to-routed-edge minimum),
+where JLC's footprint of the amber LTST-C230KSKT runs them to 0.05 mm from a smaller cutout; JLC's footprint
+of the white LTW-C230DS, the same LiteOn package, draws its pads 0.3 mm into a 2.3 mm round hole, so it is
+checked against the amber one's footprint. The CPL follows JLC's convention for the bottom side as KiBot's
+JLCPCB filter and the kicad-jlcpcb-tools plugin write it (180 minus KiCad's bottom angle): seen from the
+bottom, the part is JLC's footprint turned counter-clockwise by the rotation. U1 and J1 are at 180, U2 at 0,
+U3 at 180, U4 at 0, Y1 at 0, the diodes at 0, the resistors, capacitors and the fuse at 180 (horizontal) or
+270 (vertical), except the two LED resistors R_SHIFT and R_UNIT at 0 (horizontal, pad 1 on the GPIO side to
+the east); the LEDs at 180 (pin 1, the cathode, to the west). The bottom silkscreen has a pin 1 corner mark at
+U1, pin 1 dots at U2, U3, U4 and Y1 and the LEDs' cathode bars for the placement preview
 ([ordering.md](ordering.md#placement-preview)).
 
 In the full assembly variant JLCPCB also places the through-hole parts on the top, from the same CPL
 (`CPL-full.csv`, Layer "Top"), in its top-side convention: seen from the top, the part is JLC's footprint
-turned counter-clockwise by the rotation, the footprint origin on the CPL position. The keys, encoders,
-RANGE control and amber LED are at 0, the white LED at 180 (JLC's footprint of C2895458 has the anode as
-pin 1, that of C2895466 the cathode); the encoders' CPL position is JLC's footprint origin, 1 mm north of
-the shaft. `check.py` fits each JLC footprint there onto our holes pin by pin (`TH_PIN`): every JLC hole
-on the hole of its pin within 0.15 mm, the unplated RKJXT peg hole on ours, none of ours left over. So a
-rotation that puts a cathode on the anode pad, or an encoder the wrong way round, fails the build.
+turned counter-clockwise by the rotation, the footprint origin on the CPL position. The keys, encoders and
+RANGE control are at 0; the encoders' CPL position is JLC's footprint origin, 1 mm north of the shaft.
+`check.py` fits each JLC footprint there onto our holes pin by pin (`TH_PIN`): every JLC hole on the hole of
+its pin within 0.15 mm, the unplated RKJXT peg hole on ours, none of ours left over. So an encoder placed the
+wrong way round fails the build.
 
 The crystal (Abracon ABM8-272-T3) has the crystal itself on pins 1 and 3, diagonally opposite, and GND on 2
 and 4. Seen from the top, the bottom-side part has pin 1 (XO_R, to the 1k) bottom-right, 2 (GND)
@@ -188,17 +189,17 @@ resistors (no copper runs past the array), and that U4 is at most 5 mm of copper
 F1, a Bourns MF-NSMF050-2 PTC fuse (C75464, 1206), and R_IN, a 1 ohm 0603 resistor (C22936, basic), sit in
 series in VBUS between J1 and everything else: J1, R_IN, F1, then VBUS_F with C_IN, the regulator and U4's
 VCC. F1 holds 0.5 A and trips at 1.0 A (23 °C; 0.40 A hold at 50 °C), is rated 13.2 V and 100 A, and has 0.15
-to 0.7 ohm. The board draws about 70 mA at most (the RP2040 with CircuitPython a few tens of mA, the flash up
-to 25 mA while writing, the two LEDs up to 10 mA, 0.3 mA per pressed key in the matrix). For a short on VBUS_F
-(a bridge across C_IN, a failed U3, U4 shorted or placed turned) R_IN, not F1, is what gives way: R_IN is a
-0.1 W part, and at 1 A (where F1 takes about 7 s to trip) it already takes 1 W, at 1.6 A (F1: about 0.25 s)
-2.6 W, at 2.5 A (about 70 ms) 6 W and at 3.5 A (about 25 ms) 12 W. A port that limits its current at 0.5 to 1
-A may never trip F1 at all and leaves R_IN at 0.25 to 1 W. So R_IN overheats and opens, or drifts or scorches,
-before F1 trips in practically every case: it is the sacrificial element for a short behind it, and F1 covers
-slow overloads below that. Either way the host's port and the cable are protected, but after such a fault
-R_IN, and perhaps F1 (and U4 if it was turned or shorted), must be replaced. A larger R_IN would not change
-that (a 1206 1 ohm takes 0.25 W, still 4 to 48 times over at these currents), and does not fit between the
-VBUS via and the fuse without moving F1 into R_CC2 and the crystal. F1 will not reliably trip on a fault
+to 0.7 ohm. The board draws about 95 mA at most (the RP2040 with CircuitPython a few tens of mA, the flash up
+to 25 mA while writing, the two LEDs up to about 36 mA, 0.3 mA per pressed key in the matrix). For a short on
+VBUS_F (a bridge across C_IN, a failed U3, U4 shorted or placed turned) R_IN, not F1, is what gives way: R_IN
+is a 0.1 W part, and at 1 A (where F1 takes about 7 s to trip) it already takes 1 W, at 1.6 A (F1: about 0.25
+s) 2.6 W, at 2.5 A (about 70 ms) 6 W and at 3.5 A (about 25 ms) 12 W. A port that limits its current at 0.5 to
+1 A may never trip F1 at all and leaves R_IN at 0.25 to 1 W. So R_IN overheats and opens, or drifts or
+scorches, before F1 trips in practically every case: it is the sacrificial element for a short behind it, and
+F1 covers slow overloads below that. Either way the host's port and the cable are protected, but after such a
+fault R_IN, and perhaps F1 (and U4 if it was turned or shorted), must be replaced. A larger R_IN would not
+change that (a 1206 1 ohm takes 0.25 W, still 4 to 48 times over at these currents), and does not fit between
+the VBUS via and the fuse without moving F1 into R_CC2 and the crystal. F1 will not reliably trip on a fault
 behind the regulator either: the XC6206's own current limit handles those, and it can let 0.35 to 0.5 A
 through before it folds back, around F1's hold current when warm. Even at 100 mA (the XC6206's dropout figure)
 and the lowest VBUS a USB 2.0 port may deliver, 4.40 V, R_IN and F1 (at most 1.7 ohm together) leave the
@@ -235,16 +236,41 @@ is at the limit and, counting those, over its intent; on PC ports that is no pra
 
 ## Lights
 
-The board's two lights are XINGLIGHT XL-302UYC (yellow 588 nm, the
-closest 3 mm amber, C2895466) with 330 R (C23138), and XL-302UWC (white, C2895458) with 22 R (C23345).
-Amber runs at about 3 mA from the GPIO. The white LED's forward voltage is 2.7 to 3.0 V at a few mA, close
-to the 3.3 V supply, so it gets a small resistor: roughly 2 to 7 mA over that spread. The firmware sets both
-brightnesses with PWM. Check the white light on the first board; if it is too dim, raise `LED_DUTY[1]` in
-`code.py` first, then bridge R_UNIT's pads or fit a 0 R (C21189) ([Firmware](firmware.md)).
-The LEDs sit where their light holes keep at least 0.8 mm of aluminium to the next key hole (JLCCNC's
-minimum wall): 0.85 mm for SHIFT, 0.86 mm for UNIT (0.75 and 0.76 mm with both holes at their +0.1 limit,
-above JLCCNC's 0.5 mm absolute minimum). Each series resistor lies on the bottom in line beside its LED's
-anode pad, the anode end 0.55 mm from it (the same net, so a bridge or a remelt is harmless) and the
-GPIO end 2.15 mm away, so the hand-soldered LED pins have no pad of another net within 1.0 mm (beside
-rather than below: the SHIFT light is 5 mm from the board edge, and every part body but J1's keeps the
-2.5 mm JLCPCB's assembly terms ask for).
+The two lights are reverse-mount 1206 LEDs from LiteOn's C230 package, on the bottom with the other SMD parts,
+so JLCPCB fits them in both assembly variants: LTST-C230KSKT amber (587 nm, 30 mcd minimum and 60 typical at
+20 mA, 130°, 30 mA DC at most, C125108, JLCPCB stock 8700 on 2026-11-11) at SHIFT and LTW-C230DS white (180
+to 450 mcd, 130°, forward voltage 2.8 to 3.6 V at 20 mA in four bins of ±0.1 V, 20 mA DC at most, C575513,
+stock 56682) at UNIT, both extended parts. Each one shines up through a cutout in the board, 2.2 x 2.4 mm with
+R0.5 corners, round the 1.5 x 1.6 mm lens (LiteOn's land pattern: 2.1 x 2.3 mm, sharp corners). Its pads
+(1.15 x 1.6 mm) stop 0.2 mm short of the cutout, JLCPCB's copper to a routed edge, and reach 0.3 mm under
+the terminals on the LED's face, which run from 0.75 to 1.6 mm off its centre (LiteOn's pattern reaches 0.55
+mm under them). The lens rises 0.82 mm into the 1.6 mm board, so the light pipe stands on the board over it
+([Mechanics](mechanics.md#caps-light-pipes-knobs)). `check.py` keeps all copper 0.2 mm from the cutouts (the
+planes 0.5 mm) and the legend 0.3 mm; the outline Gerber carries the two cutouts. The lens clears the
+cutout's corners by 0.01 mm with the lens 0.1 mm large, the cutout routed 0.1 mm small per side and the LED
+placed 0.1 mm off (`check_fit.py`). JLC marks reverse-mount parts as placed at the customer's risk should the
+cutout be wrong, so the placement preview shows each LED over its cutout
+([Ordering](ordering.md#placement-preview)).
+
+Brightness, by estimate: about 40 % of a 130° LED's light reaches the pipe's Ø2.0 mm rod through the cutout
+and the base, about 24 % with the pipe and the board as far off the LED as they go (a one-off ray count, not
+part of the build: the LED a Lambertian emitter over its lens, the cutout's walls absorbing, the base and the
+rod guiding by total reflection, the shoulder losing what reaches it). `code.py` sets both pads to 12 mA drive
+strength (the RP2040 then keeps at least 2.62 V at 12 mA, under 57 ohm). The series resistors are 75 R (C4275,
+basic) for amber, 8.6 to 17.2 mA over the pad and the forward voltage, about 13.5 mA typical, under its 30 mA,
+and 22 R (C23345, basic) for white, about 8.5 mA typical and about 19 mA at most (the lowest forward voltage
+bin, its -0.1 V, the strongest pad), under its 20 mA, which only full duty reaches. Both lights together draw
+at most about 36 mA, within the 50 mA all of the RP2040's GPIOs may source. The firmware's duties, 0x4800 (28
+%) and 0x4000 (25 %), leave three to four times that up to full duty: the intensity bins span a factor of two
+and more, and the level that reads well behind the pipe is set on the first board by changing `LED_DUTY` in
+`code.py` ([Firmware](firmware.md#first-board)). A white LED from the highest forward voltage bin may stay
+dim: then bridge R_UNIT's pads or fit a 0 R (C21189).
+
+The lights sit where their light holes (Ø2.3 mm) keep at least 0.8 mm of aluminium to the next key hole
+(JLCCNC's minimum wall) and the light pipe's base clears the switch bodies and the key holes: SHIFT 5.75 mm
+below its key's centre, UNIT midway between the HOME and SHIFT key rows, 1.10 and 0.90 mm of web (0.90 and
+0.70 mm with both holes at their +0.1 limit and 0.1 mm off position). Two column lanes of the key matrix pass
+the UNIT cutout on the top layer, one on each side of it. Each series resistor lies on the bottom in line east
+of its LED's anode pad, the anode end 0.3 mm from it (the same net) and the GPIO end beyond (beside rather
+than below: the SHIFT light is 5.25 mm from the board edge, and every part body but J1's keeps the 2.5 mm
+JLCPCB's assembly terms ask for); the cathode pad has its own GND via west of it.
