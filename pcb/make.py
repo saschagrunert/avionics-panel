@@ -24,7 +24,7 @@ segments = [tuple(s) for s in d["segments"]]          # x1,y1,x2,y2,layer,net,wi
 vias = [tuple(v) for v in d["vias"]]                  # x,y,net,diameter,drill (fixed vias merged by run_route.py)
 
 # ---------------- geometry items for the DRC ----------------
-from geom import pad_geom, pt_seg, rounded_rect  # noqa: E402
+from geom import bbox, boxes_near, item_dist, pad_geom, pt_seg, rounded_rect  # noqa: E402
 
 
 def copper_items():
@@ -77,38 +77,143 @@ def text_polys(s, x, y, size, mirror=False, align="center", angle=0.0):
 
 
 silk = {"F": [], "B": []}     # list of ("text", polys) or ("line", pts, width) or ("dot", x, y, diameter)
+# JLCPCB's legend minimum: characters 1.0 mm high, lines 0.153 mm (6 mil) wide. Measured on the font: a capital
+# letter (DejaVu Sans Bold caps are 0.73 of the size) and the stem of an "I" (0.19 of the size), so the text is
+# SILK (1.4) or larger. Lowercase text is SILK_LOWER: its x-height (0.55 of the size) 0.82 mm.
+SILK_MIN_H, SILK_MIN_LINE, SILK, SILK_LOWER = 1.0, 0.153, 1.4, 1.5
+CAP_H = TextPath((0, 0), "H", size=1.0, prop=FONT).get_extents().height
+STEM = TextPath((0, 0), "I", size=1.0, prop=FONT).get_extents().width
+# JLCPCB clips the legend off pads and holes (check.py: SILK_CLEAR, 0.15 mm on the Gerbers). Each text keeps
+# LEGEND_GAP between its bounding box and the mask openings on its side, every hole and the legend placed before
+# it, and SILK_EDGE inside the board outline (check.py: SILK_EDGE); where its spot is taken (a via the router put
+# there), it moves to the nearest free one, at most 3 mm sideways and 1 mm up or down. A line (a diode's cathode
+# bar) is left out for HOLE_GAP round a via instead. The checks are plain raises: asserts vanish under -O.
+LEGEND_GAP, HOLE_GAP, SILK_EDGE = 0.25, 0.2, 0.3
+NUDGE = sorted(((0.25 * i, 0.25 * j) for i in range(-12, 13) for j in range(-4, 5)),
+               key=lambda d: (math.hypot(d[0], 2 * d[1]), d))
 
 
-def T(layer, s, x, y, size=2.0, align="center", angle=0.0):
-    silk[layer].append(("text", text_polys(s, x, y, size, mirror=(layer == "B"), align=align, angle=angle)))
+def grown(g, d):
+    return g[:5] + (g[5] + d,) if g[0] == "cap" else ("rect", g[1] - d, g[2] - d, g[3] + d, g[4] + d, 0.0)
+
+
+HOLES = ([("cap", x, y, x, y, dr / 2) for (x, y, _n, _d, dr) in vias]
+         + [("cap", x, y, x, y, d / 2) for (x, y, d) in B.NPTH]
+         + [("cap", x, y, x, y, B.MOUNT_HOLE / 2) for (x, y) in B.MOUNTS])
+HOLE_BOXES = [bbox(h) for h in HOLES]
+CLEAR = {ly: [grown(pad_geom(p), 0.05) for p in pads if ly in p.mask] + HOLES for ly in "FB"}  # mask: 0.05 over
+
+
+OUTLINE = rounded_rect(0, 0, B.W, B.H, B.CORNER_R)    # the Edge_Cuts polygon (outline()): its corner chords count
+EDGES = [(a, b, math.dist(a, b)) for a, b in zip(OUTLINE, OUTLINE[1:] + OUTLINE[:1], strict=True) if a != b]
+
+
+def edge_dist(x, y):
+    """Distance of (x, y) inside the board outline to it; negative outside. The outline is convex and runs
+    clockwise on the board (y down): the nearest of its edge lines, measured to the inside."""
+    return min(((b[0] - a[0]) * (y - a[1]) - (b[1] - a[1]) * (x - a[0])) / n for a, b, n in EDGES)
+
+
+def T(layer, s, x, y, size=SILK):
+    if size * CAP_H < SILK_MIN_H - 1e-6 or size * STEM < SILK_MIN_LINE:     # a plain raise: asserts vanish under -O
+        raise ValueError(f"silkscreen text {s!r} too small")
+    polys = text_polys(s, 0.0, 0.0, size, mirror=(layer == "B"))
+    pts = np.concatenate([p for _d, p in polys])
+    (x0, y0), (x1, y1) = pts.min(axis=0), pts.max(axis=0)
+    for dx, dy in NUDGE:
+        box = ("rect", x + dx + x0, y + dy + y0, x + dx + x1, y + dy + y1, 0.0)
+        # the outline is convex: a box with its corners SILK_EDGE inside it is inside it by SILK_EDGE
+        if min(edge_dist(bx, by) for bx in box[1:4:2] for by in box[2:5:2]) < SILK_EDGE:
+            continue
+        if all(item_dist(box, g) >= LEGEND_GAP for g in CLEAR[layer] if boxes_near(bbox(g), box[1:5], LEGEND_GAP)):
+            CLEAR[layer].append(box)
+            silk[layer].append(("text", [(d, p + (x + dx, y + dy)) for d, p in polys]))
+            return
+    raise AssertionError(f"no room for the legend {s!r} near ({x}, {y})")
 
 
 # --- front silkscreen (hidden under the front plate: assembly aid only) ---
+# Key legends under each key. The SHIFT light sits where the SHIFT key's legend would go, and its own name
+# below it names the key as well; HOME's legend moves left, clear of the UNIT light's polarity mark.
+KEY_LABEL_DX = {"SHIFT": None, "HOME": -1.5}
 for r, y in enumerate(B.ROWS):
     for c, x in enumerate(B.COLS):
-        T("F", B.KEY_LABELS[r][c], x, y + 4.6, 1.0)
+        dx = KEY_LABEL_DX.get(B.KEY_LABELS[r][c], 0.0)
+        if dx is not None:
+            T("F", B.KEY_LABELS[r][c], x + dx, y + 4.6)
 for ref, (x, y) in (("ALT/HDG", B.ALTHDG), ("FREQ", B.FREQ), ("FMS", B.FMS), ("RANGE", B.RANGE)):
-    T("F", ref, x, y + 2.6, 1.2)
+    T("F", ref, x, y + 2.6)
+# The lights: name below, "K" at the cathode (the square pad), the polarity for whoever fits them (by hand in
+# the economic variant, JLCPCB in the full one). SHIFT's "K" west of the pad; UNIT's north-west, as HOME's
+# legend takes the west.
+LED_K = {"SHIFT": (-2.85, 0.0), "UNIT": (-2.55, -1.6)}
 for name, ((lx, ly), _gp, _colour) in B.LEDS.items():
-    T("F", name, lx, ly + 1.9, 0.8)
-T("F", "AVIONICS PANEL rev 1", (B.COLS[2] + B.COLS[3]) / 2, 2.6, 1.3)
+    T("F", name, lx, ly + 1.9)
+    T("F", "K", lx + LED_K[name][0], ly + LED_K[name][1])
+T("F", "AVIONICS PANEL rev 1", (B.COLS[2] + B.COLS[3]) / 2, 2.6)
+
+
+def line(layer, pts, w, step=0.05):
+    """A legend line, left out where it would cross a via the router put there (and HOLE_GAP round it)."""
+    if w < SILK_MIN_LINE:
+        raise ValueError(f"silkscreen line {w} mm too thin")
+    for a, b in zip(pts, pts[1:], strict=False):
+        n = max(1, round(math.dist(a, b) / step))
+        sb = bbox(("cap", *a, *b, w / 2))                  # only the holes that can come near this piece
+        near = [h for h, hb in zip(HOLES, HOLE_BOXES, strict=True) if boxes_near(hb, sb, HOLE_GAP)]
+        ok = [all(item_dist(("cap", *q, *q, w / 2), h) >= HOLE_GAP - 1e-6 for h in near)
+              for q in ((a[0] + (b[0] - a[0]) * i / n, a[1] + (b[1] - a[1]) * i / n) for i in range(n + 1))]
+        i = 0
+        while i <= n:
+            if not ok[i]:
+                i += 1; continue
+            j = i
+            while j < n and ok[j + 1]:
+                j += 1
+            p, q = [(a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n) for k in (i, j)]
+            if math.dist(p, q) >= 0.3:
+                silk[layer].append(("line", [p, q], w))
+                CLEAR[layer].append(("cap", *p, *q, w / 2))
+            i = j + 1
+
+
 # --- back silkscreen: all SMD parts live here ---
+# Cathode bars 0.9 mm east of the cathode pad's centre, 0.225 mm from its mask opening. Where a via would cut
+# one short, the bar moves sideways by the least that keeps it whole, if that is at most 0.3 mm away from the pad
+# (0.025 towards it) and leaves it BAR_GAP from every mask opening (check.py: SILK_CLEAR) and HOLE_GAP from every
+# hole.
+BAR_X, BAR_W, BAR_GAP = B.DIO_DX + 0.9, 0.25, 0.2
+BAR_SHIFT = sorted((-0.025, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3), key=abs)
+
+
+def bar_clear(x, y, items, gap):
+    g = ("cap", x, y - 0.75, x, y + 0.75, BAR_W / 2)
+    return all(item_dist(g, h) >= gap - 1e-6 for h in items if boxes_near(bbox(h), bbox(g), gap))
+
+
+MASK_B = [grown(pad_geom(p), 0.05) for p in pads if "B" in p.mask]
 for _name, x, y in B.DIODES:
-    silk["B"].append(("line", [(x + 2.55, y - 0.75), (x + 2.55, y + 0.75)], 0.25))   # cathode bar
+    bx = x + BAR_X
+    if not bar_clear(bx, y, HOLES, HOLE_GAP):
+        bx = next((bx + d for d in BAR_SHIFT
+                   if bar_clear(bx + d, y, HOLES, HOLE_GAP) and bar_clear(bx + d, y, MASK_B, BAR_GAP)), bx)
+    line("B", [(bx, y - 0.75), (bx, y + 0.75)], BAR_W)   # cathode bar
 mx, my = B.MCU
-silk["B"].append(("line", [(mx - 3.9, my + 4.6), (mx - 4.6, my + 4.6), (mx - 4.6, my + 3.9)], 0.15))   # pin 1 corner
+line("B", [(mx - 3.9, my + 4.6), (mx - 4.6, my + 4.6), (mx - 4.6, my + 3.9)], 0.16)   # pin 1 corner
 # pin 1 dots (0.4 mm) beside pin 1 of the flash (bottom-right), the regulator (north-east) and the crystal
 # (bottom-right corner), at least 0.15 mm from any mask opening; offsets from the pin 1 pad's centre
-PIN1_DOT = {"U2": (0.75, 0.6), "U3": (0.85, 0.0), "Y1": (1.05, 0.95)}
+PIN1_DOT = {"U2": (0.75, 0.6), "U3": (1.05, 0.0), "Y1": (1.05, 0.95)}
 for ref, (dx, dy) in PIN1_DOT.items():
     p = next(p for p in pads if p.name == f"{ref}.1")
     silk["B"].append(("dot", p.x + dx, p.y + dy, 0.4))
-for ref, x, y in (("U1", mx + 5.0, my + 5.0), ("U2", 126.6 - 6.2 + B.SHIFT_X, 47.6), ("J1", B.USB_X, 12.9),
-                  ("U3", B.LDO[0] + 2.4, B.LDO[1] + 2.4), ("Y1", B.XTAL[0], 18.0)):
-    T("B", ref, x, y, 0.9)
-T("B", "Avionics Panel rev 1 - RP2040 - USB-C", (B.COLS[2] + B.COLS[3]) / 2, 2.6, 1.4)
-T("B", "BOOT: bridge", B.BOOT[0], B.BOOT[1] + 2.3, 0.9)
-T("B", "while plugging in", B.BOOT[0], B.BOOT[1] + 3.5, 0.9)
+    CLEAR["B"].append(("cap", p.x + dx, p.y + dy, p.x + dx, p.y + dy, 0.2))
+# part names beside their bodies
+for ref, x, y in (("U1", mx + 4.5, my - 4.0), ("U2", mx - 3.6, 37.9), ("J1", B.USB_X - 5.3, 4.2),
+                  ("U3", B.LDO[0] - 0.75, B.LDO[1] + 2.0), ("Y1", B.XTAL[0] - 2.6, 17.9)):
+    T("B", ref, x, y)
+T("B", "Avionics Panel rev 1 - RP2040 - USB-C", (B.COLS[2] + B.COLS[3]) / 2, 2.6, SILK_LOWER)
+T("B", "BOOT: bridge", B.BOOT[0], B.BOOT[1] + 2.4, SILK_LOWER)
+T("B", "while plugging in", B.BOOT[0], B.BOOT[1] + 4.35, SILK_LOWER)
 
 # ---------------- Gerber writer ----------------
 def fmt(v):
@@ -262,7 +367,8 @@ def plane(layer, net, fname, func):
             else:
                 dropped.append(p.name)
     lost = [n for n in set(dropped) if dropped.count(n) > 2]
-    assert not lost, f"{layer}: thermals left with fewer than two spokes: {sorted(lost)}"
+    if lost:
+        raise ValueError(f"{layer}: thermals left with fewer than two spokes: {sorted(lost)}")
     if dropped:
         print(f"{layer}: spokes left out (an unplated hole or another net's hole in the way): {sorted(dropped)}")
     g.save()

@@ -134,9 +134,16 @@ document.querySelector('.legend').innerHTML =
   `anodised aluminium plate · MJF nylon wedge body, ${G.body.tilt_deg}°<br>` +
   `${KEYS.flat().length} keys · ${Object.values(KNOBS).filter(k => k.kind === 'dual').length} dual knobs · range/pan`;
 
-// a seeded generator for the brushed texture, so the same view always renders the same pixels
-let brushSeed = 7;
-const brush = () => (brushSeed = (brushSeed * 1103515245 + 12345) % 2147483648) / 2147483648;
+// a seeded generator for the bead-blasted grain, so the same view always renders the same pixels: mulberry32,
+// exact 32-bit integer steps (Math.imul). A float LCG loses bits in the product and repeats after about 10k
+// values, which the plate's ~2000 px rows show as diagonal streaks
+let grainSeed = 7;
+const grain = () => {
+  grainSeed = (grainSeed + 0x6D2B79F5) | 0;
+  let t = Math.imul(grainSeed ^ (grainSeed >>> 15), 1 | grainSeed);
+  t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+};
 
 async function main() {
   const canvas = document.getElementById('c');
@@ -244,7 +251,7 @@ async function main() {
   // ---------------- materials (sRGB colours converted to linear for the sRGB output) ----------------
   const M = (o) => { const m = new THREE.MeshStandardMaterial(o); m.color.convertSRGBToLinear(); return m; };
   const bodyMat   = M({ color: 0x27282b, roughness: 0.93 });
-  const plateSide = M({ color: 0x4a4d53, roughness: 0.42, metalness: 0.65 });
+  const plateSide = M({ color: 0x3a3c41, roughness: 0.8, metalness: 0.3 });     // bead blasted, anodised
   const capMat    = M({ color: 0x1b1c1f, roughness: 0.5 });
   const barMat    = M({ color: 0x1b1c1f, roughness: 0.5, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
   const dark      = M({ color: 0x15161a, roughness: 0.6 });
@@ -416,9 +423,14 @@ async function main() {
     const g = c.getContext('2d');
     const X = x => (x + O) * ppm, Y = y => (y + O) * ppm;
     g.fillStyle = PLATE_BASE; g.fillRect(0, 0, c.width, c.height);
-    for (let y = 0; y < c.height; y += 1) {
-      g.strokeStyle = `rgba(255,255,255,${(brush() * 0.05).toFixed(3)})`; g.lineWidth = 1;
-      g.beginPath(); g.moveTo(0, y + 0.5); g.lineTo(c.width, y + 0.5); g.stroke();
+    const grained = g.getImageData(0, 0, c.width, c.height);   // grained below: the titles clear the frame lines back to it
+    {                                                   // bead blasted and anodised: a fine, even matte grain
+      const px = grained.data;
+      for (let i = 0; i < px.length; i += 4) {
+        const d = Math.round((grain() - 0.5) * 10);
+        px[i] += d; px[i + 1] += d; px[i + 2] += d;
+      }
+      g.putImageData(grained, 0, 0);
     }
     const mmFont = (mm, weight = 600) => `${weight} ${Math.round(mm * ppm / 0.72)}px ${CAP_FONT}`;
     // width of a letter-spaced text: spaced() draws it, flipLegend() centres text and icon with it
@@ -442,7 +454,7 @@ async function main() {
     const title = (text, x, y) => {
       g.font = mmFont(1.75, 600);
       const w = [...text].reduce((a, ch) => a + g.measureText(ch).width, 0) + 0.32 * ppm * (text.length - 1);
-      g.fillStyle = PLATE_BASE; g.fillRect(x - 0.7 * ppm, y - 1.3 * ppm, w + 1.4 * ppm, 2.6 * ppm);
+      g.putImageData(grained, 0, 0, Math.round(x - 0.7 * ppm), Math.round(y - 1.3 * ppm), Math.round(w + 1.4 * ppm), Math.round(2.6 * ppm));
       spaced(text, x, y, mmFont(1.75, 600), WHITE_ENGR, 0.32, 'left');
     };
     g.lineWidth = 0.3 * ppm; g.strokeStyle = 'rgba(214,217,222,0.62)';
@@ -479,7 +491,7 @@ async function main() {
       const mid = k.x < W / 2 ? tilt : Math.PI - tilt;
       const r0 = (k.kind === 'range' ? G.range_art.legend_r : k.r + 1.9) * ppm;   // legend radius (stack.py)
       arcText(g, k.main, mmFont(1.55, 600), X(k.x), Y(k.y), r0, mid, WHITE_ENGR, 0.22 * ppm);
-      if (k.shift) arcText(g, k.shift, mmFont(1.5, 600), X(k.x), Y(k.y), r0 + 2.2 * ppm, mid, AMBER, 0.22 * ppm);
+      if (k.shift) arcText(g, k.shift, mmFont(1.55, 600), X(k.x), Y(k.y), r0 + 2.2 * ppm, mid, AMBER, 0.22 * ppm);
     }
     // pan arrows around RANGE, in the four pan directions
     {
@@ -490,7 +502,7 @@ async function main() {
         g.beginPath(); tri.forEach(([u, v], j) => (j ? g.lineTo : g.moveTo).call(g, u * ppm, v * ppm)); g.closePath(); g.fill(); g.restore();
       }
     }
-    const topMat = new THREE.MeshStandardMaterial({ map: mmTexture(c, WO, HO), roughness: 0.5, metalness: 0.3 });
+    const topMat = new THREE.MeshStandardMaterial({ map: mmTexture(c, WO, HO), roughness: 0.85, metalness: 0.2 });
     const bs = 0.4;
     const s = rrectShape(WO - 2 * bs, HO - 2 * bs, RO - bs);
     for (const k of keyList) s.holes.push(rrectPath(HOLE[0] + 2 * bs, HOLE[1] + 2 * bs, HOLE[2] + bs, px(k.x), -pz(k.y)));

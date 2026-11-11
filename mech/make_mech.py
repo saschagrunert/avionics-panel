@@ -39,10 +39,12 @@ from occ_util import box, common, cut, cyl, export, fuse, move, volume  # noqa: 
 CLEAR, WALL = 0.5, 2.0
 assert abs(CLEAR + WALL - S.OVH) < 1e-9, "the body outline is the plate outline"
 PCB_OUTLINE_TOL, BODY_SCALE_TOL = 0.2, 0.004
-# The short edges carry the edge rails and are V-cut: +-0.4 (JLCPCB), too long for the cavity at worst. They
-# are sanded after breaking off the rails until the board is at most this long (docs/ordering.md)
+# Edge rails (docs/ordering.md): the economic variant has none, so its outline is routed all round. The full
+# variant (Standard assembly, 70 x 70 mm minimum) has one rail on the long edge away from J1, V-cut: +-0.4
+# (JLCPCB) on the board width. Should JLCPCB add rails on the short edges anyway, those V-cut edges can be too
+# long for the cavity at worst: they are then sanded until the board is at most PCB_SANDED_LEN long.
 PCB_VCUT_TOL, PCB_SANDED_LEN = 0.4, 160.2
-UNDER = 4.0                         # room under the PCB: SMD parts, USB-C socket (3.2 mm), THT leads
+UNDER = 4.0                         # room under the PCB: SMD parts, USB-C socket (3.2 mm), THT leads (stack.LEAD_MAX)
 FLOOR = 2.0                         # floor under the PCB room; the wedge below it is hollow
 FRONT = 1.6                         # body under the floor top at the front edge
 Z_FLOOR_TOP = -S.PCB_T - UNDER      # -5.6
@@ -67,15 +69,18 @@ WASHER_PLAY = (S.WASHER["bore_max"] - S.SCREW["d_min"]) / 2           # washer s
 # screw towards the middle), narrow enough that its wall keeps the washer over the body hole all round.
 HEAD_R = 4.2                        # counterbore 8.4; check_fit.py checks both limits
 BOSS_R = 4.0                        # boss top on the PCB (PA12 on solder mask past the 3.6 mm copper keep-out)
-BOSS_R_LOW = HEAD_R + 1.6           # boss round the counterbore (JLC3DP: fastener walls over 1.5); joined to the walls
+# boss round the counterbore, joined to the walls: JLC3DP asks for fastener walls over 1.5, which it keeps with
+# the counterbore and the boss both printed 0.3 off on the diameter (check_fit.py measures it on the body)
+BOSS_R_LOW = HEAD_R + 1.9
 BOOT_HOLE = 5.0                     # bridge the BOOT pads with a small screwdriver
 # The hollow stops where it is 1 mm high: in front of that the floor is solid down to the desk plane (BOOT hole
 # and front feet). No slot or sliver under 0.8 mm anywhere: check_fit.py rasterises sections to prove it.
 HOLLOW_H_MIN = 1.0
-# The PCB is held only at its corners (about 153 mm apart) and would sag 0.3 to 0.5 mm under a key press in
-# the middle, about the switch travel. Two posts carry it there, at spots free of bottom parts and pins:
-# between the AUTOPILOT and AUDIO blocks, and between key columns 4 and 5, midway between rows 1 and 2. They
-# end stack.SUPPORT_SHORT under the PCB, so the MJF tolerance cannot bow the board up towards the light pipes.
+# The PCB is held only at its corners (about 153 mm apart) and sags about 0.1 mm under a normal key press in
+# the middle, 0.3 to 0.5 under about 5 N, as much as the switch travel. Two posts carry it there, at spots free
+# of bottom parts and pins: between the AUTOPILOT and AUDIO blocks, and between key columns 4 and 5, midway
+# between rows 1 and 2. They end stack.SUPPORT_SHORT under the PCB, so the MJF tolerance cannot bow the board
+# up towards the light pipes; a firm press bends the board onto them.
 SUPPORTS = [(72.3, 30.8), (98.6, 30.8)]
 SUPPORT_R = 2.5
 SUPPORT_TOP = -S.PCB_T - S.SUPPORT_SHORT
@@ -186,7 +191,7 @@ def hollow():
 
 
 # USB-C opening in the back wall round the plug overmould (USB-C spec: up to 12.35 x 6.5): wide enough for the
-# board anywhere in the cavity (its sideways play set by the V-cut short edges, one of them up to 0.4 short),
+# board anywhere in the cavity (its sideways play set by the short edges, taken as V-cut: one up to 0.4 short),
 # the opening where MJF puts it against the cavity wall (+-0.51 over the 127.5 mm from the left wall) and J1's
 # placement, deep enough for the body's height tolerance under the bosses, with corners small enough for a
 # square overmould (check_fit.py). It runs on up through the top of the wall as a notch of the same width, so
@@ -220,7 +225,7 @@ def body():
         shell = fuse(shell, common(corner(mx, my, BOSS_R_LOW, Z_FLOOR_TOP - 0.1, S.SEAT_Z), inside))
         shell = fuse(shell, common(corner(mx, my, BOSS_R, S.SEAT_Z - 0.1, -S.PCB_T - 0.2), inside))
         shell = fuse(shell, cyl(BOSS_R, S.SEAT_Z - 0.1, -S.PCB_T, mx, my))
-    for (px, py) in SUPPORTS:          # just under the PCB: a key press in the middle bends it onto them
+    for (px, py) in SUPPORTS:          # just under the PCB: a firm press in the middle bends it onto them
         shell = fuse(shell, cyl(SUPPORT_R, Z_FLOOR_TOP - 0.5, SUPPORT_TOP, px, py))
     holes = [wedge_cutter(), hollow(), steel_recess(), usb_cutter(), cyl(BOOT_HOLE / 2, -41, 0, *B.BOOT)]
     for (mx, my) in B.MOUNTS:

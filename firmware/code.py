@@ -17,7 +17,7 @@ import pwmio
 import rotaryio
 import supervisor
 import usb_hid
-from panel import Panel
+from panel import KEY_SCAN_MS, Panel
 
 P = microcontroller.pin            # GPIO names work on any RP2040 build (the Pico board renames some)
 
@@ -57,10 +57,12 @@ devices = [d for d in usb_hid.devices if d.usage_page == 0x01 and d.usage == 0x0
 if len(devices) < 2:
     raise RuntimeError("joysticks missing: copy boot.py and replug the panel")
 
-# Both keypads scan every KEY_SCAN s, and RESYNC_MS below follows it. debounce_threshold stays at its default
-# (1), so a reset keypad reports the keys still held within one scan; a higher threshold delays that by one
-# scan per step, so RESYNC_MS would have to grow with it.
-KEY_SCAN = 0.020
+# Both keypads scan every KEY_SCAN s (panel.KEY_SCAN_MS: the panel's bounce window follows it), and RESYNC_MS
+# below follows it too. debounce_threshold stays at its default (1), so a press reaches the PC on the first scan
+# that reads it, and a reset keypad reports the keys still held within one scan; a higher threshold delays both
+# by one scan per step (RESYNC_MS would have to grow with it). A bounce longer than a scan is caught in panel.py,
+# by the scan times of the events (Event.timestamp, on the supervisor.ticks_ms clock).
+KEY_SCAN = KEY_SCAN_MS / 1000
 matrix = keypad.KeyMatrix(ROW_PINS, COL_PINS, columns_to_anodes=True, interval=KEY_SCAN)   # anodes on columns
 direct = keypad.Keys((FREQ_PUSH,), value_when_pressed=False, pull=True, interval=KEY_SCAN)
 encoders = [rotaryio.IncrementalEncoder(a, b, divisor=2) for _, a, b, _ in RINGS]   # 30 detents / 15 pulses
@@ -69,22 +71,30 @@ leds = [pwmio.PWMOut(SHIFT_LED, frequency=1000), pwmio.PWMOut(UNIT_LED, frequenc
 unit_shown = None
 shift_shown = None
 panel = Panel()
-RESYNC_MS = 3 * round(KEY_SCAN * 1000)   # three scans: the keys still held are reported within one
+RESYNC_MS = 3 * KEY_SCAN_MS              # three scans: the keys still held are reported within one
 RETRY_MS, RETRY_MAX_MS = 1000, 8000      # after a failed send: wait before the next try, doubling up to this
+TICKS_PERIOD = 1 << 29                   # supervisor.ticks_ms and Event.timestamp wrap after this many ms
+
+
+def ticks_diff(a, b):
+    """a - b in ms for two supervisor.ticks_ms values less than TICKS_PERIOD / 2 apart, across a wrap"""
+    return ((a - b + TICKS_PERIOD // 2) & (TICKS_PERIOD - 1)) - TICKS_PERIOD // 2
 
 
 class Source:
     """One keypad: passes its events to the panel and recovers from lost ones. After an overflow the keypad
     is reset and reports every key still held as a fresh press. A key the panel already has down keeps its
     press (no release and second press for the PC, which would toggle AP off again); a key it has down but
-    that is not reported again within RESYNC_MS lost its release, and only that one is released."""
+    that is not reported again within RESYNC_MS lost its release, and only that one is released, at once (no
+    bounce: a real press right after it is a new press)."""
 
     def __init__(self, keys, names):
         self.keys, self.names = keys, names
         self.down = set()          # key numbers the panel has as pressed
         self.resync = None         # after an overflow: (end ms, key numbers reported again)
 
-    def poll(self, t):
+    def poll(self, t, ticks):
+        """t: the pass's ms, ticks: supervisor.ticks_ms() read with it, to put the scan times on t's clock"""
         if self.keys.events.overflowed:
             self.keys.events.clear()
             self.keys.reset()
@@ -92,19 +102,20 @@ class Source:
         ev = self.keys.events.get()
         while ev:
             k = ev.key_number
+            at = t + ticks_diff(ev.timestamp, ticks)
             if not ev.pressed:
                 self.down.discard(k)
-                panel.key(self.names[k], False, t)
+                panel.key(self.names[k], False, t, at)
             elif self.resync and k in self.down:
                 self.resync[1].add(k)
             else:
                 self.down.add(k)
-                panel.key(self.names[k], True, t)
+                panel.key(self.names[k], True, t, at)
             ev = self.keys.events.get()
         if self.resync and t >= self.resync[0]:
             for k in [k for k in self.down if k not in self.resync[1]]:
                 self.down.discard(k)
-                panel.key(self.names[k], False, t)
+                panel.release(self.names[k], t)
             self.resync = None
 
 
@@ -141,8 +152,9 @@ print("Avionics Panel rev 1 ready")
 try:
     while True:
         t = time.monotonic_ns() // 1_000_000
+        ticks = supervisor.ticks_ms()
         for src in sources:
-            src.poll(t)
+            src.poll(t, ticks)
         for i, enc in enumerate(encoders):
             pos = enc.position
             if pos != last[i]:

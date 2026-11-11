@@ -183,7 +183,7 @@ for name, ((kx, ky), main, shift) in KNOBS.items():
     r0 = S.RANGE_ART["legend_r"] if name == "RANGE" else S.OUTER_KNOB["d"] / 2 + 1.9
     arc_text("LASER", [(main, SEMI, em(1.55))], kx, ky, r0, mid, 0.22)
     if shift:
-        arc_text("UV_AMBER", [(shift, SEMI, em(1.5))], kx, ky, r0 + 2.2, mid, 0.22)
+        arc_text("UV_AMBER", [(shift, SEMI, em(1.55))], kx, ky, r0 + 2.2, mid, 0.22)
 rx, ry = B.RANGE
 for i in range(4):                                           # pan arrows, outside the skirt (check_fit.py)
     a = i * math.pi / 2

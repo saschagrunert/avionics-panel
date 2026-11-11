@@ -1,13 +1,15 @@
 """Mechanical stack of the Avionics Panel rev 1: one place for every height and fit.
 
 z = 0 is the PCB top. Part heights from the datasheets:
-  Bourns PEC11D-4120F-S0015 (dual encoder): body 8 mm (11.7 x 12), unthreaded bushing dia 7 up to 13, outer
-      shaft dia 6 with a 2 mm slot 2.5 deep up to 18, inner shaft dia 3.5 up to 28 with a D flat (2.5
-      across) on its last 7 mm. The inner shaft pushes (stroke 0.5 +0/-0.3). Tolerances +-0.3 under 10 mm,
-      +-0.5 from 10 mm.
-  Alps RKJXT1F42001 (RANGE): octagonal body 17 across corners, 8.6 high, hub dia 7.2 up to 10.0 (chamfered
-      to 10.5, Alps' STEP model), lever dia 2.5 with a 1.8 D flat from 12.4 to 17.4, tilts 9 degrees about a
-      fulcrum 5.55 above the PCB, push stroke 0.3 +-0.2.
+  Bourns PEC11D-4120F-S0015 (dual encoder): body 8 mm (11.7 x 12, 13.1 over the side lugs), unthreaded
+      bushing dia 7 up to 13, outer shaft dia 6 with a 2 mm slot 2.5 deep up to 18, inner shaft dia 3.5 up to
+      28 with a D flat (2.5 across) on its last 7 mm. The inner shaft pushes (stroke 0.5 +0/-0.3). Tolerances
+      +-0.3 under 10 mm, +-0.5 from 10 mm.
+  Alps RKJXT1F42001 (RANGE): octagonal body 8.6 high, 16.4 across corners and 15.73 across flats above z 4
+      (Alps' STEP model; it stands on a round foot dia 13.5, and the 17.2 mm base frame from z 0.40 to 2.55
+      stays under the plate), hub dia 7.2 up to 10.0
+      (chamfered to 10.5), lever dia 2.5 with a 1.8 D flat from 12.4 to 17.4, tilts 9 degrees about a fulcrum
+      5.55 above the PCB and 4.65 off the axis, push stroke 0.3 +-0.2.
   TE 1-1825910-4 keys (FSM8JH, 6 x 6 mm): plunger top at 9.5, switch body top 5.90 below it, a round plunger
       that tapers about 2 degrees per side (TE's STEP model, see PLUNGER). XINGLIGHT XL-302 LEDs: about 5.3 high.
 
@@ -16,7 +18,7 @@ flat-bottom pockets for glued standoffs; no threads, nothing on the front. Four 
 standoffs (5 mm across flats) are glued with non-sag epoxy into those pockets, already screwed onto the
 assembled board, so the board itself is the jig; M2.5 x 8 pan-head screws come from under the body: body
 boss -> PCB -> standoff thread. The standoffs alone set the plate height (standoff
-length less pocket depth), the body walls stop 0.9 mm short of the plate.
+length less pocket depth), the body walls stop 0.95 mm short of the plate.
 """
 # datasheet values the generators share
 # TE 1-1825910-4 key plunger, from TE's own STEP model of the part (dz below the plunger top): a flat top of
@@ -37,20 +39,26 @@ def plunger_d(dz):
 KEY_TRAVEL = 0.35                          # TE 1-1825910-4 travel 0.25 +-0.1
 RKJXT_BODY, RKJXT_HUB_TOP, RKJXT_TILT = 8.6, 10.5, 9.0   # Alps RKJXT1F42001: body and hub top, tilt (deg)
 RKJXT_FULCRUM = 5.55                       # Alps RKJXT1F42001: tilt fulcrum above the PCB (datasheet)
+RKJXT_FULCRUM_OFF = 4.65                   # and off the lever axis (datasheet), on the side the lever tilts to
 RKJXT_HUB = (7.2, 10.0)                    # Alps' STEP model: hub dia and the top of its full width (chamfer above)
 RANGE_PUSH = (0.3, 0.2)                    # Alps RKJXT1F42001 push stroke 0.3 +-0.2
 LEVER_TOL = 0.3                            # Alps RKJXT1F42001 lever height, +-
 BODY_TILT = 6.0                            # body wedge (deg)
 # key cap: outline, height and top chamfer; it sits with its socket ceiling on the plunger top and the socket
-# is 2.7 deep, so its bottom is at 6.8 and a pressed cap (travel up to 0.35, plunger up to 0.2 low) still
-# ends inside its key hole over the highest plate back
+# is 2.7 deep, so its bottom is at 6.8. A cap pressed firmly (travel up to 0.35, plunger up to 0.2 low, the board
+# bent by PRESS_DIP) can dip under the plate back; the bent board tilts it with its plunger (PRESS_SLOPE), so a cap
+# at the edge of its per-key allowance may rub the face edge of its hole on one side. check_fit.py proves that it
+# cannot wedge across the hole and that its bottom edge comes back over the back edge, which is broken by
+# KEY_BACK_BREAK at least (drawing)
 CAP = dict(w=9.6, h=6.4, r=1.2, height=5.7, cham=0.45, base=PLUNGER_TOP - 2.7)
 # tactile bars on SHIFT, DN (front edge) and UP (back edge): closed box 1.0 wide (JLC3DP embossed detail: 0.8),
 # sunk 0.05 into the top, its outer side 0.1 inside the top face. Only 0.5 proud, below JLC3DP's 0.8 for
 # embossed detail (a solid 3.2 x 1.0 ridge, not fine detail): a taller front bar hides the bottom of the SHIFT
 # and DN legends from the seat; check_fit.py proves it hides none at 45 deg (a review watch item, docs/ordering.md)
 CAP_BAR = dict(w=3.2, d=1.0, proud=0.5, sink=0.05, inset=0.6)
-CAP_VIEW_DEG = 45.0                        # seated eye over the cap tops: about 42 deg at a desk plus the 6 deg wedge
+# seated eye over the cap tops: about 42 deg at a desk plus the 6 deg wedge, 48 deg (docs/controls.md); 45 is
+# the conservative value, since a flatter sightline lets the front bar hide more of the legend
+CAP_VIEW_DEG = 45.0
 # Cap legends (make_caps.py, the 3D view): Barlow Semi Condensed Bold (its thinnest strokes, the horizontal
 # bars, are 0.121 em), grown all round by LEGEND_GROW mm, so every stroke prints at least 0.4 mm wide (JLC3DP
 # full colour: coloured lines 0.4 mm min.); the D-> arrow and the flip-flop icon have lines LEGEND_LINE em wide
@@ -89,28 +97,39 @@ def cap_rib_d(name, dz):
 
 PCB_T = 1.6
 PLATE_Z0, PLATE_Z1 = 6.0, 10.0           # 4 mm 6061; the plate top is where it always was
-PLATE_T_TOL = 0.1                          # 4.0 +-0.1 on the drawing (ISO 2768-m); depths go from the back
+PLATE_T_TOL = 0.1                          # 4.0 +-0.1 before anodising (drawing); depths go from the back
 PLATE_T = PLATE_Z1 - PLATE_Z0
 OVH = 2.5                                  # plate and body overhang the PCB by clearance + wall
 
 # through holes in the plate
 KEY_HOLE = (10.2, 7.0, 1.4)                # caps are 9.6 x 6.4: 0.3 per side, see the cap budget below
 KEY_HOLE_TOL = (0.1, 0.0)                  # +0.1/-0 after anodising on the drawing: never under 0.3 per side
+KEY_BACK_BREAK = 0.1                       # edge break on the key holes' back edges, at least (drawing: 0.1 to 0.2)
 # general tolerance ISO 2768-m (+-0.2 from 6 to 30 mm) where the drawing gives none
 PLATE_GEN_TOL = 0.2
-SHAFT_HOLE = 9.2                           # encoder bushing dia 7 +0.3: clears the board offset, hidden by the knob
-RANGE_HOLE = 11.2                          # RKJXT hub (7.2) at full tilt, hidden under the knob skirt (check_fit)
+SHAFT_HOLE = 9.3                           # encoder bushing dia 7 +0.3: clears the board offset, hidden by the knob
+RANGE_HOLE = 11.1                          # RKJXT hub (7.2) at full tilt, hidden under the knob skirt (check_fit)
 LIGHT_HOLES = {"SHIFT": 1.8, "UNIT": 1.6}  # light pipes; webs to the neighbouring key holes in check_fit.py
 LIGHT_HOLE_TOL = (0.1, 0.0)                # +0.1/-0 on the drawing: never smaller, so a pipe cannot jam
+# Black anodising grows every anodised surface by up to half of this: it takes about this much off a hole's
+# diameter or a pocket's width. The key holes are toleranced after anodising on the drawing; check_fit.py takes
+# it off every other hole and pocket. Heights: the drawing allows the pockets bare or anodised, all alike, so a
+# pocket floor stays where the standoff end puts it relative to the back face (both grow alike, or neither
+# does), and only the faces move: the back face is up to ANODISE / 2 under the bare standoff floors, and the
+# front face up to ANODISE higher than on a bare plate (the anodised floors lift the plate by ANODISE / 2, and
+# the front grows by as much). Each check_fit.py row takes the worse case.
+ANODISE = 0.05
 
 # pockets milled from the back
-# w, h, corner r, depth (body 11.7 x 12 x 8.0 +-0.3, lugs, terminal blocks; pins at +-9.5): 1.2 mm of plate
-# left over it (1.1 on a thin plate).
+# w, h, corner r, depth (body 11.7 x 12 x 8.0 +-0.3, 13.1 +-0.5 over the side lugs, terminal blocks; pins at
+# +-9.5): 1.2 mm of plate left over it (1.1 on a thin plate). The lugs run along w.
 # Depths +0/-POCKET_TOL on the drawing: never deeper, so the front stays; check_fit uses the shallow end.
-EC11_POCKET = (14.8, 20.0, 2.0, 2.8)
-RANGE_POCKET = (19.6, 3.2)                 # dia, depth (body 17 across corners, 8.6 high): 0.8 left (0.7 thin)
-RANGE_POCKET_R = 0.3                       # most floor corner radius: body corners 0.17 / 0.10 off wall / floor
-RKJXT_ACROSS, RKJXT_TOL = 17.0, 0.3        # octagon across corners; tolerance assumed (as on its height)
+EC11_POCKET = (15.6, 20.0, 2.0, 2.8)
+EC11_LUGS = 13.1                           # PEC11D width over the side lugs (+-0.5, ENC_TOL["ge10"])
+RANGE_POCKET = (19.6, 3.25)                # dia, depth (body 16.4 across corners, 8.6 high): 0.75 left (0.65 thin)
+POCKET_FLOOR_R = 0.3                       # most floor corner radius of the encoder and RANGE pockets (drawing)
+# RKJXT octagon above z 4 (Alps' STEP model): across corners and flats; tolerance assumed (as on its height)
+RKJXT_ACROSS, RKJXT_FLATS, RKJXT_TOL = 16.4, 15.73, 0.3
 POCKET_TOL = 0.1
 
 # ---- fasteners: glued standoffs in the plate, hidden M2.5 pan-head screws from below ----
@@ -123,14 +142,19 @@ STANDOFF = dict(thread="M2.5", af=5.0, af_min=4.9, ac=5.77, L=8.0, L_tol=0.1, ch
 # put the board: about 0.6 of float round the corners, the 0.6 to 1.0 gap filled by non-sag epoxy buttered on
 # the hex sides. 2.0 +0/-0.1 deep, which leaves at least 1.9 mm of aluminium in front. The last 0.5 of the
 # standoff end stays bare and the floor dry, and the weight of board and body seats the end on the bare floor,
-# so the gap from the PCB top to the plate back is the standoff length less the pocket depth: 6.0 +0.2/-0.1.
-# A smaller pocket (6.8) would even out the glue gap a little but leave only 0.08 of float to spare.
+# so the gap from the PCB top to the plate back is the standoff length less the pocket depth: 6.0 +0.2/-0.1
+# (and ANODISE / 2 lower with bare pocket floors, see ANODISE).
+# A smaller pocket (6.8) would even out the glue gap a little but leave only about 0.02 of float to spare
+# (check_fit.py's standoff row, 0.12 at 7.0).
 STANDOFF_POCKET = dict(d=7.0, d_tol=0.1, depth=2.0, depth_tol=0.1, bare=0.5)
 # The plate end of each standoff is plugged while it is glued, so no epoxy gets into its thread: soft wax or
 # plasticine pressed into the thread at most 2 mm deep (a toothpick marked at 2 mm), the end face scraped
 # clean. A grub screw would do too, but the shortest common M2.5 one (3 mm) can meet the screw tip.
 PLUG_DEPTH = 2.0
-GAP_TOL = (STANDOFF["L_tol"] + STANDOFF_POCKET["depth_tol"], STANDOFF["L_tol"])   # (+, -) on PLATE_Z0
+# Gap tolerance (+, -) on PLATE_Z0, the back face: standoff length and pocket depth (+0/-0.1). An anodised
+# pocket floor lifts the plate, but the back face grows towards the board by as much, so it stays; check_fit.py
+# adds the ANODISE / 2 the back face sits lower over bare floors, and the front face's growth (see ANODISE).
+GAP_TOL = (STANDOFF["L_tol"] + STANDOFF_POCKET["depth_tol"], STANDOFF["L_tol"])
 assert abs(STANDOFF["L"] - STANDOFF_POCKET["depth"] - PLATE_Z0) < 1e-9
 # PCB mounting hole (pcb/board.py MOUNT_HOLE) the glued standoffs need: the screw through it lines the
 # standoff up with the hole while the epoxy cures, and keeps it there on every reassembly, within the hole's
@@ -162,7 +186,38 @@ POS_TOL = dict(plate=0.1, pcb=0.075, npth_d=0.2, thread=0.03, centring=0.05, bod
 # Per-key errors that stay (RSS): switch holes on the PCB, switch on its pins, key hole on the plate, cap
 # outline (WJP +-0.2 on size, half per side), cap on its plunger.
 CAP_TOL = dict(pcb=0.075, switch=0.15, plate=0.1, cap=0.1, socket=0.05)
+# A cap can turn on its round plunger (up to about 5 deg in a nominal hole before it binds); turned, it has less
+# room to shift. Each row of caps is squared against a steel rule before the face-down assembly, which leaves
+# about this much (deg); check_fit.py takes the shift room with the cap turned by it.
+CAP_TURN = 1.0
 ENC_ON_PINS = 0.15                         # encoder (bushing) on its pins and lugs before soldering, radial
+# Seating of the encoders and the RKJXT, checked on arrival and when hand-soldering (docs/mechanics.md).
+# Encoders: the body stands flush on the board, and a SEAT_GAP feeler gauge must not slide under it. A part that
+# passes stands less than that proud at the edge of its base (EC11_BASE wide), or is tilted by up to SEAT_GAP over
+# that base: check_fit.py raises the top corners by the gap times their reach from the far base edge over the
+# base, moves a feature at height z sideways by z times the tilt, and lowers a feature that reaches out past the
+# base edge the part tilts on (the outer knob's rim) by that reach times the tilt.
+# RKJXT (Alps' STEP model): it stands on a round foot (RKJXT_FOOT across), and a blade slid in from a side stops
+# at its terminals, short of the foot. Its base frame (RKJXT_FRAME across) stands on moulded flanges, in Alps'
+# model RKJXT_FRAME_GAP over the board, but Alps gives no tolerance on that, so the check is relative: the gap
+# under the frame at four spots, against a reference read on a part pressed fully down. Economic variant: the
+# same part, before it is soldered. Full variant (soldered by JLCPCB): a loose RKJXT pressed into the footprint of
+# a bare board; two parts' flanges may differ by up to RKJXT_REF_SPREAD (assumed: Alps gives nothing). After
+# soldering, at every spot the blade (or stack) that slid in on the reference still slides in and that blade
+# plus RKJXT_STEP does not: no spot stands more than RKJXT_SEAT proud of where it is on a seated part, in either
+# variant (and none lower, which check_fit.py does not need).
+# Spots: the flanges reach the frame edge (RKJXT_FRAME / 2 off the axis) only over a strip on each side, from
+# RKJXT_SPOT["lat"][0] to [1] left of the side's middle seen from outside, the same on all four sides; at the
+# middle the flange is set back and a terminal about 0.8 in stops the blade. The blade goes in RKJXT_SPOT["depth"]
+# on that strip only, and reads the lowest gap under it. check_fit.py (rkjxt_seat) finds the worst tilt these
+# readings let through, the part resting on the far edge of its foot, and lifts the octagon's corners by their
+# reach from that edge.
+SEAT_GAP = 0.05
+EC11_BASE = 11.7                           # PEC11D body across the lug sides
+RKJXT_FOOT, RKJXT_FRAME, RKJXT_FRAME_GAP = 13.5, 17.2, 0.40
+RKJXT_SPOT = dict(lat=(0.5, 3.0), depth=0.5)
+RKJXT_STEP, RKJXT_REF_SPREAD = 0.03, 0.02
+RKJXT_SEAT = RKJXT_STEP + RKJXT_REF_SPREAD   # 0.05 with a loose reference part, 0.03 with the part itself
 # The RKJXT floats more (radial, worst direction): Alps' STEP model has 0.7 x 0.2 blade terminals and a 0.6 x
 # 0.4 frame terminal, the holes are drilled 1.1 and JLCPCB's plating finishes them 1.02 to 1.23, which lets
 # the part move 0.26 at most. Its locating lug (dia 1 -0.1, 3.8 and 1.5 +-0.05 off the axis) sits in the
@@ -171,7 +226,7 @@ ENC_ON_PINS = 0.15                         # encoder (bushing) on its pins and l
 # so the plate gives the part room instead (RANGE_POCKET, RANGE_HOLE).
 RKJXT_ON_PINS = 0.26
 SLEEVE_CLEAR = 0.9                         # outer knob counterbore around the fixed bushing, radial and above
-WALL_GAP = 0.9                             # body walls stop short of the plate: the standoffs set its height
+WALL_GAP = 0.95                            # body walls stop short of the plate: the standoffs set its height
 
 # encoder shafts (z above the PCB); "sleeve" is the fixed bushing
 EC11_BODY, SLEEVE_TOP, OUTER_TOP, INNER_TOP = 8.0, 13.0, 18.0, 28.0
@@ -204,8 +259,10 @@ FIT = 0.0
 FIT_VARIANTS = {"tight": -0.2, "loose": 0.2}   # extra outer, FMS, inner and RANGE knob each
 # Garmin proportions: outer rings 17 on all three dual knobs, inner knobs 12, so 2.5 of ring shows each side.
 # The outer ring ends flush with the 6 mm shaft top: no neck rises into the inner knob, since a recess round a
-# neck in a 12 mm knob cannot leave 1.0 of resin on both and still clear a loose knob (check_fit.py).
-OUTER_KNOB = dict(d=17.0, z0=1.0, z1=8.0)
+# neck in a 12 mm knob cannot leave 1.0 of resin on both and still clear a loose knob (check_fit.py). Its bottom
+# is 1.09 over the plate, so the slot floor's spread, a high plate face (thick plate on anodised floors, bowed up)
+# and its rim dipping on a tilted encoder leave about 0.02.
+OUTER_KNOB = dict(d=17.0, z0=1.09, z1=8.0)
 # 1.0 over the outer knob when pushed, so the PEC11D's shaft spread (ENC_SPREAD) never makes them touch. The
 # recess clears the outer shaft top when the shafts' spread lifts it into the inner knob.
 INNER_KNOB = dict(d=12.0, z0=9.5, z1=19.9, recess_d=8.0, recess_top=10.8)
@@ -227,7 +284,8 @@ KNOB_LEGEND_TILT = {"ALTHDG": 20, "FREQ": 10, "FMS": 20, "RANGE": 35}
 # (pcb/board.py) and the 3D view (geometry.js). Only the firmware button map (firmware/buttonmap.py,
 # CircuitPython) keeps its own names; tests/test_labels.py checks they agree with these.
 # The one amber: SHIFT cap legend, UV print on the plate, the SHIFT light in the 3D view. Pantone and RAL are
-# the nearest swatches for the JLCCNC remark (screen values, so approximate).
+# the nearest swatches for the JLCCNC remark (screen values, so approximate). JLCCNC is asked to match it and
+# falls back to its standard orange: then this takes that orange, so the caps and the 3D view follow the plate.
 AMBER = dict(hex="#d9a441", rgb=(217, 164, 65), ref="Pantone 7563 C, roughly RAL 1004")
 # Keys: (cap label, amber shift legend under it) per key, rows top to bottom, columns left to right.
 KEY_LEGENDS = [
@@ -272,18 +330,23 @@ RANGE_ART = dict(legend_r=12.4, arrow_r=10.1, arrow=((0.75, 0.0), (-0.45, -0.7),
 
 # Face-down assembly: the plate rests on two blocks under its long edges, clear of the shafts that stick out.
 ASSEMBLY_BLOCK = 25.0                      # block height, mm
-# Light pipes (clear resin) are glued into the plate, top flush with the face (pushed in from the back against
-# a card held on the front, clear epoxy or UV glue in the gap round it at the back; not CA, it fogs clear
-# resin). Under the 4 mm plate only 0.7 mm is left above the LED, too little for a collar that never touches
-# the plate. XL-302 top at 5.3 +0.3/-0.1 (hand-soldered THT: seated up to 0.2 proud, body +-0.1); pipe length
-# +-0.1 (SLA), plate 4.0 +-0.1 and down to PLATE_FLAT out of flat, gap 6.0 -0.1, the PCB lifted by a support
-# post (SUPPORT_SHORT) and bowed up by PCB_BOW at the LEDs: the pipe bottom stays over the highest LED in the
-# thinnest stack, so the PCB never pushes on it. The pipes are 3.6 long, so they end 0.4 inside the plate back.
-# The pipes are glued, so they sit 0.3 under their holes (+0.1/-0) on the diameter: anodising (0.05) and
-# JLC3DP's resin tolerance (+-0.2) cannot make them jam. Necks 1.1 (resin pillars 1.0 min.), on a 2.2 x 2.0
-# bar. The pipes themselves (1.3 and 1.5 across, 3.6 long) are longer than JLC3DP's resin pillar guideline
-# (1.0 across up to 1 mm, 2.0 up to 4 mm); the fallback is PMMA end-glow fibre (docs/ordering.md).
+# Light pipes (clear resin) are glued into the plate, top flush with the face (the plate face down on a release
+# film on glass, each pipe dropped in from the back onto the film, a little clear epoxy or UV glue at the back
+# mouth of the gap round it; not CA, it fogs clear resin). Under the 4 mm plate only 0.7 mm is left above the
+# LED, too little for a collar that never touches the plate. XL-302 top at 5.3 +0.3/-0.1 (hand-soldered THT:
+# seated up to 0.2 proud, body +-0.1); pipe length +-0.1 (SLA), plate 4.0 +-0.1 and down to PLATE_FLAT out of
+# flat, gap 6.0 -0.1, the PCB lifted by a support post (SUPPORT_SHORT) and bowed up by PCB_BOW at the LEDs: the
+# pipe bottom stays over the highest LED in the thinnest stack, so the PCB never pushes on it. The pipes are 3.6
+# long, so they end 0.4 inside the plate back. The pipes are glued, so they sit 0.3 under their holes (+0.1/-0)
+# on the diameter: anodising (0.05) and JLC3DP's resin tolerance (+-0.2) cannot make them jam. Necks 1.1 (resin
+# pillars 1.0 min.; smaller light holes take them down to 1.0, see PIPE), on a 2.2 x 2.0 bar. The pipes
+# themselves (1.3 and 1.5 across, 3.6 long) are longer than JLC3DP's resin pillar guideline (1.0 across up to
+# 1 mm, 2.0 up to 4 mm); the fallback is PMMA end-glow fibre (docs/ordering.md).
 LED_TOP, LED_TOL = 5.3, (0.3, 0.1)
+# Through-hole leads below the PCB, at most: the XL-302 legs come about 18 mm long and are trimmed to this
+# (the full variant's order remark, the hand-soldering notes); PEC11D terminals stick out about 1.9, RKJXT
+# about 1.6. check_fit.py checks it against the room under the board.
+LEAD_MAX = 2.0
 # PCB bow towards the plate at the two LEDs (both near the middle of the 153 mm span between the corner
 # screws). JLCPCB, like IPC-6012, allows 0.75 % bow and twist for SMT boards (1.2 mm over 160 mm), which no
 # stack here could take; a 4-layer 1.6 mm board is usually far flatter. The LED under the plate back budgets
@@ -292,12 +355,26 @@ LED_TOP, LED_TOL = 5.3, (0.3, 0.1)
 PCB_BOW = 0.1
 # The plate is held at its corners as well, so its flatness counts the same way: "flatness 0.1" on the drawing,
 # after bead blasting and anodising (blasting one side can bow a thin plate; ISO 2768-K alone would allow 0.4
-# over its 165 mm).
+# over its 165 mm), either way. The arrival check reads the bow on glass (docs/mechanics.md); check_fit.py moves
+# the plate at a part by that reading times its plate_bow() (a dome, or a bow along or across the plate, held at
+# the standoffs), in the direction that costs the row. The LED rows take PLATE_FLAT in full.
 PLATE_FLAT = 0.1
-PIPE = dict(len=3.6, len_tol=0.1, clear=0.3, neck_d=1.1, neck_len=0.6, bar=(2.2, 2.0), resin=0.2, anodise=0.05)
+PIPE = dict(len=3.6, len_tol=0.1, clear=0.3, neck_len=0.6, bar=(2.2, 2.0), resin=0.2, anodise=ANODISE)
+# necks 0.1 under the thinner pipe, 1.1 at most and never under the 1.0 resin minimum: smaller light holes
+# (docs/ordering.md, Before paying) take them down with the pipes
+PIPE["neck_d"] = round(max(1.0, min(1.1, min(LIGHT_HOLES.values()) - PIPE["clear"] - 0.1)), 3)
 # The two body posts under the middle of the PCB (make_mech.py) end SUPPORT_SHORT under it, so with JLC3DP's
-# MJF +-0.3 (post height against the bosses) they lift the board by at most SUPPORT_LIFT; a key press still
-# bends it onto them.
+# MJF +-0.3 (post height against the bosses) they lift the board by at most SUPPORT_LIFT; a firm press bends it
+# onto them.
 SUPPORT_SHORT = 0.25
 SUPPORT_LIFT = max(0.0, 0.3 - SUPPORT_SHORT)
+# A firm key press (PRESS_FIRM, about six times the switch's 1.6 N) on the bare board, from a Kirchhoff plate model
+# of it (1.6 mm FR4 at 20 GPa, no stiffening by the parts, clamped at the four mounts between standoff and boss
+# (with pinned mounts a normal press would sag it about 0.3), the posts up to SUPPORT_SHORT
+# + 0.3 short and pushing only up): the pressed key dips up to 0.69 (the front and back rows, 18 mm from the
+# posts, which do not stop them) and the board under any key slopes up to 13.8 mrad. A normal 1.6 N press sags
+# it about 0.12 and 2.3 mrad. check_fit.py takes both 10 % up (FR4's flexural modulus, about 18 to 24 GPa; 18 GPa
+# would need 11 %, about 0.008 mm more).
+PRESS_FIRM = 10.0                          # N
+PRESS_DIP, PRESS_SLOPE = 0.69 * 1.1, 0.0138 * 1.1
 PIPE["z0"] = PLATE_Z1 - PIPE["len"]        # 6.1: pipe bottom

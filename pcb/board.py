@@ -176,7 +176,8 @@ def part(ref, value, lcsc, x, y, rot=0, side="bottom", foot=None, origin=None):
     """A part for the BOM / CPL. Bottom-side parts are assembled by JLCPCB and need their footprint name; rot is
     the CPL rotation in JLCPCB's convention for the part's side (module docstring). origin: where JLC's footprint
     has its origin, the CPL position, if not at (x, y) (a top-side part placed by JLC in the full variant)."""
-    assert foot or side == "top", f"{ref}: bottom-side part without a footprint"
+    if not foot and side != "top":                # a plain raise: asserts vanish under -O
+        raise ValueError(f"{ref}: bottom-side part without a footprint")
     PARTS.append((ref, value, lcsc, x, y, rot, side))
     FOOTPRINT[ref] = foot
     if origin:
@@ -423,13 +424,17 @@ def add_usb(pads):
     for sx in (-1, 1):
         plane_via((cx + sx * 3.2, ye), "GND", 0, 0.82)
     # VBUS: B4A9 runs to the regulator; A4B9 joins it over the top layer, round the far side of the pad row
-    vb = [(cx + 2.4, ye), (cx + 2.4, 9.6), (LDO[0] - 1.9, 9.6), (LDO[0] - 1.1, 8.8), (LDO[0] - 1.1, LDO[1])]
+    vx = LDO[0] - LDO_PX                # U3's VIN pad centre
+    vb = [(cx + 2.4, ye), (cx + 2.4, 9.6), (vx - 0.8, 9.6), (vx, 8.8), (vx, LDO[1])]
     for (x1, y1), (x2, y2) in pairwise(vb):
         seg(x1, y1, x2, y2, "VBUS", "B", 0.4)
     seg(cx - 2.4, ye, cx - 2.4, yv, "VBUS", "B", 0.3)
     for sx in (-1, 1):
         via(cx + sx * 2.4, yv, "VBUS", SVIA_D, SVIA_DRILL)
-    tie = [(cx - 2.4, yv), (cx - 2.0, yv - 0.4), (cx - 2.0, 4.6), (cx + 2.0, 4.6), (cx + 2.0, yv - 0.4), (cx + 2.4, yv)]
+    # The tie turns between the shell pegs, as close to the pad row as it can: the top layer over J1 is the only
+    # way west for the lines that cross it (the bottom under the shell is kept free)
+    yt = 5.6
+    tie = [(cx - 2.4, yv), (cx - 2.0, yv - 0.4), (cx - 2.0, yt), (cx + 2.0, yt), (cx + 2.0, yv - 0.4), (cx + 2.4, yv)]
     for (x1, y1), (x2, y2) in pairwise(tie):
         seg(x1, y1, x2, y2, "VBUS", "F", 0.3)
     # CC: one 5.1k each; CC1 (A5) to the left resistor, CC2 (B5) to the right one
@@ -451,7 +456,38 @@ def add_usb(pads):
     part("J1", "TYPE-C-31-M-12", "C165948", cx, (yc + 2.10) / 2, 180, foot="USB-C 16P")
 
 
-LDO = (125.3 + SHIFT_X, 8.0)
+# J1's metal shell seen from the top (HRO drawing: 8.94 wide, 7.35 long), its face 0.52 mm past the board edge
+# (mech/make_mech.py J1_FACE). It is grounded with only solder mask between it and the bottom copper, so nothing
+# but J1's own pads may run under it (keepouts(); check.py measures it on the Gerbers).
+J1_BODY = (USB_X - 4.47, -0.52, USB_X + 4.47, -0.52 + 7.35)
+LDO = (125.4 + SHIFT_X, 8.0)    # VIN pad 1.0 mm clear of J1's hand-soldered shell tab (check.py)
+LDO_PX = 1.2                    # U3's pad centres east and west of LDO (add_support); the breakouts end there
+
+# Nominal package bodies of the bottom-side parts by footprint name: (x, y) in JLC's footprint frame at
+# rotation 0, swapped at 90 / 270. From JLC's package names where they give them (SOT-23-3_L2.9-W1.6,
+# SOP-8_L4.9-W3.9, SOD-123F_L2.7-W1.6, CRYSTAL-SMD_4P-L3.2-W2.5, LQFN-56_L7.0-W7.0), which match the
+# datasheets' nominal sizes; the chips at their EIA sizes (0603: 1.6 x 0.8, 0402: 1.0 x 0.5); J1 is J1_BODY.
+# Leads reaching past a body (SOT-23, SOIC, SOD-123) sit on their pads: precheck.py keeps every body BODY_GAP
+# clear of every other body and of every pad of another part.
+BODY = {"0603": (1.6, 0.8), "0402": (1.0, 0.5), "SOD-123": (2.7, 1.6), "SOT-23": (1.6, 2.9),
+        "SOIC-8 150mil": (4.9, 3.9), "LQFN-56 7x7": (7.0, 7.0), "3225 4-pad": (3.2, 2.5)}
+BODY_GAP = 0.2
+
+
+def bodies():
+    """{ref: (x0, y0, x1, y1)} of every bottom-side part's body, seen from the top (after build())."""
+    out = {}
+    for ref, _value, _lcsc, x, y, rot, side in PARTS:
+        if side != "bottom":
+            continue
+        if ref == "J1":
+            out[ref] = J1_BODY
+            continue
+        w, h = BODY[FOOTPRINT[ref]]
+        if rot % 180 == 90:
+            w, h = h, w
+        out[ref] = (x - w / 2, y - h / 2, x + w / 2, y + h / 2)
+    return out
 XTAL = (121.7 + SHIFT_X, 15.6)      # crystal centre, over the XIN fan-out end
 
 
@@ -541,7 +577,7 @@ def add_flash(pads):
         path(net, [fp[p], (x, fb + ydrop), (ex, fb + ydrop), (ex, ey)])
     # BOOTSEL: QSPI_SS -> 1k (right here, so the long wire to the button is no stub on the chip select)
     chip(pads, "R_BOOT", fan["QSPI_SS"][0] - 1.7, fb + 0.6, "QSPI_SS", "BOOT_SW", "1k", "C21190", vertical=True)
-    a, b = chip(pads, "C_FL", 125.4 + SHIFT_X, ft + 3.0, "3V3", "GND", "100nF", "C14663", vertical=True)
+    a, b = chip(pads, "C_FL", 125.6 + SHIFT_X, ft + 3.0, "3V3", "GND", "100nF", "C14663", vertical=True)
     plane_via(a, "3V3", 1.0, 0); plane_via(b, "GND", 1.0, 0)
 
 
@@ -549,17 +585,23 @@ def add_support(pads):
     mx, my = MCU
     # regulator XC6206P332MR (SOT-23: 1 GND, 2 VOUT, 3 VIN), VIN facing the USB-C socket. On the bottom,
     # seen from the top, the pins run clockwise: 1 north-east, 2 south-east, 3 west.
+    # pads 1.1 x 0.6 from 0.65 to 1.75 off the centre line: JLC's footprint reaches 1.77, the leads up to 1.5
+    # (Torex: 2.8 +-0.2 over the leads), so the joint gets a toe fillet
     lx, ly = LDO
-    pads.append(smd("U3.3", "VBUS", lx - 1.1, ly, 0.9, 0.6))
-    pads.append(smd("U3.1", "GND", lx + 1.1, ly - 0.95, 0.9, 0.6))
-    pads.append(smd("U3.2", "3V3", lx + 1.1, ly + 0.95, 0.9, 0.6))
+    px = LDO_PX
+    pads.append(smd("U3.3", "VBUS", lx - px, ly, 1.1, 0.6))
+    pads.append(smd("U3.1", "GND", lx + px, ly - 0.95, 1.1, 0.6))
+    pads.append(smd("U3.2", "3V3", lx + px, ly + 0.95, 1.1, 0.6))
     part("U3", "XC6206P332MR", "C5446", lx, ly, 180, foot="SOT-23")
-    plane_via((lx + 1.1, ly + 0.95), "3V3", 0, 1.05)
-    a, b = chip(pads, "C_IN", lx - 1.1, ly - 2.0, "GND", "VBUS", "1uF", "C15849", vertical=True)
-    seg(b[0], b[1], lx - 1.1, ly, "VBUS", "B", 0.4)
-    plane_via(a, "GND", 0, -1.0)
-    a, b = chip(pads, "C_OUT0", lx + 1.1, ly - 3.1, "3V3", "GND", "10uF", "C19702", vertical=True)
-    seg(b[0], b[1], lx + 1.1, ly - 0.95, "GND", "B", 0.4)          # cap GND straight to the regulator's GND pin
+    plane_via((lx + px, ly + 0.95), "3V3", 0, 1.05)
+    # C_IN west of U3, between J1's shell tab and the VIN pin, its VBUS pad on the VBUS line from J1 and its GND
+    # pad towards the (GND) tab: the VBUS pad 1.9 mm from the hand-soldered tab (0.8 mm before, a bridge to GND),
+    # and the way north past U3 stays free for the lines over the top (C_IN sat in it, north of U3)
+    a, b = chip(pads, "C_IN", lx - 2.5, ly + 0.8, "GND", "VBUS", "1uF", "C15849", vertical=True)
+    plane_via(a, "GND", -0.9, 0)
+    JOINED.update(("U3.3", "C_IN.2"))   # both on the fixed VBUS line from J1 (add_usb): no router terminals
+    a, b = chip(pads, "C_OUT0", lx + px, ly - 3.1, "3V3", "GND", "10uF", "C19702", vertical=True)
+    seg(b[0], b[1], lx + px, ly - 0.95, "GND", "B", 0.4)           # cap GND straight to the regulator's GND pin
     plane_via(a, "3V3", 0, -1.0); plane_via(b, "GND", 1.0, 0)
     # CC pull-downs 5.1k
     a, b = chip(pads, "R_CC1", USB_X - 2.8, 12.2, "CC1", "GND", "5.1k", "C23186", vertical=True)
@@ -720,13 +762,23 @@ def add_matrix_lanes(pads):
 
 
 def route_bias():
-    """Soft routing costs: (layers, rect, nets exempt, extra cost per grid step). The band between the north
+    """Soft routing costs: (layers, rect, pays(net), extra cost per grid step). The band between the north
     fan-out ends and the crystal is the only way out to the west for GP12, GP13 and GP15; any other net
     crossing it (the USB-C lines take it on their way south) pays extra, so it
-    goes round the east side when it can."""
+    goes round the east side when it can.
+    The ALT/HDG lines (GP18-21) leave the east fan-out north and cross over J1 on the top layer (the bottom
+    under its shell is kept free). Between the two they pay for the top layer, so they run north on the bottom
+    and change layers north-east of J1: on the top layer they would wall off GP13 (FREQ push, which starts on
+    the top layer at the north fan-out and runs north-east). For the same reason the USB-C lines pay for the
+    top layer north-east of GP13's start, so they come down west of it and cross the fan-out south of it."""
     mx, my = MCU
     north_west = {RP[p] for p in range(15, 19)}                         # GP12-15
-    return [("FB", (mx - FAN_END_W, my - FAN_END - 4.0, mx - 1.0, my - FAN_END + 0.3), north_west, 2.0)]
+    alt_hdg = {RP[p] for p in range(29, 33)}                            # GP18-21
+    usb_c = {"USB_DN_C", "USB_DP_C"}
+    return [("FB", (mx - FAN_END_W, my - FAN_END - 4.0, mx - 1.0, my - FAN_END + 0.3),
+             lambda n: n not in north_west, 2.0),
+            ("F", (J1_BODY[2] + 1.0, 5.0, W, my - FAN_END), lambda n: n in alt_hdg, 2.0),
+            ("F", (mx - 2.5, 10.0, mx + 6.0, my - FAN_END), lambda n: n in usb_c, 3.0)]
 
 
 def keepouts():
@@ -737,7 +789,8 @@ def keepouts():
     mx, my = MCU
     e = FAN_END - 0.3
     k.append(("B", "rect", (mx - FAN_END_W + 0.3, my - e, mx + e, my + e)))
-    # USB-C contacts and their pre-routed breakout
+    # USB-C: the shell (J1_BODY), the contacts and their pre-routed breakout
+    k.append(("B", "rect", J1_BODY))
     k.append(("B", "rect", (USB_X - 3.4, 5.8, USB_X + 3.4, 11.0)))
     k.append(("F", "rect", (USB_X - 1.3, 7.6, USB_X + 0.6, 11.0)))
     for (x, y, d) in NPTH:

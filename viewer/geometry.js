@@ -31,7 +31,7 @@ window.GEOMETRY = {
  "body": {
   "boss_hole_r": 1.85,
   "boss_r": 4.0,
-  "boss_r_low": 5.8,
+  "boss_r_low": 6.1,
   "clear": 0.5,
   "counterbore_r": 4.2,
   "feet": [
@@ -57,23 +57,23 @@ window.GEOMETRY = {
     3.5,
     -3.5,
     15.5,
-    12.5
+    12.7
    ],
    [
     144.5,
     -3.5,
     156.5,
-    12.5
+    12.7
    ],
    [
     3.5,
-    49.7,
+    49.5,
     15.5,
     63.5
    ],
    [
     144.5,
-    49.7,
+    49.5,
     156.5,
     63.5
    ]
@@ -112,7 +112,7 @@ window.GEOMETRY = {
    "z": -3.2
   },
   "wall": 2.0,
-  "wall_gap": 0.9,
+  "wall_gap": 0.95,
   "z_bot": -7.2,
   "z_floor": -5.6,
   "z_floor_bot": -7.6
@@ -512,7 +512,7 @@ window.GEOMETRY = {
  },
  "outer_knob": {
   "d": 17.0,
-  "z0": 1.0,
+  "z0": 1.09,
   "z1": 8.0
  },
  "parts": {
@@ -526,7 +526,7 @@ window.GEOMETRY = {
   ],
   "j1_face": -0.52,
   "ldo": [
-   134.3,
+   134.4,
    8.0
   ],
   "mcu": [
@@ -550,8 +550,8 @@ window.GEOMETRY = {
    7.0,
    1.4
   ],
-  "range_hole": 11.2,
-  "shaft_hole": 9.2,
+  "range_hole": 11.1,
+  "shaft_hole": 9.3,
   "z0": 6.0,
   "z1": 10.0
  },
