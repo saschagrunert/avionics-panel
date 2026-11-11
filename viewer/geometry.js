@@ -105,6 +105,13 @@ window.GEOMETRY = {
    ]
   ],
   "tilt_deg": 6.0,
+  "usb_filler": {
+   "cham": 0.3,
+   "d": 2.0,
+   "h": 3.85,
+   "w": 19.7
+  },
+  "usb_notch_w": 20.8,
   "usb_open": {
    "h": 8.4,
    "r": 0.5,

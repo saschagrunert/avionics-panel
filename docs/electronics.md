@@ -13,7 +13,9 @@ on the same net 0.500 mm (minimum 0.254); `check.py` checks both by net. Apart f
 RP2040's exposed pad, no via sits in or within 0.1 mm of an SMD pad, and none within 0.1 mm of a paste
 opening (the router keeps them out, `check.py` checks it). Paste is on every assembled pad and nowhere
 else, the drills (0.3 mm plated, 0.6 mm unplated) and annular rings (0.1 mm on vias, 0.15 mm on pads)
-are within JLCPCB's standard limits, and no solder mask dam is under 0.1 mm (green mask). The four USB-C
+are within JLCPCB's standard limits. The solder mask is black: every opening is its pad plus 0.035 mm
+per side, so no mask dam is under 0.13 mm (JLCPCB's minimum for black) and every opening clears its pad by
+at least 0.025 mm (JLCPCB's mask alignment, [Ordering](ordering.md#suppliers)). The four USB-C
 shell tabs get paste over their pads (pin-in-paste), but the stencil leaves about 0.12 mm3 of solder for
 about 0.8 mm3 of slot around each tab: a fillet on the bottom at most. They are soldered from the top as
 well, by hand in the economic assembly variant ([Mechanics](mechanics.md#hand-soldering)), by JLCPCB in the

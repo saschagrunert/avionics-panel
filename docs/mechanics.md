@@ -14,6 +14,7 @@ Stack (z = 0 is the PCB top):
 | -3.2 | counterbore seats (Ø8.4, 1.9 mm wall), 1.6 mm of PA12 up to the PCB: the washer and the pan head below it stay recessed |
 | -1.6 to 0 | PCB |
 | 0 to 8 | 4 M2.5 x 8 female-female hex standoffs (5 mm across flats), the top 2 mm glued into the plate: they alone set the plate height, 6.0 +0.2/-0.1 mm over the PCB to the plate back (anodising: see [Fastening](#fastening)); the body walls end at 5.05. Encoder bodies 8 mm (±0.3), RANGE body 8.6 mm, key switch bodies 3.6 mm |
+| 1.0 to 4.85 | USB-C filler in the back wall's notch, on the two ledges beside the plug opening (face up) |
 | 6 to 10 | 4 mm (±0.1 before anodising) aluminium plate, pockets 2.8 mm (encoders, at least 1.1 mm left) and 3.25 mm (RANGE, at least 0.65 mm left) deep from below, +0/-0.1; 4 round standoff pockets Ø7.0 +0.1/-0, 2.0 +0/-0.1 mm deep (at least 1.9 mm left); no threads |
 | 6.8 to 12.5 | key caps, socket ceiling on the plunger top (9.5), 2.5 mm proud |
 | 11.09 to 18 | outer knob ring |
@@ -90,15 +91,45 @@ Stack (z = 0 is the PCB top):
   width with the full variant's V-cut rail edge (±0.4 mm), and V-cut short edges, should JLCPCB add rails
   there anyway, once they are sanded to 160.2 mm or less ([on arrival](#on-arrival)); the walls and the
   ribs under the floor are 2.0 mm (JLC3DP's MJF wall for parts over 100 mm).
-- The USB-C opening in the back wall is 15.8 x 8.4 mm (R0.5) and runs on up through the top of the wall as a
-  notch: JLC's socket (C165948) sticks out 0.52 mm past the board edge, level with the cavity wall, so a
-  closed wall above the opening would catch it while the board goes in. Round a plug overmould of the USB-C
-  maximum (12.35 x 6.5 mm, even with square corners) it leaves 0.06 mm with the board anywhere in the cavity
+- The USB-C opening in the back wall is 15.8 x 8.4 mm (R0.5 at the bottom, square at the top) and runs on up
+  through the top of the wall as a notch 20.8 mm wide: JLC's socket (C165948) sticks out 0.52 mm past the
+  board edge, level with the cavity wall, so a closed wall above the opening would catch it while the board
+  goes in. Round a plug overmould of the USB-C maximum (12.35 x 6.5 mm, even with square corners), its top
+  being the filler below, it leaves 0.06 mm with the board anywhere in the cavity
   (0.5 mm gap, and one short edge taken as V-cut, up to 0.4 mm short, although both variants mill it), the
   opening where MJF puts it over the 127.5 mm from the side wall (±0.51 mm, which also covers a body printed
   large), J1 placed 0.1 mm off, the opening's bottom ±0.3 mm against the bosses under the PCB and the
   opening printed 0.15 mm small. Under the opening the body is solid down to the desk, 0.8 mm wider than it
   on each side.
+- Once the body is on, a filler block (`usb-filler.step`, printed with the body, 19.7 x 2.0 x 3.85 mm)
+  closes the notch above the opening from the back, flush with the wall, so only the plug opening shows.
+  The notch is 2.5 mm wider than the opening on each side, and the wall under it ends in two flat ledges
+  level with the opening's top. With the panel face up the filler rests on them: its bottom is the
+  opening's top edge, 1.0 mm over the PCB and held by the body like the rest of the opening (the overmould
+  above), and as it spans the opening it cannot drop into the plug's path. Pushed against one side of the
+  notch it still rests 0.8 mm on the far ledge. Its top stays 0.2 mm under the wall top, and under the plate
+  back even on the highest ledges (body printed high, thin board, plate back at its lowest and bowed
+  0.05 mm down there). Face down it may slide onto the plate back, up to about 2.3 mm higher, which only
+  opens the plug's path further. Nothing in the wall can stop it moving inward: a lip wider than the notch
+  does not go in from outside, and a step in the notch would leave body walls under JLC3DP's 2.0 mm. On
+  the desk the 6° tilt pulls it inward with about a tenth of its weight, which friction on the ledges
+  holds (PA12 on PA12, 0.2 or more assumed), and a dab of removable adhesive putty (Blu Tack) on each side
+  face holds it on top of that: the notch leaves 0.25 to 0.85 mm per side round it (both parts ±0.3 mm),
+  room for the putty either way. Not glue: lifting the body may take the filler with it, and it has to
+  come out of the notch before the body goes back on the board, where it would stop the socket on the way
+  in; and press-fit ribs cannot hold over MJF's ±0.3 mm on both the notch and the filler. Pushed flush, it
+  reaches at most 0.6 mm past the cavity wall, over the board edge but at least 0.39 mm above it, and
+  stays short of J1's shell tabs (their pads start 1.2 mm in from the board edge; their tips and solder
+  fillets may stand higher than the filler's bottom, so only that distance keeps them apart).
+- The corner standoffs stand 4.0 mm from the cavity walls. On its screw each one stays within 0.81 mm of
+  its body hole's axis (3.7 mm hole, its radius up to 0.15 mm large, the M2.5 at its smallest), and MJF
+  puts the hole within 0.3 mm of its 4.0 mm from the walls. So with a hex corner (5.77 mm across corners)
+  pointing at a wall and the body at the end of its screw play, that corner can just touch the PA12 wall
+  (0.025 mm at worst). That only stops the body there: it floats on its four screws, and the four
+  standoffs fit between the walls at once with 0.28 mm per side (the cavity's length and width at MJF, the
+  standoffs off their PCB holes), so it always has a place where none touches. A relief in the wall
+  there would take it under JLC3DP's 2.0 mm. Only while the body sits on the board without its screws can
+  a board pushed against a wall bring a corner up to the wall; the screws centre it again.
 - Held only at the corners (153 mm apart), the PCB sags about 0.1 mm under a normal key press (about 1.6 N)
   in the middle, and 0.3 to 0.5 mm, as much as the switch travel, under about 5 N (a plate model of the bare
   board clamped between standoffs and bosses, see `stack.PRESS_FIRM`). Two posts at board positions
@@ -296,23 +327,43 @@ caps and shafts are about 10 mm in), with a cloth on top.
    through its hole.
 7. Leave it face down and untouched until the epoxy has cured fully (usually 24 hours). Then pull the film
    strips out from between the wall tops and the plate.
-8. Tighten the screws gently (small screwdriver, two fingers); the standoffs are fixed now. Turn the
-   panel over and fit the knobs: outer knob key into the shaft slot, pushed down until the key sits on the
-   slot floor, inner knob onto the D flat until its bore end sits on the shaft tip, and the RANGE knob
-   onto the lever's D flat until its bore end sits on the lever tip.
-9. Feet: stick the four self-adhesive feet onto the flat pads under the corners. With the steel plate,
-   tape it into its recess first (notches at the back corners, round the back feet); the feet go on the
-   same pads either way.
+8. Tighten the screws gently (small screwdriver, two fingers); the standoffs are fixed now.
+9. USB-C filler: turn the panel over (face up) with its back towards you. Put a small dab of adhesive
+   putty (Blu Tack, black or white) on the inner, chamfered half of each side face of the filler (a dab
+   further out is scraped off at the notch's edges and smears the back face), set it chamfered edges
+   first onto the two ledges in the notch above the plug opening, and push it in with the 1.0 mm blade of
+   the feeler gauge set, not a finger (nothing stops it inward; a thin blade bends and pushes it past
+   flush): hold the blade flat against the back wall, its long side across the notch and its upper edge
+   just under the plate edge, which can stand proud of the wall (a wide steel rule would bear on the plate
+   instead), with its holder hanging past the nearer end of the back wall, and press on it close to the
+   notch on both sides until it lies flat on the wall there. The filler is then flush and sits on both
+   ledges. Check that a USB-C plug still goes all the way in.
+10. Fit the knobs: outer knob key into the shaft slot, pushed down until the key sits on the slot floor,
+    inner knob onto the D flat until its bore end sits on the shaft tip, and the RANGE knob onto the
+    lever's D flat until its bore end sits on the lever tip.
+11. Feet: stick the four self-adhesive feet onto the flat pads under the corners. With the steel plate,
+    tape it into its recess first (notches at the back corners, round the back feet); the feet go on the
+    same pads either way. Turning the panel over for this can slide the filler off its ledges: check it
+    is back down on both ledges and flush afterwards (step 9).
 
 ### Disassembly
 
 1. Pull the knobs off (inner first). Lay the panel face down on the blocks.
-2. Undo the four screws and lift off the body.
+2. Undo the four screws and lift off the body. The USB-C filler comes off with it in its notch, or, where
+   the board or the socket is in its way, slides out through the notch's open top and stays on the plate
+   back; nothing has to come out first. Before the body goes back on, take the filler out of its notch
+   (push it out from the inside): there it would stop the socket. If it stayed on the plate back, pick it
+   off: the wall top would land on it.
 3. Lift the PCB out; caps that stay in their key holes come out from the front. The standoffs stay glued in
    the plate.
 4. To reassemble, push any cap that came out back onto its plunger and square the rows again (step 1),
    set the PCB and body back on (as in step 6, without glue, checking that every cap stands up through its
-   hole) and do step 8: the screws find the standoffs again.
+   hole) and do steps 8 to 10: the screws find the standoffs again, the filler goes back in, and the knobs
+   go on.
+
+To take the filler out with the body on, press a ball of the same putty onto its outer face and pull it
+straight out (tape grips the MJF surface poorly). Do it with the panel face up: face down the filler can
+slide off its ledges towards the plate back.
 
 A standoff that has to come out: first try it cold with a 5 mm nut driver; a hex in a round pocket often
 breaks loose. Heat is the last resort: epoxy softens at about 100 °C, but the front face is only 1.9 mm

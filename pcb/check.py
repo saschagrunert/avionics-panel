@@ -6,7 +6,8 @@
 5. pin order of the bottom-side parts (mirrored footprints)
 6. drills and annular rings against JLCPCB's limits, no hole at or in an SMD pad or a paste opening (bar a
    pin-in-paste hole in its own opening), paste on every assembled pad and nowhere else
-7. solder mask dams (between openings on the mask Gerbers) against JLCPCB's green minimum
+7. solder mask dams (between openings on the mask Gerbers) against JLCPCB's black minimum, and every opening
+   clear of its pad by the mask's registration
 8. copper path from every RP2040 supply pin to its nearest decoupling capacitor, and every decoupling
    capacitor with its own plane vias
 9. routed length of every net against its shortest tree (no detours), USB D+ / D- length and skew
@@ -38,6 +39,7 @@ from geom import (
     item_dist,
     net_lengths,
     pad_geom,
+    pt_seg,
     usb_lengths,
 )
 from matplotlib.path import Path
@@ -562,24 +564,73 @@ def tht_footprints(pads):
     return bad
 
 
-MASK_DAM = 0.1             # JLCPCB, green solder mask: narrowest dam it keeps between two openings
+# JLCPCB, black (and white) solder mask with 1 oz outer copper: the narrowest dam it keeps between two openings
+# (0.10 for green, red, yellow, blue and purple). The board is ordered black.
+MASK_DAM = 0.13
+# JLCPCB exposes the mask of multilayer boards by LDI, aligned to +-0.02 mm (their blog "Basic Design of Solder
+# Mask"; the capabilities page gives no figure, other blogs +-0.025 to +-0.05): an opening at least 0.025 mm larger
+# than its pad on every side keeps the mask off the pad wherever it lands (their capabilities allow 1:1, this keeps
+# the pads whole).
+MASK_MIN_GROW = 0.025
+# and at most JLCPCB's usual 0.05 mm per side: with the 0.15 mm copper clearance (board.CLEAR) an opening then stays
+# at least 0.10 mm from other copper, over their 0.09 mm opening-to-trace minimum
+MASK_MAX_GROW = 0.05
+
+
+def outline_pts(g, n=72):
+    """Points on the outline of a geometry item: a rectangle's corners, round a capsule every 360/n degrees."""
+    if g[0] == "rect":
+        return [(g[1], g[2]), (g[3], g[2]), (g[1], g[4]), (g[3], g[4])]
+    _, x1, y1, x2, y2, r = g
+    return [(cx + r * math.cos(2 * math.pi * i / n), cy + r * math.sin(2 * math.pi * i / n))
+            for i in range(n) for cx, cy in ((x1, y1), (x2, y2))]
+
+
+def inset(g, x, y):
+    """How far inside the geometry item the point lies (negative: outside)."""
+    if g[0] == "rect":
+        return min(x - g[1], g[3] - x, y - g[2], g[4] - y)
+    return g[5] - pt_seg(x, y, *g[1:5])
+
+
+# Pads whose mask openings differ from their copper layers, on purpose: the routing points of the fan-out and the
+# USB lines stay under the mask (but the SWD pads U1.F24 and U1.F25, exposed), and the 1V1 probe pads are open on
+# the top only. Every other pad must be open on each of its layers, so a pad dropped from the mask in board.py
+# fails here, not only one the writer missed.
+MASK_EXCEPT = ((re.compile(r"U1\.F(?!2[45]$)\d+|J1\.E_\w+|R_D[MP]\.E"), ""), (re.compile(r"U1\.V\d+"), "F"))
 
 
 def mask_dams(pads):
     """Solder mask dams measured on the mask Gerbers: no two openings closer than MASK_DAM, and no openings of
-    pads on different nets touching (one merged opening leaves no dam at all). Prints the count of dams at
-    the minimum."""
+    pads on different nets touching (one merged opening leaves no dam at all). Every opening reaches
+    MASK_MIN_GROW beyond its pad's copper all round, and every pad is open on its layers (MASK_EXCEPT aside).
+    Prints the count of dams at the minimum."""
     bad = 0
+    for p in pads:
+        want = next((m for rx, m in MASK_EXCEPT if rx.fullmatch(p.name)), p.layers)
+        if set(p.mask) != set(want):
+            bad += 1; print(f"MASK OPENING ON {p.mask or 'no layer'} FOR {p.name}, ITS LAYERS ARE {p.layers}")
     for layer, fname in (("F", "avionics-F_Mask.gts"), ("B", "avionics-B_Mask.gbs")):
         ops = flashes(fname)
         bbs = [bbox(g) for g in ops]
-        nets = []
-        for b in bbs:                           # the pad each opening belongs to: same centre
+        nets, grow, opened = [], 9.0, set()
+        for g, b in zip(ops, bbs, strict=True):     # the pad each opening belongs to: same centre
             cx, cy = (b[0] + b[2]) / 2, (b[1] + b[3]) / 2
             p = next((p for p in pads if layer in p.mask and abs(p.x - cx) < 1e-3 and abs(p.y - cy) < 1e-3), None)
             nets.append(p and (p.net or "NC:" + p.name))
             if p is None:
                 bad += 1; print(f"MASK OPENING WITHOUT PAD on {layer} at ({cx:.2f}, {cy:.2f})")
+                continue
+            opened.add(p.name)
+            m = round(min(inset(g, x, y) for x, y in outline_pts(pad_geom(p))), 4) + 0   # + 0: no "-0.000"
+            grow = min(grow, m)
+            if m < MASK_MIN_GROW - 1e-4:
+                bad += 1; print(f"MASK OPENING {m:.3f} mm OVER {p.name} on {layer} (min {MASK_MIN_GROW})")
+            if m > MASK_MAX_GROW + 1e-4:     # (m is the narrowest margin; an opening grown evenly has it all round)
+                bad += 1; print(f"MASK OPENING {m:.3f} mm OVER {p.name} on {layer} (max {MASK_MAX_GROW})")
+        for p in pads:
+            if layer in p.mask and p.name not in opened:
+                bad += 1; print(f"PAD WITHOUT MASK OPENING: {p.name} on {layer}")
         at_min, worst = 0, 9.0
         for i in range(len(ops)):
             for j in range(i + 1, len(ops)):
@@ -597,8 +648,9 @@ def mask_dams(pads):
                 elif d < MASK_DAM + 1e-4:
                     at_min += 1
         narrow = f"{worst:.3f} mm" if worst < 9 else "none under 0.2 mm"
-        print(f"mask {layer}: {len(ops)} openings, narrowest dam {narrow} (min {MASK_DAM}), "
-              f"{at_min} at exactly {MASK_DAM}")
+        print(f"mask {layer}: {len(ops)} openings, narrowest dam {narrow} (min {MASK_DAM}, black), "
+              f"{at_min} at exactly {MASK_DAM}; openings at least {grow:.3f} mm beyond their pads "
+              f"({MASK_MIN_GROW} to {MASK_MAX_GROW})")
     return bad
 
 

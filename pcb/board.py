@@ -691,7 +691,7 @@ def add_core_caps(pads):
     x50 = mx + qfn_pad_xy(50)[0][0]
     # corner: feed along under pins 44 / 43, the two 0402 hang from it (1V1 on top), C_D2 east of them
     yf = yo + 0.425
-    c1, c2 = x45 + 1.125, x45 + 1.925                   # 0402 columns, 0.25 mm apart (0.15 mm mask dam)
+    c1, c2 = x45 + 1.125, x45 + 1.925                   # 0402 columns, 0.25 mm apart (0.18 mm mask dam)
     for name, x, val, lc in (("C_1V0", c1, "1uF", "C52923"), ("C_1V2", c2, "100nF", "C1525")):
         chip(pads, name, x, yf + 0.65, "1V1", "GND", val, lc, vertical=True, size="0402")
     for (x1, y1_), (x2, y2_) in pairwise([(x45, yo), (x45, yf - 0.25), (x45 + 0.25, yf), (c2, yf)]):

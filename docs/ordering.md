@@ -91,18 +91,18 @@ pin-in-paste stencil openings only leave a fillet on the bottom, and the tabs ca
 
 | Part | Service | Process | Files in `production/` |
 | --- | --- | --- | --- |
-| Board, assembled | JLCPCB | 4 layers, 1.6 mm thick, ENIG, green solder mask, via covering "Tented" (below), 0.3 mm min. via, outer copper 1 oz and inner 0.5 oz (the defaults), the default stackup, Mark on PCB as you like (the board is hidden in the body); PCB quantity 5, assembly quantity 2. Economic variant: Economic assembly, bottom side (all SMD), Edge Rails/Fiducials: none. Full variant: Standard assembly, both sides, through-hole parts included, Edge Rails/Fiducials: Added by JLCPCB, one rail of at least 10 mm on the long edge away from J1 ([below](#edge-rails); removed on arrival). Confirm Parts Placement: yes, and Review Before Payment if offered | economic: `gerbers.zip`, `BOM.csv`, `CPL.csv`; full: `gerbers.zip`, `BOM-full.csv`, `CPL-full.csv` |
+| Board, assembled | JLCPCB | 4 layers, 1.6 mm thick, ENIG, black solder mask with white silkscreen (below), via covering "Tented" (below), 0.3 mm min. via, outer copper 1 oz and inner 0.5 oz (the defaults), the default stackup, Mark on PCB as you like (the board is hidden in the body); PCB quantity 5, assembly quantity 2. Economic variant: Economic assembly, bottom side (all SMD), Edge Rails/Fiducials: none. Full variant: Standard assembly, both sides, through-hole parts included, Edge Rails/Fiducials: Added by JLCPCB, one rail of at least 10 mm on the long edge away from J1 ([below](#edge-rails); removed on arrival). Confirm Parts Placement: yes, Confirm Production File: yes ([below](#review-watch-items)), and Review Before Payment if offered | economic: `gerbers.zip`, `BOM.csv`, `CPL.csv`; full: `gerbers.zip`, `BOM-full.csv`, `CPL-full.csv` |
 | Through-hole parts (economic variant) | LCSC, hand-soldered | keys, encoders, RANGE control, LEDs for one board plus spares (30 keys; 20 of each LED, LCSC's minimum order, of which one each is needed; the `Needed` column gives the count per board). The spare board needs its own set if the first one fails after its keys are on (desoldering 28 keys rarely leaves them reusable): optionally add 28 keys, 1 RANGE control and, if wanted, 3 encoders (the spare LEDs already cover its LEDs). The two spare keys also serve to try the cap sets on ([Mechanics](mechanics.md#on-arrival)) | `THT-LCSC.csv` (LCSC BOM tool) |
 | Spare keys and RANGE control (full variant) | LCSC | 2 x TE 1-1825910-4 (C589907), loose, to try the cap sets on without pulling at a soldered switch; 1 x Alps RKJXT1F42001 (C160841), loose, the reference for the seating check of the soldered ones ([Mechanics](mechanics.md#on-arrival)) | |
 | Front plate | JLCCNC | 4 mm aluminium 6061, CNC from the back, bead blasting + black anodising (matte), laser marking, no threads; the form allows two finishes, so the amber UV print goes into the remark (below). If the form has a UV colour field, pick orange there: it is only the fallback, and the remark says that it takes precedence | `plate.step`, `plate-drawing.pdf` (back face, pockets), `plate.dxf` (marking) |
-| Body | JLC3DP | MJF PA12-HP, dyed black | `body.step` (`body.stl` if the STEP is refused) |
+| Body and USB-C filler | JLC3DP | MJF PA12-HP, dyed black, both parts: the body quantity 1, the filler quantity 2 (one spare; it closes the USB-C notch from the back, [Mechanics](mechanics.md#fastening)) | `body.step`, `usb-filler.step` (`body.stl`, `usb-filler.stl` if a STEP is refused) |
 | Key caps | JLC3DP | WJP Full Color Resin, four full sets of 28 caps (A, B, C, D: rib circles 3.15, 3.25, 3.35, 3.05 mm, marked with 1, 2, 3, 4 dimples on the underside), quantity 1 each; upload the zips, they carry the texture (the OBJ alone prints without legends). One set fits, see [Mechanics](mechanics.md#caps-light-pipes-knobs). If JLC3DP wants one part per file, see below | `caps-A.zip` to `caps-D.zip` (`caps-single-A.zip` etc.: one zip per cap) |
 | Knobs | JLC3DP | SLA Black Resin: `knob-outer` x2 (ALT/HDG, FREQ), `knob-outer-fms` x1 (same fits, coarser grip), `knob-inner` x3, `knob-range` x1, plus one each of `knob-outer-tight`, `-loose`, `knob-outer-fms-tight`, `-loose`, `knob-inner-tight`, `-loose`, `knob-range-tight`, `-loose` (bore 0.2 mm under / over nominal; the knobs are held by friction, keep whichever grips) | `knob-*.step` |
 | Light pipes | JLC3DP | SLA 8001 Resin, transparent, quantity 2 (one spare), no post-processing (JLC3DP sands and oil-sprays 8001 by default, which can break the thin rods: pick none, or ask in the remark: "Light pipes: no sanding and no oil spray, please"); both pipes on one snap-off bar (JLC3DP prints resin from 10 x 2 x 2 mm only); break off, sand, polish the top, glue in with clear epoxy or UV glue. The rods (Ø1.5 and Ø1.3, 3.6 mm long) are longer than JLC3DP's resin pillar guideline, so the review may flag them or they may break: the fallback is below | `lightpipes.step` |
 | Light pipe fallback | local or online | PMMA end-glow optical fibre (plastic fibre for lamps and models), Ø1.5 mm for SHIFT and Ø1.0 to 1.25 mm for UNIT, a few cm of each; cut to 3.6 mm with a fresh blade, sand both ends flat and polish them | |
 | Standoffs | LCSC or local | 6 (2 spare) hex standoffs M2.5 x 8, female-female, 5 mm across flats, threaded through, 8.0 ±0.1 long, brass (nickel-plated) or aluminium; for example Würth 970080154 (check that the listing says female-female and 5 mm across flats) | |
 | Screws, washers, feet | LCSC or local | 6 x M2.5 x 8 pan head (ISO 7045 or ISO 14583; 2 spare), 6 x DIN 125-A (ISO 7089) M3 washers (3.2 x 7 x 0.5), one under every head; 4 self-adhesive feet up to 10 mm across | |
-| Consumables | local | thixotropic (non-sag, paste) two-part epoxy with at least 30 minutes of working time for the standoffs, for example Araldite 2014-1 (not a runny clear epoxy; it usually comes in a 2:1 double cartridge that needs its dispenser gun and mixing nozzles, or squeeze both parts out by weight and mix them by hand on a card); clear epoxy for the light pipes, or UV glue with a small UV lamp (not CA glue); soft wax or plasticine to plug the standoff threads while gluing, a toothpick to press it in; isopropyl alcohol, fine sandpaper (up to about 1000 grit, plus plastic polish for the light-pipe tops), a release film (a piece of PE bag or baking paper) for the light-pipe gluing and the plate corners while the standoffs cure, double-sided tape for the steel plate, solder wick, a data-capable USB-C cable (a charge-only cable shows no RPI-RP2 drive). Tools: a flat glass plate at least 170 x 70 mm (board-bow and plate-flatness checks, light-pipe gluing), two blocks at least 25 mm high (books, wood) and a cloth for face-down assembly, two more to rest the body on, a feeler gauge set from 0.03 mm up to 1.0 mm, whose blades stack for the readings in between (0.05 mm for the encoder seating, about 0.4 mm and that plus 0.03 mm for the RKJXT's frame gap, 0.1 mm for the board-bow and plate-flatness checks, 0.2 mm for the LED seating in the full variant, about 0.8 mm for the body gap, where a 0.8 mm drill shank also works), a steel rule as a straightedge (board-bow check, squaring the caps), a multimeter with a continuity beeper (bring-up steps 1 and 2, bridge checks), a magnifier or loupe, calipers (board width, lead length), a 5 mm nut driver, a PH1 (ISO 7045) or T8 (ISO 14583) screwdriver for the M2.5 pan heads, a flat file or 240 grit sandpaper on a flat block for the rail edge (full variant), soldering iron, solder and flux (in the full variant for the J1 tabs, should they come back unfilled, and any rework, such as reseating a part that stands proud), side cutters for the leads (and in the full variant for any lead that comes back longer than 2 mm); if a knob bore is tight, 6.0, 3.5 and 2.5 mm drills and a needle file | |
+| Consumables | local | thixotropic (non-sag, paste) two-part epoxy with at least 30 minutes of working time for the standoffs, for example Araldite 2014-1 (not a runny clear epoxy; it usually comes in a 2:1 double cartridge that needs its dispenser gun and mixing nozzles, or squeeze both parts out by weight and mix them by hand on a card); clear epoxy for the light pipes, or UV glue with a small UV lamp (not CA glue); soft wax or plasticine to plug the standoff threads while gluing, a toothpick to press it in; removable adhesive putty (Blu Tack) for the USB-C filler; isopropyl alcohol, fine sandpaper (up to about 1000 grit, plus plastic polish for the light-pipe tops), a release film (a piece of PE bag or baking paper) for the light-pipe gluing and the plate corners while the standoffs cure, double-sided tape for the steel plate, solder wick, a data-capable USB-C cable (a charge-only cable shows no RPI-RP2 drive). Tools: a flat glass plate at least 170 x 70 mm (board-bow and plate-flatness checks, light-pipe gluing), two blocks at least 25 mm high (books, wood) and a cloth for face-down assembly, two more to rest the body on, a feeler gauge set from 0.03 mm up to 1.0 mm, whose blades stack for the readings in between (0.05 mm for the encoder seating, about 0.4 mm and that plus 0.03 mm for the RKJXT's frame gap, 0.1 mm for the board-bow and plate-flatness checks, 0.2 mm for the LED seating in the full variant, about 0.8 mm for the body gap, where a 0.8 mm drill shank also works; the 1.0 mm blade pushes the USB-C filler flush), a steel rule as a straightedge (board-bow check, squaring the caps), a multimeter with a continuity beeper (bring-up steps 1 and 2, bridge checks), a magnifier or loupe, calipers (board width, lead length), a 5 mm nut driver, a PH1 (ISO 7045) or T8 (ISO 14583) screwdriver for the M2.5 pan heads, a flat file or 240 grit sandpaper on a flat block for the rail edge (full variant), soldering iron, solder and flux (in the full variant for the J1 tabs, should they come back unfilled, and any rework, such as reseating a part that stands proud), side cutters for the leads (and in the full variant for any lead that comes back longer than 2 mm); if a knob bore is tight, 6.0, 3.5 and 2.5 mm drills and a needle file | |
 | Steel plate (optional) | local or laser cut | 2 mm steel, 143 x 36 mm (±0.1) with two 15 x 15 mm notches at the back corners for the feet (about 74 g), desk weight in the 144 x 37 mm recess under the body, double-sided tape | `steel.dxf` (outline) |
 | Bench (before the boards) | local or online | Raspberry Pi Pico or Pico H (RP2040) with headers, not a Pico W (its radio takes GP23, GP24, GP25 and GP29) and not a Pico 2 (RP2350, which needs another CircuitPython build), and a data-capable micro-USB cable, a breadboard and jumper wires, a few push buttons, one cheap EC11-type encoder with push and 30 detents / 15 pulses per turn, like the PEC11D (not one of the three PEC11D; a 20 / 20 part, common among cheap EC11 and KY-040 encoders, needs `divisor=4` in `code.py`, see [Firmware](firmware.md#pico-bench)), a 1N4148 diode for SHIFT from GP6 to GP2 (see [Firmware](firmware.md#pico-bench)) | |
 
@@ -134,9 +134,18 @@ prints its standard orange, ask for that orange's colour value, set it as `AMBER
 [mech/stack.py](../mech/stack.py) and run `./build.sh` before ordering the caps (the
 [checklist](#checklist) has JLCCNC's review come first).
 
-Keep the solder mask green: the mask dams between the RP2040's pads, between the USB-C contacts and
-between C_X2 and R_X are 0.1 mm, JLCPCB's minimum for green ([pcb/check.py](../pcb/check.py) measures
-them). Other colours need wider dams, so those pads would lose the mask between them.
+The solder mask is black, with the white legend JLCPCB prints on it: green showed as a thin line in the
+gap round each key cap and through the USB-C opening. Black needs wider mask dams than green (0.13 mm
+against 0.10 mm with 1 oz outer copper, JLCPCB's capabilities page), so every opening is its pad plus
+0.035 mm per side, not the usual 0.05: the RP2040's pads, the USB-C contacts and C_X2 to R_X are 0.2 mm
+apart and keep a 0.13 mm dam between them ([pcb/check.py](../pcb/check.py) measures every dam and checks
+that each opening clears its pad by at least 0.025 mm). JLCPCB exposes the mask by LDI, allows openings as
+small as the pad (1:1) since June 2025, and a JLCPCB blog gives the alignment on multilayer boards as
+±0.02 mm (the capabilities page gives no figure; at that the mask stays off the pads). JLCPCB removes a
+dam it cannot hold rather than asking, so the order asks for the production file to be confirmed and the
+dams are checked there ([below](#review-watch-items)); the fallback is green, which needs only 0.10 mm.
+JLCPCB lists black among its standard colours, at standard pricing and lead time for most orders; its build
+time table is quoted for green, so check the price and build time the quote shows for black before paying.
 
 Via covering "Tented" matches the Gerbers: the solder mask covers every via on both sides except two
 deliberate openings, which JLCPCB keeps because the mask Gerber decides for a Gerber order (its via
@@ -258,8 +267,18 @@ the pads and holes):
 
 ### Review watch items
 
-Items below JLC's published minimums, where the design leaves no room; expect a question in their review:
+Items below or at JLC's published minimums, where the design leaves no room; expect a question in their
+review:
 
+- JLCPCB black solder mask: 64 dams on the bottom (between the RP2040's pads, the USB-C contacts and C_X2
+  to R_X) are exactly 0.13 mm, JLCPCB's minimum for black. JLCPCB removes a dam under its minimum without
+  asking (the pads then share one opening), and its CAM may resize openings. So order with Confirm
+  Production File: yes and add to the order remark: "Solder mask: please keep the 0.13 mm dams between
+  the pads of U1, J1 and C_X2/R_X; if black cannot hold them, please ask before removing any." When the
+  processed files come back, check the bottom mask still has a dam between every pair of U1's and J1's
+  pads and between C_X2 and R_X. If any is gone, ask JLCPCB to change the order to green (the file is
+  confirmed after payment, so this means their change or a cancelled and new order, and a new file to
+  check): the same Gerbers then leave 0.03 mm over its 0.10 mm minimum.
 - JLCCNC UV print colour: the remark asks for amber #D9A441 with their standard orange as the fallback
   (above); go by their answer for the caps.
 - JLCCNC text size: their UV design guide asks for text of at least 6 pt (2.117 mm font size) and lines of
@@ -302,6 +321,11 @@ Items below JLC's published minimums, where the design leaves no room; expect a 
 - JLCPCB, full variant: the single rail on the long edge away from J1 ([edge rails](#edge-rails)). Accept
   their engineer's proposal if it keeps the J1 edge free.
 - JLC3DP light pipes: no post-processing (the table above), so the thin rods aren't sanded off.
+- MJF USB-C filler: a small part at the limit, not under it (19.7 x 2.0 x 3.85 mm, 0.15 cm³): its 2.0 mm
+  thickness is exactly the 2 mm of JLC3DP's 10 x 2 x 2 mm minimum. If JLC3DP flags it anyway, point them
+  at that minimum in their design guideline and ask them to print it as it is (SLA is no way out: the
+  guideline gives the same minimum for SLA and MJF). Without it the panel works as before, only with the
+  notch above the plug open.
 
 ## Parts and quotes
 
@@ -319,8 +343,8 @@ with its own texture tile, the set letter in its name; take the same key from ea
 that fits, in batches of 10. All four sets are needed: only one of them will fit, and which one depends on
 the print. The light pipes are one part on their bar, the knobs one part each.
 
-The JLC3DP order has 18 files (the body, the four cap zips, 12 knob files and the light pipes), and its
-quote page takes 10 per upload: upload them in two batches into the same cart.
+The JLC3DP order has 19 files (the body, the USB-C filler, the four cap zips, 12 knob files and the light
+pipes), and its quote page takes 10 per upload: upload them in two batches into the same cart.
 
 The dual encoders are Bourns PEC11D-4120F-S0015 (C19270361, $8.26 at LCSC, 68 in stock on 2026-11-09 and
 2026-11-11): in production, 30 detents / 15 pulses with push like the Alps EC11EBB24C03 drawn first (not
@@ -333,16 +357,16 @@ Quotes on 2026-11-09 (Germany; JLCCNC in USD and subject to their review). They 
 Bourns encoders (new holes), the bottom-only BOM, the thicker body bosses, the knob fit variants, the
 knob files (`knob-outer-22` and `knob-outer-24` are gone: now `knob-outer` x2, `knob-outer-fms` x1 and
 the variants, all Ø17) and the mechanical rework (glued standoffs instead of threads, deeper pockets,
-hollow body, four cap sets with rigid ribs, light pipes, the FMS ring and its fit variants), so re-upload
-the board, plate and all JLC3DP files before paying. The JLC3DP price below is too low: it covers one set
-of caps, the order now has four:
+hollow body, four cap sets with rigid ribs, light pipes, the FMS ring and its fit variants, the USB-C
+filler), so re-upload the board, plate and all JLC3DP files before paying. The JLC3DP price below is too
+low: it covers one set of caps (the order now has four) and no USB-C filler:
 
 | Order | Price | Shipping |
 | --- | --- | --- |
 | JLCPCB, economic variant: 5 boards, 2 assembled (Economic, SMD side) | €71.95 | about €21 (DHL) |
 | JLCPCB, full variant: 5 boards, 2 assembled (Standard, both sides incl. through-hole) | €227.43 | not quoted (the parcel is over €150: import VAT and the carrier's fee come on delivery) |
 | JLCCNC: front plate | $30.09 | $26.60 (UPS) |
-| JLC3DP: body, knobs, caps, light pipes (quoted with four printed spacers, now dropped) | €42.10 | €7.13 |
+| JLC3DP: body, knobs, caps, light pipes (quoted with four printed spacers, now dropped, and without the USB-C filler) | €42.10 | €7.13 |
 | LCSC (economic variant only): through-hole parts for one panel | about €37 (three dual encoders about €22) | separate |
 
 Hand-soldering the through-hole parts saves about €118 over Standard assembly (€155 less the about €37 of
@@ -360,9 +384,10 @@ and consumables.
    pockets, the laser marking and the amber UV print. Wait for their review before paying JLC3DP: it can
    change the light holes (and so the pipes) and the amber ([before paying](#before-paying)); if it does,
    change `stack.py`, run `./build.sh` again and upload the new files. Pay JLCCNC after their review.
-4. JLCPCB: upload `gerbers.zip`; board options as in the table (4 layers, 1.6 mm, ENIG, green, tented,
-   0.3 mm via, PCB quantity 5, assembly quantity 2). Confirm Parts Placement: yes, and Review Before
-   Payment if offered.
+4. JLCPCB: upload `gerbers.zip`; board options as in the table (4 layers, 1.6 mm, ENIG, black solder
+   mask, white silkscreen, tented, 0.3 mm via, PCB quantity 5, assembly quantity 2). Confirm Parts
+   Placement: yes, Confirm Production File: yes with the solder mask remark ([review watch
+   items](#review-watch-items)), and Review Before Payment if offered.
    - Economic: Economic assembly, bottom side; upload `BOM.csv` and `CPL.csv`; Edge Rails/Fiducials: none,
      with the J1 remark ([edge rails](#edge-rails)).
    - Full: Standard assembly, both sides; upload `BOM-full.csv` and `CPL-full.csv`, check that the BOM step
@@ -374,12 +399,12 @@ and consumables.
    Go through the [placement preview](#placement-preview), top side too in the full variant. If JLC3DP is
    to join this cart (step 5), hold the JLCPCB payment until JLCCNC's review is back, since JLC3DP waits for
    it; otherwise pay JLCPCB now.
-5. JLC3DP, after JLCCNC's review: body (MJF), `caps-A.zip` to `caps-D.zip` (full colour, all four sets),
-   knobs with the counts in the table, including the eight fit variants, light pipes (8001, quantity 2, no
-   post-processing); 18 files, so two uploads. Economic variant: add them to the JLCPCB cart only if
-   JLCPCB and JLC3DP together stay under €150 of goods, and then pay both together (the JLCPCB payment held
-   since step 4); otherwise, and always in the full variant, pay and ship JLC3DP as its own order (the €150
-   note above).
+5. JLC3DP, after JLCCNC's review: body and USB-C filler (MJF, both dyed black, the filler quantity 2),
+   `caps-A.zip` to `caps-D.zip` (full colour, all four sets), knobs with the counts in the table, including
+   the eight fit variants, light pipes (8001, quantity 2, no post-processing); 19 files, so two uploads.
+   Economic variant: add them to the JLCPCB cart only if JLCPCB and JLC3DP together stay under €150 of
+   goods, and then pay both together (the JLCPCB payment held since step 4); otherwise, and always in the
+   full variant, pay and ship JLC3DP as its own order (the €150 note above).
 6. LCSC: economic variant, upload `THT-LCSC.csv` to the BOM tool and order the encoders early (small
    stock); optionally add the second through-hole set for the spare board (see the table). Full variant:
    two spare keys (C589907) to try the cap sets on and one RKJXT1F42001 (C160841) as the reference for the
