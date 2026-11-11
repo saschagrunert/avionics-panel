@@ -7,8 +7,8 @@ Top view (component side), mm, origin top-left, y down. Layer stack: F (signals)
 In2 = 3V3 plane, B (signals). Switches, knobs and the RANGE control (THT) sit on top; every SMD part (RP2040,
 flash, USB-C, regulator, diodes, passives, the two reverse-mount LEDs that shine up through cutouts in the board)
 is on the bottom, so JLCPCB's Economic assembly does one SMD side and the through-hole parts are soldered by hand.
-Standard assembly of both sides (the full variant, docs/ordering.md) has JLCPCB fit the through-hole parts too,
-from a top-side CPL.
+Standard assembly of both sides (the full variant, docs/building/building.md) has JLCPCB fit the through-hole
+parts too, from a top-side CPL.
 
 Footprint sources:
   RP2040 QFN-56: RP2040 datasheet fig. 165 (pads 0.20 x 0.875, pitch 0.40, 7.75/6.00, EP 3.20)
@@ -297,7 +297,7 @@ def add_led(pads, name, x, y, gpio, colour):
     # and 100): 8.6 to 17.2 mA over the GPIO's output voltage and the LED's forward voltage, under its 30 mA. White:
     # forward voltage 2.8 to 3.6 V at 20 mA (+-0.1 per bin), close to the 3.3 V supply, so a small resistor: 22 R
     # keeps it at about 19 mA at most, under its 20 mA DC limit, with the strongest GPIO and the lowest forward
-    # voltage. The firmware sets both brightnesses with PWM (docs/electronics.md).
+    # voltage. The firmware sets both brightnesses with PWM (docs/architecture/electronics.md).
     led_part, lcsc, res, res_lcsc = {"amber": ("LTST-C230KSKT", "C125108", "75R", "C4275"),
                                      "white": ("LTW-C230DS", "C575513", "22R", "C23345")}[colour]
     part(f"LED_{name}", led_part, lcsc, x, y, 180, foot="1206 reverse")
@@ -425,7 +425,7 @@ def add_usb(pads):
     for s in (-1, 1):
         # shell pads 1.2 wide, as in JLC's footprint; pin-in-paste: paste over the whole pad on the bottom. That
         # is about 0.12 mm3 of solder for about 0.8 mm3 of slot, a bottom fillet at most: the four tabs, which
-        # take the plug's load, are soldered from the top by hand as well (docs/mechanics.md)
+        # take the plug's load, are soldered from the top by hand as well (docs/building/assembly.md)
         pads.append(Pad(f"J1.SH{s}a", "GND", cx + s * 4.325, 6.28, "obround", 1.2, 2.0, "FB",
                         drill=0.6, slot=(0.6, 1.7), pip=True))
         pads.append(Pad(f"J1.SH{s}b", "GND", cx + s * 4.325, 2.10, "obround", 1.2, 1.8, "FB",
@@ -474,8 +474,8 @@ def add_usb(pads):
 # a 0.5 A PTC fuse (1206), sit in VBUS between J1 and everything else; VBUS_F is the protected side (C_IN, the
 # regulator, and U4's VCC pin, so its clamp is the one on VBUS_F). A short there (a shorted clamp, U4 placed
 # turned by 180 degrees) burns R_IN open, long before F1 trips: R_IN is the sacrificial element for shorts
-# behind it, F1 covers slow overloads (docs/electronics.md). U4 centred under the D- contact B7's column: pins
-# 4 / 3 at USB_X - 0.75, 6 / 1 at USB_X + 1.15, VCC (pin 5) towards J1, GND (pin 2) away from it.
+# behind it, F1 covers slow overloads (docs/architecture/electronics.md). U4 centred under the D- contact B7's
+# column: pins 4 / 3 at USB_X - 0.75, 6 / 1 at USB_X + 1.15, VCC (pin 5) towards J1, GND (pin 2) away from it.
 ESD = (118.2 + SHIFT_X, 11.7)
 ESD_PX, ESD_PY = 0.95, 1.2          # SOT-23-6: pad columns 0.95 apart, rows 2.4 apart (JLC's footprint of C7420376)
 FUSE = (122.0 + SHIFT_X, 12.05)     # F1 centre: its pin 1 under R_IN, clear of CC2 to the west
@@ -680,9 +680,9 @@ def add_support(pads):
     # part of C_OUT0. When VBUS is switched on hard (a live USB-A port), the cable's inductance rings with C_IN;
     # R_IN (1 ohm, add_protection) in series with the cable and the fuse damps it, so the modelled input
     # stays within 0.05 V of the 5.25 V step up to 1 uH of cable and under about 6.6 V on long ones, against the
-    # XC6206's 7.0 V absolute maximum (docs/electronics.md: C_IN's DC-bias loss, no clamp, cable 0.3 to 3 uH and
-    # 0.05 to 0.4 ohm, fuse 0.15 to 0.7 ohm). 10 uF is USB 2.0's limit for a device at attach, and the regulator's
-    # output capacitors add to it.
+    # XC6206's 7.0 V absolute maximum (docs/architecture/electronics.md: C_IN's DC-bias loss, no clamp, cable 0.3
+    # to 3 uH and 0.05 to 0.4 ohm, fuse 0.15 to 0.7 ohm). 10 uF is USB 2.0's limit for a device at attach, and the
+    # regulator's output capacitors add to it.
     a, b = chip(pads, "C_IN", lx - 2.5, ly + 0.8, "GND", "VBUS_F", "10uF", "C19702", vertical=True)
     plane_via(a, "GND", -0.9, 0)
     vx = lx - px                        # U3's VIN pad centre

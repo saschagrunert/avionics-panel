@@ -1,34 +1,103 @@
 # Avionics Panel
 
 DIY desktop panel for GA avionics in flight sims (G1000, GTN 750, GNS 530/430, Bendix/King, GFC 500):
-autopilot, audio, radio and FMS keys, three dual concentric knobs and a RANGE knob that tilts to pan.
-Shows up on the PC as two joysticks (device 1 carries everything plus unit 1, device 2 the unit 2 copies),
-mapped in MobiFlight or directly in the sim. Ready-made MobiFlight profiles are planned;
-until then you map the buttons yourself with [BUTTONS.md](firmware/BUTTONS.md).
+autopilot, audio, radio and FMS keys, three dual concentric knobs and a RANGE knob that tilts to pan. It shows
+up on the PC as two USB joysticks, mapped in MobiFlight or directly in the sim.
 
 ![Top view: autopilot keys and ALT/HDG and RANGE knobs left, audio, radio and FMS keys, FREQ and FMS knobs right](renders/2-top.png)
 
-[Open the interactive 3D view](https://saschagrunert.de/avionics-panel/) (seated, exploded, top and front views).
+[Open the interactive 3D view](https://saschagrunert.de/avionics-panel/) (seated, exploded, top and front
+views).
+
+## Build one
+
+Everything is ordered from the JLC group with the files in [production/](production/), and the boards arrive
+fully assembled: nothing to solder, a few checks, then screws and knobs.
+
+```mermaid
+flowchart LR
+  jlcpcb["JLCPCB<br>2 assembled boards"]
+  jlccnc["JLCCNC<br>front plate"]
+  jlc3dp["JLC3DP<br>body, caps, knobs, light pipes"]
+  jlcmc["JLCMC<br>screws"]
+  lcsc["LCSC<br>spare keys, RANGE control"]
+  local["Local shop<br>feet, putty, tools"]
+  arrival["On arrival<br>checks"]
+  bringup["Bring-up<br>flash and test"]
+  assembly["Assembly"]
+  mapping["Mapping<br>MobiFlight or sim"]
+  jlcpcb & jlccnc & jlc3dp & jlcmc & lcsc & local --> arrival --> bringup --> assembly --> mapping
+```
+
+1. **Order** ([details, shopping list](docs/building/building.md)), in the sequence of
+   [Order step by step](docs/building/building.md#order-step-by-step): the six encoders into JLCPCB's Parts
+   Manager first, JLCCNC before JLC3DP. Every file name below starts with `avionics-panel-rev1-`:
+
+   | Shop | What | Files |
+   | --- | --- | --- |
+   | JLCPCB | the board, 2 fully assembled | [gerbers.zip](production/avionics-panel-rev1-gerbers.zip), [BOM-full.csv](production/avionics-panel-rev1-BOM-full.csv), [CPL-full.csv](production/avionics-panel-rev1-CPL-full.csv) |
+   | JLCCNC | the aluminium front plate | [plate.step](production/avionics-panel-rev1-plate.step), [plate-drawing.pdf](production/avionics-panel-rev1-plate-drawing.pdf), [plate.dxf](production/avionics-panel-rev1-plate.dxf) |
+   | JLC3DP | body, USB-C filler, four key cap sets, knobs, light pipes | [body.step](production/avionics-panel-rev1-body.step), [usb-filler.step](production/avionics-panel-rev1-usb-filler.step), [caps-A.zip](production/avionics-panel-rev1-caps-A.zip) to [caps-D.zip](production/avionics-panel-rev1-caps-D.zip), `knob-*.step`, [lightpipes.step](production/avionics-panel-rev1-lightpipes.step) |
+   | JLCMC | six M3 x 8 flanged button-head screws | |
+   | LCSC | spare keys (5, LCSC's minimum; 2 needed) and a reference RANGE control (hand-soldering option: the through-hole parts, spares included) | |
+   | local | feet, putty, sandpaper, a few tools | optional [steel.dxf](production/avionics-panel-rev1-steel.dxf) |
+
+   Option for those who like to solder: JLCPCB fits only the SMD bottom side
+   ([BOM.csv](production/avionics-panel-rev1-BOM.csv), [CPL.csv](production/avionics-panel-rev1-CPL.csv)), and
+   the keys, encoders and RANGE control come from LCSC
+   ([THT-LCSC.csv](production/avionics-panel-rev1-THT-LCSC.csv)) and are soldered by hand
+   ([assembly variants](docs/building/building.md#assembly-variants)).
+2. **What arrives**: two assembled boards (and three bare ones), the plate, the body with two USB-C fillers,
+   four sets of 28 key caps (one of them fits), the knobs with tighter and looser spares, two light pipe bars,
+   the screws and the LCSC parts.
+3. **Check on arrival**: break off the board's rail, try the plate threads, check that the encoders and the
+   RANGE control sit flat and the J1 shell tabs are soldered, choose the cap set
+   ([On arrival](docs/building/assembly.md#on-arrival); with hand-soldering only the threads and the cap set).
+4. **Bring-up**: flash CircuitPython and the [firmware](firmware/), then test every key, knob and light on the
+   bare board ([Bring-up](docs/building/bring-up.md); with hand-soldering, the J1 tabs, the keys and last the
+   encoders and RANGE control are soldered along the way). Optional before the boards arrive: the
+   [Pico bench](docs/building/bring-up.md#pico-bench).
+5. **Assemble**: caps onto the keys, light pipes into the plate, the board face down into the plate, the body
+   over it with four screws, the USB-C filler, the knobs and the feet
+   ([Assembly](docs/building/assembly.md#assembly)).
+6. **Map**: two joysticks, every function a fixed button ([Mapping](docs/using/mapping.md),
+   [BUTTONS.md](firmware/BUTTONS.md)); then the knob timing check of the
+   [first board](docs/building/bring-up.md#first-board).
 
 ## Docs
 
-Rev 1 is the first version to be built; nothing is ordered yet. The docs in [docs/](docs/) are its spec;
-the 3D view, the board and the mechanics follow them. Open items and ideas are
-[GitHub issues](https://github.com/saschagrunert/avionics-panel/issues).
+Using the panel:
 
-| Doc | Contents |
-| --- | --- |
-| [Controls](docs/controls.md) | principles, [SHIFT](docs/controls.md#shift), HOTAS split, workflows, [knobs](docs/controls.md#knobs), [keys](docs/controls.md#keys-label-shift-legend-in-parentheses) |
-| [Compatibility](docs/compatibility.md) | what each control does on the G1000, GFC 500, GTN, GNS and Bendix/King, by aircraft |
-| [Firmware](docs/firmware.md) | joystick devices, knob timing, [install and bring-up](docs/firmware.md#install-and-bring-up), [Pico bench](docs/firmware.md#pico-bench) |
-| [Electronics](docs/electronics.md) | RP2040 board, GPIO map, lights, [schematic](docs/avionics-panel-rev1-schematic.pdf) |
-| [Mechanics](docs/mechanics.md) | stack heights, assembly, [on arrival](docs/mechanics.md#on-arrival), [dimensions](docs/mechanics.md#dimensions) |
-| [Ordering](docs/ordering.md) | [assembly variants](docs/ordering.md#assembly-variants), suppliers, [before paying](docs/ordering.md#before-paying), quotes, [checklist](docs/ordering.md#checklist) |
-| [BUTTONS.md](firmware/BUTTONS.md) | every joystick button of both units, for mapping in MobiFlight or the sim |
+- [Controls](docs/using/controls.md): what each key and knob does, [SHIFT](docs/using/controls.md#shift),
+  workflows, [knobs](docs/using/controls.md#knobs),
+  [keys](docs/using/controls.md#keys-label-shift-legend-in-parentheses)
+- [Compatibility](docs/using/compatibility.md): what each control does on the G1000, GFC 500, GTN, GNS and
+  Bendix/King, by aircraft
+- [Mapping](docs/using/mapping.md): the two joysticks, update mode and GUIDs, the device name
 
-## Layout
+Building one, in build order (order, check on arrival, bring up, assemble):
 
-Generated files are named `avionics-panel-rev1-*`.
+- [Building](docs/building/building.md): what to order where, the order remarks, the
+  [shopping list](docs/building/building.md#shopping-list), review questions, shipping
+- [Arrival and assembly](docs/building/assembly.md): on arrival (before bring-up), hand-soldering, assembly
+  (after bring-up), disassembly
+- [Bring-up](docs/building/bring-up.md): flashing, testing, first-board checks, the Pico bench
+
+How it works:
+
+- [Electronics](docs/architecture/electronics.md): RP2040 board, USB protection, GPIO map, lights,
+  [schematic](docs/architecture/avionics-panel-rev1-schematic.pdf)
+- [Firmware](docs/architecture/firmware.md): state, knob timing, switch bounce, USB, tests
+- [Mechanics](docs/architecture/mechanics.md): stack, fastening, seating, caps, light pipes, knobs,
+  [dimensions](docs/architecture/mechanics.md#dimensions)
+
+Renders: [hero](renders/1-hero.png), [top](renders/2-top.png), [exploded](renders/3-exploded.png),
+[seated view](renders/4-seated.png), [PCB top](renders/5-pcb-top.png), [PCB bottom](renders/6-pcb-bottom.png),
+[plate artwork](renders/7-plate-artwork.png), [fit check](renders/8-fit-check.png).
+
+## Working on the design
+
+Every output is generated; generated files are named `avionics-panel-rev1-*`.
 
 | Directory | Contents | Start with |
 | --- | --- | --- |
@@ -36,97 +105,40 @@ Generated files are named `avionics-panel-rev1-*`.
 | [mech/](mech/) | body, front plate, knobs, light pipes, key caps, plate artwork | [stack.py](mech/stack.py) (every height and fit), [check_fit.py](mech/check_fit.py) |
 | [firmware/](firmware/) | CircuitPython for the panel's RP2040 | [code.py](firmware/code.py), [panel.py](firmware/panel.py), [buttonmap.py](firmware/buttonmap.py) |
 | [viewer/](viewer/) | three.js 3D view, [live here](https://saschagrunert.de/avionics-panel/) | [index.html](viewer/index.html) |
-| [production/](production/) | the files to order | see below |
-| [renders/](renders/) | pictures | see below |
+| [production/](production/) | the files to order | [Building](docs/building/building.md) |
+| [renders/](renders/) | pictures | |
 
-Production files, by supplier (details in [Ordering](docs/ordering.md)):
+`./build.sh` regenerates everything, runs every check and copies the results to `production/` and `renders/`
+(`--route` also re-runs the board routing first). It runs the independent parts (board, plate artwork, knobs,
+caps with body and fit check, plate with viewer data, firmware) in parallel and prints each one's output when
+it ends; a part stops at its first failed check, and the build fails after all parts have ended, naming the
+ones that failed. Renders 1 to 4 are screenshots of the 3D view (`#shot-h`, `#shot-c`, `#shot-e`, `#shot-a`
+after the URL; `#shot-c` is the clean top view).
 
-- JLCPCB: [gerbers](production/avionics-panel-rev1-gerbers.zip) and, for the default full assembly (both
-  sides, nothing to solder), [BOM](production/avionics-panel-rev1-BOM-full.csv) and
-  [CPL](production/avionics-panel-rev1-CPL-full.csv); the economic option fits the SMD bottom side only
-  ([BOM](production/avionics-panel-rev1-BOM.csv), [CPL](production/avionics-panel-rev1-CPL.csv); see
-  [assembly variants](docs/ordering.md#assembly-variants))
-- LCSC: full assembly, two spare keys and a reference RANGE control; economic option, the
-  [through-hole parts](production/avionics-panel-rev1-THT-LCSC.csv) (spares included), hand-soldered
-- JLCCNC: [plate STEP](production/avionics-panel-rev1-plate.step),
-  [drawing](production/avionics-panel-rev1-plate-drawing.pdf),
-  [marking DXF](production/avionics-panel-rev1-plate.dxf)
-- JLC3DP: [body](production/avionics-panel-rev1-body.step),
-  [USB-C filler](production/avionics-panel-rev1-usb-filler.step),
-  key caps in four fit sets ([A](production/avionics-panel-rev1-caps-A.zip),
-  [B](production/avionics-panel-rev1-caps-B.zip), [C](production/avionics-panel-rev1-caps-C.zip),
-  [D](production/avionics-panel-rev1-caps-D.zip); one file per cap in `caps-single-A.zip` etc.),
-  [light pipes](production/avionics-panel-rev1-lightpipes.step), knobs
-  ([outer](production/avionics-panel-rev1-knob-outer.step),
-  [outer FMS](production/avionics-panel-rev1-knob-outer-fms.step),
-  [inner](production/avionics-panel-rev1-knob-inner.step),
-  [RANGE](production/avionics-panel-rev1-knob-range.step), plus `-tight` and `-loose` fit variants)
-- JLCMC: the M3 screws, a separate order (see [Ordering](docs/ordering.md))
-- Local: feet, a few consumables and tools (see [Ordering](docs/ordering.md)), optional
-  [steel plate](production/avionics-panel-rev1-steel.dxf)
+The steps one by one, with Nix from the repository root:
 
-Renders: [hero](renders/1-hero.png), [top](renders/2-top.png), [exploded](renders/3-exploded.png),
-[seated view](renders/4-seated.png), [PCB top](renders/5-pcb-top.png),
-[PCB bottom](renders/6-pcb-bottom.png), [plate artwork](renders/7-plate-artwork.png),
-[fit check](renders/8-fit-check.png).
+- `nix-shell nix/shells.nix -A gen` (numpy, scipy, matplotlib, scikit-image, pillow, librsvg). Inside `pcb/`:
+  `python3 precheck.py` (placement clearances and bottom-side part bodies), `python3 run_route.py 5` (routing,
+  writes `routed.json`; seed 5 routes every net without a detour and within the USB length limits, as do 1, 2,
+  3, 4, 7, 9, 13 and 14 of seeds 1 to 14; `run_route.py <seed> x` writes `routed_<seed>.json` instead, for
+  trying seeds in parallel), `python3 make.py` (Gerbers), `python3 check.py` (every electrical and
+  manufacturing check on the Gerbers, see [Electronics](docs/architecture/electronics.md)), `python3
+  render.py`, `python3 make_bom.py`, `python3 make_schematic.py`; `dbg.py` plots a region of the routed board.
+  Inside `mech/`: `python3 make_plate_art.py`.
+- `nix-shell nix/shells.nix -A occ` (OpenCascade, for the exact solids). Inside `mech/`: `python3
+  make_caps.py` (key caps), `python3 make_mech.py` (body, steel plate DXF), `python3 make_plate_step.py`
+  (plate STEP and drawing), `python3 make_knobs.py` (knobs, light pipes), `python3 check_fit.py` (sections and
+  clearances), `python3 make_viewer_data.py` (`viewer/geometry.js`, every dimension the 3D view uses).
+- `nix-shell nix/shells.nix -A firmware`: `pytest` from the repository root
+  ([firmware tests](docs/architecture/firmware.md#code-and-tests)).
 
-## Tooling
-
-The board and the plate artwork need numpy, scipy, matplotlib, scikit-image and pillow (and librsvg for
-the plate preview). With Nix, from the repository root:
-
-```sh
-nix-shell nix/shells.nix -A gen
-```
-
-Inside `pcb/`: `python3 precheck.py` (placement clearances and bottom-side part bodies),
-`python3 run_route.py 5` (routing, writes `routed.json`; seed 5 routes every net without a detour and
-within the USB length limits, as do 1, 2, 3, 4, 7, 9, 13 and 14 of seeds 1 to 14; `run_route.py <seed> x` writes
-`routed_<seed>.json` instead, for trying seeds in parallel), `python3 make.py` (Gerbers),
-`python3 check.py` (electrical check, DRC, drills, paste, mask dams, the LED cutouts, hand-soldering clearances,
-decoupling with a capacitor of its own per IOVDD pin, net lengths and USB, the ESD array in line and the fuse
-ahead of every load, nothing under the USB-C shell, legend clearances, JLC footprints and CPL rotations,
-through-hole footprints and their top-side CPL, bottom-side pin order, on the Gerbers),
-`python3 render.py`, `python3 make_bom.py`, `python3 make_schematic.py` (schematic PDF from the netlist).
-`dbg.py` plots a region of the routed board.
-Inside `mech/`: `python3 make_plate_art.py`.
-
-The caps, body, plate, knobs and light pipes are exact solids (STEP, STL or OBJ) built with OpenCascade:
-
-```sh
-nix-shell nix/shells.nix -A occ
-```
-
-Inside `mech/`: `python3 make_caps.py` (key caps), `python3 make_mech.py` (body, steel plate DXF),
-`python3 make_plate_step.py` (plate STEP and drawing), `python3 make_knobs.py` (knobs, light pipes),
-`python3 check_fit.py` (sections and clearances), `python3 make_viewer_data.py` (`viewer/geometry.js`,
-every dimension the 3D view uses).
-
-The firmware tests run on the PC with `pytest` (from the repository root): `firmware/test_panel.py` covers
-the logic, `firmware/test_code.py` runs `code.py` and `firmware/test_boot.py` runs `boot.py` against stub
-hardware modules, `tests/test_pins.py` checks the firmware pins against the board nets, and
-`tests/test_micropython.py` compiles the board files with CircuitPython 9.2's own `mpy-cross` (the board's
-compiler, passed in `MPY_CROSS`) and with the MicroPython unix port (`micropython` on the PATH). Each check
-skips without its compiler; `build.sh` provides MicroPython and sets `REQUIRE_MICROPYTHON=1`, which makes
-that check fail instead; it provides `mpy-cross` (and sets `REQUIRE_MPY_CROSS=1`) only on Linux x86-64 and
-ARM64, and elsewhere prints a notice and that check skips. `nix-shell nix/shells.nix -A firmware` has
-pytest and MicroPython.
-
-`./build.sh` does all of the above in one go (`--route` also re-runs the routing first) and copies the
-results to `production/` and `renders/`. It runs the independent parts (board, plate artwork, knobs, caps
-with body and fit check, plate with viewer data, firmware) in parallel and prints each one's output when it
-ends; a part stops at its first failed check, and the build fails after all parts have ended, naming the
-ones that failed. Renders 1 to 4 are screenshots of the 3D view (`#shot-h`, `#shot-c`, `#shot-e`,
-`#shot-a` after the URL; `#shot-c` is the clean top view).
-
-Every Nix package comes from the nixpkgs revision locked in `flake.lock`, so a local build and CI write
-the same files (STEP, STL, PDF and PNG output depends on the OpenCascade and matplotlib versions).
+Every Nix package comes from the nixpkgs revision locked in `flake.lock`, so a local build and CI write the
+same files (STEP, STL, PDF and PNG output depends on the OpenCascade and matplotlib versions).
 `nix/nixpkgs.nix` reads the lock without the flakes feature, and `nix/shells.nix` defines the environments
 above from it. Dependabot proposes newer nixpkgs-unstable revisions as pull requests (weekly, each at least a
-week old), and CI fails on any output that the update changes: run `./build.sh` on that branch and commit
-what changed. To move nixpkgs by hand:
-`nix --extra-experimental-features 'nix-command flakes' flake update nixpkgs`, then `./build.sh`, and commit
-`flake.lock` with every output that changed.
+week old), and CI fails on any output that the update changes: run `./build.sh` on that branch and commit what
+changed. To move nixpkgs by hand: `nix --extra-experimental-features 'nix-command flakes' flake update
+nixpkgs`, then `./build.sh`, and commit `flake.lock` with every output that changed.
 
 ## License
 

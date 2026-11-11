@@ -1,0 +1,147 @@
+# Firmware
+
+CircuitPython 9.2.9 on the panel's RP2040, in [firmware/](../../firmware/). Installing it is in
+[Bring-up](../building/bring-up.md), mapping its buttons in [Mapping](../using/mapping.md).
+
+```mermaid
+flowchart LR
+  matrix["Key matrix: 28 keys, RANGE switches,<br>ALT/HDG and FMS pushes<br>(keypad.KeyMatrix, every 20 ms)"]
+  push["FREQ push<br>(keypad.Keys)"]
+  rings["7 encoder rings<br>(rotaryio, one PIO state machine each)"]
+  panel["panel.py: SHIFT, UNIT, frequency mode,<br>acceleration, repeats, bounce, pulse queue"]
+  lights["SHIFT and UNIT lights<br>(pwmio)"]
+  dev1["Joystick device 1<br>128 buttons"]
+  dev2["Joystick device 2<br>64 buttons, unit 2"]
+  pc["MobiFlight or the sim"]
+  matrix --> panel
+  push --> panel
+  rings --> panel
+  panel --> lights
+  panel --> dev1 --> pc
+  panel --> dev2 --> pc
+```
+
+`code.py` reads the hardware and feeds key events, encoder detents and the time to `panel.py`, which holds all
+the logic, has no hardware access and runs on the PC in the tests. `boot.py` sets up the two joysticks (one
+USB HID interface with two report IDs) and hides the drive and console in normal use. `buttonmap.py` numbers
+the buttons, and `make_buttons.py` (PC only) writes [BUTTONS.md](../../firmware/BUTTONS.md).
+
+## State
+
+Every state lives in the firmware and is sent as fixed joystick buttons, so mappings never need variables or
+preconditions and can't get out of sync with the panel:
+
+- SHIFT: one-shot for keys, kept through a knob session ([Controls](../using/controls.md#shift)). Shifted
+  functions are their own buttons.
+- UNIT: the firmware keeps the state and drives the white light. The unit 2 versions of the FMS keys, FMS
+  knob, CDI and OBS, flip-flops and frequency knob are sent on the second joystick device. The cockpit
+  lighting behind SHIFT on the FMS knob stays on device 1 in either unit. Button numbers are frozen: new
+  buttons go at the end of a device, retired ones keep their slot. A snapshot test in `firmware/test_panel.py`
+  checks it.
+- Frequency knob: the push cycles COM, NAV, ADF, and each mode sends its own turn buttons. The mode returns to
+  COM 10 s after the last turn or push.
+- Knob acceleration ([table](../using/controls.md#knobs)), UP / DN auto-repeat and the pan tilt repeat rate
+  are done in the firmware.
+- Squawk with SHIFT: the outer ring steps the first two digits, the inner ring the last two (octal, 0 to 7 per
+  digit).
+- RANGE: a tilt closes its direction switch and "com"; on a slow tilt "com" can close well before the
+  direction. So the centre push (PTR) is sent on release, and only if no direction closed during the press. A
+  tilt repeats, first after 300 ms, then every 120 ms.
+
+## Knob steps
+
+Knob detents are button pulses: 56 ms pressed, 56 ms released, so 112 ms per step (about 9 steps per second),
+up to 8 queued per button. MobiFlight polls joysticks from a 20 ms timer, which Windows' 15.6 ms clock
+stretches to about 31 ms, and only sees the state at each poll: press and gap both have to outlast a poll, or
+two detents merge into one. The PC fetches reports every 8 ms (the HID endpoint's interval), and both
+joysticks share that endpoint. With a report still waiting from the previous loop pass and both devices
+changing in the current one, an edge can arrive up to three frames (24 ms) late: a 50 ms gap can reach the PC
+as 26 ms, shorter than a poll. `check_timing` in [panel.py](../../firmware/panel.py) keeps press and gap at
+32 + 3 x 8 = 56 ms or more, and a step no longer than the 120 ms tilt repeat. A fast spin of a
+one-step-per-detent knob (FMS, COM kHz) can lose steps beyond the 8 queued and runs on for up to 0.9 s.
+Turning the other way drops the steps still queued in the old direction, so the knob stops at once. The
+[first-board check](../building/bring-up.md#first-board) measures whether MobiFlight counts every detent.
+
+## Keys and switch bounce
+
+Keys and pushes follow the same rule as the knobs: a quick tap stays pressed for at least 56 ms, and a new
+press of the same button waits until that button has been released for 56 ms. MobiFlight then sees every tap,
+and a fast double tap (CLR twice, a flip-flop) stays two presses. A longer press is sent as long as it is held
+(and 30 ms more, see below); right after a quick tap of the same button it starts up to 112 ms late, once the
+tap and its gap are over.
+
+The keys are scanned every 20 ms and a press is passed on at the first scan that reads it (no added delay). A
+switch that bounces for longer than a scan shows up as a release and a new press one scan later, which the 56
+ms minimum press would turn into two presses (AP on and straight off again). So a release of a key or push
+waits 30 ms: a new press of it in that time was a bounce, and the press goes on as if never released. A switch
+that chatters while held stays one press throughout: UP and a tilt keep repeating (a repeat due in those 30 ms
+waits for them, the ones after it keep their time), and a shifted push or tilt keeps SHIFT.
+
+- The 30 ms count from the scans that read the release and the press (`keypad.Event.timestamp`), not from the
+  loop pass that picks them up, so a pass that waits for the PC can't stretch a bounce past them.
+  CircuitPython 9.2 scans the keys from its 1/1024 s tick interrupt, so the two scans of such a bounce are
+  about 20 ms apart, more when code that runs with interrupts off holds the second one up: `check_timing`
+  keeps the 30 ms at least one and a half scans, half a scan to spare. A finger lifts and comes back in no
+  less than about 60 ms, so a real double tap stays two presses.
+- The cost: every release reaches the PC 30 ms late, so a held key, UP / DN repeat or tilt stops 30 ms later
+  (no extra step), a shifted push or tilt keeps SHIFT for 3 s from 30 ms after it is let go, and the RANGE
+  centre push sends PTR 30 ms after its release. In those 30 ms the push or tilt still counts as held, so a
+  key pressed then doesn't end its SHIFT session and a second SHIFT tap then doesn't cancel it (the light
+  stays on and shows it). Only the other hand can do that within 30 ms of the release, and until then the
+  release may still turn out a bounce. Presses, the SHIFT one-shot and UNIT act on the press and are not
+  delayed.
+- After a keypad overflow, `code.py` releases a key whose release was lost at once, without the wait. Raising
+  the keypad's `debounce_threshold` instead would delay every press and release by a scan (20 ms) and the
+  recovery after a lost event too.
+
+## Errors
+
+If the main loop raises, `code.py` releases every button (the PC keeps the last report otherwise, so a key
+could stay held), prints the traceback, waits 2 s and restarts itself, also when printing fails (a
+`MemoryError` may leave no room to format it). The pause lets Ctrl-C on the serial console stop even a crash
+loop at the REPL. There is no watchdog: every wait in the loop is bounded, and a watchdog reset would drop the
+joysticks off USB and run `boot.py` again.
+
+## USB
+
+Reports are only sent while the host has the panel mounted and not suspended. A host that enumerates the panel
+but never reads it (Linux, while no program has the joystick open) makes each send wait 2 s and fail. Both
+joysticks share one USB interface, so they fail alike and share one back-off: after a failed send neither
+device tries for 1 s, then 2, 4 and up to 8 s, so a loop pass never stalls for more than 2 s, and in the end
+the loop stalls for 2 s of every 10.
+
+In update mode (SHIFT held at plug-in) the panel is a composite device with the drive and the console, and the
+joysticks move to another interface number: Windows may then see them as new controllers
+([Mapping](../using/mapping.md#update-mode-and-guids)).
+
+## Lights
+
+`code.py` drives the SHIFT and UNIT lights with PWM at `LED_DUTY` = 0x4800 and 0x4000 (about 28 and 25 % of
+full), the amber one dimmed to a quarter for its pulse in SHIFT's last second. It sets the drive strength of
+their pads (GP12, GP15) to 12 mA, which their series resistors need ([Electronics](electronics.md#lights)), by
+writing the RP2040's pad registers through `memorymap` (CircuitPython has no call for it); should that fail,
+it prints "LED drive strength not set" and the lights stay dimmer at the 4 mA default.
+
+## Pins
+
+Seven `rotaryio` encoders use 7 of the RP2040's 8 PIO state machines; the Pico bench creates all seven too.
+GP25, the FREQ outer encoder's B line, is the Pico CircuitPython build's status LED during boot and in safe
+mode (harmless, limited current); a custom board definition would avoid it, and the spare GP14 cannot be
+routed in its place. The pins are in `code.py` and the [GPIO map](electronics.md#gpio-map).
+
+## Code and tests
+
+Run `pytest` from the repository root for the host tests: `test_panel.py` covers `panel.py`, `test_code.py`
+runs `code.py` against stub hardware modules, `test_boot.py` runs `boot.py`, `tests/test_pins.py` checks every
+pin `code.py` uses against the nets in `pcb/board.py`, and `tests/test_micropython.py` compiles every board
+file with CircuitPython 9.2's own `mpy-cross`, the board's compiler (passed in `MPY_CROSS`), and with the
+MicroPython unix port from nixpkgs (`micropython` on the PATH). MicroPython alone is not enough: CircuitPython
+9.2 is built on an older MicroPython, so newer syntax could pass it and still fail on the board.
+
+`mpy-cross` is not in nixpkgs: on Linux x86-64 and ARM64, `build.sh` builds
+[firmware/mpy-cross.nix](../../firmware/mpy-cross.nix), which fetches Adafruit's 9.2.9 build for those two,
+pinned by its hash, and points it at the glibc from nixpkgs (the binary expects the usual FHS loader in
+`/lib64` or `/lib`, which NixOS lacks); on other systems it prints a notice and that check skips. `build.sh`
+also provides MicroPython. Each check skips without its compiler; `build.sh` sets `REQUIRE_MICROPYTHON=1` and,
+where it provides `mpy-cross`, `REQUIRE_MPY_CROSS=1`, which turn the skips into failures. Both check syntax
+only: a module or argument the board's build lacks shows up on the bench.

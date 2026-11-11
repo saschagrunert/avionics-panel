@@ -1,6 +1,6 @@
 name: lint
-# Python (ruff.toml), shell (shellcheck, shfmt with .editorconfig), Markdown (.markdownlint-cli2.yaml),
-# the workflows (actionlint) and their security (zizmor). Every tool comes from the locked nixpkgs, like locally.
+# Python (ruff.toml), shell (shellcheck, shfmt with .editorconfig), Markdown (.markdownlint-cli2.yaml), dead
+# relative links and anchors (lychee), the workflows (actionlint) and their security (zizmor). Every tool comes from the locked nixpkgs, like locally.
 on:
   push:
     branches:
@@ -32,6 +32,9 @@ jobs:
             run: shfmt -d .
           - tool: markdownlint-cli2
             run: markdownlint-cli2
+          # relative links and their anchors in the Markdown and HTML files, offline: web links are not checked
+          - tool: lychee
+            run: lychee --offline --include-fragments --no-progress .
           - tool: actionlint
             run: actionlint
           - tool: zizmor

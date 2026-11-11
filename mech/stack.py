@@ -55,9 +55,10 @@ CAP = dict(w=9.6, h=6.4, r=1.2, height=5.7, cham=0.45, base=PLUNGER_TOP - 2.7)
 # tactile bars on SHIFT, DN (front edge) and UP (back edge): closed box 1.0 wide (JLC3DP embossed detail: 0.8),
 # sunk 0.05 into the top, its outer side 0.1 inside the top face. Only 0.5 proud, below JLC3DP's 0.8 for
 # embossed detail (a solid 3.2 x 1.0 ridge, not fine detail): a taller front bar hides the bottom of the SHIFT
-# and DN legends from the seat; check_fit.py proves it hides none at 45 deg (a review watch item, docs/ordering.md)
+# and DN legends from the seat; check_fit.py proves it hides none at 45 deg (a review question,
+# docs/building/building.md)
 CAP_BAR = dict(w=3.2, d=1.0, proud=0.5, sink=0.05, inset=0.6)
-# seated eye over the cap tops: about 42 deg at a desk plus the 6 deg wedge, 48 deg (docs/controls.md); 45 is
+# seated eye over the cap tops: about 42 deg at a desk plus the 6 deg wedge, 48 deg (docs/using/controls.md); 45 is
 # the conservative value, since a flatter sightline lets the front bar hide more of the legend
 CAP_VIEW_DEG = 45.0
 # Cap legends (make_caps.py, the 3D view): Barlow Semi Condensed Bold (its thinnest strokes, the horizontal
@@ -83,10 +84,11 @@ CAP_SOCKET = dict(d=3.8, rib_w=1.2, rib_angles=(0, 90, 180, 270), relief=0.35, l
 # 0.11 small to 0.02 large, C 0.21 to 0.08 small (CAP_GRIP). The set that seats fully and holds is the one
 # to fit. Each set's caps carry 1 to 4 dimples (CAP_MARK, A 1 ... D 4) on the underside, inside the key hole
 # where they never show. The sets take a plunger off TE's model by as much, together with the print: TE's drawing
-# allows +-0.30 on its diameter, so a plunger lot at the edge of that needs the sets moved (docs/mechanics.md).
+# allows +-0.30 on its diameter, so a plunger lot at the edge of that needs the sets moved
+# (docs/architecture/mechanics.md).
 # One compliant set cannot replace them in a 9.6 x 6.4 cap: springs that grip over the drawing's 0.6 and the print's
 # 0.4 deflect up to 0.55 each, and two of them, one printed 0.1 thin and one 0.1 thick, hold the cap up to 0.18 off
-# its plunger, twice the 0.09 the key hole leaves for that (docs/mechanics.md).
+# its plunger, twice the 0.09 the key hole leaves for that (docs/architecture/mechanics.md).
 CAP_SETS = {"A": 3.15, "B": 3.25, "C": 3.35, "D": 3.05}
 CAP_GRIP = (0.02, 0.15)                    # diametral interference: holds from, still seats by hand up to
 CAP_PRINT = (-0.20, 0.20)                  # rib circle print error (mm on the dia) the four sets must cover
@@ -144,7 +146,7 @@ POCKET_TOL = 0.1
 # sockets under the face, USB-C filler, body walls). At JLCCNC's default +-0.1 instead every row still passes, with
 # 0.05 less on each side, bar the cosmetic cap socket ceiling, which may then stand up to 0.04 above the face on a
 # plunger 0.3 high (TE's tolerance): so the drawing and the JLCCNC remark ask for +-0.05, and +-0.1 is acceptable,
-# cosmetic only (docs/ordering.md). End faces flat, square to the bore. They sit on the PCB inside its copper
+# cosmetic only (docs/building/building.md). End faces flat, square to the bore. They sit on the PCB inside its copper
 # keep-out (pcb/board.py MOUNT_KEEPOUT).
 BOSS = dict(d=5.5, d_tol=0.1, h=6.05, h_tol=0.05, root_r=0.3)   # root_r: inside corner at the back face, at most
 # Thread M3-6H from the boss end face, full thread at least `full` deep, drilled dia `drill` `depth` deep plus the
@@ -195,7 +197,7 @@ CAP_TOL = dict(pcb=0.075, switch=0.15, plate=0.1, cap=0.1, socket=0.05)
 # about this much (deg); check_fit.py takes the shift room with the cap turned by it.
 CAP_TURN = 1.0
 ENC_ON_PINS = 0.15                         # encoder (bushing) on its pins and lugs before soldering, radial
-# Seating of the encoders and the RKJXT, checked on arrival and when hand-soldering (docs/mechanics.md).
+# Seating of the encoders and the RKJXT, checked on arrival and when hand-soldering (docs/architecture/mechanics.md).
 # Encoders: the body stands flush on the board, and a SEAT_GAP feeler gauge must not slide under it. A part that
 # passes stands less than that proud at the edge of its base (EC11_BASE wide), or is tilted by up to SEAT_GAP over
 # that base: check_fit.py raises the top corners by the gap times their reach from the far base edge over the
@@ -234,7 +236,7 @@ SLEEVE_CLEAR = 0.9                         # outer knob counterbore around the f
 # the wall height over the boss tops under the PCB, PCB -0.16, the plate back up to ANODISE / 2 low over bare boss
 # ends and bowed towards the walls by PLATE_FLAT (most at the middle of the long walls), and the bosses at their
 # lowest: 0.57 at the drawing's +-0.05, 0.62 at JLCCNC's default +-0.1, so 0.65; check_fit.py has the row. A wall
-# that touched would take the screw's clamp off the board (docs/mechanics.md, Fastening).
+# that touched would take the screw's clamp off the board (docs/architecture/mechanics.md, Fastening).
 WALL_GAP = 0.65
 
 # encoder shafts (z above the PCB); "sleeve" is the fixed bushing
@@ -290,7 +292,7 @@ FLUTES = {"outer": dict(n=24, depth=0.45, taper=0.05, cham=0.8),
           "range": dict(n=22, depth=0.32, taper=0.05, cham=0.6)}
 OUTER_FLUTES = {"ALTHDG": "outer", "FREQ": "outer", "FMS": "outer_fms"}   # each dual knob's outer ring
 # knob legends: degrees their arc is turned from the horizontal towards the user, for the plate artwork and
-# the 3D view alike, chosen so a seated eye sees as much of each as the knobs allow (docs/controls.md).
+# the 3D view alike, chosen so a seated eye sees as much of each as the knobs allow (docs/using/controls.md).
 KNOB_LEGEND_TILT = {"ALTHDG": 20, "FREQ": 10, "FMS": 20, "RANGE": 35}
 
 # Legends, the one source for the caps (make_caps.py), the plate (make_plate_art.py), the board silkscreen
@@ -386,7 +388,7 @@ PCB_BOW = 0.1
 # row. The light pipe rows take PLATE_FLAT in full. Every row still passes up to about 0.17 (the light pipes' clamp
 # goes first, then the body walls at 0.19), bar the cosmetic cap socket ceiling, which may then stand up to 0.05
 # above the face on a plunger 0.3 high; that is what to answer should JLCCNC ask, but not with the bosses at +-0.1
-# as well: then flatness up to about 0.12 (docs/ordering.md).
+# as well: then flatness up to about 0.12 (docs/building/building.md).
 PLATE_FLAT = 0.1
 # The two body posts under the middle of the PCB (make_mech.py) end SUPPORT_SHORT under it, so with JLC3DP's
 # MJF +-0.3 (post height against the bosses) they lift the board by at most SUPPORT_LIFT; a firm press bends it

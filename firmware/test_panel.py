@@ -549,7 +549,7 @@ def test_chatter_keeps_a_tilt_repeating():
 
 def test_chatter_keeps_a_shifted_push_shifted():
     # SHIFT, then the FMS push held 4 s with a one-scan dropout after 1 s: SHIFT stays with the knob until 3 s
-    # after the release, as for a clean push (docs/controls.md), and the push sends one CABIN_LT
+    # after the release, as for a clean push (docs/using/controls.md), and the push sends one CABIN_LT
     clean = [(0, "FMS_PUSH", True), (4000, "FMS_PUSH", False)]
     trace = hold_trace(clean, 7500, shifted=True)
     assert all(level == P.LIGHT_FULL for level, _, _ in trace[:4000 + P.SHIFT_MS - P.SHIFT_WARN_MS])

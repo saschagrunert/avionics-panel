@@ -425,7 +425,7 @@ def holes_and_paste(pads, vias, pth, npth):
 # The through-hole parts on the top are soldered by hand from the bottom, where the SMD parts sit: a solder
 # bridge from an iron-soldered pin to an SMD pad of another net is a short that is hard to see and to clear (a
 # through-hole LED's GND pad 0.28 mm from its resistor's GPIO pad was one). J1's four shell tabs (pin-in-paste)
-# are filled with solder by hand from the top too, and the excess comes out on the bottom (docs/mechanics.md).
+# are filled with solder by hand from the top too, and the excess comes out on the bottom (docs/building/assembly.md).
 # Every exposed SMD pad of another net keeps HAND_SMD_MIN of copper from every hand-soldered pad: room for the
 # iron's tip and a fillet.
 HAND_SMD_MIN = 1.0

@@ -223,7 +223,7 @@ for ref, (dx, dy) in PIN1_DOT.items():
 NAME_SPOTS = {"U1": [(mx + 4.5, my - 4.0)], "U2": [(mx - 3.6, 37.9)], "J1": [(B.USB_X - 5.3, 4.2)],
               "U3": [(B.LDO[0] - 0.75, B.LDO[1] + 2.0), (B.LDO[0] + 2.6, B.LDO[1]), (B.LDO[0], B.LDO[1] + 3.6)],
               "Y1": [(B.XTAL[0] - 2.6, 17.9)], "U4": [(B.ESD[0] - 2.6, B.ESD[1])]}
-# (F1 has no spot clearly its own between R_IN, R_CC2, the crystal and C_X2: docs/firmware.md describes it)
+# (F1 has no spot clearly its own between R_IN, R_CC2, the crystal and C_X2: docs/building/bring-up.md describes it)
 for ref, spots in NAME_SPOTS.items():
     for i, (x, y) in enumerate(spots):
         try:
