@@ -132,16 +132,14 @@ unplug the panel, delete this registry key (regedit) and plug it in again:
 HKEY_CURRENT_USER\System\CurrentControlSet\Control\MediaProperties\PrivateProperties\Joystick\OEM\VID_239A&PID_80F4
 ```
 
-The steps are the same for both [assembly variants](ordering.md#assembly-variants), bar the soldering:
-an economic board arrives with only the SMD bottom side and gets its J1 tabs and through-hole parts
-soldered in steps 1, 4 and 7, the encoders and the RANGE control last, so a board that turns out dead
-before then doesn't take the expensive parts with it. A fully assembled board arrives with everything
-on: skip the soldering and run the same checks. That protection is lost: a board that fails in step 1 or
-2 has its encoders and RANGE control on already (they come off only by desoldering), and the second board
-takes over. Do the [arrival checks](mechanics.md#on-arrival) first.
+The default, fully assembled board arrives with everything on: nothing to solder, only the checks below. A
+board that fails in step 1 or 2 has its encoders and RANGE control on already, and the second board takes
+over. Do the [arrival checks](mechanics.md#on-arrival) first. Economic option: the board arrives with only
+the SMD bottom side and gets its J1 tabs and through-hole parts soldered in steps 1, 4 and 7 (marked), the
+encoders and the RANGE control last, so a board that turns out dead before then doesn't take them with it.
 
-1. Before the first power-up: solder the four J1 shell tabs from the top (economic variant,
-   [Mechanics](mechanics.md#hand-soldering); in the full variant check that JLCPCB filled them), look over the
+1. Before the first power-up (economic option: first solder the four J1 shell tabs from the top,
+   [Mechanics](mechanics.md#hand-soldering)), look over the
    bottom side (RP2040, USB-C, regulator), then measure VBUS to GND on both pads of the fuse F1 (J1's side and
    the regulator's) and 3V3 to GND (across C_OUT0) with the multimeter; none may be a short. Then switch the
    multimeter to diode mode, red probe on F1's pad on the regulator's side (VBUS_F), black on R_DP's pad
@@ -162,9 +160,9 @@ takes over. Do the [arrival checks](mechanics.md#on-arrival) first.
    crystal) to RPI-RP2. The firmware is checked against 9.2.9, the version `mpy-cross.nix` pins; newer
    versions are untested, and the board page on circuitpython.org no longer offers 9.2. The board restarts
    with a CIRCUITPY drive.
-4. Economic variant: solder the 28 keys (seated flat, see [Mechanics](mechanics.md#hand-soldering)), but
+4. Economic option only: solder the 28 keys (seated flat, see [Mechanics](mechanics.md#hand-soldering)), but
    not yet the encoders and the RANGE control: they are the expensive parts, and a board that turns out dead
-   in the next steps would take them with it. Full variant: nothing to solder.
+   in the next steps would take them with it.
 5. Copy `boot.py`, `code.py`, `panel.py` and `buttonmap.py` from the repository to CIRCUITPY (the
    repository's `code.py`, with `PICO_TEST = False` and `divisor=2`, not the copy edited for the Pico
    bench), then replug with SHIFT held until CIRCUITPY appears: `boot.py` only runs at power-up, and SHIFT
@@ -189,11 +187,11 @@ takes over. Do the [arrival checks](mechanics.md#on-arrival) first.
    Then hold each key and check that the button of the matrix position right below it (same column of
    `MATRIX` in [buttonmap.py](../firmware/buttonmap.py)) stays released: a column that recovers too slowly
    after its row is scanned shows a phantom press there, even where that part isn't fitted yet (economic
-   variant: the RANGE control and the encoder pushes). The
+   option: the RANGE control and the encoder pushes). The
    likeliest pairs are UP to DN, DN to RANGE_A (a PAN button) and ENT to the FMS push (FMS_CRSR). Below
    HOME is SHIFT, which sends no button: while HOME is held, the amber light must stay off. If a phantom
    shows up, check that column's pull-up before going on.
-7. Economic variant: unplug and solder the three encoders and the RANGE control. Both variants: check
+7. Economic option: unplug and solder the three encoders and the RANGE control first. Then check
    every ring (direction, outer / inner), the RANGE tilt directions and every push the same way, then the
    [first-board checks](#first-board). Repeat the column check with the parts fitted: hold DN, no PAN
    button; hold ENT, no FMS_CRSR. A ring that turns the wrong way or swapped rings are fixed in `RINGS` in
@@ -222,14 +220,14 @@ takes over. Do the [arrival checks](mechanics.md#on-arrival) first.
 ### When bring-up fails
 
 - No RPI-RP2 drive (step 2): try another cable (a charge-only cable shows nothing) and another USB port,
-  then measure 3V3 again. With 3V3 right, look at J1's contacts and the crystal Y1 under the magnifier for
-  bridges or a lifted pin (solder wick for a bridge). Still nothing: put this board aside and use the
-  second one. The bench Pico can also serve as an SWD probe on the board's SWCLK and SWDIO pads (bottom,
+  then measure 3V3 again. With 3V3 right, look at J1's contacts and the crystal Y1 under the magnifier
+  (Tools) for bridges or a lifted pin (solder wick for a bridge). Still nothing: put this board aside and use
+  the second one. The bench Pico can also serve as an SWD probe on the board's SWCLK and SWDIO pads (bottom,
   next to the RP2040; GND on J1's shell) with Raspberry Pi's debugprobe firmware, to see whether the
   RP2040 answers at all.
 - A key that never registers (step 6): check its diode, the SOD-123 next to it on the bottom, under the
   magnifier: its cathode band must be on the pad with the silk bar. A reversed one is turned round with
-  the iron. Then check the key's four solder joints (economic variant).
+  the iron. Then check the key's four solder joints (economic option).
 - A key that registers as another one, or several keys at once: a solder bridge, or the phantom press of a
   slow column (step 6).
 - A ring that counts the wrong way or rings swapped: `RINGS` in `code.py` (step 7).
