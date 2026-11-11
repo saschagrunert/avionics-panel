@@ -419,15 +419,13 @@ def add_usb(pads):
                         drill=0.6, slot=(0.6, 1.4), pip=True))
         NPTH.append((cx + s * 2.89, 5.79, 0.6))
     ye = yc + L / 2                     # 7.70: pad ends, the breakout starts here
-    yo = 11.2
     yv = ye + 0.55                      # small vias just below the pads
-    for sx in (-1, 1):
-        plane_via((cx + sx * 3.2, ye), "GND", 0, 0.82)
-    # VBUS: B4A9 runs to the regulator; A4B9 joins it over the top layer, round the far side of the pad row
-    vx = LDO[0] - LDO_PX                # U3's VIN pad centre
-    vb = [(cx + 2.4, ye), (cx + 2.4, 9.6), (vx - 0.8, 9.6), (vx, 8.8), (vx, LDO[1])]
-    for (x1, y1), (x2, y2) in pairwise(vb):
-        seg(x1, y1, x2, y2, "VBUS", "B", 0.4)
+    plane_via((cx - 3.2, ye), "GND", 0, 0.82)
+    # B1A12 shares C_IN's GND via (add_support): its own, below the pad, would sit on R_IN
+    seg(cx + 3.2, ye, LDO[0] - 3.4, LDO[1], "GND", "B", 0.3)
+    # VBUS: B4A9 runs straight down into R_IN and on through the fuse F1 (add_protection); A4B9 joins it over the
+    # top layer, round the far side of the pad row
+    seg(cx + 2.4, ye, cx + 2.4, yv, "VBUS", "B", 0.4)
     seg(cx - 2.4, ye, cx - 2.4, yv, "VBUS", "B", 0.3)
     for sx in (-1, 1):
         via(cx + sx * 2.4, yv, "VBUS", SVIA_D, SVIA_DRILL)
@@ -437,23 +435,89 @@ def add_usb(pads):
     tie = [(cx - 2.4, yv), (cx - 2.0, yv - 0.4), (cx - 2.0, yt), (cx + 2.0, yt), (cx + 2.0, yv - 0.4), (cx + 2.4, yv)]
     for (x1, y1), (x2, y2) in pairwise(tie):
         seg(x1, y1, x2, y2, "VBUS", "F", 0.3)
-    # CC: one 5.1k each; CC1 (A5) to the left resistor, CC2 (B5) to the right one
-    seg(cx - 1.25, ye, cx - 1.25, 10.6, "CC1"); seg(cx - 1.25, 10.6, cx - 2.8, 11.4, "CC1")
-    seg(cx + 1.75, ye, cx + 1.75, 10.0, "CC2"); seg(cx + 1.75, 10.0, cx + 1.5, 10.25, "CC2")
-    seg(cx + 1.5, 10.25, cx + 1.5, yo, "CC2")
-    pads.append(smd("J1.E_CC2", "CC2", cx + 1.5, yo, 0.3, 0.3, "circle", paste=False, mask=False))
-    # D-: B7 + A7 joined on the bottom; D+: A6 + B6 joined on the top through two small vias, then out left
-    seg(cx - 0.75, ye, cx - 0.75, 9.5, "USB_DN_C"); seg(cx + 0.25, ye, cx + 0.25, 9.5, "USB_DN_C")
-    seg(cx - 0.75, 9.5, cx + 0.25, 9.5, "USB_DN_C"); seg(cx - 0.25, 9.5, cx - 0.25, yo, "USB_DN_C")
-    pads.append(smd("J1.E_DN", "USB_DN_C", cx - 0.25, yo, 0.3, 0.3, "circle", paste=False, mask=False))
-    for dx in (-0.25, 0.75):
-        seg(cx + dx, ye, cx + dx, yv, "USB_DP_C")
-        via(cx + dx, yv, "USB_DP_C", SVIA_D, SVIA_DRILL)
-    seg(cx + 0.75, yv, cx - 1.0, yv, "USB_DP_C", "F")
-    seg(cx - 1.0, yv, cx - 1.25, yv + 0.25, "USB_DP_C", "F"); seg(cx - 1.25, yv + 0.25, cx - 1.25, yo, "USB_DP_C", "F")
-    pads.append(Pad("J1.E_DP", "USB_DP_C", cx - 1.25, yo, "circle", 0.3, 0.3, "F", paste=False, mask=False))
+
+    def path(net, pts, layer="B", w=FAN_W):
+        for (x1, y1), (x2, y2) in pairwise(pts):
+            seg(x1, y1, x2, y2, net, layer, w)
+    # CC: one 5.1k each, all on fixed copper. CC1 (A5) turns west under the VBUS via to R_CC1, CC2 (B5) runs
+    # straight down between the ESD array and the fuse to R_CC2.
+    a, b = chip(pads, "R_CC1", cx - 3.4, 10.4, "CC1", "GND", "5.1k", "C23186", vertical=True)
+    plane_via(b, "GND", -1.0, 0)
+    path("CC1", [(cx - 1.25, ye), (cx - 1.25, 9.1), (cx - 1.75, a[1]), a])
+    # (an 0402 below the fuse, clear of the crystal)
+    a, b = chip(pads, "R_CC2", cx + 2.9, 13.45, "CC2", "GND", "5.1k", "C25905", size="0402")
+    plane_via(b, "GND", 0.8, 0)
+    path("CC2", [(cx + 1.75, ye), (cx + 1.75, a[1] - 0.25), (cx + 2.0, a[1]), a])
+    JOINED.update(("R_CC1.1", "R_CC2.1"))
+    add_protection(pads)
     # JLC's origin: midway between the pad row and the front shell pegs
     part("J1", "TYPE-C-31-M-12", "C165948", cx, (yc + 2.10) / 2, 180, foot="USB-C 16P")
+
+
+# USB protection right behind J1 (issue #14). U4, an SRV05-4 ESD array (SOT-23-6, four channels with steering
+# diodes to its VCC pin and a clamp from VCC to GND), takes D+ and D- straight through: each line comes from J1
+# into one pad, crosses under the body to the opposite pad and leaves from there (pins 6 -> 1 for D+, 4 -> 3 for
+# D-, two channels per line), so the array is in line, with no stub. R_IN (1 ohm, the hot-plug damping) and F1,
+# a 0.5 A PTC fuse (1206), sit in VBUS between J1 and everything else; VBUS_F is the protected side (C_IN, the
+# regulator, and U4's VCC pin, so its clamp is the one on VBUS_F). A short there (a shorted clamp, U4 placed
+# turned by 180 degrees) burns R_IN open, long before F1 trips: R_IN is the sacrificial element for shorts
+# behind it, F1 covers slow overloads (docs/electronics.md). U4 centred under the D- contact B7's column: pins
+# 4 / 3 at USB_X - 0.75, 6 / 1 at USB_X + 1.15, VCC (pin 5) towards J1, GND (pin 2) away from it.
+ESD = (118.2 + SHIFT_X, 11.7)
+ESD_PX, ESD_PY = 0.95, 1.2          # SOT-23-6: pad columns 0.95 apart, rows 2.4 apart (JLC's footprint of C7420376)
+FUSE = (122.0 + SHIFT_X, 12.05)     # F1 centre: its pin 1 under R_IN, clear of CC2 to the west
+R_IN = (120.55 + SHIFT_X, 9.8)      # R_IN centre (0603, vertical): in B4A9's line, between its via and the fuse
+FUSE_PX = 1.5                       # pad centres east and west of FUSE (Bourns: 1.0 x 1.6 pads, 2.0 apart)
+
+
+def add_protection(pads):
+    cx, ye, yv = USB_X, 7.70, 8.25
+    ex, ey = ESD
+    pins = {1: (ESD_PX, ESD_PY, "USB_DP_C"), 2: (0, ESD_PY, "GND"), 3: (-ESD_PX, ESD_PY, "USB_DN_C"),
+            4: (-ESD_PX, -ESD_PY, "USB_DN_C"), 5: (0, -ESD_PY, "VBUS_F"), 6: (ESD_PX, -ESD_PY, "USB_DP_C")}
+    for n, (dx, dy, net) in pins.items():           # on the bottom, seen from the top: pin 1 south-east
+        pads.append(smd(f"U4.{n}", net, ex + dx, ey + dy, 0.55, 1.2))
+    part("U4", "SRV05-4", "C7420376", ex, ey, 0, foot="SOT-23-6")
+
+    def path(net, pts, layer="B", w=FAN_W):
+        for (x1, y1), (x2, y2) in pairwise(pts):
+            seg(x1, y1, x2, y2, net, layer, w)
+    xn, xp, yi, yx = ex - ESD_PX, ex + ESD_PX, ey - ESD_PY, ey + ESD_PY
+    # D-: B7 straight down into pin 4, A7 joins it below the D+ via; D+: B6 down to a via over pin 6's column, and
+    # A6, boxed in by the D- contacts, joins it there over the top layer. Both cross under the body to the exits.
+    path("USB_DN_C", [(cx - 0.75, ye), (xn, yi)])
+    path("USB_DN_C", [(cx + 0.25, ye), (cx + 0.25, 8.8), (cx - 0.75, 8.8)])
+    yd = yv + 0.6                                   # the D+ via, on pin 6's column
+    path("USB_DP_C", [(cx + 0.75, ye), (cx + 0.75, yd - (xp - cx - 0.75)), (xp, yd), (xp, yi)])
+    path("USB_DP_C", [(cx - 0.25, ye), (cx - 0.25, yv)])
+    via(cx - 0.25, yv, "USB_DP_C", SVIA_D, SVIA_DRILL)
+    path("USB_DP_C", [(cx - 0.25, yv), (xp - 0.6, yv), (xp, yd)], "F")
+    via(xp, yd, "USB_DP_C", SVIA_D, SVIA_DRILL)
+    for x, net in ((xn, "USB_DN_C"), (xp, "USB_DP_C")):
+        path(net, [(x, yi), (x, yx)], w=0.2)
+    # VCC: a small via between the lines, right above pin 5, and over the top layer east to a via on the VBUS_F
+    # line from the fuse to the regulator (add_support: down from C_IN's pad row at 45 degrees to U3's VIN)
+    yc5 = yi - 0.6 - 0.15 - SVIA_D / 2              # 0.15 mm from pin 5's pad
+    via(ex, yc5, "VBUS_F", SVIA_D, SVIA_DRILL)
+    path("VBUS_F", [(ex, yc5), (ex, yi)], w=0.3)
+    vf = (FUSE[0] + FUSE_PX + 0.4, LDO[1] + 1.2)    # on that line, 0.275 mm from C_IN's pad
+    path("VBUS_F", [(ex, yc5), (vf[0] - (yc5 - vf[1]), yc5), vf], "F", 0.3)
+    via(*vf, "VBUS_F", SVIA_D, SVIA_DRILL)
+    # GND: its own via under the body, between the two rows
+    seg(ex, yx, ex, ey, "GND", "B", 0.3)
+    via(ex, ey, "GND")
+    JOINED.update(("U4.4", "U4.5", "U4.6"))         # on J1's fixed copper; the exits U4.3 / U4.1 are router terminals
+    # R_IN and F1 in series between J1 (VBUS) and the rest (VBUS_F: C_IN, the regulator and U4's VCC, add_support).
+    # R_IN (1 ohm) damps the ringing of the cable's inductance with C_IN when VBUS is switched on hard; anywhere in
+    # the series path does the same, and only here, in B4A9's line above the fuse, is there room for it.
+    a, b = chip(pads, "R_IN", *R_IN, "VBUS", "VBUS_R", "1R", "C22936", vertical=True)
+    fx, fy = FUSE
+    seg(cx + 2.4, yv, *a, "VBUS", "B", 0.4)
+    seg(*b, fx - FUSE_PX, fy, "VBUS_R", "B", 0.4)
+    pads.append(smd("F1.1", "VBUS_R", fx - FUSE_PX, fy, 1.0, 1.6))
+    pads.append(smd("F1.2", "VBUS_F", fx + FUSE_PX, fy, 1.0, 1.6))
+    part("F1", "MF-NSMF050-2", "C75464", fx, fy, 180, foot="1206")
+    JOINED.update(("R_IN.1", "R_IN.2", "F1.1", "F1.2"))
 
 
 # J1's metal shell seen from the top (HRO drawing: 8.94 wide, 7.35 long), its face 0.52 mm past the board edge
@@ -465,12 +529,13 @@ LDO_PX = 1.2                    # U3's pad centres east and west of LDO (add_sup
 
 # Nominal package bodies of the bottom-side parts by footprint name: (x, y) in JLC's footprint frame at
 # rotation 0, swapped at 90 / 270. From JLC's package names where they give them (SOT-23-3_L2.9-W1.6,
-# SOP-8_L4.9-W3.9, SOD-123F_L2.7-W1.6, CRYSTAL-SMD_4P-L3.2-W2.5, LQFN-56_L7.0-W7.0), which match the
-# datasheets' nominal sizes; the chips at their EIA sizes (0603: 1.6 x 0.8, 0402: 1.0 x 0.5); J1 is J1_BODY.
+# SOT-23-6_L2.9-W1.6, SOP-8_L4.9-W3.9, SOD-123F_L2.7-W1.6, CRYSTAL-SMD_4P-L3.2-W2.5, LQFN-56_L7.0-W7.0), which
+# match the datasheets' nominal sizes; the chips at their EIA sizes (0603: 1.6 x 0.8, 0402: 1.0 x 0.5, the PTC
+# fuse's 1206: 3.2 x 1.6, Bourns 3.0 to 3.4 x 1.4 to 1.8); J1 is J1_BODY.
 # Leads reaching past a body (SOT-23, SOIC, SOD-123) sit on their pads: precheck.py keeps every body BODY_GAP
 # clear of every other body and of every pad of another part.
-BODY = {"0603": (1.6, 0.8), "0402": (1.0, 0.5), "SOD-123": (2.7, 1.6), "SOT-23": (1.6, 2.9),
-        "SOIC-8 150mil": (4.9, 3.9), "LQFN-56 7x7": (7.0, 7.0), "3225 4-pad": (3.2, 2.5)}
+BODY = {"0603": (1.6, 0.8), "0402": (1.0, 0.5), "1206": (3.2, 1.6), "SOD-123": (2.7, 1.6), "SOT-23": (1.6, 2.9),
+        "SOT-23-6": (2.9, 1.6), "SOIC-8 150mil": (4.9, 3.9), "LQFN-56 7x7": (7.0, 7.0), "3225 4-pad": (3.2, 2.5)}
 BODY_GAP = 0.2
 
 
@@ -589,27 +654,34 @@ def add_support(pads):
     # (Torex: 2.8 +-0.2 over the leads), so the joint gets a toe fillet
     lx, ly = LDO
     px = LDO_PX
-    pads.append(smd("U3.3", "VBUS", lx - px, ly, 1.1, 0.6))
+    pads.append(smd("U3.3", "VBUS_F", lx - px, ly, 1.1, 0.6))
     pads.append(smd("U3.1", "GND", lx + px, ly - 0.95, 1.1, 0.6))
     pads.append(smd("U3.2", "3V3", lx + px, ly + 0.95, 1.1, 0.6))
     part("U3", "XC6206P332MR", "C5446", lx, ly, 180, foot="SOT-23")
     plane_via((lx + px, ly + 0.95), "3V3", 0, 1.05)
-    # C_IN west of U3, between J1's shell tab and the VIN pin, its VBUS pad on the VBUS line from J1 and its GND
-    # pad towards the (GND) tab: the VBUS pad 1.9 mm from the hand-soldered tab (0.8 mm before, a bridge to GND),
-    # and the way north past U3 stays free for the lines over the top (C_IN sat in it, north of U3)
-    a, b = chip(pads, "C_IN", lx - 2.5, ly + 0.8, "GND", "VBUS", "1uF", "C15849", vertical=True)
+    # C_IN west of U3, between J1's shell tab and the VIN pin, its VBUS_F pad on the line from the fuse and its GND
+    # pad towards the (GND) tab: the VBUS_F pad 1.9 mm from the hand-soldered tab (0.8 mm before, a bridge to GND),
+    # and the way north past U3 stays free for the lines over the top (C_IN sat in it, north of U3). 10 uF, the
+    # part of C_OUT0. When VBUS is switched on hard (a live USB-A port), the cable's inductance rings with C_IN;
+    # R_IN (1 ohm, add_protection) in series with the cable and the fuse damps it, so the modelled input
+    # stays within 0.05 V of the 5.25 V step up to 1 uH of cable and under about 6.6 V on long ones, against the
+    # XC6206's 7.0 V absolute maximum (docs/electronics.md: C_IN's DC-bias loss, no clamp, cable 0.3 to 3 uH and
+    # 0.05 to 0.4 ohm, fuse 0.15 to 0.7 ohm). 10 uF is USB 2.0's limit for a device at attach, and the regulator's
+    # output capacitors add to it.
+    a, b = chip(pads, "C_IN", lx - 2.5, ly + 0.8, "GND", "VBUS_F", "10uF", "C19702", vertical=True)
     plane_via(a, "GND", -0.9, 0)
-    JOINED.update(("U3.3", "C_IN.2"))   # both on the fixed VBUS line from J1 (add_usb): no router terminals
+    vx = lx - px                        # U3's VIN pad centre
+    fx = FUSE[0] + FUSE_PX              # the fuse's VBUS_F pad
+    for (x1, y1), (x2, y2) in pairwise([b, (fx, b[1]), (vx, b[1] - (vx - fx)), (vx, ly)]):
+        seg(x1, y1, x2, y2, "VBUS_F", "B", 0.4)
+    seg(fx, FUSE[1], fx, b[1], "VBUS_F", "B", 0.4)
+    JOINED.update(("U3.3", "C_IN.2"))   # both on the fixed VBUS_F line from the fuse: no router terminals
     a, b = chip(pads, "C_OUT0", lx + px, ly - 3.1, "3V3", "GND", "10uF", "C19702", vertical=True)
     seg(b[0], b[1], lx + px, ly - 0.95, "GND", "B", 0.4)           # cap GND straight to the regulator's GND pin
     plane_via(a, "3V3", 0, -1.0); plane_via(b, "GND", 1.0, 0)
-    # CC pull-downs 5.1k
-    a, b = chip(pads, "R_CC1", USB_X - 2.8, 12.2, "CC1", "GND", "5.1k", "C23186", vertical=True)
-    plane_via(b, "GND", 1.0, 0)
-    a, b = chip(pads, "R_CC2", USB_X + 1.5, 12.65, "CC2", "GND", "5.1k", "C23186", vertical=True)
-    plane_via(b, "GND", -1.0, 0)
     add_crystal(pads)
     d2, ybelow = add_core_caps(pads)
+    add_io_caps(pads)
     # USB series resistors 27R next to the RP2040's USB pins (south side), below the capacitors in the corner:
     # D- on top, D+ below, the RP2040 side on the left. The lines from the USB-C come down on the top layer and
     # land on two vias just below the resistors (D- between the pads, D+ under its pad), clear of the pads and
@@ -626,9 +698,9 @@ def add_support(pads):
         via(vx, vy, net_c)
         pads.append(Pad(f"{ref}.E", net_c, vx, vy, "circle", 0.3, 0.3, "F", paste=False, mask=False))
         JOINED.add(f"{ref}.2")
-    # decoupling (works through the 3V3 / GND planes)
-    for name, (cxx, cyy, d3, dg) in (("C_D0", (116.6 + SHIFT_X, 14.8, (-1.0, 0), (-1.0, 0))),
-                                     ("C_D1", (127.4 + SHIFT_X, 12.8, (1.0, 0), (1.0, 0))),
+    # decoupling on the 3V3 / GND planes, besides the capacitor at each IOVDD pin (add_io_caps). C_D0 sat north-west
+    # of the chip, where the USB lines now leave the ESD array; the pins it shared have capacitors of their own.
+    for name, (cxx, cyy, d3, dg) in (("C_D1", (127.4 + SHIFT_X, 12.8, (1.0, 0), (1.0, 0))),
                                      ("C_D2", (*d2, (1.0, 0), (1.0, 0))),        # next to pins 42-44, 1 uF
                                      ("C_D3", (MCU[0] - 4.5, 47.4, (-1.0, 0), (1.0, 0)))):
         # C_D2 at VREG_VIN (pin 44) is 1 uF: RP2040 datasheet 2.9.3 / 2.10.1, 1 uF close to VREG_VIN
@@ -703,11 +775,17 @@ def add_core_caps(pads):
     x42, y42 = mx + 3.875, my + qfn_pad_xy(42)[0][1]
     for (x1, y1_), (x2, y2_) in pairwise([(x42, y42), (x42 + 0.325, y42 + 0.325), (d2[0], d2[1] - 0.8)]):
         seg(x1, y1_, x2, y2_, "3V3", "B", TRACE_W)
-    # below pin 50, between the fan-outs of pins 51 and 47
-    cx = x50 + 0.3
-    a, b = chip(pads, "C_1V1", cx, yo + 1.925, "1V1", "GND", "100nF", "C14663", vertical=True)
-    for (x1, y1_), (x2, y2_) in pairwise([(x50, yo), (x50, yo + 0.475), (cx, yo + 0.775), a]):
-        seg(x1, y1_, x2, y2_, "1V1", "B", TRACE_W)
+    # below pins 50 and 49, between the fan-outs of pins 51 and 47: two 0402 0.25 mm apart, C_1V1 (DVDD, pin 50)
+    # straight below its pin and C_IO49 (IOVDD pin 49, with USB_VDD pin 48 beside it) east of it
+    x49, x48 = (mx + qfn_pad_xy(n)[0][0] for n in (49, 48))
+    yc = yo + 2.025                                     # far enough down for the fan-outs to have spread
+    a, b = chip(pads, "C_1V1", x50, yc, "1V1", "GND", "100nF", "C1525", vertical=True, size="0402")
+    seg(x50, yo, *a, "1V1", "B", TRACE_W)
+    plane_via(b, "GND", 0, 1.0)
+    a, b = chip(pads, "C_IO49", x50 + 0.8, yc, "3V3", "GND", "100nF", "C1525", vertical=True, size="0402")
+    for (x1, y1_), (x2, y2_) in pairwise([(x49, yo), (x49, yo + 0.475), (x48, yo + 0.875)]):
+        seg(x1, y1_, x2, y2_, "3V3", "B", 0.2)
+    seg(x48, yo, *a, "3V3", "B", 0.2)
     plane_via(b, "GND", 0, 1.0)
     # the three 1V1 vias joined on the top layer, round the 3V3 via of pins 48/49 and the exposed pad's vias
     v23, v45, v50 = [next((p.x, p.y) for p in pads if p.name == f"U1.V{n}") for n in (23, 45, 50)]
@@ -716,6 +794,46 @@ def add_core_caps(pads):
         seg(x1, y1_, x2, y2_, "1V1", "F", TRACE_W)
     seg(v45[0], v45[1], v45[0], yl, "1V1", "F", TRACE_W)
     return d2, yf + 1.9 + 0.3 + 0.15                     # below the 0402 GND vias
+
+
+def add_io_caps(pads):
+    """One 100 nF (0402) per IOVDD pin, as in Raspberry Pi's minimal design (issue #15), each on its own trace
+    from the pin and with its own GND via. Pin 42 has C_D2 (add_core_caps), pin 49 C_IO49 (with USB_VDD, pin 48).
+    The others sit inside the fan-out, where no pin of theirs fans out:
+    - pin 1 (west, the corner pin): below pin 2's fan-out line, south-west of the pin
+    - pin 10 (west): along the pin's own fan-out lane (it has no signal), the capacitor in the lane just past the
+      fan-out vias, where that pin's via would be; the matrix lanes on the top layer leave that row free
+    - pin 22 (north): in the gap above pins 22 and 23 (DVDD) between the fan-outs of pins 21 and 24
+    Pin 33 (east) has none: the same spot east of the fan-out is the only way north for the ALT/HDG and FREQ lines
+    (GP18 to GP23), between the fan-out vias and the FREQ encoder's pin A 3.4 mm further east. A capacitor there,
+    with its GND via south, north or north-east of it, left one of GP20 to GP24 unrouted on every seed from 1 to
+    14. Pin 33 drops into the 3V3 plane through its via under the chip, as before (check.py: PLANE_SHARED)."""
+    mx, my = MCU
+
+    def path(pts, w=FAN_W):
+        for (x1, y1), (x2, y2) in pairwise(pts):
+            seg(x1, y1, x2, y2, "3V3", "B", w)
+
+    def outer(pin):
+        (px, py), (nx, ny), lat = qfn_pad_xy(pin)
+        return mx + px + nx * 0.4375, my + py + ny * 0.4375, nx, ny, lat
+    # pin 1: straight from the pad's outer end, 45 degrees down to the capacitor
+    ox, oy, *_ = outer(1)
+    a, b = chip(pads, "C_IO1", ox - 0.725, oy + 1.2, "3V3", "GND", "100nF", "C1525", vertical=True, size="0402")
+    path([(ox, oy), a], 0.2)
+    plane_via(b, "GND", 0, 1.0)
+    # pin 10: the fan-out line the pin would have, then on into the capacitor's 3V3 pad 0.45 mm past the via
+    # column; the GND pad beyond it, its via 1 mm further west
+    ox, oy, nx, _ny, lat = outer(10)
+    ex, ey = mx + nx * FAN_END_W, my + lat * FAN_SPREAD_W
+    a, b = chip(pads, "C_IO10", ex - 0.95, ey, "GND", "3V3", "100nF", "C1525", size="0402")
+    path([(ox, oy), (ox + nx * 0.4, oy), (ex, ey), b])
+    plane_via(a, "GND", -1.0, 0)
+    # pin 22: up from the pad's outer end, the capacitor 0.2 mm east of the pin, its GND via above it
+    ox, oy, *_ = outer(22)
+    a, b = chip(pads, "C_IO22", ox + 0.2, oy - 1.225, "GND", "3V3", "100nF", "C1525", vertical=True, size="0402")
+    path([(ox, oy), (ox, oy - 0.525), b], 0.2)
+    plane_via(a, "GND", 0, -1.0)
 
 
 def add_matrix_lanes(pads):
@@ -789,10 +907,11 @@ def keepouts():
     mx, my = MCU
     e = FAN_END - 0.3
     k.append(("B", "rect", (mx - FAN_END_W + 0.3, my - e, mx + e, my + e)))
-    # USB-C: the shell (J1_BODY), the contacts and their pre-routed breakout
+    # USB-C: the shell (J1_BODY), the contacts and their pre-routed breakout into the ESD array, with the VBUS and
+    # D+ links on the top layer
     k.append(("B", "rect", J1_BODY))
-    k.append(("B", "rect", (USB_X - 3.4, 5.8, USB_X + 3.4, 11.0)))
-    k.append(("F", "rect", (USB_X - 1.3, 7.6, USB_X + 0.6, 11.0)))
+    k.append(("B", "rect", (USB_X - 3.4, 5.8, USB_X + 3.4, ESD[1] - ESD_PY)))
+    k.append(("F", "rect", (USB_X - 2.6, 7.6, USB_X + 1.4, ESD[1] - ESD_PY - 0.5)))
     for (x, y, d) in NPTH:
         k.append(("FB", "circle", (x, y, d / 2 + 0.4)))
     return k

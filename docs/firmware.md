@@ -141,12 +141,21 @@ on: skip the soldering and run the same checks. That protection is lost: a board
 takes over. Do the [arrival checks](mechanics.md#on-arrival) first.
 
 1. Before the first power-up: solder the four J1 shell tabs from the top (economic variant,
-   [Mechanics](mechanics.md#hand-soldering); in the full variant check that JLCPCB filled them), look over
-   the bottom side (RP2040, USB-C, regulator), then measure VBUS to GND (across C_IN) and 3V3 to GND
-   (across C_OUT0) with the multimeter; neither may be a short. The bottom silkscreen names only the
-   bigger parts: C_IN and C_OUT0 are the two small capacitors right next to the regulator U3 (the
-   three-pin part beside J1), C_IN between U3 and J1, C_OUT0 on U3's side towards the board edge. J1's
-   metal shell is GND and the easiest place for the black probe.
+   [Mechanics](mechanics.md#hand-soldering); in the full variant check that JLCPCB filled them), look over the
+   bottom side (RP2040, USB-C, regulator), then measure VBUS to GND on both pads of the fuse F1 (J1's side and
+   the regulator's) and 3V3 to GND (across C_OUT0) with the multimeter; none may be a short. Then switch the
+   multimeter to diode mode, red probe on F1's pad on the regulator's side (VBUS_F), black on R_DP's pad
+   towards J1 (D+ between U4 and R_DP). A good board reads open or climbs past about 1.5 V (any path runs
+   through the regulator, a load and one of U4's diodes in series). A steady 0.5 to 0.8 V from the start means
+   U4 is turned by 180 degrees: its GND pin then sits on VBUS_F and a steering diode conducts forward into D+,
+   which the resistance range does not show as a short. Plugged in like that, the board burns R_IN open and
+   likely damages U4: have U4 replaced before the first power-up. The bottom
+   silkscreen names only the bigger parts, and not F1: it is the largest two-pad part on the board (3.2 x
+   1.6 mm, its pads 3 mm apart), lying along the long edge about 4 mm below J1's pad row, between the ESD
+   array U4 (named, the six-pin part right below J1's contacts) and the regulator U3 (the three-pin part
+   beside J1). R_IN, a small resistor, lies across the board between J1's pad row and F1's pad nearer U4.
+   C_OUT0 is the small capacitor on U3's side towards the board edge. J1's metal shell is GND and the easiest
+   place for the black probe.
 2. Plug in USB. With empty flash the RP2040 starts its USB bootloader and shows a drive called RPI-RP2.
    Check that 3V3 reads about 3.3 V across C_OUT0 (or from its 3V3 end to J1's shell).
 3. Copy the [CircuitPython 9.2.9 UF2 for the Raspberry Pi Pico][uf2] (same chip, 2 MB flash, 12 MHz

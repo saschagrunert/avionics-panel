@@ -49,11 +49,11 @@ def rect_gap(a, b):
 
 # --- part bodies: a body on another body or on another part's pad lifts or tilts one of them (C_IN sat under
 # a corner of U3 before). Pads as their bounding box; fan-out and breakout points (no pin) do not count: U1's
-# F<pin> and V<pin>, J1's E_<net> and the USB resistors' E (an encoder's E is its push pin and counts).
+# F<pin> and V<pin> and the USB resistors' E (an encoder's E is its push pin and counts).
 body = B.bodies()
 refs = sorted(body)
 pins = [(p.name.split(".")[0], p.name, p.rect() if p.shape == "rect" else bbox(pad_geom(p))) for p in pads
-        if not re.fullmatch(r"U1\.[FV]\d+|J1\.E_\w+|R_D[MP]\.E", p.name)]
+        if not re.fullmatch(r"U1\.[FV]\d+|R_D[MP]\.E", p.name)]
 body_bad, near_body, near_pad = 0, (9.0, ""), (9.0, "")
 for i, a in enumerate(refs):
     for b in refs[i + 1:]:

@@ -5,9 +5,8 @@ router and the checks work from that. This script draws the same netlist as four
 the drawing is looked up from a pad, nothing is typed in twice, and the script asserts at the end that
 every pad of the netlist shows up exactly with its net (pins without a net get a no-connect cross).
 Skipped as duplicates: the RP2040's fan-out and via pads (U1.F*, U1.V*; the two SWD
-pads U1.F24 / U1.F25 are drawn as test points), the USB-C's exposed breakout pads (J1.E_*) and the vias the
-USB-C lines land on (R_DP.E, R_DM.E).
-Pin names come from the datasheets (RP2040 table 2, W25Q16JV, XC6206, USB-C, PEC11D, RKJXT).
+pads U1.F24 / U1.F25 are drawn as test points) and the vias the USB lines land on (R_DP.E, R_DM.E).
+Pin names come from the datasheets (RP2040 table 2, W25Q16JV, XC6206, USB-C, SRV05-4, PEC11D, RKJXT).
 """
 import math
 import re
@@ -34,7 +33,7 @@ PADS = B.build()
 NET = netlist(PADS)
 PART = {r: (v, lcsc) for r, v, lcsc, *_ in B.PARTS}
 REFS = sorted({r for r, _ in NET})
-POWER = {"GND", "3V3", "1V1", "VBUS"}
+POWER = {"GND", "3V3", "1V1", "VBUS", "VBUS_F"}
 SHOWN = set()                       # (ref, pin, net) of every pin on the drawing
 PAPER = (420.0, 297.0)              # A3 landscape, mm
 ZOOM = 1.4                          # one drawing unit is 1.4 mm on paper: all coordinates below are in units
@@ -68,8 +67,7 @@ def spare_gpios():
 
 
 def skipped(ref, pin):
-    return ((ref == "J1" and pin.startswith("E_"))
-            or (ref in ("R_DP", "R_DM") and pin == "E")         # where the USB-C lines land
+    return ((ref in ("R_DP", "R_DM") and pin == "E")         # where the USB lines land
             or (ref == "U1" and re.fullmatch(r"[FV]\d+", pin) is not None and pin not in ("F24", "F25")))
 
 
@@ -229,6 +227,10 @@ class Sheet:
                 for t in (-0.6, 0.6):
                     self.ax.annotate("", xy=pt(t + 1.2, 3.6), xytext=pt(t, 2.0),
                                      arrowprops=dict(arrowstyle="-|>", lw=0.6, color=INK, mutation_scale=5))
+        elif kind == "F":                                     # fuse: a box with the wire running through it
+            self.line(a, b, wire=False)
+            self.ax.add_patch(Polygon([pt(-2.5, -0.9), pt(2.5, -0.9), pt(2.5, 0.9), pt(-2.5, 0.9)], closed=True,
+                                      fill=False, ec=INK, lw=0.9))
         elif kind == "JP":                                    # solder jumper, open: two half-round pads
             self.line(a, pt(-1.8, 0), wire=False); self.line(pt(1.8, 0), b, wire=False)
             ang = math.degrees(math.atan2(dy, dx))
@@ -282,15 +284,29 @@ def sheet_power(s):
               " so either plug orientation works")
     pos = s.ic("J1", 24, 186, 20, right=right, pitch=6.0, wired={"A6", "B6", "A7", "B7", "A5", "B5"},
                title=f"{PART['J1'][0]} USB-C receptacle ({PART['J1'][1]})")
-    for (pa, pb), r in ((("A6", "B6"), "R_DP"), (("A7", "B7"), "R_DM")):
+    # the ESD array in line on both lines (in on pins 6 / 4, out on 1 / 3), its VCC clamp on VBUS_F, behind the fuse
+    lines = ((("A6", "B6"), "R_DP"), (("A7", "B7"), "R_DM"))
+    ins = [next(p for p in ("4", "6") if net("U4", p) == net("J1", pa)) for (pa, _pb), _r in lines]
+    outs = [next(p for p in ("1", "3") if net("U4", p) == net("J1", pa)) for (pa, _pb), _r in lines]
+    io = {"1": "I/O1", "3": "I/O2", "4": "I/O3", "6": "I/O4"}         # SRV05-4 datasheet pin names
+    u4 = s.ic("U4", 90, 171, 18, left=[(ins[0], io[ins[0]]), ("5", "VCC"), (ins[1], io[ins[1]])],
+              right=[(outs[0], io[outs[0]]), ("2", "GND"), (outs[1], io[outs[1]])], pitch=6.0,
+              wired=set(ins + outs), title=f"{PART['U4'][0]} ESD array ({PART['U4'][1]})")
+    for ((pa, pb), r), pi, po in zip(lines, ins, outs, strict=True):
         (xa, ya), (xb, yb) = pos[pa], pos[pb]
         ym = (ya + yb) / 2
-        rp = s.two(r, 66, ym, "r", pins=("2", "1"))
         s.wire([(xa, ya), (56, ya), (56, yb), (xb, yb)], [("J1", pa), ("J1", pb)])
-        s.wire([(56, ym), rp["2"]], [(r, "2")], check=("J1", pa))
+        s.wire([(56, ym), u4[pi]], [("U4", pi)], check=("J1", pa))
         s.dot(56, ym)
         s.text(57, ym + 0.6, net("J1", pa), 5.6, color=WIRE, va="bottom")
+        rp = s.two(r, u4[po][0] + 5, u4[po][1], "r", pins=("2", "1"))
+        s.wire([u4[po], rp["2"]], [("U4", po), (r, "2")])
         s.end(*rp["1"], r, "1", "r")
+    r = s.two("R_IN", 84, 184, "r")                 # the damping resistor and the fuse, VBUS (J1) to VBUS_F
+    s.end(*r["1"], "R_IN", "1", "l")
+    f = s.two("F1", 102, 184, "r")
+    s.wire([r["2"], f["1"]], [("R_IN", "2"), ("F1", "1")])
+    s.end(*f["2"], "F1", "2", "r")
     for pin in ("A5", "B5"):
         x, y = pos[pin]
         r = next(r for r in REFS if r.startswith("R_CC") and net(r, "1") == net("J1", pin))
@@ -320,12 +336,15 @@ def sheet_power(s):
     for i, ref in enumerate(sorted(caps, key=lambda r: (rail(r) != "3V3", r))):
         top = "1" if net(ref, "1") != "GND" else "2"
         bot = "2" if top == "1" else "1"
-        p = s.two(ref, 26 + i * 25, 74, "d", pins=(top, bot))
+        p = s.two(ref, 26 + i * 20, 74, "d", pins=(top, bot))
         s.end(*p[top], ref, top, "u")
         s.end(*p[bot], ref, bot, "d")
-    s.note(20, 46, ["C_D0 to C_D3: IOVDD, USB_VDD and ADC_AVDD; C_D2 (1 uF) also VREG_IN. C_FL: flash VCC.",
-                    "C_BULK: bulk on the 3V3 plane. C_1V0 to C_1V2: DVDD and VREG_VOUT (the RP2040's internal",
-                    "1.1 V core regulator)."])
+    s.note(20, 46, ["C_IO1, C_IO10, C_IO22, C_IO49: one at each IOVDD pin but 33 (C_IO49 also USB_VDD); C_D2 (1 uF):",
+                    "IOVDD 42, ADC_AVDD and VREG_IN. C_D1, C_D3, C_BULK: on the 3V3 plane, shared by IOVDD 33. C_FL:",
+                    "flash VCC. C_1V0 to C_1V2: DVDD and VREG_VOUT (the RP2040's internal 1.1 V core regulator).",
+                    "U4 takes D+ and D- through two channels each. R_IN (1 ohm) damps the hot-plug ringing on C_IN",
+                    "and gives way first on a short on VBUS_F (U4's clamp included); F1 (0.5 A PTC) covers slow",
+                    "overloads."])
 
 
 # ---------------- sheet 2: RP2040, flash, crystal ----------------

@@ -206,18 +206,29 @@ for _name, x, y in B.DIODES:
                    if bar_clear(bx + d, y, HOLES, HOLE_GAP) and bar_clear(bx + d, y, MASK_B, BAR_GAP)), bx)
     line("B", [(bx, y - 0.75), (bx, y + 0.75)], BAR_W)   # cathode bar
 mx, my = B.MCU
-line("B", [(mx - 3.9, my + 4.6), (mx - 4.6, my + 4.6), (mx - 4.6, my + 3.9)], 0.16)   # pin 1 corner
-# pin 1 dots (0.4 mm) beside pin 1 of the flash (bottom-right), the regulator (north-east) and the crystal
-# (bottom-right corner), at least 0.15 mm from any mask opening; offsets from the pin 1 pad's centre
-PIN1_DOT = {"U2": (0.75, 0.6), "U3": (1.05, 0.0), "Y1": (1.05, 0.95)}
+# pin 1 corner, close to the chip: C_IO1 (pin 1's capacitor) sits further out
+line("B", [(mx - 3.2, my + 3.95), (mx - 3.9, my + 3.95), (mx - 3.9, my + 3.25)], 0.16)
+# pin 1 dots (0.4 mm) beside pin 1 of the flash (bottom-right), the regulator (north-east), the crystal
+# (bottom-right corner) and the ESD array (below its pin 1, the south-east one), at least 0.15 mm from any mask
+# opening; offsets from the pin 1 pad's centre
+PIN1_DOT = {"U2": (0.75, 0.6), "U3": (1.05, 0.0), "Y1": (1.05, 0.95), "U4": (0.0, 1.0)}
 for ref, (dx, dy) in PIN1_DOT.items():
     p = next(p for p in pads if p.name == f"{ref}.1")
     silk["B"].append(("dot", p.x + dx, p.y + dy, 0.4))
     CLEAR["B"].append(("cap", p.x + dx, p.y + dy, p.x + dx, p.y + dy, 0.2))
-# part names beside their bodies
-for ref, x, y in (("U1", mx + 4.5, my - 4.0), ("U2", mx - 3.6, 37.9), ("J1", B.USB_X - 5.3, 4.2),
-                  ("U3", B.LDO[0] - 0.75, B.LDO[1] + 2.0), ("Y1", B.XTAL[0] - 2.6, 17.9)):
-    T("B", ref, x, y)
+# part names beside their bodies, each at the first of its spots with room (the router's vias decide which)
+NAME_SPOTS = {"U1": [(mx + 4.5, my - 4.0)], "U2": [(mx - 3.6, 37.9)], "J1": [(B.USB_X - 5.3, 4.2)],
+              "U3": [(B.LDO[0] - 0.75, B.LDO[1] + 2.0), (B.LDO[0] + 2.6, B.LDO[1]), (B.LDO[0], B.LDO[1] + 3.6)],
+              "Y1": [(B.XTAL[0] - 2.6, 17.9)], "U4": [(B.ESD[0] - 2.6, B.ESD[1])]}
+# (F1 has no spot clearly its own between R_IN, R_CC2, the crystal and C_X2: docs/firmware.md describes it)
+for ref, spots in NAME_SPOTS.items():
+    for i, (x, y) in enumerate(spots):
+        try:
+            T("B", ref, x, y)
+            break
+        except AssertionError:
+            if i == len(spots) - 1:
+                raise
 T("B", "Avionics Panel rev 1 - RP2040 - USB-C", (B.COLS[2] + B.COLS[3]) / 2, 2.6, SILK_LOWER)
 T("B", "BOOT: bridge", B.BOOT[0], B.BOOT[1] + 2.4, SILK_LOWER)
 T("B", "while plugging in", B.BOOT[0], B.BOOT[1] + 4.35, SILK_LOWER)

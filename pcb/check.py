@@ -8,8 +8,8 @@
    pin-in-paste hole in its own opening), paste on every assembled pad and nowhere else
 7. solder mask dams (between openings on the mask Gerbers) against JLCPCB's black minimum, and every opening
    clear of its pad by the mask's registration
-8. copper path from every RP2040 supply pin to its nearest decoupling capacitor, and every decoupling
-   capacitor with its own plane vias
+8. copper path from every RP2040 supply pin to its nearest decoupling capacitor, one capacitor of its own per
+   IOVDD pin over the outer layers, and every decoupling capacitor with its own plane vias
 9. routed length of every net against its shortest tree (no detours), USB D+ / D- length and skew
 10. JLCPCB's footprint of every bottom-side part on our pads at its CPL rotation (pad numbers, positions)
 11. no copper on F or B within the mounting-hole keep-out (standoff end, body boss), only the plane inside
@@ -18,6 +18,8 @@
    top-side CPL position and rotation (full variant) on our holes pin by pin
 14. no copper on B under J1's shell but J1's own pads
 15. the legend clear of mask openings and holes, and inside the board outline by SILK_EDGE
+16. USB protection: the ESD array in line on D+ and D- right behind J1, the damping resistor and the fuse in
+    VBUS ahead of every load
 (precheck.py checks the placement before routing: fixed copper clearances and the bottom-side part bodies.)
 """
 import functools
@@ -250,7 +252,7 @@ def footprints(pads):
     byref = {}
     for p in pads:
         ref, pin = p.name.split(".", 1)
-        if not re.fullmatch(r"[FV]\d+|E_\w+|E", pin):
+        if not re.fullmatch(r"[FV]\d+|E", pin):
             byref.setdefault(ref, {})[pin] = p
     types = {}
     for ref, value, lcsc, x, y, rot, side in B.PARTS:
@@ -308,14 +310,14 @@ THERMAL = {"U1.EP"}         # exposed pad: its GND vias are meant to be there, c
 
 
 def assembled(p, bottom_refs):
-    """A pad JLCPCB solders: a pin of a bottom-side part (not a fan-out point, 1V1 probe via, USB-C breakout
-    point or SWD wire pad; those carry the part's name but no part pin), or a pin-in-paste hole of one (the
-    USB-C shell tabs)."""
+    """A pad JLCPCB solders: a pin of a bottom-side part (not a fan-out point, 1V1 probe via, USB resistor
+    breakout point or SWD wire pad; those carry the part's name but no part pin), or a pin-in-paste hole of one
+    (the USB-C shell tabs)."""
     ref, pin = p.name.split(".", 1)
     if p.pip:
         return ref in bottom_refs and "B" in p.layers
     return (ref in bottom_refs and not p.drill and p.layers == "B"
-            and not re.fullmatch(r"[FV]\d+|E_\w+|E", pin))
+            and not re.fullmatch(r"[FV]\d+|E", pin))
 
 
 def box_in(fb, pb):
@@ -593,11 +595,12 @@ def inset(g, x, y):
     return g[5] - pt_seg(x, y, *g[1:5])
 
 
-# Pads whose mask openings differ from their copper layers, on purpose: the routing points of the fan-out and the
-# USB lines stay under the mask (but the SWD pads U1.F24 and U1.F25, exposed), and the 1V1 probe pads are open on
-# the top only. Every other pad must be open on each of its layers, so a pad dropped from the mask in board.py
-# fails here, not only one the writer missed.
-MASK_EXCEPT = ((re.compile(r"U1\.F(?!2[45]$)\d+|J1\.E_\w+|R_D[MP]\.E"), ""), (re.compile(r"U1\.V\d+"), "F"))
+# Pads whose mask openings differ from their copper layers, on purpose: the routing points of the fan-out and of the
+# USB lines at the 27R resistors stay under the mask (but the SWD pads U1.F24 and U1.F25, exposed), and the 1V1
+# probe pads are open on the top only. Every other pad must be open on each of its layers (the ESD array, the fuse
+# and R_IN have no routing points), so a pad dropped from the mask in board.py fails here, not only one the writer
+# missed.
+MASK_EXCEPT = ((re.compile(r"U1\.F(?!2[45]$)\d+|R_D[MP]\.E"), ""), (re.compile(r"U1\.V\d+"), "F"))
 
 
 def mask_dams(pads):
@@ -656,23 +659,31 @@ def mask_dams(pads):
 
 # Decoupling, measured as the copper path from the RP2040 pin to the capacitor pad: trace length on the outer
 # layers plus, through a plane, the straight distance from via to via (pad centre to pad centre).
-# - Pins with a capacitor of their own (42-44 IOVDD / ADC_AVDD / VREG_VIN on C_D2, 1 uF, 45 VREG_VOUT on C_1V0,
-#   50 DVDD on C_1V1): at most OWN_CAP_MAX of copper. Raspberry Pi's minimal design puts each capacitor
-#   right at its pin; the limit keeps the supply side of the loop at about 2 nH, the order of the
-#   capacitor's own ESL plus its GND via (a 0.25 mm trace 0.2 mm over the 3V3 plane has about 0.3 nH/mm).
-# - Exceptions, no capacitor of their own: IOVDD 1, 10, 22, 33, RUN 26 (tied to 3V3) and USB_VDD / IOVDD 48, 49
-#   sit inside the fan-out (every lane around the chip is taken), so they drop straight into the 3V3 plane (at most
-#   PLANE_ENTRY_MAX of copper to the via) and share C_D0 to C_D3, C_FL and C_BULK on it. DVDD 23 on the
-#   north side has no room between the crystal and the fan-out; it reaches the 1V1 capacitors over the
-#   top layer through V23. Their paths are reported, not limited.
+# - Pins with a capacitor of their own: the IOVDD pins 1 on C_IO1, 10 on C_IO10, 22 on C_IO22, 42 with ADC_AVDD
+#   43 and VREG_VIN 44 on C_D2 (1 uF) and 49 with USB_VDD 48 on C_IO49, VREG_VOUT 45 on C_1V0 and DVDD 50 on
+#   C_1V1: at most OWN_CAP_MAX of copper. Raspberry Pi's minimal design puts each capacitor right at its
+#   pin; the limit keeps the supply side of the loop at about 2 nH, the order of the capacitor's own ESL plus its
+#   GND via (a 0.25 mm trace 0.2 mm over the 3V3 plane has about 0.3 nH/mm). The C_IO capacitors have no 3V3 via
+#   of their own (cap_vias): their pin feeds the plane through its via under the chip, so those pins (1, 10, 22,
+#   48, 49) must also reach the 3V3 plane within PLANE_ENTRY_MAX of copper.
+# - Exceptions, no capacitor of their own: IOVDD 33 and RUN 26 (tied to 3V3) drop straight into the 3V3 plane (at
+#   most PLANE_ENTRY_MAX of copper to the via) and share the capacitors on it; east of pin 33's fan-out lane is
+#   the only way north for the ALT/HDG and FREQ lines, and no seed routed them past a capacitor there
+#   (board.add_io_caps). DVDD 23 on the north side has no room between the crystal and the fan-out (C_IO22 takes
+#   the gap above pins 22 and 23); it reaches the 1V1 capacitors over the top layer through V23. Its path is
+#   reported, not limited.
 OWN_CAP_MAX = 6.0
 # - The regulator's input and output want 1 uF at the pin (RP2040 datasheet 2.9.3 / 2.10.1): the nearest
 #   capacitor of VREG_VIN (44) and VREG_VOUT (45) must be at least CAP_MIN_UF.
 CAP_MIN_UF = {44: 1.0, 45: 1.0}
 PLANE_ENTRY_MAX = 2.0
-PLANE_SHARED = {1, 10, 22, 26, 33, 48, 49}
+PLANE_SHARED = {26, 33}
 NO_ROOM = {23}
 CAP_VIA_MAX = 1.0          # every decoupling capacitor: its own plane via at most one stub from the pad centre
+# - One capacitor per IOVDD pin (issue #15): each IOVDD pin but 33 (above) reaches a capacitor of its own over the
+#   outer-layer copper alone (no plane in the path), within OWN_CAP_MAX, and no two IOVDD pins reach the same one
+#   first. A capacitor that only the plane brings within reach, or one shared by two IOVDD pins, fails.
+IOVDD = (1, 10, 22, 42, 49)
 
 
 def centre_line(g):
@@ -694,9 +705,10 @@ def closest_pair(sa, sb):
     return min(cands, key=lambda c: math.dist(*c))
 
 
-def copper_graph(net, pads, segments, vias):
-    """Nodes (pad centres, segment ends, vias, plane points) and edges (copper length) of one net."""
-    planed = net in B.PLANES.values()
+def copper_graph(net, pads, segments, vias, planes=True):
+    """Nodes (pad centres, segment ends, vias, plane points) and edges (copper length) of one net; with
+    planes=False the outer-layer copper and the vias alone."""
+    planed = planes and net in B.PLANES.values()
     adj = {}
 
     def edge(a, b, d):
@@ -786,19 +798,44 @@ def decoupling(pads, segments, vias):
         else:
             ok = d <= OWN_CAP_MAX
             rule = f"own capacitor (max {OWN_CAP_MAX})"
+            if re.fullmatch(r"C_IO\d+\.\d", c):         # its 3V3 side is this pin's trace: the pin feeds the plane
+                entry = min((v for k, v in dist.items() if k[0] == "plane"), default=math.inf)
+                ok = ok and entry <= PLANE_ENTRY_MAX
+                rule += f", pin to plane {entry:.2f} mm (max {PLANE_ENTRY_MAX})"
         uf = value[c.split(".")[0]]
         if pin in CAP_MIN_UF:
             ok = ok and uf >= CAP_MIN_UF[pin]
             rule += f", at least {CAP_MIN_UF[pin]:g} uF"
         bad += not ok
         print(f"  pin {pin:2d} {p.net}  {d:5.2f} mm  {c:8s} {uf:g} uF  {rule}  {'OK' if ok else 'FAIL'}")
+    # one capacitor per IOVDD pin, over the outer-layer copper alone
+    surface = copper_graph("3V3", pads, segments, vias, planes=False)
+    supply = dict(pins)
+    own = {}
+    for pin in IOVDD:
+        if supply[pin].net != "3V3":            # a plain raise: asserts vanish under -O
+            raise ValueError(f"IOVDD pin {pin} is on {supply[pin].net}, not 3V3")
+        dist = shortest(surface, ("pad", supply[pin].name, "B"))
+        own[pin] = min((dist.get(("pad", c.name, "B"), math.inf), c.name.split(".")[0]) for c in caps
+                       if c.net == "3V3")
+    users = {}
+    for pin, (_d, ref) in own.items():
+        users.setdefault(ref, []).append(pin)
+    for pin, (d, ref) in own.items():
+        shared = [q for q in users[ref] if q != pin and d < math.inf]
+        ok = d <= OWN_CAP_MAX and not shared
+        bad += not ok
+        why = f", also pin {shared[0]}'s" if shared else ""
+        print(f"  IOVDD pin {pin:2d}: own capacitor {ref if d < math.inf else 'none':7s} {d:5.2f} mm of outer-layer "
+              f"copper (max {OWN_CAP_MAX}){why}  {'OK' if ok else 'FAIL'}")
     return bad
 
 
 def cap_vias(pads, vias):
     """Every decoupling capacitor (one pad on GND, the other on a supply) has its own via into the GND plane
     and, if its supply is a plane (3V3), into that plane too: at most CAP_VIA_MAX from the pad centre and
-    nearer to that pad than to any other capacitor pad on the net."""
+    nearer to that pad than to any other capacitor pad on the net. The IOVDD capacitors (C_IO<pin>) take their
+    3V3 over the trace from their pin, which drops into the plane at the pin: their GND via only."""
     bad, n = 0, 0
     byref = {}
     for p in pads:
@@ -806,19 +843,19 @@ def cap_vias(pads, vias):
             byref.setdefault(p.name.split(".")[0], []).append(p)
     for _ref, ps in sorted(byref.items()):
         nets = {p.net for p in ps}
-        if "GND" not in nets or not nets & {"3V3", "1V1", "VBUS"}:
+        if "GND" not in nets or not nets & {"3V3", "1V1", "VBUS_F"}:
             continue                            # crystal load capacitors
         n += 1
         for p in ps:
-            if p.net not in B.PLANES.values():
+            if p.net not in B.PLANES.values() or (p.net == "3V3" and re.fullmatch(r"C_IO\d+\.\d", p.name)):
                 continue
             rivals = [q for q in pads if q.net == p.net and q is not p and re.fullmatch(r"C_\w+\.\d", q.name)]
             own = [v for v in vias if v[2] == p.net and math.hypot(v[0] - p.x, v[1] - p.y) <= CAP_VIA_MAX + 1e-6
                    and all(math.hypot(v[0] - q.x, v[1] - q.y) > math.hypot(v[0] - p.x, v[1] - p.y) for q in rivals)]
             if not own:
                 bad += 1; print(f"NO OWN {p.net} VIA within {CAP_VIA_MAX} mm of {p.name}")
-    print(f"capacitor vias: {n} decoupling capacitors, each plane pad with its own via within {CAP_VIA_MAX} mm, "
-          f"{bad} problems")
+    print(f"capacitor vias: {n} decoupling capacitors, each plane pad with its own via within {CAP_VIA_MAX} mm "
+          f"(the IOVDD capacitors' 3V3 pads: the trace from their pin), {bad} problems")
     return bad
 
 
@@ -871,6 +908,99 @@ def j1_shell(ras_b, pads):
     dy = np.maximum(np.maximum(y0 - ys * PX, ys * PX - y1), 0)
     print(f"J1 shell: no bottom copper under it but J1's pads, closest other copper {np.hypot(dx, dy).min():.2f} mm "
           f"from its outline; 0 problems")
+    return bad
+
+
+# USB protection (issue #14), on the Gerbers and the routed copper:
+# - The ESD array U4 is in line on D+ and D-: with its pads cut out of the bottom copper, J1's contacts of a line
+#   no longer reach that line's 27R resistor (outer layers joined through the plated holes), so no copper runs
+#   past the array; and its pad on the line is at most ESD_MAX of copper from each of J1's contacts.
+# - The damping resistor R_IN and the fuse F1 are in series on VBUS ahead of every load, U4's clamp (VCC, pin 5)
+#   included: J1 -> R_IN -> F1 -> VBUS_F (C_IN, U3, U4's VCC). Each net of the chain holds only the pads it should
+#   (VBUS_CHAIN), and with either part's pads cut out of the bottom copper, the copper on its input side (from J1,
+#   from R_IN) no longer reaches any pad on its output side, and no copper island touches the rims of both of its
+#   pads (nothing runs past or across it). So a shorted clamp, or U4 turned by 180 degrees, sits behind both:
+#   R_IN burns open, the host's port and cable are protected.
+ESD_MAX = 5.0
+USB_PROT = {"D+": (("J1.A6", "J1.B6"), "U4.6", "R_DP.2"), "D-": (("J1.A7", "J1.B7"), "U4.4", "R_DM.2")}
+# part, net of its pin 1, net of its pin 2, a pad on its input side
+VBUS_CHAIN = (("R_IN", "VBUS", "VBUS_R", "J1.B4A9"), ("F1", "VBUS_R", "VBUS_F", "R_IN.2"))
+CHAIN_PADS = {"VBUS": {"R_IN.1"}, "VBUS_R": {"R_IN.2", "F1.1"}}            # besides J1's contacts on VBUS
+LOADS = {"C_IN.2", "U3.3", "U4.5"}              # on VBUS_F, besides the fuse's pin 2
+
+
+def cut_islands(ras, pth, cut):
+    """The copper islands with the pads `cut` removed from the bottom copper: F and B labelled on their own, joined
+    through every plated hole. Returns the labels and find(), which maps (layer, label) to its island."""
+    b = ras["B"] & ~ndimage.binary_dilation(draw_ops(pad_ops(cut)))
+    lab = {"F": ndimage.label(ras["F"])[0], "B": ndimage.label(b)[0]}
+    parent = {}
+
+    def find(a):
+        while parent.setdefault(a, a) != a:
+            parent[a] = parent[parent[a]]
+            a = parent[a]
+        return a
+    for x, y, _d in pth:
+        f, k = lab["F"][ij(x, y)], lab["B"][ij(x, y)]
+        if f and k:
+            parent[find(("F", f))] = find(("B", k))
+    return lab, find
+
+
+def reached(ras, pth, cut, pads, start):
+    """The pads of `pads` that the copper of pad `start` reaches with the pads `cut` removed from the bottom copper."""
+    lab, find = cut_islands(ras, pth, cut)
+
+    def comp(p):
+        ly = "B" if "B" in p.layers else "F"
+        c = lab[ly][ij(p.x, p.y)]
+        return find((ly, c)) if c else None
+    home = comp(start)
+    return {p.name for p in pads if home is not None and comp(p) == home}
+
+
+def bridged(ras, pth, a, b):
+    """True when, with pads a and b cut out of the bottom copper, one copper island touches the rims of both: copper
+    joining a part's own two pads, which cutting them alone would hide."""
+    lab, find = cut_islands(ras, pth, [a, b])
+
+    def rim(p):
+        m = ndimage.binary_dilation(draw_ops(pad_ops([p])))
+        ring = ndimage.binary_dilation(m, iterations=2) & ~m
+        return {find(("B", int(c))) for c in np.unique(lab["B"][ring]) if c}
+    return bool(rim(a) & rim(b))
+
+
+def usb_protection(ras, pth, pads, segments, vias):
+    bad = 0
+    by = {p.name: p for p in pads}
+    esd = [p for p in pads if p.name.startswith("U4.")]
+    for line, (contacts, entry, res) in USB_PROT.items():
+        net = by[entry].net
+        dist = shortest(copper_graph(net, pads, segments, vias), ("pad", entry, "B"))
+        d = max(dist.get(("pad", c, "B"), math.inf) for c in contacts)
+        past = sorted(set().union(*(reached(ras, pth, esd, pads, by[c]) for c in contacts)) & {res})
+        ok = d <= ESD_MAX and not past
+        bad += not ok
+        print(f"  USB {line}: ESD array pad {entry} {d:.2f} mm of copper from J1 (max {ESD_MAX}), "
+              f"{'copper runs past the array to ' + res if past else 'no copper past it'}  {'OK' if ok else 'FAIL'}")
+    on = {n: {p.name for p in pads if p.net == n and not p.name.startswith("J1.")} for n in CHAIN_PADS}
+    loads = {p.name for p in pads if p.net == "VBUS_F"} - {"F1.2"}
+    wrong = [f"{n}: {', '.join(sorted(on[n]))}" for n in CHAIN_PADS if on[n] != CHAIN_PADS[n]]
+    wrong += [f"{ref} {by[ref + '.1'].net} -> {by[ref + '.2'].net}" for ref, n1, n2, _s in VBUS_CHAIN
+              if (by[ref + ".1"].net, by[ref + ".2"].net) != (n1, n2)]
+    wrong += [f"VBUS_F: {', '.join(sorted(loads))}"] if loads != LOADS else []
+    for k, (ref, _n1, _n2, start) in enumerate(VBUS_CHAIN):
+        after = {n2 for _r, _n1, n2, _s in VBUS_CHAIN[k:]}
+        beyond = {p.name for p in pads if p.net in after and not p.name.startswith(ref + ".")}
+        past = sorted(reached(ras, pth, [by[ref + ".1"], by[ref + ".2"]], pads, by[start]) & beyond)
+        wrong += [f"copper runs past {ref} to {', '.join(past)}"] if past else []
+        wrong += [f"copper joins {ref}'s pads"] if bridged(ras, pth, by[ref + ".1"], by[ref + ".2"]) else []
+    bad += bool(wrong)
+    print("  VBUS: J1 -> " + " -> ".join(ref for ref, *_n in VBUS_CHAIN) + f" -> {', '.join(sorted(LOADS))}, "
+          f"nothing past or across either part  {'OK' if not wrong else 'FAIL: ' + '; '.join(wrong)}")
+    print(f"USB protection: {bad} problems")
     return bad
 
 
@@ -1144,6 +1274,7 @@ if __name__ == "__main__":
     hole_bad += cap_vias(pads, rd["vias"])
     hole_bad += lengths(pads, rd["segments"])
     hole_bad += j1_shell(ras["B"], pads)
+    hole_bad += usb_protection(ras, pth, pads, rd["segments"], rd["vias"])
     hole_bad += silk_clear(pth, npth)
     hole_bad += silk_edge()
     pin_bad = pin_order(pads)

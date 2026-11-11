@@ -3,8 +3,8 @@
 DIY desktop panel for GA avionics in flight sims (G1000, GTN 750, GNS 530/430, Bendix/King, GFC 500):
 autopilot, audio, radio and FMS keys, three dual concentric knobs and a RANGE knob that tilts to pan.
 Shows up on the PC as two joysticks (device 1 carries everything plus unit 1, device 2 the unit 2 copies),
-mapped in MobiFlight or directly in the sim. Ready-made MobiFlight profiles are planned
-([#13][issue-13]); until then you map the buttons yourself with [BUTTONS.md](firmware/BUTTONS.md).
+mapped in MobiFlight or directly in the sim. Ready-made MobiFlight profiles are planned;
+until then you map the buttons yourself with [BUTTONS.md](firmware/BUTTONS.md).
 
 ![Top view: autopilot keys and ALT/HDG and RANGE knobs left, audio, radio and FMS keys, FREQ and FMS knobs right](renders/2-top.png)
 
@@ -13,10 +13,8 @@ mapped in MobiFlight or directly in the sim. Ready-made MobiFlight profiles are 
 ## Docs
 
 Rev 1 is the first version to be built; nothing is ordered yet. The docs in [docs/](docs/) are its spec;
-the 3D view, the board and the mechanics follow them. Open items and rev 2 ideas are
-[GitHub issues](https://github.com/saschagrunert/avionics-panel/issues): MobiFlight profiles per avionics
-family ([#13][issue-13]), a keyboard mode ([#12][issue-12]), and for rev 2 USB ESD protection and a fuse
-([#14][issue-14]) and one decoupling capacitor per IOVDD pin ([#15][issue-15]).
+the 3D view, the board and the mechanics follow them. Open items and ideas are
+[GitHub issues](https://github.com/saschagrunert/avionics-panel/issues).
 
 | Doc | Contents |
 | --- | --- |
@@ -81,11 +79,12 @@ nix-shell nix/shells.nix -A gen
 
 Inside `pcb/`: `python3 precheck.py` (placement clearances and bottom-side part bodies),
 `python3 run_route.py 11` (routing, writes `routed.json`; seed 11 routes every net without a detour and
-within the USB length limits, the only one of seeds 1 to 16 that does; `run_route.py <seed> x` writes
+within the USB length limits, as do 3, 4, 6, 9 and 10 of seeds 1 to 14; `run_route.py <seed> x` writes
 `routed_<seed>.json` instead, for trying seeds in parallel), `python3 make.py` (Gerbers),
 `python3 check.py` (electrical check, DRC, drills, paste, mask dams, hand-soldering clearances,
-decoupling, net lengths and USB, nothing under the USB-C shell, legend clearances, JLC footprints and CPL
-rotations, through-hole footprints and their top-side CPL, bottom-side pin order, on the Gerbers),
+decoupling with a capacitor of its own per IOVDD pin, net lengths and USB, the ESD array in line and the fuse
+ahead of every load, nothing under the USB-C shell, legend clearances, JLC footprints and CPL rotations,
+through-hole footprints and their top-side CPL, bottom-side pin order, on the Gerbers),
 `python3 render.py`, `python3 make_bom.py`, `python3 make_schematic.py` (schematic PDF from the netlist).
 `dbg.py` plots a region of the routed board.
 Inside `mech/`: `python3 make_plate_art.py`.
@@ -132,8 +131,3 @@ what changed. To move nixpkgs by hand:
 [Apache-2.0](LICENSE) for everything in this repository (code, board, mechanics, docs) except the vendored
 parts: the Barlow Semi Condensed fonts in `mech/fonts/` and `viewer/fonts/` (SIL Open Font License, `OFL.txt`
 next to them) and three.js in `viewer/vendor/` (MIT, `three-LICENSE`).
-
-[issue-12]: https://github.com/saschagrunert/avionics-panel/issues/12
-[issue-13]: https://github.com/saschagrunert/avionics-panel/issues/13
-[issue-14]: https://github.com/saschagrunert/avionics-panel/issues/14
-[issue-15]: https://github.com/saschagrunert/avionics-panel/issues/15
