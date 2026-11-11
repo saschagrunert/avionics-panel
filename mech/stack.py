@@ -48,7 +48,7 @@ CAP = dict(w=9.6, h=6.4, r=1.2, height=5.7, cham=0.45, base=PLUNGER_TOP - 2.7)
 # tactile bars on SHIFT, DN (front edge) and UP (back edge): closed box 1.0 wide (JLC3DP embossed detail: 0.8),
 # sunk 0.05 into the top, its outer side 0.1 inside the top face. Only 0.5 proud, below JLC3DP's 0.8 for
 # embossed detail (a solid 3.2 x 1.0 ridge, not fine detail): a taller front bar hides the bottom of the SHIFT
-# and DN legends from the seat; check_fit.py proves it hides none at 45 deg (a review watch item, docs/status.md)
+# and DN legends from the seat; check_fit.py proves it hides none at 45 deg (a review watch item, docs/ordering.md)
 CAP_BAR = dict(w=3.2, d=1.0, proud=0.5, sink=0.05, inset=0.6)
 CAP_VIEW_DEG = 45.0                        # seated eye over the cap tops: about 42 deg at a desk plus the 6 deg wedge
 # Cap legends (make_caps.py, the 3D view): Barlow Semi Condensed Bold (its thinnest strokes, the horizontal
@@ -287,8 +287,8 @@ LED_TOP, LED_TOL = 5.3, (0.3, 0.1)
 # PCB bow towards the plate at the two LEDs (both near the middle of the 153 mm span between the corner
 # screws). JLCPCB, like IPC-6012, allows 0.75 % bow and twist for SMT boards (1.2 mm over 160 mm), which no
 # stack here could take; a 4-layer 1.6 mm board is usually far flatter. The LED under the plate back budgets
-# PCB_BOW, and the board is checked against it on arrival (docs/status.md): a board bowed more gets its LEDs
-# seated flat, which gives back the 0.2 a proud LED is allowed.
+# PCB_BOW, and the board is checked against it on arrival (docs/mechanics.md, On arrival): a board bowed more
+# gets its LEDs seated flat, which gives back the 0.2 a proud LED is allowed.
 PCB_BOW = 0.1
 # The plate is held at its corners as well, so its flatness counts the same way: "flatness 0.1" on the drawing,
 # after bead blasting and anodising (blasting one side can bow a thin plate; ISO 2768-K alone would allow 0.4

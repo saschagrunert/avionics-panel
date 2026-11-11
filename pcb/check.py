@@ -12,8 +12,9 @@
 9. routed length of every net against its shortest tree (no detours), USB D+ / D- length and skew
 10. JLCPCB's footprint of every bottom-side part on our pads at its CPL rotation (pad numbers, positions)
 11. no copper on F or B within the mounting-hole keep-out (standoff end, body boss), only the plane inside
-12. no exposed SMD pad of another net near a hand-soldered through-hole pad (solder bridges)
-13. JLCPCB's footprint of every hand-soldered through-hole part against our holes (positions, drills reported)
+12. no exposed SMD pad of another net near a through-hole pad (solder bridges; hand-soldered in either variant)
+13. JLCPCB's footprint of every through-hole part against our holes (positions, drills reported), and at its
+   top-side CPL position and rotation (full variant) on our holes pin by pin
 """
 import functools
 import heapq
@@ -418,15 +419,67 @@ def hand_solder(pads):
     return bad
 
 
-# Hand-soldered parts: JLC's footprint (footprints/<LCSC>.json, "holes" and "npth") against our holes, by
-# position only (our pin names are not JLC's numbers, and the part is placed by hand). For each of the four
-# rotations the hole pattern is moved onto ours by its centroid; it fits when every JLC hole lands on one of our
-# holes of the part, centres within FP_POS_TOL, with none of ours left over, and every unplated JLC hole on
-# one of ours. The drills are reported side by side: ours follow the part's datasheet.
+# Through-hole parts: JLC's footprint (footprints/<LCSC>.json, "holes" and "npth") against our holes, twice.
+# By position only, as a hand-soldered part is placed: for each of the four rotations the hole pattern is moved
+# onto ours by its centroid; it fits when every JLC hole lands on one of our holes of the part, centres within
+# FP_POS_TOL, with none of ours left over, and every unplated JLC hole on one of ours. The drills are reported
+# side by side: ours follow the part's datasheet.
+# And as JLCPCB places it in the full variant (Standard assembly, both sides): JLC's footprint at the top-side
+# CPL position and rotation (board.cpl, as make_bom.py writes it; JLC's top convention: seen from the top, the
+# footprint turned counter-clockwise by the rotation, its origin on the CPL position). Every JLC hole must land
+# on our hole of the pin TH_PIN names for it, within FP_POS_TOL, every unplated one on one of ours, and none of
+# ours may be left over. A wrong rotation misses the holes or, on a symmetric hole pattern, puts a pin on the
+# wrong hole: the LEDs' cathode on the anode pad, an encoder's A on B.
+TH_PIN = {                                  # JLC's pin number -> our pins it may land on
+    # key: pins 1-2 and 3-4 are joined inside, so 0 and 180 are the same switch (the 6.5 x 4.5 pattern misses at 90)
+    "C589907": dict.fromkeys("1234", ("A", "B", "C", "D")),
+    "C19270361": {"1": ("A2",), "2": ("C2",), "3": ("B2",), "4": ("D",), "5": ("E",), "6": ("A",), "7": ("C",),
+                  "8": ("B",), "9": ("MP-1",), "10": ("MP1",)},     # JLC's symbol: 1-3 and 6-8 A C B, 4 / 5 switch
+    "C160841": {"5": ("PUSH",), "6": ("COM",), "7": ("ENCB",), "8": ("ENCA",), "9": ("ECOM",), "10": ("GND",),
+                "A": ("A",), "B": ("B",), "C": ("C",), "D": ("D",)},
+    "C2895466": {"1": ("K",), "2": ("A",)},                         # amber: pin 1 is the cathode
+    "C2895458": {"1": ("A",), "2": ("K",)},                         # white: pin 1 is the anode
+}
+
+
+def jlc_top(x, y, rot):
+    """A JLC footprint point (top view, y down) on the top side at CPL rotation rot (counter-clockwise seen from
+    the top), from the footprint origin."""
+    a = math.radians(rot)
+    return (x * math.cos(a) + y * math.sin(a), -x * math.sin(a) + y * math.cos(a))
+
+
+def cpl_fit(ref, lcsc, fp, cx, cy, rot, ours):
+    """(worst centre offset, problems) of JLC's footprint with its origin at (cx, cy), top-side rotation rot."""
+    worst, used, bad = 0.0, set(), []
+    pins = TH_PIN.get(lcsc)
+    if pins is None:
+        return 9.0, [f"no TH_PIN entry for {lcsc}"]
+    for num, hx, hy, _d, _slot in fp["holes"]:
+        dx, dy = jlc_top(hx, hy, rot)
+        X, Y = cx + dx, cy + dy
+        p = min(ours, key=lambda q, X=X, Y=Y: math.hypot(q.x - X, q.y - Y))
+        c = math.hypot(p.x - X, p.y - Y)
+        worst = max(worst, c)
+        if c > FP_POS_TOL:
+            bad.append(f"JLC pin {num} lands at ({X:.2f}, {B.H - Y:.2f}), {c:.2f} mm from the nearest hole {p.name}")
+        elif p.name.split(".", 1)[1] not in pins.get(num, ()):
+            bad.append(f"JLC pin {num} lands on {p.name} ({p.net}), not on {'/'.join(pins.get(num, ('?',)))}")
+        used.add(p.name)
+    for hx, hy, _d in fp["npth"]:
+        dx, dy = jlc_top(hx, hy, rot)
+        c = min((math.hypot(nx - cx - dx, ny - cy - dy) for nx, ny, _d in B.NPTH), default=9.0)
+        worst = max(worst, c)
+        if c > FP_POS_TOL:
+            bad.append(f"JLC's unplated hole lands {c:.2f} mm from ours")
+    bad += [f"{p.name} has no JLC pin" for p in ours if p.name not in used]
+    return worst, bad
+
+
 def tht_footprints(pads):
     bad = 0
     types = {}
-    for ref, value, lcsc, x, y, _rot, side in B.PARTS:
+    for ref, value, lcsc, x, y, rot, side in B.PARTS:
         if side != "top":
             continue
         with open(f"footprints/{lcsc}.json") as f:
@@ -434,10 +487,8 @@ def tht_footprints(pads):
         ours = [p for p in pads if p.name.split(".")[0] == ref and p.drill]
         npth = [(nx, ny, d) for nx, ny, d in B.NPTH if math.hypot(nx - x, ny - y) < 12.0]
         fits = []
-        for rot in (0, 90, 180, 270):
-            a = math.radians(rot)
-            jl = [(h[0], h[1] * math.cos(a) - h[2] * math.sin(a), h[1] * math.sin(a) + h[2] * math.cos(a), h[3])
-                  for h in fp["holes"]]
+        for r in (0, 90, 180, 270):
+            jl = [(h[0], *jlc_top(h[1], h[2], r), h[3]) for h in fp["holes"]]
             if len(jl) != len(ours):
                 continue
             ox = sum(p.x for p in ours) / len(ours) - sum(h[1] for h in jl) / len(jl)
@@ -448,12 +499,12 @@ def tht_footprints(pads):
                 used.add(p.name)
                 worst = max(worst, math.hypot(p.x - hx - ox, p.y - hy - oy))
             for hx, hy, _d in fp["npth"]:
-                qx, qy = hx * math.cos(a) - hy * math.sin(a) + ox, hx * math.sin(a) + hy * math.cos(a) + oy
-                worst = max(worst, min((math.hypot(nx - qx, ny - qy) for nx, ny, _d in npth), default=9.0))
+                qx, qy = jlc_top(hx, hy, r)
+                worst = max(worst, min((math.hypot(nx - qx - ox, ny - qy - oy) for nx, ny, _d in npth), default=9.0))
             if worst <= FP_POS_TOL and len(used) == len(ours):
-                fits.append((rot, worst))
+                fits.append((r, worst))
         t = types.setdefault(lcsc, {"value": value, "refs": [], "worst": 0.0, "rots": set(), "ours": set(),
-                                    "jlc": {h[3] for h in fp["holes"]}})
+                                    "jlc": {h[3] for h in fp["holes"]}, "cpl": set(), "cw": 0.0, "off": set()})
         t["refs"].append(ref)
         t["ours"] |= {p.drill for p in ours}
         if not fits:
@@ -462,14 +513,29 @@ def tht_footprints(pads):
             continue
         t["worst"] = max(t["worst"], min(w for _r, w in fits))
         t["rots"] |= {r for r, _w in fits}
+        _ref, mx, my, layer, crot = B.cpl(ref, x, y, rot, side)
+        cx, cy = mx, B.H - my                                   # back from JLC's frame (y up) to the board's
+        cw, probs = cpl_fit(ref, lcsc, fp, cx, cy, crot, ours)
+        assert layer == "Top"
+        t["cpl"].add(crot); t["cw"] = max(t["cw"], cw); t["off"].add((round(cx - x, 2), round(cy - y, 2)))
+        if probs:
+            bad += 1
+            ok = [r for r in (0, 90, 180, 270) if not cpl_fit(ref, lcsc, fp, cx, cy, r, ours)[1]]
+            more = f"; {len(probs) - 2} more" if len(probs) > 2 else ""
+            print(f"TOP CPL {ref} ({lcsc}) at CPL ({mx:.3f}, {my:.3f}) rotation {crot}: " + "; ".join(probs[:2]) + more
+                  + f". Rotations that fit there: {ok or 'none'}")
+    def mm(v):
+        return "/".join(f"{d:g}" for d in sorted(v))
     for lcsc, t in sorted(types.items(), key=lambda kv: kv[1]["refs"][0]):
         refs = t["refs"][0] + (f" and {len(t['refs']) - 1} more" if len(t["refs"]) > 1 else "")
-        def mm(v):
-            return "/".join(f"{d:g}" for d in sorted(v))
-        print(f"  {lcsc:9s} {t['value']:20s} {refs:16s} fits at {'/'.join(map(str, sorted(t['rots']))) or '-':11s} "
-              f"centres within {t['worst']:.3f} mm; drills ours {mm(t['ours'])}, JLC {mm(t['jlc'])}")
+        rots, cpl = ("/".join(map(str, sorted(t[k]))) or "-" for k in ("rots", "cpl"))
+        off = "/".join(f"{dx:+g},{dy:+g}" for dx, dy in sorted(t["off"]))
+        print(f"  {lcsc:9s} {t['value']:20s} {refs:16s} fits at {rots:7s} centres within {t['worst']:.3f} mm; "
+              f"drills ours {mm(t['ours'])}, JLC {mm(t['jlc'])}; top CPL {cpl}, origin {off} from the part "
+              f"(y down), pins within {t['cw']:.3f} mm")
     print(f"through-hole footprints: {len(types)} JLC footprints on {sum(len(t['refs']) for t in types.values())} "
-          f"hand-soldered parts (tolerance {FP_POS_TOL}), {bad} problems")
+          f"top-side parts (tolerance {FP_POS_TOL}), by position and at the full variant's top-side CPL, "
+          f"{bad} problems")
     return bad
 
 

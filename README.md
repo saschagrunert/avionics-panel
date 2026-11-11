@@ -12,18 +12,18 @@ the buttons yourself with [BUTTONS.md](firmware/BUTTONS.md).
 
 ## Docs
 
-Rev 1 is the first version to be built. The docs in [docs/](docs/) are its spec; the 3D view, the board
-and the mechanics follow them.
+Rev 1 is the first version to be built; nothing is ordered yet. The docs in [docs/](docs/) are its spec;
+the 3D view, the board and the mechanics follow them. Open items and rev 2 ideas are
+[GitHub issues](https://github.com/saschagrunert/avionics-panel/issues).
 
 | Doc | Contents |
 | --- | --- |
 | [Controls](docs/controls.md) | principles, [SHIFT](docs/controls.md#shift), HOTAS split, workflows, [knobs](docs/controls.md#knobs), [keys](docs/controls.md#keys-label-shift-legend-in-parentheses) |
 | [Compatibility](docs/compatibility.md) | what each control does on the G1000, GFC 500, GTN, GNS and Bendix/King, by aircraft |
-| [Firmware](docs/firmware.md) | joystick devices, knob timing, [install and bring-up](docs/firmware.md#install-and-bring-up) |
+| [Firmware](docs/firmware.md) | joystick devices, knob timing, [install and bring-up](docs/firmware.md#install-and-bring-up), [Pico bench](docs/firmware.md#pico-bench) |
 | [Electronics](docs/electronics.md) | RP2040 board, GPIO map, lights, [schematic](docs/avionics-panel-rev1-schematic.pdf) |
-| [Mechanics](docs/mechanics.md) | stack heights, assembly, [dimensions](docs/mechanics.md#dimensions) |
-| [Ordering](docs/ordering.md) | suppliers, placement preview, quotes, [checklist](docs/ordering.md#checklist) |
-| [Status](docs/status.md) | open items, rev 2 notes, what is done |
+| [Mechanics](docs/mechanics.md) | stack heights, assembly, [on arrival](docs/mechanics.md#on-arrival), [dimensions](docs/mechanics.md#dimensions) |
+| [Ordering](docs/ordering.md) | [assembly variants](docs/ordering.md#assembly-variants), suppliers, [before paying](docs/ordering.md#before-paying), quotes, [checklist](docs/ordering.md#checklist) |
 | [BUTTONS.md](firmware/BUTTONS.md) | every joystick button of both units, for mapping in MobiFlight or the sim |
 
 ## Layout
@@ -41,9 +41,12 @@ Generated files are named `avionics-panel-rev1-*`.
 
 Production files, by supplier (details in [Ordering](docs/ordering.md)):
 
-- JLCPCB: [gerbers](production/avionics-panel-rev1-gerbers.zip),
-  [BOM](production/avionics-panel-rev1-BOM.csv), [CPL](production/avionics-panel-rev1-CPL.csv)
-- LCSC: [through-hole parts](production/avionics-panel-rev1-THT-LCSC.csv)
+- JLCPCB: [gerbers](production/avionics-panel-rev1-gerbers.zip), then one of the two
+  [assembly variants](docs/ordering.md#assembly-variants): economic, the SMD bottom side only
+  ([BOM](production/avionics-panel-rev1-BOM.csv), [CPL](production/avionics-panel-rev1-CPL.csv)), or full,
+  both sides with the through-hole parts ([BOM](production/avionics-panel-rev1-BOM-full.csv),
+  [CPL](production/avionics-panel-rev1-CPL-full.csv))
+- LCSC (economic variant): [through-hole parts](production/avionics-panel-rev1-THT-LCSC.csv), hand-soldered
 - JLCCNC: [plate STEP](production/avionics-panel-rev1-plate.step),
   [drawing](production/avionics-panel-rev1-plate-drawing.pdf),
   [marking DXF](production/avionics-panel-rev1-plate.dxf)
@@ -77,8 +80,8 @@ Inside `pcb/`: `python3 precheck.py` (placement clearances), `python3 run_route.
 and 7 of seeds 1 to 9, while the others fail one of those limits; `run_route.py <seed> x` writes
 `routed_<seed>.json` instead, for trying seeds in parallel), `python3 make.py` (Gerbers),
 `python3 check.py` (electrical check, DRC, drills, paste, mask dams, hand-soldering clearances,
-decoupling, net lengths and USB, JLC footprints and CPL rotations, through-hole footprints, bottom-side
-pin order, on the Gerbers), `python3 render.py`, `python3 make_bom.py`, `python3 make_schematic.py`
+decoupling, net lengths and USB, JLC footprints and CPL rotations, through-hole footprints and their
+top-side CPL, bottom-side pin order, on the Gerbers), `python3 render.py`, `python3 make_bom.py`, `python3 make_schematic.py`
 (schematic PDF from the netlist).
 `dbg.py` plots a region of the routed board.
 Inside `mech/`: `python3 make_plate_art.py`.

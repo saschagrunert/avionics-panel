@@ -4,8 +4,10 @@ Knob set ALT/HDG + RANGE (Alps RKJXT, turn / 4-way tilt / push) left, FREQ + FMS
 lights, BOOT as bridge pads under a hole in the case floor, SWD debug points.
 
 Top view (component side), mm, origin top-left, y down. Layer stack: F (signals), In1 = GND plane,
-In2 = 3V3 plane, B (signals). Switches, knobs and the RANGE control (THT) sit on top; every SMD part
-(RP2040, flash, USB-C, regulator, diodes, passives) is on the bottom, so JLCPCB assembles one SMD side.
+In2 = 3V3 plane, B (signals). Switches, knobs, the RANGE control and the LEDs (THT) sit on top; every SMD
+part (RP2040, flash, USB-C, regulator, diodes, passives) is on the bottom, so JLCPCB's Economic assembly
+does one SMD side and the through-hole parts are soldered by hand. Standard assembly of both sides (the full
+variant, docs/ordering.md) has JLCPCB fit the through-hole parts too, from a top-side CPL.
 
 Footprint sources:
   RP2040 QFN-56: RP2040 datasheet fig. 165 (pads 0.20 x 0.875, pitch 0.40, 7.75/6.00, EP 3.20)
@@ -25,6 +27,9 @@ JLC's library footprint (its top view) turned counter-clockwise by the CPL rotat
 part seen from the top. Seen from the top, as this file works, that is the footprint mirrored left to right,
 then turned clockwise. check.py fits every bottom-side part's JLC footprint (stored in footprints/) onto
 our pads that way: each JLC pad must land on our pad with the same number.
+Top-side CPL rotations (the full variant's through-hole parts) follow JLCPCB's top-side convention: seen from
+the top, the part is JLC's library footprint turned counter-clockwise by the rotation, its origin on the CPL
+position. check.py fits each JLC hole pattern that way onto our holes, pin by pin.
 Circuit follows Raspberry Pi's "Hardware design with RP2040" minimal design.
 """
 import importlib.util
@@ -142,6 +147,7 @@ class Pad:
 
 DIODES, NPTH, PARTS = [], [], []
 FOOTPRINT = {}              # ref -> footprint name for the BOM (bottom-side parts)
+CPL_XY = {}                 # ref -> (x, y) of JLC's footprint origin where it is not the part position (top side)
 PREROUTED = {"QSPI_SD0", "QSPI_SD1", "QSPI_SD2", "QSPI_SD3", "QSPI_SCLK", "1V1", "XIN", "XOUT", "XO_R"}
 FIXED_SEGS, FIXED_VIAS = [], []
 BUS_PADS = set()            # pads already joined by a pre-routed matrix bus
@@ -166,12 +172,22 @@ def smd(name, net, x, y, w, h, shape="rect", paste=True, layer="B", mask=True):
     return Pad(name, net, x, y, shape, w, h, layer, paste=paste, mask=mask)
 
 
-def part(ref, value, lcsc, x, y, rot=0, side="bottom", foot=None):
+def part(ref, value, lcsc, x, y, rot=0, side="bottom", foot=None, origin=None):
     """A part for the BOM / CPL. Bottom-side parts are assembled by JLCPCB and need their footprint name; rot is
-    the CPL rotation in JLCPCB's bottom-side convention (module docstring)."""
+    the CPL rotation in JLCPCB's convention for the part's side (module docstring). origin: where JLC's footprint
+    has its origin, the CPL position, if not at (x, y) (a top-side part placed by JLC in the full variant)."""
     assert foot or side == "top", f"{ref}: bottom-side part without a footprint"
     PARTS.append((ref, value, lcsc, x, y, rot, side))
     FOOTPRINT[ref] = foot
+    if origin:
+        CPL_XY[ref] = origin
+
+
+def cpl(ref, x, y, rot, side):
+    """One CPL row for JLCPCB: designator, Mid X, Mid Y (mm, from the board's bottom-left corner seen from the top,
+    y up), layer and rotation, at JLC's footprint origin (CPL_XY, else the part position)."""
+    ox, oy = CPL_XY.get(ref, (x, y))
+    return ref, round(ox, 3), round(H - oy, 3), "Top" if side == "top" else "Bottom", rot % 360
 
 
 CHIP = {"0603": (0.8, 0.8, 0.95), "0402": (0.5, 0.6, 0.55)}   # pad centre offset, pad length, pad width (mm)
@@ -217,7 +233,9 @@ def add_encoder(pads, ref, cx, cy, dual, a, b, a2=None, b2=None, push_k=None, va
     for s in (-1, 1):       # metal mounting lugs on GND through the plane: an ESD path from the shaft
         pads.append(Pad(f"{ref}.MP{s}", "GND", cx + s * 5.5, cy, "obround", 2.5, 3.6, "FB",
                         drill=SLOT[0], slot=SLOT))
-    part(ref, val, lcsc, cx, cy, side="top")
+    # JLC's footprint of C19270361 has its origin midway between the outer pin rows (y +7.5 and -9.5), 1 mm north
+    # of the shaft; rotation 0 has its switch pins (4, 5) on the north side, as here
+    part(ref, val, lcsc, cx, cy, side="top", origin=(cx, cy - 1.0))
 
 
 # Alps RKJXT1F42001 (LCSC C160841): turn (15 pulses / 30 detents), 4-way tilt, centre push. Hole pattern read
@@ -263,7 +281,10 @@ def add_led(pads, name, x, y, gpio, colour):
     # GPIO driver's own resistance (default 4 mA drive) in series. The firmware sets both brightnesses with PWM.
     led_part, res, res_lcsc = {"amber": ("XL-302UYC", "330R", "C23138"),
                                "white": ("XL-302UWC", "22R", "C23345")}[colour]
-    part(f"LED_{name}", led_part, {"XL-302UYC": "C2895466", "XL-302UWC": "C2895458"}[led_part], x, y, side="top")
+    # Top-side CPL rotation (full variant): JLC's two LED footprints number their pins the other way round. Pin 1
+    # of the amber C2895466 is the cathode, of the white C2895458 the anode, both on the left at rotation 0.
+    rot = {"XL-302UYC": 0, "XL-302UWC": 180}[led_part]
+    part(f"LED_{name}", led_part, {"XL-302UYC": "C2895466", "XL-302UWC": "C2895458"}[led_part], x, y, rot, "top")
     # The resistor lies in line beside the anode pad, its anode end 0.55 mm from it (the same net, so a bridge to
     # it or a remelt of its joint while the anode is soldered is harmless) and its GPIO end beyond: the LED is
     # soldered by hand right next to it, so no pad of another net may come near the LED's pads (check.py:
@@ -436,7 +457,7 @@ XTAL = (121.7 + SHIFT_X, 15.6)      # crystal centre, over the XIN fan-out end
 
 def build():
     pads = []
-    for lst in (DIODES, NPTH, PARTS, FOOTPRINT, FIXED_SEGS, FIXED_VIAS, BUS_PADS, JOINED, BUS_COPPER):
+    for lst in (DIODES, NPTH, PARTS, FOOTPRINT, CPL_XY, FIXED_SEGS, FIXED_VIAS, BUS_PADS, JOINED, BUS_COPPER):
         lst.clear()
     # key matrix (switches on top, diodes underneath on the bottom)
     for r, y in enumerate(ROWS):
