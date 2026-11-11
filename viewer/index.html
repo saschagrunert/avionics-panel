@@ -226,7 +226,7 @@ async function main() {
 
   // one legend in one font along a circle, centred on angle `mid` (0 = towards +x, y towards the user). The
   // letters face outward on the far half and inward on the near half; the side is chosen once per legend,
-  // by its centre, so the ends of a long legend can lean past sideways (accepted, see docs/controls.md).
+  // by its centre, so the ends of a long legend can lean past sideways (accepted, see docs/using/controls.md).
   function arcText(g, text, font, cx, cy, r, mid, color, track) {
     const near = Math.sin(mid) > 0.01;
     g.save(); g.fillStyle = color; g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = font;

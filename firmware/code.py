@@ -1,8 +1,8 @@
 # code.py - Avionics Panel rev 1 (CircuitPython on the panel's RP2040).
-# Flash the CircuitPython 9.2.9 "Raspberry Pi Pico" build (docs/firmware.md, step 3; same chip, 2 MB
+# Flash the CircuitPython 9.2.9 "Raspberry Pi Pico" build (docs/building/bring-up.md, step 3; same chip, 2 MB
 # flash, 12 MHz crystal), then copy boot.py, code.py, panel.py and buttonmap.py to CIRCUITPY and replug.
 # From then on boot.py hides CIRCUITPY and the serial console unless SHIFT is held from plugging in until
-# CIRCUITPY appears (about 2 s; boot.py runs up to 1 s after power-up, docs/firmware.md).
+# CIRCUITPY appears (about 2 s; boot.py runs up to 1 s after power-up, docs/building/bring-up.md).
 # Logic: panel.py. Button numbers: buttonmap.py / BUTTONS.md. Pins: pcb/board.py.
 # The Pico build drives GP25 as its status LED while booting, in safe mode and on errors; on this board
 # GP25 is the FREQ outer encoder's B line, which the encoder can pull to GND. The current is limited and
@@ -41,7 +41,7 @@ SHIFT_LED, UNIT_LED = P.GPIO12, P.GPIO15
 LED_GPIOS = (12, 15)               # their GPIO numbers: both pads drive 12 mA (drive_12ma below)
 # SHIFT (amber), UNIT (white) brightness, 0..0xFFFF. At full duty the amber LED takes about 13.5 mA (75 R) and the
 # white one about 8.5 mA (22 R), both pads at 12 mA drive; these duties, about 28 and 25 % of full, leave three to
-# four times that up to full duty for tuning on the first board (docs/electronics.md).
+# four times that up to full duty for tuning on the first board (docs/architecture/electronics.md).
 LED_DUTY = (0x4800, 0x4000)
 # SHIFT light duty per panel level (off, dim, full). Dim starts at 1/4 of full: the eye is not linear, so it
 # looks like about half the brightness, a clear pulse that should stay visible through the light pipe in
@@ -84,7 +84,8 @@ DRIVE_12MA = 0x30                  # its DRIVE field, bits 5:4: 3 is 12 mA (rese
 def drive_12ma(gpio):
     """The pad's drive strength to 12 mA, so the series resistor, not the pad, sets the LED current. CircuitPython
     has no call for it: memorymap writes the RP2040's pad register (32-bit, read, modify, write). After PWMOut, which
-    leaves the drive field alone. If it fails the light stays at the 4 mA drive, dimmer (docs/firmware.md)."""
+    leaves the drive field alone. If it fails the light stays at the 4 mA drive, dimmer
+    (docs/architecture/firmware.md)."""
     if memorymap is None:
         print("LED drive strength not set: no memorymap in this build")
         return

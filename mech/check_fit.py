@@ -984,11 +984,12 @@ def clearances():
     # PRESS_SLOPE (a plate model of the bare board, see stack.py), and the cap's bottom dips under the highest plate
     # back, bowed up. The slope tilts the cap with its plunger about the board's mid-plane, so the cap moves sideways
     # in its hole by its height over that plane times the slope, most at the face edge: more than a cap at the edge
-    # of its per-key allowance has, so it may rub that edge on one side (documented, docs/mechanics.md). Two rows
-    # prove it cannot catch or stick: tilted, it cannot touch both sides of its hole at once (its shadow over the
-    # whole wall fits in the hole, turned and printed large), and while its side is free its bottom edge stands out
-    # of the line of its side only by the dip times the slope, which the broken back edge (KEY_BACK_BREAK) leads
-    # back in; while its side bears on the face edge, its bottom edge is pulled inside the hole outline.
+    # of its per-key allowance has, so it may rub that edge on one side (documented,
+    # docs/architecture/mechanics.md). Two rows prove it cannot catch or stick: tilted, it cannot touch both sides
+    # of its hole at once (its shadow over the whole wall fits in the hole, turned and printed large), and while its
+    # side is free its bottom edge stands out of the line of its side only by the dip times the slope, which the
+    # broken back edge (KEY_BACK_BREAK) leads back in; while its side bears on the face edge, its bottom edge is
+    # pulled inside the hole outline.
     flex, slope = S.PRESS_DIP, S.PRESS_SLOPE
     cap_dip = max(0.0, back_hi + S.PLATE_FLAT * bow_key + flex
                   - (S.CAP["base"] - S.KEY_TRAVEL - S.PLUNGER_TOP_TOL))

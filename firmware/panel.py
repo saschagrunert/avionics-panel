@@ -2,8 +2,8 @@
 
 code.py feeds it key events, encoder detents and the time in milliseconds, and sends the buttons it
 reports. All state (SHIFT, UNIT, frequency mode) lives here and comes out as fixed joystick buttons,
-so MobiFlight mappings never need variables or preconditions. See docs/controls.md (SHIFT, Knobs)
-and docs/firmware.md.
+so MobiFlight mappings never need variables or preconditions. See docs/using/controls.md (SHIFT,
+Knobs) and docs/architecture/firmware.md.
 """
 import buttonmap as BM
 
@@ -144,7 +144,7 @@ class Panel:
     def _held(self):
         """The knob whose session a shifted push or tilt still held keeps, or None. Keys never end that
         session, SHIFT taps and the key a tap armed included; another knob does (_knob_shift). A release still
-        waiting out BOUNCE_MS counts as held: it may be a bounce (docs/firmware.md, Switch bounce)."""
+        waiting out BOUNCE_MS counts as held: it may be a bounce (docs/architecture/firmware.md)."""
         knob = self._kept()
         return knob if knob in self.holds.values() else None
 

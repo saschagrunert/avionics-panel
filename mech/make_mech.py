@@ -39,7 +39,7 @@ from occ_util import box, common, cut, cyl, export, fuse, move, volume  # noqa: 
 CLEAR, WALL = 0.5, 2.0
 assert abs(CLEAR + WALL - S.OVH) < 1e-9, "the body outline is the plate outline"
 PCB_OUTLINE_TOL, BODY_SCALE_TOL = 0.2, 0.004
-# Edge rails (docs/ordering.md): the economic variant has none, so its outline is routed all round. The full
+# Edge rails (docs/building/building.md): the economic variant has none, so its outline is routed all round. The full
 # variant (Standard assembly, 70 x 70 mm minimum) has one rail on the long edge away from J1, V-cut: +-0.4
 # (JLCPCB) on the board width. Should JLCPCB add rails on the short edges anyway, those V-cut edges can be too
 # long for the cavity at worst: they are then sanded until the board is at most PCB_SANDED_LEN long.
