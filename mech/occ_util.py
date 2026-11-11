@@ -12,8 +12,10 @@ from OCC.Core.gp import gp_Ax1, gp_Ax2, gp_Dir, gp_Pnt, gp_Trsf, gp_Vec
 from OCC.Core.GProp import GProp_GProps
 from OCC.Core.IFSelect import IFSelect_RetDone
 from OCC.Core.Interface import Interface_Static
+from OCC.Core.StepBasic import StepBasic_Product
 from OCC.Core.STEPControl import STEPControl_AsIs, STEPControl_Writer
 from OCC.Core.StlAPI import StlAPI_Writer
+from OCC.Core.TCollection import TCollection_HAsciiString
 from OCC.Core.TopTools import TopTools_ListOfShape
 
 
@@ -104,13 +106,28 @@ def pin_step_time(path):
         f.write(s)
 
 
-def export(shape, name, deflection=0.01):
-    assert BRepCheck_Analyzer(shape).IsValid(), f"{name}: invalid solid"
+def write_step(shape, name):
+    """shape -> <name>.step (mm), its product named <name>. OpenCascade's own product name depends on the
+    process: write.step.product.name only exists once a STEP writer has been made, and it appends how many
+    shapes the process has transferred so far. The name goes onto the product itself instead, so the file is
+    the same whichever process writes it, and in whatever order."""
+    w = STEPControl_Writer()                                  # first, so the write.step parameters exist
     Interface_Static.SetCVal("write.step.unit", "MM")
-    Interface_Static.SetCVal("write.step.product.name", name)
-    w = STEPControl_Writer(); w.Transfer(shape, STEPControl_AsIs)
+    w.Transfer(shape, STEPControl_AsIs)
+    model = w.Model()
+    for i in range(1, model.NbEntities() + 1):
+        entity = model.Value(i)
+        if entity.IsKind("StepBasic_Product"):
+            product = StepBasic_Product.DownCast(entity)
+            product.SetId(TCollection_HAsciiString(name))
+            product.SetName(TCollection_HAsciiString(name))
     assert w.Write(name + ".step") == IFSelect_RetDone
     pin_step_time(name + ".step")
+
+
+def export(shape, name, deflection=0.01):
+    assert BRepCheck_Analyzer(shape).IsValid(), f"{name}: invalid solid"
+    write_step(shape, name)
     BRepMesh_IncrementalMesh(shape, deflection, False, 0.15, True)
     st = StlAPI_Writer(); st.SetASCIIMode(False); st.Write(shape, name + ".stl")
     print(f"{name}: {volume(shape) / 1000:.2f} cm3")

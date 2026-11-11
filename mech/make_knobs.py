@@ -16,6 +16,12 @@ ring, one inner and the RANGE knob also come with a bore 0.2 tighter and 0.2 loo
 whichever grips, or open a tight bore with a drill of the shaft size and file the D flat.
 Needs pythonocc-core (see make_plate_step.py).
 """
+import contextlib
+import io
+import os
+from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures.process import BrokenProcessPool
+
 import stack as S
 from occ_util import box, cut, cyl, dbore, export, fluted, fuse, revolve
 
@@ -97,14 +103,38 @@ def light_pipe_pair(pitch=12.0):
     return fuse(fuse(shift, unit), fuse(necks, bar))
 
 
-if __name__ == "__main__":
-    export(outer_knob(), "avionics-panel-rev1-knob-outer")              # ALT/HDG and FREQ
-    export(outer_knob("outer_fms"), "avionics-panel-rev1-knob-outer-fms")   # FMS: same fits, coarser grip
-    export(inner_knob(), "avionics-panel-rev1-knob-inner")
-    export(range_knob(), "avionics-panel-rev1-knob-range")
+def parts():
+    """(file name, solid function, its arguments, mesh deflection) of every part, in the order they print."""
+    out = [("avionics-panel-rev1-knob-outer", outer_knob, (), 0.01),                 # ALT/HDG and FREQ
+           ("avionics-panel-rev1-knob-outer-fms", outer_knob, ("outer_fms",), 0.01),  # FMS: same fits, coarser grip
+           ("avionics-panel-rev1-knob-inner", inner_knob, (), 0.01),
+           ("avionics-panel-rev1-knob-range", range_knob, (), 0.01)]
     for tag, fit in S.FIT_VARIANTS.items():
-        export(outer_knob(fit=fit), f"avionics-panel-rev1-knob-outer-{tag}")    # ALT/HDG and FREQ
-        export(outer_knob("outer_fms", fit), f"avionics-panel-rev1-knob-outer-fms-{tag}")
-        export(inner_knob(fit), f"avionics-panel-rev1-knob-inner-{tag}")
-        export(range_knob(fit), f"avionics-panel-rev1-knob-range-{tag}")
-    export(light_pipe_pair(), "avionics-panel-rev1-lightpipes", deflection=0.005)   # SHIFT left, UNIT right
+        out += [(f"avionics-panel-rev1-knob-outer-{tag}", outer_knob, ("outer", fit), 0.01),   # ALT/HDG and FREQ
+                (f"avionics-panel-rev1-knob-outer-fms-{tag}", outer_knob, ("outer_fms", fit), 0.01),
+                (f"avionics-panel-rev1-knob-inner-{tag}", inner_knob, (fit,), 0.01),
+                (f"avionics-panel-rev1-knob-range-{tag}", range_knob, (fit,), 0.01)]
+    return out + [("avionics-panel-rev1-lightpipes", light_pipe_pair, (), 0.005)]   # SHIFT left, UNIT right
+
+
+def build(part):
+    """one part's STEP and STL, in a worker process: OpenCascade shapes do not pickle, so the worker builds its
+    own solid. Returns what export() printed, which the main process prints in the order of parts()."""
+    name, solid, args, deflection = part
+    with contextlib.redirect_stdout(io.StringIO()) as out:
+        export(solid(*args), name, deflection=deflection)
+    return out.getvalue()
+
+
+if __name__ == "__main__":
+    # The parts are independent and take seconds each. Half the CPUs build them: build.sh runs the other
+    # sections alongside, and OpenCascade meshes on several threads itself. A worker that dies (a crash in
+    # OpenCascade, out of memory) breaks the pool, which then fails instead of waiting for it forever.
+    jobs = parts()
+    workers = min(len(jobs), max(1, (os.process_cpu_count() or 1) // 2))
+    try:
+        with ProcessPoolExecutor(workers) as pool:
+            for text in pool.map(build, jobs):
+                print(text, end="", flush=True)
+    except BrokenProcessPool as e:
+        raise SystemExit(f"make_knobs.py: a worker process died ({e})") from e

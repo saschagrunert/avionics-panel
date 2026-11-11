@@ -71,10 +71,11 @@ Renders: [hero](renders/1-hero.png), [top](renders/2-top.png), [exploded](render
 
 ## Tooling
 
-The board and the plate artwork need numpy, scipy, matplotlib, scikit-image and pillow. On NixOS:
+The board and the plate artwork need numpy, scipy, matplotlib, scikit-image and pillow (and librsvg for
+the plate preview). With Nix, from the repository root:
 
 ```sh
-nix-shell -p "python3.withPackages (ps: with ps; [ numpy scipy matplotlib scikit-image pillow ])"
+nix-shell nix/shells.nix -A gen
 ```
 
 Inside `pcb/`: `python3 precheck.py` (placement clearances and bottom-side part bodies),
@@ -91,7 +92,7 @@ Inside `mech/`: `python3 make_plate_art.py`.
 The caps, body, plate, knobs and light pipes are exact solids (STEP, STL or OBJ) built with OpenCascade:
 
 ```sh
-nix-shell -p "python3.withPackages (ps: with ps; [ pythonocc-core numpy matplotlib ])"
+nix-shell nix/shells.nix -A occ
 ```
 
 Inside `mech/`: `python3 make_caps.py` (key caps), `python3 make_mech.py` (body, steel plate DXF),
@@ -106,11 +107,24 @@ hardware modules, `tests/test_pins.py` checks the firmware pins against the boar
 compiler, passed in `MPY_CROSS`) and with the MicroPython unix port (`micropython` on the PATH). Each check
 skips without its compiler; `build.sh` provides MicroPython and sets `REQUIRE_MICROPYTHON=1`, which makes
 that check fail instead; it provides `mpy-cross` (and sets `REQUIRE_MPY_CROSS=1`) only on Linux x86-64 and
-ARM64, and elsewhere prints a notice and that check skips.
+ARM64, and elsewhere prints a notice and that check skips. `nix-shell nix/shells.nix -A firmware` has
+pytest and MicroPython.
 
-`./build.sh` does all of the above in one go (`--route` also re-runs the routing), stops at the first
-failed check and copies the results to `production/` and `renders/`. Renders 1 to 4 are screenshots of
-the 3D view (`#shot-h`, `#shot-c`, `#shot-e`, `#shot-a` after the URL; `#shot-c` is the clean top view).
+`./build.sh` does all of the above in one go (`--route` also re-runs the routing first) and copies the
+results to `production/` and `renders/`. It runs the independent parts (board, plate artwork, knobs, caps
+with body and fit check, plate with viewer data, firmware) in parallel and prints each one's output when it
+ends; a part stops at its first failed check, and the build fails after all parts have ended, naming the
+ones that failed. Renders 1 to 4 are screenshots of the 3D view (`#shot-h`, `#shot-c`, `#shot-e`,
+`#shot-a` after the URL; `#shot-c` is the clean top view).
+
+Every Nix package comes from the nixpkgs revision locked in `flake.lock`, so a local build and CI write
+the same files (STEP, STL, PDF and PNG output depends on the OpenCascade and matplotlib versions).
+`nix/nixpkgs.nix` reads the lock without the flakes feature, and `nix/shells.nix` defines the environments
+above from it. Dependabot proposes newer nixpkgs-unstable revisions as pull requests (weekly, each at least a
+week old), and CI fails on any output that the update changes: run `./build.sh` on that branch and commit
+what changed. To move nixpkgs by hand:
+`nix --extra-experimental-features 'nix-command flakes' flake update nixpkgs`, then `./build.sh`, and commit
+`flake.lock` with every output that changed.
 
 ## License
 
