@@ -1194,8 +1194,9 @@ def clearances():
         (f"PCB width in the cavity (MJF -{cav_w_tol:.1f}; routed long edges +{MM.PCB_OUTLINE_TOL}, or the full "
          f"variant's V-cut rail edge +{MM.PCB_VCUT_TOL}), per side", cav),
         (f"PCB length in the cavity ({cav_len:.2f} at MJF -0.4 %): routed short edges (+{MM.PCB_OUTLINE_TOL}), or "
-         f"V-cut ones sanded to {MM.PCB_SANDED_LEN} max, per side", (cav_len - pcb_len) / 2),
-        (f"through-hole leads (trimmed to {S.LEAD_MAX} under the PCB) over the body floor ({MM.UNDER} room, MJF "
+         f"V-cut ones sanded until the board drops in ({MM.PCB_SANDED_LEN} at most), per side",
+         (cav_len - pcb_len) / 2),
+        (f"through-hole leads (untrimmed, up to {S.LEAD_MAX} under the PCB) over the body floor ({MM.UNDER} room, MJF "
          f"-{mjf(MM.UNDER)})", MM.UNDER - mjf(MM.UNDER) - S.LEAD_MAX),
         *usb_rows(),
         *filler_rows(back_lo, S.PLATE_FLAT * plate_bow(B.USB_X, -S.OVH)),

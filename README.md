@@ -41,12 +41,13 @@ Generated files are named `avionics-panel-rev1-*`.
 
 Production files, by supplier (details in [Ordering](docs/ordering.md)):
 
-- JLCPCB: [gerbers](production/avionics-panel-rev1-gerbers.zip), then one of the two
-  [assembly variants](docs/ordering.md#assembly-variants): economic, the SMD bottom side only
-  ([BOM](production/avionics-panel-rev1-BOM.csv), [CPL](production/avionics-panel-rev1-CPL.csv)), or full,
-  both sides with the through-hole parts ([BOM](production/avionics-panel-rev1-BOM-full.csv),
-  [CPL](production/avionics-panel-rev1-CPL-full.csv))
-- LCSC (economic variant): [through-hole parts](production/avionics-panel-rev1-THT-LCSC.csv), hand-soldered
+- JLCPCB: [gerbers](production/avionics-panel-rev1-gerbers.zip) and, for the default full assembly (both
+  sides, nothing to solder), [BOM](production/avionics-panel-rev1-BOM-full.csv) and
+  [CPL](production/avionics-panel-rev1-CPL-full.csv); the economic option fits the SMD bottom side only
+  ([BOM](production/avionics-panel-rev1-BOM.csv), [CPL](production/avionics-panel-rev1-CPL.csv); see
+  [assembly variants](docs/ordering.md#assembly-variants))
+- LCSC: full assembly, two spare keys and a reference RANGE control; economic option, the
+  [through-hole parts](production/avionics-panel-rev1-THT-LCSC.csv) (spares included), hand-soldered
 - JLCCNC: [plate STEP](production/avionics-panel-rev1-plate.step),
   [drawing](production/avionics-panel-rev1-plate-drawing.pdf),
   [marking DXF](production/avionics-panel-rev1-plate.dxf)

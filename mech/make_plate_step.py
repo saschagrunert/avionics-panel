@@ -161,8 +161,9 @@ def drawing_notes(vol):
         "the edge break below.",
         f"Positions of the 4 bosses and their tapped holes and of all through holes: +-{S.POS_TOL['plate']} to each "
         "other (the key caps, the board and the screws must line up).",
-        f"Bosses: dia {BOSS['d']} +-{BOSS['d_tol']}, {BOSS['h']} +-{BOSS['h_tol']} high from the back face of the web, "
-        f"each end face flat and square to its hole (they carry the plate on the board); root R{BOSS['root_r']} max.",
+        f"Bosses: dia {BOSS['d']} +-{BOSS['d_tol']}, {BOSS['h']} +-{BOSS['h_tol']} high from the back face of the web "
+        "(required: they set the plate height), "
+        f"each end face flat and square to its hole; root R{BOSS['root_r']} max.",
         f"Threads: 4 x {TAP['thread']}, one in each boss from its end face, full thread at least {TAP['full']} deep, "
         f"tap drill dia {TAP['drill']} x {TAP['depth']} deep plus the drill point, {TAP['cham']} x 90 deg countersink: "
         f"at least {skin:.2f} mm of metal stays in front of the drill point. The threads must gauge {TAP['thread']} "

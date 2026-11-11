@@ -22,10 +22,11 @@ walls stop WALL_GAP short of the plate.
 # datasheet values the generators share
 # TE 1-1825910-4 key plunger, from TE's own STEP model of the part (dz below the plunger top): a flat top of
 # radius 1.26 with a 0.3 edge radius, dia 3.12 at dz 0.29, then a cone (about 2 degrees per side) to dia 3.51
-# at the switch body top (dz 5.90; the PCB is at dz 9.50). TE gives no tolerance on it.
+# at the switch body top (dz 5.90; the PCB is at dz 9.50). TE's customer drawing (1825910 rev C10) gives the
+# plunger 3.10 at the tip and 3.51 at the base, 9.50 high, under its general tolerance of +-0.30 on two-place sizes.
 PLUNGER_TOP = 9.5                          # above the PCB
 PLUNGER = dict(top_r=1.26, edge_r=0.3, dz0=0.29, d0=3.12, dz1=5.90, d1=3.51)
-PLUNGER_TOP_TOL = 0.2                      # plunger height, assumed (TE gives none; usual for 6 x 6 switches)
+PLUNGER_TOP_TOL = 0.3                      # plunger height (TE drawing: 9.50 +-0.30)
 SWITCH_BODY_TOP = PLUNGER_TOP - PLUNGER["dz1"]   # 3.6
 SWITCH_BODY = 6.0                          # square body across (TE 1-1825910-4: 6 x 6 mm), for the light pipe rows
 
@@ -36,7 +37,7 @@ def plunger_d(dz):
     return p["d0"] + (p["d1"] - p["d0"]) * (dz - p["dz0"]) / (p["dz1"] - p["dz0"])
 
 
-KEY_TRAVEL = 0.35                          # TE 1-1825910-4 travel 0.25 +-0.1
+KEY_TRAVEL = 0.45                          # TE 1-1825910-4 travel 0.25 +0.20/-0.10 (drawing)
 RKJXT_BODY, RKJXT_HUB_TOP, RKJXT_TILT = 8.6, 10.5, 9.0   # Alps RKJXT1F42001: body and hub top, tilt (deg)
 RKJXT_FULCRUM = 5.55                       # Alps RKJXT1F42001: tilt fulcrum above the PCB (datasheet)
 RKJXT_FULCRUM_OFF = 4.65                   # and off the lever axis (datasheet), on the side the lever tilts to
@@ -45,7 +46,7 @@ RANGE_PUSH = (0.3, 0.2)                    # Alps RKJXT1F42001 push stroke 0.3 +
 LEVER_TOL = 0.3                            # Alps RKJXT1F42001 lever height, +-
 BODY_TILT = 6.0                            # body wedge (deg)
 # key cap: outline, height and top chamfer; it sits with its socket ceiling on the plunger top and the socket
-# is 2.7 deep, so its bottom is at 6.8. A cap pressed firmly (travel up to 0.35, plunger up to 0.2 low, the board
+# is 2.7 deep, so its bottom is at 6.8. A cap pressed firmly (travel up to 0.45, plunger up to 0.3 low, the board
 # bent by PRESS_DIP) can dip under the plate back; the bent board tilts it with its plunger (PRESS_SLOPE), so a cap
 # at the edge of its per-key allowance may rub the face edge of its hole on one side. check_fit.py proves that it
 # cannot wedge across the hole and that its bottom edge comes back over the back edge, which is broken by
@@ -81,7 +82,11 @@ CAP_SOCKET = dict(d=3.8, rib_w=1.2, rib_angles=(0, 90, 180, 270), relief=0.35, l
 # is 3.29): set D grips a print whose rib circle comes out 0.09 to 0.22 large, A 0.01 small to 0.12 large, B
 # 0.11 small to 0.02 large, C 0.21 to 0.08 small (CAP_GRIP). The set that seats fully and holds is the one
 # to fit. Each set's caps carry 1 to 4 dimples (CAP_MARK, A 1 ... D 4) on the underside, inside the key hole
-# where they never show.
+# where they never show. The sets take a plunger off TE's model by as much, together with the print: TE's drawing
+# allows +-0.30 on its diameter, so a plunger lot at the edge of that needs the sets moved (docs/mechanics.md).
+# One compliant set cannot replace them in a 9.6 x 6.4 cap: springs that grip over the drawing's 0.6 and the print's
+# 0.4 deflect up to 0.55 each, and two of them, one printed 0.1 thin and one 0.1 thick, hold the cap up to 0.18 off
+# its plunger, twice the 0.09 the key hole leaves for that (docs/mechanics.md).
 CAP_SETS = {"A": 3.15, "B": 3.25, "C": 3.35, "D": 3.05}
 CAP_GRIP = (0.02, 0.15)                    # diametral interference: holds from, still seats by hand up to
 CAP_PRINT = (-0.20, 0.20)                  # rib circle print error (mm on the dia) the four sets must cover
@@ -137,8 +142,10 @@ POCKET_TOL = 0.1
 # its reference; the bosses stand 0.05 higher, 6.0 to 6.1, which centres the plate between the rows that want it low
 # (knobs and RANGE skirt over the face) and those that want it high (pockets over the RKJXT and the encoders, cap
 # sockets under the face, USB-C filler, body walls). At JLCCNC's default +-0.1 instead every row still passes, with
-# 0.05 less on each side (docs/ordering.md). End faces flat, square to the bore. They sit on the PCB inside its
-# copper keep-out (pcb/board.py MOUNT_KEEPOUT).
+# 0.05 less on each side, bar the cosmetic cap socket ceiling, which may then stand up to 0.04 above the face on a
+# plunger 0.3 high (TE's tolerance): so the drawing and the JLCCNC remark ask for +-0.05, and +-0.1 is acceptable,
+# cosmetic only (docs/ordering.md). End faces flat, square to the bore. They sit on the PCB inside its copper
+# keep-out (pcb/board.py MOUNT_KEEPOUT).
 BOSS = dict(d=5.5, d_tol=0.1, h=6.05, h_tol=0.05, root_r=0.3)   # root_r: inside corner at the back face, at most
 # Thread M3-6H from the boss end face, full thread at least `full` deep, drilled dia `drill` `depth` deep plus the
 # drill point (118 deg), a `cham` x 90 deg countersink at the mouth. JLCCNC's rules: at most 3 D of thread, at least
@@ -257,6 +264,10 @@ KEY_W, KEY_R = 1.4, 2.3
 # +0/-0.1, so FIT 0 leaves 0 to 0.1 real clearance on a true print. JLC3DP's resin holes vary by about
 # +-0.3, so one of each knob (outer, FMS ring, inner, RANGE) also comes 0.2 tighter and 0.2 looser; a bore
 # that is still too tight opens with a drill of the shaft size (6.0, 3.5, 2.5) and a needle file on the D flat.
+# A single compliant bore cannot replace the variants: the friction must carry the PEC11D's detent torque (100 +-70
+# gf cm, 16.7 N mm at most), which on the inner knob's D flat (1.58 from the axis to its corner) takes a spring
+# preload of 10.6 N; over the bore's 0.6 and the shaft's 0.1 such a spring in the SLA resin (E about 2.7 GPa) is
+# strained about 7 % at the tight end, the resin's elongation at break, and takes about 70 N to push on.
 FIT = 0.0
 FIT_VARIANTS = {"tight": -0.2, "loose": 0.2}   # extra outer, FMS, inner and RANGE knob each
 # Garmin proportions: outer rings 17 on all three dual knobs, inner knobs 12, so 2.5 of ring shows each side.
@@ -359,10 +370,10 @@ PIPE = dict(base_d=2.8, base_len=5.35, top_len=3.65, len_tol=0.2, stub=0.1, clea
             bar=(2.2, 2.0), resin=0.2, anodise=ANODISE, z0=0.0)
 LIGHT_HOLE_BACK_BREAK = 0.05
 PIPE["len"] = PIPE["base_len"] + PIPE["top_len"]
-# Through-hole leads below the PCB, at most: PEC11D terminals stick out about 1.9, RKJXT about 1.6, the keys about
-# 3.5 and are trimmed to this (the full variant's order remark, the hand-soldering notes). check_fit.py checks it
-# against the room under the board.
-LEAD_MAX = 2.0
+# Through-hole leads below the PCB, untrimmed: the keys' 3.51 +-0.30 (TE drawing) stand 2.37 under a board 0.16 thin
+# at most, the PEC11D terminals about 1.9 (+0.3), the RKJXT's about 1.6; plus up to 0.3 of solder at a tip. Nothing
+# is trimmed: check_fit.py checks this against the room under the board.
+LEAD_MAX = 2.7
 # PCB bow, either way, at its middle (the two lights sit near the middle of the 153 mm span between the corner
 # screws). JLCPCB, like IPC-6012, allows 0.75 % bow and twist for SMT boards (1.2 mm over 160 mm); a 4-layer 1.6 mm
 # board is usually far flatter. The light pipe rows and the pocket rows over the encoders and the RKJXT take this
@@ -373,7 +384,9 @@ PCB_BOW = 0.1
 # 2768-K alone would allow 0.4 over its 165 mm), either way. check_fit.py moves the plate at a part by that times
 # its plate_bow() (a dome, or a bow along or across the plate, held at the bosses), in the direction that costs the
 # row. The light pipe rows take PLATE_FLAT in full. Every row still passes up to about 0.17 (the light pipes' clamp
-# goes first, then the body walls at 0.19), which is what to answer should JLCCNC ask (docs/ordering.md).
+# goes first, then the body walls at 0.19), bar the cosmetic cap socket ceiling, which may then stand up to 0.05
+# above the face on a plunger 0.3 high; that is what to answer should JLCCNC ask, but not with the bosses at +-0.1
+# as well: then flatness up to about 0.12 (docs/ordering.md).
 PLATE_FLAT = 0.1
 # The two body posts under the middle of the PCB (make_mech.py) end SUPPORT_SHORT under it, so with JLC3DP's
 # MJF +-0.3 (post height against the bosses) they lift the board by at most SUPPORT_LIFT; a firm press bends it

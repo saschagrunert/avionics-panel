@@ -49,13 +49,17 @@ stack is drawn with the back at 6.0 and the face at 10.0, and `check_fit.py` tak
   PCB (4.0 ±0.1 mm before anodising). `check_fit.py` takes the worse case in every row.
 - The boss height centres the plate: 6.0 to 6.1 mm puts it 0.05 mm higher than the 6.0 the stack is drawn at,
   between the rows that want it low (the outer knobs keep 0.12 mm over the face, the RANGE skirt 0.22 mm) and
-  those that want it high (0.10 mm over the RKJXT and at the RANGE pocket's floor corner, the cap sockets 0.11
-  mm under the face, the encoder pockets 0.26 mm over the bodies, the USB-C filler 0.16 mm, the body walls
-  0.08 mm). At JLCCNC's default ±0.1 mm instead every one still passes with 0.05 mm less on one side (the
-  walls with 0.03 mm). The pocket rows also take the board bowed 0.1 mm towards the plate in the middle
-  (`stack.PCB_BOW`, JLCPCB allows more, a 4-layer board is usually far flatter), about 0.045 mm at the knobs.
-  The drawing asks for flatness 0.1 mm; every row still passes up to about 0.17 mm (the light pipes' room over
-  their bases goes first, then the body walls).
+  those that want it high (0.10 mm over the RKJXT and at the RANGE pocket's floor corner, the cap sockets 0.01
+  mm under the face on a plunger 0.3 mm high, the encoder pockets 0.26 mm over the bodies, the USB-C filler
+  0.16 mm, the body walls 0.08 mm). At JLCCNC's default ±0.1 mm instead every one still passes with 0.05 mm
+  less on one side (the walls with 0.03 mm), bar the cap socket ceiling: on a plunger 0.3 mm high (TE's
+  tolerance) it may stand up to 0.04 mm above the face, cosmetic only, so the drawing and the JLCCNC remark
+  ask for ±0.05 (if they can only hold ±0.1, accept: cosmetic only). The pocket rows also take the board bowed
+  0.1 mm towards the plate in the middle (`stack.PCB_BOW`, JLCPCB allows more, a 4-layer board is usually far
+  flatter), about 0.045 mm at the knobs. The drawing asks for flatness 0.1 mm; every row still passes up to
+  about 0.17 mm (the light pipes' room over their bases goes first, then the body walls), bar the cosmetic cap
+  socket ceiling (up to 0.05 mm above the face there); not both at once: with the bosses at ±0.1, flatness up
+  to about 0.12 mm.
 - Positions: the key caps centre the board in the 10.2 x 7.0 mm key holes (+0.1/-0 after anodising, so at
   least 0.3 mm per side, against about 0.23 mm of per-key errors, RSS), and in holes at +0.1 it can still
   sit up to about 0.44 mm off. A cap can turn on its round plunger, and a turned cap has less room: at 1°
@@ -93,9 +97,9 @@ stack is drawn with the back at 6.0 and the face at 10.0, and `check_fit.py` tak
   both printed 0.3 mm off (JLC3DP asks for more than 1.5 mm on fastener features). The cavity leaves 0.5 mm
   per side round the PCB, so the board fits even with the body 0.4 % small: the milled outline (±0.2 mm) as
   delivered, 0.15 mm per side across the width with the full variant's V-cut rail edge (±0.4 mm), and V-cut
-  short edges, should JLCPCB add rails there anyway, once they are sanded to 160.2 mm or less ([on
-  arrival](#on-arrival)); the walls and the ribs under the floor are 2.0 mm (JLC3DP's MJF wall for parts over
-  100 mm).
+  short edges, should JLCPCB add rails there anyway, once they are sanded until the board drops into the
+  body, 160.2 mm or shorter fitting the smallest one ([on arrival](#on-arrival)); the walls and the ribs
+  under the floor are 2.0 mm (JLC3DP's MJF wall for parts over 100 mm).
 - The body walls end 0.65 mm under the plate back, the smallest gap that never closes: MJF ±0.3 mm on the
   wall height over the boss tops under the PCB, a board 0.16 mm thin, the plate back 0.025 mm low over bare
   boss ends and bowed 0.086 mm down at the middle of a long wall, and the bosses at their lowest leave 0.08
@@ -144,63 +148,50 @@ stack is drawn with the back at 6.0 and the face at 10.0, and `check_fit.py` tak
 
 ### On arrival
 
-Both [assembly variants](ordering.md#assembly-variants), in this order:
+Full variant (the default), in this order:
 
-1. Edges. Economic variant: nothing to do. The board comes without rails, milled all round (±0.2 mm), and
-   fits the body as delivered; should JLCPCB have added rails after all, one on the long edge y = 0 comes
-   off as in the full variant, ones on the short edges as in the fallback below. Full variant: break the
-   V-scored rail off the long edge away from J1 on both boards (pliers along the score, without bending the
-   board), then file or sand that edge flush (outdoors or wet: glass-fibre dust). Measure the width with
-   calipers: 60.4 mm or less (a V-cut is held to ±0.4 mm; `check_fit.py` has the row). If a corner at that
-   edge comes back square, file it to R3: a square corner would stand about 0.74 mm into the body's R3.5
-   cavity corner. Fallback, should JLCPCB have added rails on the short edges after all: break them off the
-   same way, then sand both short edges about equally, only as much as needed, until the board is 160.2 mm
-   long or shorter (the cavity is 161.0 mm long, 160.36 mm with the body printed 0.4 % small, so a V-cut
-   board of 160.4 mm would not go in), and square corners to R3.
-2. Plate threads: turn one of the M3 screws into each boss by hand with the 2 mm hex key, about ten turns
-   (5 mm), until about 3 mm of shank still shows, and out again. It must run freely: an anodised thread that
-   was neither masked nor cut again stops it early (take it up with JLCCNC; the drawing asks for M3-6H after
-   anodising). Don't drive it home: the hole's full thread ends 6.0 mm in, while an 8 mm screw seated without
-   the body would go 8 mm deep; in the panel its tip reaches 5.55 mm at most.
-3. Full variant only, the work JLCPCB did on the top side (see the
-   [order remark](ordering.md#full-variant-through-hole-parts-at-jlcpcb)):
-   - Encoders flat on the board: a 0.05 mm feeler gauge must not slide under the body of an encoder anywhere
-     round it (`stack.SEAT_GAP`), and the encoder lugs are soldered. The RANGE control (RKJXT): press the
-     loose one from the LCSC order fully down into the footprint of a bare board and read the gap under its
-     base frame at its four gauge spots (see the RANGE control under [hand-soldering](#hand-soldering)): that
-     is the reference. On each assembled board, at every spot the blade (or stack) that slid in on the
-     reference must slide in and that blade plus 0.03 mm must not; in practice the same reading on all four
-     sides, about 0.40 mm (Alps' STEP model). Then no spot stands 0.05 mm prouder than on a seated part
-     (`stack.RKJXT_SEAT`: 0.03 mm plus up to 0.02 mm between two parts' flanges, assumed), and the pockets
-     leave 0.10 mm over the RKJXT and at their floor corners. If both boards read outside the same way, read
-     the loose part again in another bare board before reworking either: the reference is then more likely off
-     than both soldered parts. The 28 keys sit flat and square: a tilted key tilts its cap in the key hole. A
-     part that stands proud: reheat its pins while pressing it down, or use the second board for the panel.
-   - Leads: no lead may stick out more than 2 mm under the board (calipers, or a ruler held across the
-     bottom); the board sits only 4.0 mm over the body floor. Cut longer ones with side cutters, then check
-     the joint.
-   - J1 shell tabs: all four slots filled from the top and wetting the tabs; if not, solder them as in
-     [hand-soldering](#hand-soldering).
-   - No solder bridges on the bottom, between a through-hole pin or J1 shell tab and the SMD pads next to
-     it and above all between the RKJXT's COM and ECOM pins (see the RANGE control below): magnifier and
-     continuity tester.
-4. Cap set, both variants: try the four sets on one of the spare loose keys (two come with the economic
-   LCSC set; add two to the LCSC order in the full variant), so pulling off a tight cap pulls at no
-   soldered switch ([caps](#caps-light-pipes-knobs)). Without a spare, wait until the keys are on (in the
-   economic variant after [bring-up](firmware.md#install-and-bring-up) step 4) and try them on a soldered
-   key from loose to tight (C, B, A, D), stopping at the first that holds.
+1. Rail: break the V-scored rail off the long edge away from J1 (pliers along the score, without bending the
+   board), then file or sand that edge flush (outdoors or wet: glass-fibre dust). The V-cut edge (±0.4 mm)
+   fits the cavity as it is (`check_fit.py`), so there is nothing to measure. A corner at that edge that came
+   back square is filed to R3: it would stand about 0.74 mm into the body's R3.5 cavity corner.
+2. Plate threads: turn one of the M3 screws into each boss by hand with the 2 mm hex key, about ten turns, and
+   out again. It must run freely: an anodised thread that was neither masked nor cut again stops it early
+   (take it up with JLCCNC). Don't drive it home: without the body it would go past the 6.0 mm of full thread.
+3. Seating: the plate pockets leave the encoders and the RKJXT little room, so check what JLCPCB soldered (the
+   rows pass with an encoder up to 0.12 mm proud, the RKJXT's gauge spots up to about 0.06 mm):
+   - Encoders: a 0.05 mm feeler blade must not slide under an encoder body anywhere round it
+     (`stack.SEAT_GAP`), and the lugs are soldered.
+   - RANGE control (RKJXT): press the loose one from the LCSC order fully down into the footprint of a bare
+     board and note at each of its four gauge spots the thickest blade (or stack) that slides under its base
+     frame ([how](#hand-soldering)): that is the reference, about 0.40 mm. On each assembled board that blade
+     must slide in at every spot and that blade plus 0.03 mm must not (`stack.RKJXT_SEAT`). If both boards read
+     outside the same way, read the loose part again in another bare board first.
+   - The keys sit flat. A part that stands proud: reheat its pins while pressing it down, or use the second
+     board for the panel.
+4. J1 shell tabs: all four slots filled from the top and wetting the tabs; if not, solder them as in
+   [hand-soldering](#hand-soldering).
+5. Cap set: try the four sets on one of the spare loose keys from the LCSC order, so pulling off a tight cap
+   pulls at no soldered switch ([caps](#caps-light-pipes-knobs)).
+
+Nothing else needs a tool: the leads stay untrimmed and clear the body floor by 1.0 mm (`check_fit.py`), and a
+solder bridge shows up in [bring-up](firmware.md#install-and-bring-up) steps 6 and 7, where every key, ring,
+tilt and push is read.
+
+Economic option: the board comes without rails, milled all round, and fits the body as delivered; do steps 2
+and 5 (the two spare keys come with the LCSC set), the rest follows in the bring-up
+([hand-soldering](#hand-soldering)). Either variant: should JLCPCB have added rails the order did not ask for,
+break them off as in step 1; short edges with rails are then sanded, both about equally, until the board drops
+into the body (160.2 mm or shorter fits any body within the print tolerance).
 
 Then [bring-up](firmware.md#install-and-bring-up).
 
 ### Hand-soldering
 
-Economic variant: the board comes with every SMD part on the bottom, the two LEDs included; the keys,
-encoders and RANGE control are soldered by hand from the bottom side. Flash and test the bare board first
-(steps 1 to 3 of [Install and bring-up](firmware.md#install-and-bring-up): the bottom side and USB need no
-through-hole part), then solder the keys and check them, and the encoders and RANGE control last: they are
-the parts that are hard to remove again. In the full variant JLCPCB fits all of them and solders the J1
-shell tabs; only the [arrival checks](#on-arrival) remain (seating, leads, J1 tabs, no bridges), and the
-notes below explain what they check.
+Only in the economic option, and for rework: the board comes with every SMD part on the bottom, the two LEDs
+included; the keys, encoders and RANGE control are soldered by hand from the bottom side. Flash and test the
+bare board first (steps 1 to 3 of [Install and bring-up](firmware.md#install-and-bring-up)), then solder the
+keys and check them, and the encoders and RANGE control last: they are the parts that are hard to remove
+again. The notes below also explain the full variant's arrival checks.
 
 - USB-C shell tabs: solder all four J1 shell tabs from the top before the first plug-in: flux, then feed
   solder into each slot until it is filled and wets the tab all round (they are GND). The paste Gerber
@@ -214,8 +205,8 @@ notes below explain what they check.
   soldering, see the RANGE control below): a 0.05 mm feeler gauge must not slide under an encoder body.
   Solder one pin, check from the side that the part sits flat and square (press it down while you reheat
   that pin if not), then solder the rest. Same for the 28 keys: a tilted key tilts its cap in the key hole.
-  Cut every lead to 2 mm or less on the bottom: the board sits only 4.0 mm over the body floor
-  (`check_fit.py` has the row).
+  The leads need no trimming: they stand at most 2.7 mm under the board, which sits 4.0 mm over the body
+  floor (3.7 with the print tolerance), so they clear it by 1.0 mm.
 - Encoders: the mounting lugs go through their slots and get soldered too; they carry the push of the
   knobs.
 - RANGE control (RKJXT): no centring needed, just seat it flat. In Alps' STEP model it stands on a round Ø13.5
@@ -264,10 +255,10 @@ edge (the nearest caps and shafts are about 10 mm in), with a cloth on top.
    blocks: every cap must stand up through its hole; one that sits on the plate back was turned, so square it
    again.
 4. Body: set it over the board, bottom up. Put the four screws in from below, turn each in by hand, then
-   tighten them gently with the 2 mm hex key (two fingers on its short arm), crosswise. Then look along the
-   gap between the wall tops and the plate back all round (0.65 mm, a thin even line): where it is closed,
-   the wall and not the bosses would carry the plate there and the board would not be clamped. Take the body
-   off again and sand that wall top down a little on sandpaper laid flat on the table, then try again.
+   tighten them gently with the 2 mm hex key (two fingers on its short arm), crosswise. The wall tops stay
+   clear of the plate back (0.08 mm at worst, `check_fit.py`), so there is nothing to check there. Should the
+   plate rock or the board rattle once the screws are in, a wall top touches the plate: sand it down a little
+   on sandpaper laid flat on the table.
 5. USB-C filler: turn the panel over (face up) with its back towards you. Put a small dab of adhesive
    putty (Blu Tack, black or white) on the inner, chamfered half of each side face of the filler (a dab
    further out is scraped off at the notch's edges and smears the back face), set it chamfered edges
@@ -307,17 +298,20 @@ slide off its ledges towards the plate back.
 
 - Key caps: the switch plunger (TE's own STEP model of the 1-1825910-4) has a flat top of 1.26 mm radius with
   a 0.3 mm edge radius and then tapers about 2° per side, from 3.12 mm just under the top to 3.51 mm at the
-  switch body; over the 2.7 mm deep cap socket it is 3.12 to 3.29 mm. The socket is a 3.8 mm bore (1.3 mm of
+  switch body; over the 2.7 mm deep cap socket it is 3.12 to 3.29 mm. TE's customer drawing gives it only
+  its general tolerance, ±0.30 mm on the diameter and on the 9.50 mm height, and a travel of 0.25 +0.20/-0.10
+  mm. The socket is a 3.8 mm bore (1.3 mm of
   wall at the narrow cap sides, 1.05 mm on a print with the outline 0.2 mm small and the bore 0.3 mm large,
   nothing open to the outside) with four rigid ribs 1.2 mm wide along its wall, attached over their whole
   length, that follow the plunger's cone: they touch it over 2.04 mm, so a cap that grips cannot rock. They
   stop 0.35 mm under the socket ceiling, clear of the plunger's rounded edge, so the flat ceiling sits on the
-  plunger top: the plunger, not the fit, sets the cap height (2.5 mm proud), and the socket ends 0.1 mm or
-  more under the plate face (0.11 mm with the plate bowed 0.1 mm towards the board; the socket stays inside
-  the cap either way, so that limit is cosmetic). A firm press (10 N, about six times the switch force) bends
-  the board under the key by up to about 0.76 mm (the front and back rows are 18 mm from the body posts, which
-  do not stop them), and with the plate bowed up the cap can dip up to 0.69 mm under the plate back (a little
-  more on a board bowed away from the plate; the 0.1 mm edge break still leads it back in). The bent board
+  plunger top: the plunger, not the fit, sets the cap height (2.5 mm proud), and the socket ends under the
+  plate face even on a plunger 0.3 mm high (0.01 mm with the plate bowed 0.1 mm towards the board; the socket
+  stays inside the cap either way, so that limit is cosmetic). A firm press (10 N, about six times the switch
+  force) bends the board under the key by up to about 0.76 mm (the front and back rows are 18 mm from the body
+  posts, which do not stop them), and with the plate bowed up the cap can dip up to 0.89 mm under the plate
+  back (a little more on a board bowed away from the plate; the 0.1 mm edge break still leads it back in). The
+  bent board
   tilts the cap with its plunger by up to about 0.87°, which moves it up to 0.18 mm sideways at the
   plate face. A cap at the edge of its per-key allowance has less room than that (0.07 mm, 0.01 mm turned 1°),
   so on a firm press it may lightly rub the face edge of its hole on one side. It cannot catch or stick:
@@ -336,9 +330,9 @@ slide off its ledges towards the plate back.
   true print D grips with 0.24 mm (too tight), A with 0.14 mm, B with 0.04 mm and C is 0.06 mm loose; D
   fits a print whose rib circle comes out 0.09 to 0.22 mm large, A 0.01 mm small to 0.12 mm large, B
   0.11 mm small to 0.02 mm large, C 0.21 to 0.08 mm small: together they cover a print 0.21 mm small to
-  0.22 mm large. The set is marked on the cap underside, inside the key hole where it never shows: one
-  dimple for A, two for B, three for C, four for D (1.0 mm across, 0.9 mm deep, in the corners between
-  the socket and the outline).
+  0.22 mm large, and a plunger lot off TE's model by as much, together with the print. The set is marked
+  on the cap underside, inside the key hole where it never shows: one dimple for A, two for B, three for C,
+  four for D (1.0 mm across, 0.9 mm deep, in the corners between the socket and the outline).
 - Choosing the set: try one cap of each set on a spare loose key (no tools; [on arrival](#on-arrival)),
   so pulling off a tight cap loads no soldered switch. The right set pushes down by hand until the cap
   sits on the plunger top (it stops hard there; on the board its top is then level with its neighbours),
@@ -347,7 +341,16 @@ slide off its ledges towards the plate back.
   or needs more than a firm thumb; too loose means it falls off or rocks. Without a spare key, try them on a soldered
   key from loose to tight (C, B, A, D) and stop at the first set that holds, so no tight cap has to be
   pulled off. Fit all 28 caps of that set and keep the other three as spares. If even C is too tight, or
-  even D too loose, reprint with `stack.CAP_SETS` moved by 0.1 mm.
+  even D too loose (a plunger lot near the edge of TE's ±0.30), reprint with `stack.CAP_SETS` moved by
+  0.1 mm for each set it missed by (up to 0.3 mm; one round may not do).
+- Why not one compliant set: a socket whose springs grip over TE's 0.6 mm and the print's 0.4 mm deflects
+  each of two springs by up to 0.55 mm. In a 9.6 x 6.4 mm cap such springs are about 4 mm long and 0.9 mm
+  thick (WJP walls 1.0 mm, gaps 1.0 mm), so one printed 0.1 mm thin and the other 0.1 mm thick (k with the
+  cube of the thickness) hold the cap up to 0.18 mm off its plunger, twice the 0.09 mm the key hole leaves
+  for it once the cap is turned 1° (0.24 mm of room against 0.22 mm of other per-key errors, RSS). In
+  JLC3DP's Full Color Tough Resin (E 1.0 to 1.5 GPa, 30 to 40 % elongation) they would not split (5 %
+  strain), but at the loose end they would hold the cap with about 0.2 N and resist turning it with 0.3 N
+  mm. Rigid ribs locate the cap on the plunger whatever its size, so the sets stay.
 - Legends: Barlow Semi Condensed Bold, grown all round by 0.055 mm, so every coloured stroke (including
   the D→ arrow and the flip-flop icon) is at least 0.4 mm wide, JLC3DP's minimum for full-colour lines;
   check_fit.py measures it on the generated texture. The tactile bars on SHIFT, UP and DN are 1.0 mm wide
@@ -388,7 +391,12 @@ slide off its ledges towards the plate back.
   Never drill past the existing bore depth (mark the drill with tape at it): the inner and the RANGE knob
   sit with their bore end on the shaft or lever tip, so a deeper bore lowers the knob, and the RANGE skirt
   has only 0.22 mm over the plate at full tilt. A loose one holds with a strip of tape on the shaft.
-  Reprint the rest with that `FIT` if needed.
+  Reprint the rest with that `FIT` if needed. One compliant bore cannot replace the variants: the bore's
+  friction must carry the PEC11D's detent torque (100 ±70 gf cm, 16.7 N mm at most) or the knob turns with
+  backlash (the outer key has up to 0.9 mm of play in its slot, a loose D bore as much). On the inner knob's
+  D flat that takes a spring preload of about 10.6 N; over the bore's ±0.3 mm and the shaft's 0.1 mm such a
+  spring in the SLA Black Resin (E about 2.7 GPa, 7 to 11 % elongation) is strained about 7 % at the tight
+  end and needs about 70 N to push on.
 - The knobs stand 19.9 mm above the plate (29.9 above the PCB), set by the uncut PEC11D shafts. The outer knob
   rests with its key (1.4 mm wide, 0.7 mm into the slot past the shaft surface, 0.5 mm with a small shaft and
   the print) on the floor of the shaft slot. The key stays clear of the inner shaft that runs through the slot
