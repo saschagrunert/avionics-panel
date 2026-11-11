@@ -6,7 +6,7 @@ RANGE bodies and 4 round flat-bottom pockets for the glued standoffs; no threads
 from the back in one setup.
 
 Coordinates: origin at the bottom-left corner of the plate seen from the front, X right, Y up, mm.
-Needs pythonocc-core (nix-shell -p "python3.withPackages (ps: with ps; [ pythonocc-core numpy matplotlib ])").
+Needs pythonocc-core (nix-shell nix/shells.nix -A occ, from the repository root).
 """
 import math
 import sys
@@ -20,9 +20,6 @@ from OCC.Core.BRepPrimAPI import BRepPrimAPI_MakeCylinder, BRepPrimAPI_MakePrism
 from OCC.Core.GC import GC_MakeArcOfCircle
 from OCC.Core.gp import gp_Ax2, gp_Dir, gp_Pnt, gp_Vec
 from OCC.Core.GProp import GProp_GProps
-from OCC.Core.IFSelect import IFSelect_RetDone
-from OCC.Core.Interface import Interface_Static
-from OCC.Core.STEPControl import STEPControl_AsIs, STEPControl_Writer
 from OCC.Core.StlAPI import StlAPI_Writer
 from OCC.Core.TopAbs import TopAbs_FACE
 from OCC.Core.TopExp import TopExp_Explorer
@@ -31,7 +28,7 @@ from OCC.Core.TopTools import TopTools_ListOfShape
 sys.path.insert(0, "../pcb")
 import board as B  # noqa: E402
 import stack as S  # noqa: E402
-from occ_util import pin_step_time  # noqa: E402
+from occ_util import write_step  # noqa: E402
 
 OVH, T = S.OVH, S.PLATE_T
 AMBER_HEX, AMBER_RGB, AMBER_REF = S.AMBER["hex"], ", ".join(map(str, S.AMBER["rgb"])), S.AMBER["ref"]
@@ -123,11 +120,7 @@ def main():
     vol = props.Mass()
     print(f"plate {PW:.1f} x {PH:.1f} x {T:.1f} mm, {vol / 1000:.1f} cm3, {vol * 2.70e-3:.0f} g (6061), {nf} faces")
 
-    Interface_Static.SetCVal("write.step.unit", "MM")
-    Interface_Static.SetCVal("write.step.product.name", "avionics-panel-rev1-plate")
-    w = STEPControl_Writer(); w.Transfer(shape, STEPControl_AsIs)
-    assert w.Write("avionics-panel-rev1-plate.step") == IFSelect_RetDone
-    pin_step_time("avionics-panel-rev1-plate.step")
+    write_step(shape, "avionics-panel-rev1-plate")
     BRepMesh_IncrementalMesh(shape, 0.02, False, 0.2, True)
     StlAPI_Writer().Write(shape, "avionics-panel-rev1-plate-ref.stl")
     drawing(features, vol)
