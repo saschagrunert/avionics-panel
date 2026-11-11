@@ -2,7 +2,8 @@
 
 The bottom-side parts are placed by JLCPCB by these footprints (its placement preview draws them), so check.py
 fits each one onto our pads, offline, from the files written here; the through-hole parts on the top are
-soldered by hand, and check.py fits their hole patterns. Run it (needs the network) after adding a part type:
+soldered by hand or, in the full variant, placed by JLCPCB from the top-side CPL, and check.py fits their hole
+patterns both ways. Run it (needs the network) after adding a part type:
     cd pcb && python3 footprints/fetch.py
 Each file keeps the pads only: number, centre x / y, size x / y in mm, top view, y down, from the
 footprint's origin (the point JLCPCB puts on the CPL position). Through-hole parts also keep their holes:
@@ -111,7 +112,7 @@ def main():
         head = ",\n".join(f" {json.dumps(k)}: {json.dumps(v)}" for k, v in ref.items())
         found = pads_of(data)
         lists = {"pads": found}
-        if lcsc in top:                             # hand-soldered through-hole part: its holes too
+        if lcsc in top:                             # through-hole part: its holes too
             lists["holes"], lists["npth"] = holes_of(data)
             ref["frame"] += "; holes: number, x, y, drill, slot length (0: round); npth: x, y, diameter"
             head = ",\n".join(f" {json.dumps(k)}: {json.dumps(v)}" for k, v in ref.items())

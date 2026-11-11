@@ -15,21 +15,23 @@ opening (the router keeps them out, `check.py` checks it). Paste is on every ass
 else, the drills (0.3 mm plated, 0.6 mm unplated) and annular rings (0.1 mm on vias, 0.15 mm on pads)
 are within JLCPCB's standard limits, and no solder mask dam is under 0.1 mm (green mask). The four USB-C
 shell tabs get paste over their pads (pin-in-paste), but the stencil leaves about 0.12 mm3 of solder for
-about 0.8 mm3 of slot around each tab: a fillet on the bottom at most. They are soldered from the top
-by hand as well ([Mechanics](mechanics.md#hand-soldering)).
+about 0.8 mm3 of slot around each tab: a fillet on the bottom at most. They are soldered from the top as
+well, by hand in the economic assembly variant ([Mechanics](mechanics.md#hand-soldering)), by JLCPCB in the
+full one ([Ordering](ordering.md#assembly-variants)).
 
-The through-hole parts are soldered by hand from the bottom, among the SMD parts. `check.py` keeps every
-exposed SMD pad of another net at least 1.0 mm (copper to copper) from every hand-soldered pad, room for
-the iron and a fillet without a bridge; the closest is 1.24 mm (a key pin to its own diode's cathode
-pad). Before, each LED's cathode (GND) pad sat 0.28 mm from its resistor's GPIO pad, so a bridge would
-have shorted the GPIO. It also fits JLC's footprints of the hand-soldered parts (keys, encoders, RANGE
-control, LEDs; saved with their holes by `footprints/fetch.py`) onto our holes by position: all agree,
-and the drills follow the datasheets (keys 1.0 mm, JLC 1.2; PEC11D 1.2 mm per Bourns, JLC 1.1; RKJXT
-1.1 mm, JLC 1.2; LEDs 0.9 mm). The RKJXT holes are drilled 1.1 mm: Alps specifies 1.0 +0.2/-0, and
-JLCPCB's plated holes can finish up to 0.08 mm under the drill; the 1.7 mm pads keep a 0.3 mm ring. Its
-locating peg (Ø1 -0.1) goes into a 1.3 mm unplated hole as in JLC's footprint: Alps asks for 1.1 +0.1/-0,
-but JLCPCB holds unplated holes to ±0.2, and at 0.9 mm the peg would not go in. The part then floats up to
-0.26 mm on its pins, which the plate allows for ([Mechanics](mechanics.md#hand-soldering)).
+The through-hole parts are soldered from the bottom, among the SMD parts: by hand in the economic
+variant, by JLCPCB (by hand or selectively) in the full one. `check.py` keeps every exposed SMD pad of
+another net at least 1.0 mm (copper to copper) from every through-hole pad, room for the iron and a
+fillet without a bridge; the closest is 1.24 mm (a key pin to its own diode's cathode pad). Before, each
+LED's cathode (GND) pad sat 0.28 mm from its resistor's GPIO pad, so a bridge would have shorted the
+GPIO. It also fits JLC's footprints of the through-hole parts (keys, encoders, RANGE control, LEDs; saved
+with their holes by `footprints/fetch.py`) onto our holes by position: all agree, and the drills follow
+the datasheets (keys 1.0 mm, JLC 1.2; PEC11D 1.2 mm per Bourns, JLC 1.1; RKJXT 1.1 mm, JLC 1.2; LEDs 0.9
+mm). The RKJXT holes are drilled 1.1 mm: Alps specifies 1.0 +0.2/-0, and JLCPCB's plated holes can finish
+up to 0.08 mm under the drill; the 1.7 mm pads keep a 0.3 mm ring. Its locating peg (Ø1 -0.1) goes into a
+1.3 mm unplated hole as in JLC's footprint: Alps asks for 1.1 +0.1/-0, but JLCPCB holds unplated holes to
+±0.2, and at 0.9 mm the peg would not go in. The part then floats up to 0.26 mm on its pins, which the
+plate allows for ([Mechanics](mechanics.md#hand-soldering)).
 
 No net takes a detour: `check.py` fails any net whose routed length exceeds 1.5 times its shortest
 8-direction tree plus 15 mm (`geom.py`), and the router rips up and reroutes such a net like a failed one.
@@ -40,8 +42,9 @@ apart (`check.py` limits: 50 mm each, 10 mm skew).
 The USB series resistors stay 27 R (C25190), the value in Raspberry Pi's datasheet and minimal design: with
 the RP2040's driver it sets the source impedance the full-speed specification asks for (28 to 44 ohm per
 line). 22 R (C23345, a basic part already on the board) would very likely work too at 12 Mbit/s on 45 mm
-of trace, but it is a departure from the reference on a board that has to work first time, and C25190,
-now an extended part, costs one extended-part fee ([ordering.md](ordering.md)).
+of trace, but it is a departure from the reference on a board that has to work first time. C25190 is an
+extended part at JLCPCB, flagged preferred, so it carries no fee in Economic assembly
+([ordering.md](ordering.md)).
 
 JLCPCB places the bottom-side parts by its own library footprints. [pcb/footprints/](../pcb/footprints/)
 keeps the pads of each one (number, position, size; saved from JLC's EasyEDA library by
@@ -52,7 +55,16 @@ kicad-jlcpcb-tools plugin write it (180 minus KiCad's bottom angle): seen from t
 footprint turned counter-clockwise by the rotation. U1 and J1 are at 180, U2 at 0, U3 at 180, Y1 at 0, the
 diodes at 0, the resistors and capacitors at 180 (horizontal) or 270 (vertical). The bottom silkscreen has a
 pin 1 corner mark at U1 and pin 1 dots at U2, U3 and Y1 for the placement preview
-([ordering.md](ordering.md)).
+([ordering.md](ordering.md#placement-preview)).
+
+In the full assembly variant JLCPCB also places the through-hole parts on the top, from the same CPL
+(`CPL-full.csv`, Layer "Top"), in its top-side convention: seen from the top, the part is JLC's footprint
+turned counter-clockwise by the rotation, the footprint origin on the CPL position. The keys, encoders,
+RANGE control and amber LED are at 0, the white LED at 180 (JLC's footprint of C2895458 has the anode as
+pin 1, that of C2895466 the cathode); the encoders' CPL position is JLC's footprint origin, 1 mm north of
+the shaft. `check.py` fits each JLC footprint there onto our holes pin by pin (`TH_PIN`): every JLC hole
+on the hole of its pin within 0.15 mm, the unplated RKJXT peg hole on ours, none of ours left over. So a
+rotation that puts a cathode on the anode pad, or an encoder the wrong way round, fails the build.
 
 The crystal (Abracon ABM8-272-T3) has the crystal itself on pins 1 and 3, diagonally opposite, and GND on 2
 and 4. Seen from the top, the bottom-side part has pin 1 (XO_R, to the 1k) bottom-right, 2 (GND)

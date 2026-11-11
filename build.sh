@@ -48,7 +48,7 @@ REQUIRE_MICROPYTHON=1 nix-shell -p "python3.withPackages (ps: [ ps.pytest ])" "$
 
 echo "== copy"
 rm -f production/avionics-panel-rev1-* # a removed output then shows up as a deleted file
-cp pcb/avionics-panel-rev1-{BOM.csv,CPL.csv,THT-LCSC.csv,gerbers.zip} production/
+cp pcb/avionics-panel-rev1-{BOM,CPL,BOM-full,CPL-full,THT-LCSC}.csv pcb/avionics-panel-rev1-gerbers.zip production/
 cp pcb/avionics-panel-rev1-schematic.pdf docs/
 cp mech/avionics-panel-rev1-{body,plate}.step mech/avionics-panel-rev1-body.stl \
   mech/avionics-panel-rev1-knob-* mech/avionics-panel-rev1-lightpipes.* \

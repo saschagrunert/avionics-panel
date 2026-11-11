@@ -61,6 +61,8 @@ jobs:
             production/avionics-panel-rev1-gerbers.zip \
             production/avionics-panel-rev1-BOM.csv \
             production/avionics-panel-rev1-CPL.csv \
+            production/avionics-panel-rev1-BOM-full.csv \
+            production/avionics-panel-rev1-CPL-full.csv \
             production/avionics-panel-rev1-THT-LCSC.csv \
             firmware/BUTTONS.md \
             viewer/geometry.js; then

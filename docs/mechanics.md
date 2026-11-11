@@ -61,7 +61,7 @@ Stack (z = 0 is the PCB top):
   off over its length; at least 1.6 mm of wall stays outside each counterbore and 1.6 mm round it inside
   (JLC3DP asks for more than 1.5 mm on fastener features). The cavity leaves 0.5 mm per side round the
   PCB, so the board fits even with the body 0.4 % small, once the V-cut short edges (±0.4 mm) are sanded
-  to 160.2 mm or less ([Ordering](ordering.md#ordering)); the walls and the ribs under the floor are 2.0 mm
+  to 160.2 mm or less ([on arrival](#on-arrival)); the walls and the ribs under the floor are 2.0 mm
   (JLC3DP's MJF wall for parts over 100 mm).
 - The USB-C opening in the back wall is 15.8 x 8.4 mm (R0.5) and runs on up through the top of the wall
   as a notch: JLC's socket (C165948) sticks out 0.52 mm past the board edge, level with the cavity wall,
@@ -77,13 +77,54 @@ Stack (z = 0 is the PCB top):
   post printed 0.3 mm high (MJF) lifts the board by 0.05 mm at most, which the light-pipe row in
   check_fit.py counts.
 
+### On arrival
+
+Both [assembly variants](ordering.md#assembly-variants), in this order:
+
+1. Edge rails: break the V-scored rails off both boards and file or sand both short edges flush (outdoors
+   or wet: glass-fibre dust). With a 5 mm rail on each short edge the board is about 170 mm long and
+   doesn't go into the body, and the bow check below needs a bare edge.
+2. Length: measure each board with calipers and sand both short edges about equally, only as much as
+   needed, until it is 160.2 mm or shorter. A V-cut edge is only held to ±0.4 mm (a routed one to ±0.2):
+   the cavity is 161.0 mm long, 160.36 mm with the body printed 0.4 % small, so a board of 160.4 mm would
+   not go in (`check_fit.py` has the row).
+3. Corners: if a corner comes back square, file it to R3; a square corner would stand about 0.74 mm into
+   the body's R3.5 cavity corner.
+4. Board bow: the stack takes 0.1 mm of bow towards the plate at the SHIFT and UNIT LEDs, near the middle
+   of the board (`stack.PCB_BOW`; JLCPCB allows 0.75 %). Economic variant, before soldering: lay each
+   board top side down on a flat surface (glass; the top side is still bare) and press the middle of its
+   front edge down; a 0.1 mm feeler gauge must not slide under any corner. Full variant (the top side is
+   populated): stand a steel rule on edge along each long edge of the top side, over its full length, on
+   the bare strip outside the parts. If the rule rocks on the middle (the board bows up, towards the
+   plate), a 0.1 mm feeler gauge must not slide under either end; a gap in the middle bows away from the
+   plate and does no harm. A board bowed more gets both LEDs seated fully flat, which gives back 0.2 mm
+   (in the full variant, reheat and press down an LED that stands proud).
+5. Plate flatness: lay the plate face down on glass; a 0.1 mm feeler gauge must not slide under it
+   anywhere (flatness 0.1 after bead blasting and anodising, as on the drawing).
+6. Full variant only, the work JLCPCB did on the top side (see the
+   [order remark](ordering.md#full-variant-through-hole-parts-at-jlcpcb)):
+   - LEDs flush on the board: a 0.2 mm feeler gauge must not slide under either LED's rim, and each
+     cathode (flat side, short lead) sits on the square pad.
+   - Encoders and the RANGE control flat on the board (no gap under one side of the body, the encoder
+     lugs soldered), the 28 keys flat and square: a tilted key tilts its cap in the key hole.
+   - J1 shell tabs: all four slots filled from the top and wetting the tabs; if not, solder them as in
+     [hand-soldering](#hand-soldering).
+   - No solder bridges on the bottom, between a through-hole pin and the SMD pads next to it and above all
+     between the RKJXT's COM and ECOM pins (see the RANGE control below): magnifier and continuity tester.
+7. Cap set: once the keys are on, try one cap of each set (A to D) and fit the set that seats on the
+   plunger top and holds ([caps](#caps-light-pipes-knobs)).
+
+Then [bring-up](firmware.md#install-and-bring-up).
+
 ### Hand-soldering
 
-The board comes with every SMD part on the bottom; the keys, encoders, RANGE control and the two LEDs are
-soldered by hand from the bottom side. Flash and test the bare board first (steps 1 to 3 of
-[Install and bring-up](firmware.md#install-and-bring-up): the bottom side and USB need no through-hole
+Economic variant: the board comes with every SMD part on the bottom; the keys, encoders, RANGE control and
+the two LEDs are soldered by hand from the bottom side. Flash and test the bare board first (steps 1 to 3
+of [Install and bring-up](firmware.md#install-and-bring-up): the bottom side and USB need no through-hole
 part), then solder the keys and LEDs and check them, and the encoders and RANGE control last: they are
-the parts that are hard to remove again.
+the parts that are hard to remove again. In the full variant JLCPCB fits all of them and solders the J1
+shell tabs; only the [arrival checks](#on-arrival) remain (flush LEDs, seating, J1 tabs, no bridges), and
+the notes below explain what they check.
 
 - USB-C shell tabs: solder all four J1 shell tabs from the top before the first plug-in: flux, then feed
   solder into each slot until it is filled and wets the tab all round (they are GND). The paste Gerber
@@ -229,8 +270,8 @@ before gluing a new one in as above.
   screws, so the flatness of both counts: JLCPCB allows 0.75 % bow (over 1 mm on this board), the stack
   takes 0.1 mm; the plate drawing asks for flatness 0.1 mm after bead blasting and anodising (blasting can
   bow a thin plate; ISO 2768-K alone would allow 0.4 mm over the plate's length); and the LED itself then
-  clears the plate back by 0.05 mm. Check the board on arrival (see [Status](status.md#before-ordering)); a
-  board bowed more gets its LEDs seated flat, which gives back the 0.2 mm a proud LED is allowed. Both pipes
+  clears the plate back by 0.05 mm. Check the board on arrival (see [On arrival](#on-arrival)); a board
+  bowed more gets its LEDs seated flat, which gives back the 0.2 mm a proud LED is allowed. Both pipes
   print on a 2.2 x 2.0 mm bar over their tops, on 1.1 mm necks: break them off, sand the stub off with the
   top and polish it before gluing. The order has two bars, one spare.
 - The rods (Ø1.5 and Ø1.3 mm, 3.6 mm long) are longer than JLC3DP's guideline for resin pillars (Ø1.0 mm

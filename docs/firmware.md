@@ -91,18 +91,28 @@ DirectInput GUIDs. MobiFlight keys its controllers by that GUID, so test the joy
 mappings only after a plain replug (without SHIFT), and ignore any extra "Avionics Panel" controllers
 that show up while SHIFT kept the drive.
 
-1. Before the first power-up: solder the four J1 shell tabs from the top
-   ([Mechanics](mechanics.md#hand-soldering)), look over the bottom side (RP2040, USB-C, regulator), then
-   measure VBUS to GND (across C_IN) and 3V3 to GND (across C_OUT0); neither may be a short.
+The steps are the same for both [assembly variants](ordering.md#assembly-variants), bar the soldering:
+an economic board arrives with only the SMD bottom side and gets its J1 tabs and through-hole parts
+soldered in steps 1, 4 and 7, the encoders and the RANGE control last, so a board that turns out dead
+before then doesn't take the expensive parts with it. A fully assembled board arrives with everything
+on: skip the soldering and run the same checks. That protection is lost: a board that fails in step 1 or
+2 has its encoders and RANGE control on already (they come off only by desoldering), and the second board
+takes over. Do the [arrival checks](mechanics.md#on-arrival) first.
+
+1. Before the first power-up: solder the four J1 shell tabs from the top (economic variant,
+   [Mechanics](mechanics.md#hand-soldering); in the full variant check that JLCPCB filled them), look over
+   the bottom side (RP2040, USB-C, regulator), then measure VBUS to GND (across C_IN) and 3V3 to GND
+   (across C_OUT0); neither may be a short.
 2. Plug in USB. With empty flash the RP2040 starts its USB bootloader and shows a drive called RPI-RP2.
    Check that 3V3 reads about 3.3 V across C_OUT0 or one of C_D0 to C_D3.
 3. Copy the [CircuitPython 9.2.9 UF2 for the Raspberry Pi Pico][uf2] (same chip, 2 MB flash, 12 MHz
    crystal) to RPI-RP2. The firmware is checked against 9.2.9, the version `mpy-cross.nix` pins; newer
    versions are untested, and the board page on circuitpython.org no longer offers 9.2. The board restarts
    with a CIRCUITPY drive.
-4. Solder the 28 keys and the two LEDs (seated flat, cathode to the square pad, see
+4. Economic variant: solder the 28 keys and the two LEDs (seated flat, cathode to the square pad, see
    [Mechanics](mechanics.md#hand-soldering)), but not yet the encoders and the RANGE control: they are
-   the expensive parts, and a board that turns out dead in the next steps would take them with it.
+   the expensive parts, and a board that turns out dead in the next steps would take them with it. Full
+   variant: nothing to solder.
 5. Copy `boot.py`, `code.py`, `panel.py` and `buttonmap.py` to CIRCUITPY, then replug with SHIFT held
    until CIRCUITPY appears: `boot.py` only runs at power-up, and SHIFT keeps the drive and the console.
    CircuitPython only writes to the serial port while a terminal has it open, so what `code.py` printed
@@ -121,13 +131,15 @@ that show up while SHIFT kept the drive.
    Create the MobiFlight mappings on these two controllers, never on ones that appeared in SHIFT mode.
    Then hold each key and check that the button of the matrix position right below it (same column of
    `MATRIX` in [buttonmap.py](../firmware/buttonmap.py)) stays released: a column that recovers too slowly
-   after its row is scanned shows a phantom press there, even where that part isn't fitted yet. The
+   after its row is scanned shows a phantom press there, even where that part isn't fitted yet (economic
+   variant: the RANGE control and the encoder pushes). The
    likeliest pairs are UP to DN, DN to RANGE_A (a PAN button) and ENT to the FMS push (FMS_CRSR). Below
    HOME is SHIFT, which sends no button: while HOME is held, the amber light must stay off. If a phantom
    shows up, check that column's pull-up before going on.
-7. Unplug, solder the three encoders and the RANGE control, and check every ring (direction, outer /
-   inner), the RANGE tilt directions and every push the same way. Repeat the column check with the parts
-   fitted: hold DN, no PAN button; hold ENT, no FMS_CRSR.
+7. Economic variant: unplug and solder the three encoders and the RANGE control. Both variants: check
+   every ring (direction, outer / inner), the RANGE tilt directions and every push the same way, then the
+   [first-board checks](#first-board). Repeat the column check with the parts fitted: hold DN, no PAN
+   button; hold ENT, no FMS_CRSR.
 8. Later updates: plug in with SHIFT held until CIRCUITPY appears, copy the changed files to CIRCUITPY,
    then replug without SHIFT before using MobiFlight: in SHIFT mode it may see the panel as new
    controllers, and mappings made there would not match the normal ones. To reach the bootloader without
@@ -145,9 +157,39 @@ that show up while SHIFT kept the drive.
    SHIFT no longer brings the drive back, copy Raspberry Pi's `flash_nuke.uf2` to RPI-RP2 first, which
    erases the whole flash.
 
-Before the boards arrive, run the same steps on a plain Pico with `PICO_TEST = True` (see
-[Status](status.md#bench-and-first-board)). Pins are the GPn numbers, not the header pin numbers;
-the keys are matrix positions (row and column in `MATRIX` in [buttonmap.py](../firmware/buttonmap.py)):
+### First board
+
+On the first board, after step 7:
+
+- Knob timing with two knobs: spin the FMS inner ring and the ALT/HDG knob at the same time in UNIT 2
+  (FMS on device 2, ALT/HDG on device 1) and count the steps in the sim, as in the knob timing at the top
+  of this page.
+- Phantom presses: a held key must not press the one right below it in its matrix column (UP to DN, DN to
+  RANGE_A, ENT to FMS push, HOME to SHIFT: the amber light), steps 6 and 7.
+- GP25: the Pico CircuitPython build drives it as its status LED during boot and in safe mode, and here it
+  is the FREQ outer encoder's B line (harmless, limited current). Check that the FREQ outer ring counts
+  normally once `code.py` runs. A custom board definition would avoid it. Moving that line to the spare
+  GP14 was tried: its fan-out is boxed in, and none of 13 router seeds could route it.
+- The white UNIT light: if it is too dim, fit 0 R for R_UNIT ([Electronics](electronics.md#lights)). The
+  Pico bench can't tell: `PICO_TEST` prints the UNIT state instead of lighting an LED.
+
+### Pico bench
+
+Before the boards arrive, run the firmware on a plain Pico with `PICO_TEST = True` in
+[code.py](../firmware/code.py): a plain Pico lacks GP23, GP24, GP25 and GP29 on its header, so the FREQ
+knob moves to GP12-15 and its push to GP22; the RANGE encoder still runs on GP28/GP29 but can't be turned
+there. Run the same steps as on the board and check:
+
+- Two joysticks in MobiFlight, both named "Avionics Panel": 128 buttons on device 1, 64 on device 2.
+- The knob pulse timing (112 ms per step, at the top of this page), also with both joysticks sending at
+  once (below).
+- Encoder directions, ring order (outer / inner) and the RANGE tilt directions (`PAN_DIRS` in
+  [panel.py](../firmware/panel.py)), as far as one bench encoder and the buttons show them.
+- Whether the GUIDs differ: do MobiFlight and joy.cpl list the joysticks as new controllers after a
+  plug-in with SHIFT held (drive and console on)? See the start of this section.
+
+Pins are the GPn numbers, not the header pin numbers; the keys are matrix positions (row and column in
+`MATRIX` in [buttonmap.py](../firmware/buttonmap.py)):
 
 - SHIFT as on the board, a button from GP6 to GP2 (diode anode at GP6), or bridge GP6 to GP2 with a wire
   from plugging in until CIRCUITPY appears: without it the Pico hides its drive as soon as `boot.py` is on
