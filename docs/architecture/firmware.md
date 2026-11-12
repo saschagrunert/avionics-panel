@@ -172,6 +172,7 @@ Run `pytest` from the repository root for the host tests:
 | `tests/test_live.py` | The simulator in real time: actions, reports, the lights, a reload after an error |
 | `tests/test_descriptor.py` | `boot.py`'s report descriptor, parsed, and the simulator's reports read with it |
 | `tests/test_uhid.py` | The simulator as a Linux HID device: descriptor, name and IDs, a key press |
+| `tests/test_page.py` | The panel page's server: actions, its event stream, an error, a page that goes |
 | `tests/test_pins.py` | Every pin `code.py` uses, against the nets in `pcb/board.py` |
 | `tests/test_mpy_cross.py` | Every board file, compiled with the board's compiler |
 | `tests/test_mobiflight.py` | The [MobiFlight profiles](../using/mapping.md#generated-profiles): tables, project format, workflows |
@@ -196,9 +197,10 @@ compiler fail its tests. On other systems the shell prints a notice and those te
 wall clock. Any thread queues the simulator's actions by the firmware's input names (`act("tap", "AP")`,
 `act("turn", "FREQ_INNER", 3)`), each after the ones before it: press, release and a turn with no spacing
 (`act("turn", "FREQ_INNER", 3, 0)`) run at once, while a tap, a tilt and a turn with its default spacing take
-their time. Every report the PC takes goes to an output function as the device (1 or 2) and the report bytes,
-report ID first; `light()` reads a light's duty. An error in the loop goes as on the board: `code.py` releases
-every button, waits 2 s and reloads, on the same board.
+their time. A switch changes no sooner than 50 ms after its last change, on the panel's clock, as with a
+finger: a quicker click would fall between two key scans. Every report the PC takes goes to an output function
+as the device (1 or 2) and the report bytes, report ID first; `light()` reads a light's duty. An error in the
+loop goes as on the board: `code.py` releases every button, waits 2 s and reloads, on the same board.
 
 [sim/uhid.py](../../sim/uhid.py) makes it a HID device on Linux through `/dev/uhid`: one device with the
 report descriptor `boot.py` builds (both report IDs), the name `DIY Avionics Panel` and the IDs 239A:80F4. It
@@ -220,3 +222,37 @@ elsewhere, CI included: the hosted runners' kernel has `uhid` only in an extra m
 `REQUIRE_UHID=1` turns the skips into failures. Without a kernel, `tests/test_descriptor.py` parses the
 descriptor with the parser of [hid-tools](https://gitlab.freedesktop.org/libevdev/hid-tools) (the firmware
 shell provides it on Linux) and reads the simulator's reports with it.
+
+### The panel page
+
+[sim/page.py](../../sim/page.py) runs the simulator in real time and serves the 3D view with the panel
+playable in it. It needs Python 3.10 or newer and nothing else. From the repository root:
+
+```sh
+python3 -m sim.page        # then open the URL it prints, http://127.0.0.1:8000/?sim
+```
+
+The page shows the panel from above and keeps the view still:
+
+- Keys: press with the mouse or a finger; a key stays pressed as long as you hold it.
+- Knobs: the pointer's distance from the knob's middle picks the inner knob or the outer ring round it. The
+  mouse wheel turns that ring, one detent per notch, so a fast spin is a fast turn, and a mouse button pushes
+  the knob as long as it is down. On a touch screen, a finger moved round the knob turns the ring it touched,
+  one detent per 12 degrees as on the panel. A quick tap in the middle pushes the knob; a finger that moves
+  round it, even by a fraction of a detent, never does. A push held by touch is not possible; the mouse can
+  hold one.
+- RANGE turns and pushes like the other knobs; holding one of the four arrows round it tilts it that way.
+- The SHIFT and UNIT lights follow the firmware. The lines at the bottom left say the same in words and show
+  the buttons each joystick reports, by their [BUTTONS.md](../../firmware/BUTTONS.md) names; a button that
+  went off stays there dimmed for a second. A firmware error shows its message; when the program stops, the
+  page says it is disconnected and reconnects once it runs again.
+
+Clicking the page takes the keyboard focus from the sim, so run the sim in a window or borderless, not in
+exclusive full screen. `--port N` changes the port (8000). `--host 0.0.0.0` serves the page to the network,
+for a tablet in landscape beside the sim (a phone is too small): open it by the IP address the program
+prints, not by a host name. If that is 127.0.0.1 or a VPN address, use the computer's Wi-Fi address with the
+same port instead. Anyone on that network can then press the keys. A page that goes, also one that
+drops off the network, lets go of what it holds within a few seconds.
+`--uhid` also feeds the uhid device above, so programs on Linux see the joysticks; without it the reports go
+only to the page. The API is described in `sim/page.py`. Opened without `?sim`, as on GitHub Pages, the
+viewer stays the plain 3D view.

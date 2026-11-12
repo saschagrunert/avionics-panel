@@ -5,15 +5,11 @@ import buttonmap as BM
 from panel import BOUNCE_MS, Panel
 
 from conftest import load
+from sim import key_name
 
 S = load("_labels_stack", "mech/stack.py")
 AUDIO = ("MIC1", "COM1", "MIC2", "COM2")              # their shift legends select audio sources
 SPECIAL = {"121.5": "COM_121_5", "½ BANK": "HALF_BANK"}
-
-
-def key_name(label):
-    """cap label -> firmware key name: COM ⇆ -> COM_SWAP, D→ -> DIRECT, MIC 1 -> MIC1"""
-    return {"D→": "DIRECT"}.get(label, label.replace(" ⇆", "_SWAP").replace(" ", ""))
 
 
 def shift_name(key, legend):

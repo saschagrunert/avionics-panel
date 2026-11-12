@@ -7,7 +7,7 @@ import threading
 import pytest
 
 from sim import BM
-from sim.live import Live
+from sim.live import PRESS_MIN_MS, TURN_MAX, Live, parse
 
 SPEED = 25           # a tap with its pause (400 ms) takes about 16 ms
 TIMEOUT_S = 5
@@ -53,6 +53,40 @@ def test_the_lights_can_be_read_at_any_time():
     finish(live)
     shift, unit = live.code["LED_DUTY"]
     assert seen == [(shift, 0), (0, unit)] and (live.light("SHIFT"), live.light("UNIT")) == (0, unit)
+
+
+def test_a_click_shorter_than_a_key_scan_still_counts():
+    # two clicks in the same ms, as they reach a panel that runs late: each change of AP waits PRESS_MIN_MS on the
+    # panel's clock after the one before, so both count
+    live = Live(speed=SPEED)
+    for action in ("press", "release", "press", "release"):
+        live.act(action, "AP")
+    seen = []
+    live.do(lambda b: seen.append(b.changes["AP"] - b.t))
+    out = run(live)
+    finish(live)
+    assert seen == [3 * PRESS_MIN_MS] and out == [(1, []), (2, []), (1, ["AP"]), (1, []), (1, ["AP"]), (1, [])]
+
+
+def test_idle_waits_also_before_any_switch_changed():
+    live = Live(speed=SPEED)
+    live.act("turn", "FREQ_INNER", 1, 0)
+    out = run(live)
+    finish(live)                               # idle() with no switch changed yet
+    assert [names for _, names in out if names] == [["COM_KHZ_UP"]]
+
+
+def test_lines_of_actions_are_read_with_their_names_checked():
+    assert parse("tap AP 500") == ("tap", ["AP", 500]) and parse("  ") is None
+    assert parse("turn FREQ_INNER -3") == ("turn", ["FREQ_INNER", -3]) and parse("tilt UP") == ("tilt", ["UP"])
+    for line, why in (("fly", "actions: "), ("tap", "usage: tap"), ("tap AP1", "no switch 'AP1'"),
+                      ("tap AP x", "HOLD_MS is a whole number"), ("tap AP --3", "whole number"),
+                      ("tap AP ²", "whole number"), ("tap AP 1 2", "usage: tap"), ("tilt up", "no tilt 'up'"),
+                      ("turn FREQ inner 1", "no ring 'FREQ'"), (f"turn RANGE {TURN_MAX + 1}", "30 detents at most")):
+        with pytest.raises(ValueError, match=why):
+            parse(line)
+    with pytest.raises(ValueError, match="actions: press NAME"):
+        parse("tap AP", {"press": "press NAME"})
 
 
 def test_wrong_actions_fail_in_the_callers_thread():

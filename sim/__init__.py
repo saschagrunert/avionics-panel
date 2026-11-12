@@ -14,7 +14,8 @@ board.
 
 Inputs go by their firmware names: the keys, pushes and RANGE switches as in buttonmap.MATRIX plus FREQ_PUSH
 (COM1 is COM 1, COM_SWAP is COM ⇆, DIRECT is D→, ALTHDG_PUSH the ALT/HDG push, RANGE_COM the RANGE centre), the
-rings as in code.py's RINGS (FREQ_INNER). Buttons go by their BUTTONS.md names.
+rings as in code.py's RINGS (FREQ_INNER); key_name() gives a cap's from its legend. Buttons go by their BUTTONS.md
+names.
 """
 from sim.hardware import BM, RINGS, SWITCHES, Board
 
@@ -28,6 +29,12 @@ POLL_OFFSET_MS = 11  # ... first at this ms
 # a RANGE tilt closes "com" and its direction: away from the pilot A, left B, towards C, right D (Alps drawing)
 TILT = {"UP": "RANGE_A", "LEFT": "RANGE_B", "DN": "RANGE_C", "RIGHT": "RANGE_D"}
 LIGHTS = ("SHIFT", "UNIT")
+
+
+def key_name(label):
+    """A cap's legend (mech/stack.py's KEY_LEGENDS) -> its firmware name: COM ⇆ -> COM_SWAP, D→ -> DIRECT,
+    MIC 1 -> MIC1"""
+    return {"D→": "DIRECT"}.get(label, label.replace(" ⇆", "_SWAP").replace(" ", ""))
 
 
 class Sim:
