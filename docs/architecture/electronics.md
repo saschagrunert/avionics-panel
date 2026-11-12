@@ -34,162 +34,6 @@ It prints what each build reaches, and the build passes when:
 | JLC's footprints | Every bottom-side part's footprint lands, mirrored, on our pads of the same number ([Assembly data](#assembly-data)) |
 | BOM and CPL | They name every part of `board.py` on its side, with its value, LCSC number and quantity |
 
-## Solder mask
-
-The solder mask is black, with JLCPCB's white legend on it: green would show as a thin line in the gap round
-each key cap and through the USB-C opening. Black needs wider mask dams than green (0.13 mm against 0.10 mm
-with 1 oz outer copper, JLCPCB's capabilities page). The closest pads (the RP2040's, the USB-C contacts, C_X2
-and R_X) are 0.2 mm apart, so every opening is its pad plus 0.035 mm per side, not the usual 0.05, which
-leaves a 0.13 mm dam. The comment at `MASK_GROW` in `make.py` says why JLCPCB's exposure and alignment allow
-it. `check.py` measures every dam (64 are exactly 0.13 mm) and checks that each opening clears its pad by at
-least 0.025 mm. JLCPCB removes a dam it cannot hold rather than asking, so the order asks for the production
-file to be confirmed and the dams checked there; the fallback is green
-([Ordering](../building/ordering.md#review-questions)).
-
-Via covering Tented matches the Gerbers: the mask covers every via on both sides, except:
-
-- The three 1V1 vias under the RP2040: probe points, open on the top and tented underneath.
-- The four GND vias in the RP2040's exposed pad: in that pad's mask opening, clear of its paste windows.
-
-JLCPCB keeps both, because the mask Gerber decides for a Gerber order. Should it tent them as well, only the
-1V1 probe points are lost.
-
-## Placement and legend
-
-The placement keeps these rules:
-
-- Bodies: each bottom-side part's body at least 0.2 mm from every other body and from every pad of another
-  part (`precheck.py`, before routing; the nominal sizes and their sources are in `board.BODY`).
-- Mounting holes: no copper on either outer layer, and no bottom-side body, within 3.6 mm of each of the five
-  hole centres, where the plate's boss and the body's boss press on the board (`board.MOUNT_KEEPOUT`).
-- J1: nothing but its own pads under its grounded shell, which has only the solder mask between it and the
-  bottom copper. The router keeps out of the whole body on the bottom; `check.py` checks it on the Gerbers.
-
-The legend:
-
-- Size: capital letters at least 1.0 mm high, measured on the font, lines at least 0.16 mm wide (JLCPCB's
-  minimums: 1.0 mm and 0.153 mm).
-- Clearance: 0.15 mm from every mask opening and hole, 0.3 mm inside the board outline and round the two LED
-  cutouts.
-- Placement: a part name or key legend that a via lands on, or that comes too near the edge, moves to the
-  nearest free spot; a diode's cathode bar that a via would cut short moves up to 0.3 mm sideways, and
-  `check.py` wants it alongside at least half of its pad's edge.
-
-## Through-hole parts
-
-The through-hole parts are soldered from the bottom, among the SMD parts: by JLCPCB in full assembly, by hand
-otherwise. `check.py` keeps every exposed SMD pad of another net at least 1.0 mm (copper to copper) from every
-through-hole pad and from J1's four shell tabs, room for the iron and a fillet without a bridge.
-
-The four J1 shell tabs get paste over their pads (pin-in-paste), but the stencil leaves about 0.12 mm³ of
-solder for about 0.8 mm³ of slot round each tab: a fillet on the bottom at most. The tabs carry the plug's
-load, so they are soldered from the top as well: by JLCPCB in full assembly (its order remark), by hand
-otherwise ([Hand-soldering](../building/assembly.md#hand-soldering)).
-
-Our drills follow the datasheets; `check.py` wants each within 0.21 mm of JLC's footprint
-([Assembly data](#assembly-data)), the span of JLCPCB's plated-hole tolerance:
-
-| Hole | Ours | JLC's | Datasheet |
-| --- | --- | --- | --- |
-| Key pins (TE 1-1825910-4) | 1.0 mm | 1.2 mm | Not recorded |
-| Encoder pins (Bourns PEC11D) | 1.2 mm | 1.1 mm | 1.2 +0.1/-0 mm |
-| Encoder lug slots | 1.5 x 2.6 mm | 1.5 x 2.6 mm | 1.5 x 2.6 mm |
-| RANGE control terminals (Alps RKJXT1F42001, RKJXT below) | 1.1 mm | 1.2 mm | 1.0 +0.2/-0 mm |
-| RKJXT locating peg (Ø1 -0.1) | 1.3 mm, unplated | 1.3 mm | 1.1 +0.1/-0 mm |
-
-- RKJXT terminals: drilled 1.1 mm, as JLCPCB's plated holes can finish up to 0.08 mm under the drill.
-- RKJXT peg: the 1.3 mm hole follows JLC's footprint, not Alps, as JLCPCB's ±0.2 mm on unplated holes cannot
-  hold Alps' size. The part then floats up to 0.26 mm on its pins, which the plate allows for
-  ([Mechanics](mechanics.md#plate-and-body)).
-
-The derivations of both are in `board.py`, above `RKJXT_HOLES`.
-
-## Routing
-
-No net takes a detour: `check.py` fails any net whose routed length exceeds 1.5 times its shortest 8-direction
-tree plus 15 mm (`DETOUR_FACTOR` in `geom.py`), and the router rips up and reroutes such a net like a failed
-one. USB: D+ and D- ([USB protection](#usb-protection)) are limited to 50 mm each and 10 mm of skew
-(`USB_SKEW` in `geom.py`); the router treats a pair over those limits like a detour.
-
-R_DP and R_DM are 27 R (C25190), the value in Raspberry Pi's datasheet and minimal design: with the
-RP2040's driver it sets the source impedance the full-speed specification asks for (28 to 44 ohm per line).
-
-## Assembly data
-
-JLCPCB places the bottom-side parts by its own library footprints. [pcb/footprints/](../../pcb/footprints/)
-keeps each one: its pads (number, position, size) and the pin names of JLC's symbol, saved from JLC's EasyEDA
-library by `footprints/fetch.py`, with source and date in each file. `check.py` fits them onto our pads at the
-place and rotation in the CPL (placement file), offline: every JLC pad must land on our pad with the same
-number, centres within 0.15 mm and edges within 0.25 mm. A footprint that is not mirrored cannot be fixed by a
-rotation; this fit catches one.
-
-- LEDs: our pads stop 0.2 mm short of the board cutout, where JLC's footprints run further in, so the fit
-  allows the two LEDs more at the pad's centre and inner edge (`FP_TOL` in `check.py`).
-- Polarity: we name the pads of the diodes and the LEDs K and A. `check.py` reads which of JLC's pads is the
-  cathode from the stored pin names, not from a fixed pairing.
-
-The CPL follows JLCPCB's convention for the bottom side (180 minus KiCad's bottom angle; the convention's
-sources are in the module docstring of `board.py`): seen from the bottom, the part is JLC's footprint turned
-counter-clockwise by the rotation.
-
-| Parts | CPL rotation |
-| --- | --- |
-| U1, U3, J1 | 180 |
-| U2, U4, Y1, the diodes | 0 |
-| Resistors, capacitors, F1 | 180 (horizontal) or 270 (vertical) |
-| R_SHIFT | 0 (pad 1, its GPIO end, to the east) |
-| R_UNIT | 180 (its GPIO end to the west) |
-| LED_SHIFT | 180 (pin 1, the cathode, to the west) |
-| LED_UNIT | 0 (the cathode to the east) |
-
-The bottom legend has a pin 1 corner mark at U1, pin 1 dots at U2, U3, U4 and Y1, and a cathode bar at each
-diode and LED, for the [placement preview](../building/ordering.md#placement-preview).
-
-In full assembly JLCPCB also places the through-hole parts on the top, from the same CPL (`CPL-full.csv`,
-Layer "Top"). It uses its top-side convention: seen from the top, the part is JLC's footprint turned
-counter-clockwise by the rotation, the footprint origin on the CPL position. The keys, encoders and RANGE
-control are at 0; the encoders' CPL position is JLC's footprint origin, 1 mm north of the shaft. `check.py`
-fits each JLC footprint there onto our holes pin by pin (`TH_PIN`), so an encoder placed the wrong way round
-fails the build.
-
-## Crystal
-
-The crystal (Abracon ABM8-272-T3) has the crystal itself on pins 1 and 3, diagonally opposite, and GND on 2
-and 4. R_X (1 k) sits between XOUT and XO_R; the load capacitors (15 pF) are C_X1 on XIN and C_X2 on XO_R.
-Seen from the top, the bottom-side part has pin 1 (XO_R) bottom-right, 2 (GND) bottom-left, 3 (XIN) top-left
-and 4 (GND) top-right. The nets are hand-routed, as described in `add_crystal` in `board.py`.
-
-## Decoupling
-
-Decoupling follows Raspberry Pi's minimal design: a capacitor at each IOVDD pin but 33, each on a trace of its
-own from the pin; the 100 nF ones at the pins are 0402 (C1525). Where each capacitor sits is described in
-`add_io_caps` and `add_core_caps` in `board.py`; `check.py` prints each pin's copper path.
-
-| RP2040 pin | Capacitor |
-| --- | --- |
-| 1, 10, 22 (IOVDD) | C_IO1, C_IO10, C_IO22: 100 nF |
-| 42 (IOVDD), 43 (ADC_AVDD), 44 (VREG_VIN) | C_D2: 1 µF |
-| 48 (USB_VDD), 49 (IOVDD) | C_IO49: 100 nF |
-| 45 (VREG_VOUT) | C_1V0 (1 µF) and C_1V2 (100 nF) |
-| 50 (DVDD) | C_1V1: 100 nF |
-| On the 3V3 plane | C_BULK (1 µF, on the matrix side of the chip), C_D1 and C_D3 (100 nF) |
-
-- Pin 33 (IOVDD): no room for a capacitor, as east of its fan-out lane is the only way north for the ALT/HDG
-  and FREQ lines. It drops into the 3V3 plane through its via under the chip and shares the capacitors there.
-- Pin 26 (RUN, tied to 3V3): into the 3V3 plane the same way.
-- Pin 23 (DVDD): no room between the crystal and the fan-out; it reaches the 1V1 capacitors over the top layer
-  through the 1V1 vias under the chip (about 10 mm, reported but not limited).
-
-The rules `check.py` holds, with their reasons in the comment above `OWN_CAP_MAX`:
-
-| Rule | Pins | Limit |
-| --- | --- | --- |
-| Copper to the nearest capacitor (trace, plus via to via through a plane) | Every supply pin with a capacitor of its own | At most 6 mm |
-| Copper to a capacitor of its own over the outer layers, none shared | IOVDD but 33 | At most 6 mm |
-| Copper to the 3V3 plane | 1, 10, 22, 26, 33, 48, 49 | At most 2 mm |
-| Capacitance of the nearest capacitor | 44 (VREG_VIN), 45 (VREG_VOUT) | At least 1 µF (RP2040 datasheet 2.9.3, 2.10.1) |
-| Own GND via, and own 3V3 via where there is one, to the pad | Every decoupling capacitor | At most 1 mm |
-
 ## GPIO map
 
 | GPIO | Use |
@@ -265,7 +109,7 @@ U4 has four channels of steering diodes to its VCC pin and a clamp from VCC to G
 
 | U4 | Value |
 | --- | --- |
-| Working voltage | 5.0 V (VBUS may reach 5.25 V, 5.5 V under USB 2.0's VBUS Max Limit ECN and USB-C) |
+| Working voltage | 5.0 V (VBUS may reach 5.25 V, 5.5 V under USB 2.0's VBUS Max Limit ECN (engineering change notice) and USB-C) |
 | Breakdown | At least 6.0 V at 1 mA |
 | Capacitance | 1.0 pF per channel to GND |
 | ESD | ±30 kV contact discharge (IEC 61000-4-2) |
@@ -334,6 +178,44 @@ U3's 7.0 V maximum; with a 5.5 V step the pessimistic worst case scales to about
 - Clamp: a TVS (transient voltage suppressor) diode from VBUS to GND instead of R_IN would not keep U3
   reliably under 7.0 V: an SMF5.0A breaks down at 6.4 to 7.0 V and clamps no lower.
 
+## Crystal
+
+The crystal (Abracon ABM8-272-T3) has the crystal itself on pins 1 and 3, diagonally opposite, and GND on 2
+and 4. R_X (1 k) sits between XOUT and XO_R; the load capacitors (15 pF) are C_X1 on XIN and C_X2 on XO_R.
+Seen from the top, the bottom-side part has pin 1 (XO_R) bottom-right, 2 (GND) bottom-left, 3 (XIN) top-left
+and 4 (GND) top-right. The nets are hand-routed, as described in `add_crystal` in `board.py`.
+
+## Decoupling
+
+Decoupling follows Raspberry Pi's minimal design: a capacitor at each IOVDD pin but 33, each on a trace of its
+own from the pin; the 100 nF ones at the pins are 0402 (C1525). Where each capacitor sits is described in
+`add_io_caps` and `add_core_caps` in `board.py`; `check.py` prints each pin's copper path.
+
+| RP2040 pin | Capacitor |
+| --- | --- |
+| 1, 10, 22 (IOVDD) | C_IO1, C_IO10, C_IO22: 100 nF |
+| 42 (IOVDD), 43 (ADC_AVDD), 44 (VREG_VIN) | C_D2: 1 µF |
+| 48 (USB_VDD), 49 (IOVDD) | C_IO49: 100 nF |
+| 45 (VREG_VOUT) | C_1V0 (1 µF) and C_1V2 (100 nF) |
+| 50 (DVDD) | C_1V1: 100 nF |
+| On the 3V3 plane | C_BULK (1 µF, on the matrix side of the chip), C_D1 and C_D3 (100 nF) |
+
+- Pin 33 (IOVDD): no room for a capacitor, as east of its fan-out lane is the only way north for the ALT/HDG
+  and FREQ lines. It drops into the 3V3 plane through its via under the chip and shares the capacitors there.
+- Pin 26 (RUN, tied to 3V3): into the 3V3 plane the same way.
+- Pin 23 (DVDD): no room between the crystal and the fan-out; it reaches the 1V1 capacitors over the top layer
+  through the 1V1 vias under the chip (about 10 mm, reported but not limited).
+
+The rules `check.py` holds, with their reasons in the comment above `OWN_CAP_MAX`:
+
+| Rule | Pins | Limit |
+| --- | --- | --- |
+| Copper to the nearest capacitor (trace, plus via to via through a plane) | Every supply pin with a capacitor of its own | At most 6 mm |
+| Copper to a capacitor of its own over the outer layers, none shared | IOVDD but 33 | At most 6 mm |
+| Copper to the 3V3 plane | 1, 10, 22, 26, 33, 48, 49 | At most 2 mm |
+| Capacitance of the nearest capacitor | 44 (VREG_VIN), 45 (VREG_VOUT) | At least 1 µF (RP2040 datasheet 2.9.3, 2.10.1) |
+| Own GND via, and own 3V3 via where there is one, to the pad | Every decoupling capacitor | At most 1 mm |
+
 ## Lights
 
 The two lights are reverse-mount 1206 LEDs in LiteOn's C230 package, on the bottom with the other SMD parts,
@@ -372,3 +254,121 @@ layout at `LED_CATHODE_EAST`; the 1.8 mA is at `LED_DUTY` in `code.py`.
   three and a half times up to full duty, and the level that reads well behind the pipe is set on the first
   board ([Bring-up](../building/bring-up.md#first-board)). A white LED from the highest forward voltage bin
   may stay dim: then bridge R_UNIT's pads or fit a 0 R (C21189).
+
+## Placement and legend
+
+The placement keeps these rules:
+
+- Bodies: each bottom-side part's body at least 0.2 mm from every other body and from every pad of another
+  part (`precheck.py`, before routing; the nominal sizes and their sources are in `board.BODY`).
+- Mounting holes: no copper on either outer layer, and no bottom-side body, within 3.6 mm of each of the five
+  hole centres, where the plate's boss and the body's boss press on the board (`board.MOUNT_KEEPOUT`).
+- J1: nothing but its own pads under its grounded shell, which has only the solder mask between it and the
+  bottom copper. The router keeps out of the whole body on the bottom; `check.py` checks it on the Gerbers.
+
+The legend:
+
+- Size: capital letters at least 1.0 mm high, measured on the font, lines at least 0.16 mm wide (JLCPCB's
+  minimums: 1.0 mm and 0.153 mm).
+- Clearance: 0.15 mm from every mask opening and hole, 0.3 mm inside the board outline and round the two LED
+  cutouts.
+- Placement: a part name or key legend that a via lands on, or that comes too near the edge, moves to the
+  nearest free spot; a diode's cathode bar that a via would cut short moves up to 0.3 mm sideways, and
+  `check.py` wants it alongside at least half of its pad's edge.
+
+## Routing
+
+No net takes a detour: `check.py` fails any net whose routed length exceeds 1.5 times its shortest 8-direction
+tree plus 15 mm (`DETOUR_FACTOR` in `geom.py`), and the router rips up and reroutes such a net like a failed
+one. USB: D+ and D- ([USB protection](#usb-protection)) are limited to 50 mm each and 10 mm of skew
+(`USB_SKEW` in `geom.py`); the router treats a pair over those limits like a detour.
+
+R_DP and R_DM are 27 R (C25190), the value in Raspberry Pi's datasheet and minimal design: with the
+RP2040's driver it sets the source impedance the full-speed specification asks for (28 to 44 ohm per line).
+
+## Solder mask
+
+The solder mask is black, with JLCPCB's white legend on it: green would show as a thin line in the gap round
+each key cap and through the USB-C opening. Black needs wider mask dams than green (0.13 mm against 0.10 mm
+with 1 oz outer copper, JLCPCB's capabilities page). The closest pads (the RP2040's, the USB-C contacts, C_X2
+and R_X) are 0.2 mm apart, so every opening is its pad plus 0.035 mm per side, not the usual 0.05, which
+leaves a 0.13 mm dam. The comment at `MASK_GROW` in `make.py` says why JLCPCB's exposure and alignment allow
+it. `check.py` measures every dam (64 are exactly 0.13 mm) and checks that each opening clears its pad by at
+least 0.025 mm. JLCPCB removes a dam it cannot hold rather than asking, so the order asks for the production
+file to be confirmed and the dams checked there; the fallback is green
+([Ordering](../building/ordering.md#review-questions)).
+
+Via covering Tented matches the Gerbers: the mask covers every via on both sides, except:
+
+- The three 1V1 vias under the RP2040: probe points, open on the top and tented underneath.
+- The four GND vias in the RP2040's exposed pad: in that pad's mask opening, clear of its paste windows.
+
+JLCPCB keeps both, because the mask Gerber decides for a Gerber order. Should it tent them as well, only the
+1V1 probe points are lost.
+
+## Through-hole parts
+
+The through-hole parts are soldered from the bottom, among the SMD parts: by JLCPCB in full assembly, by hand
+otherwise. `check.py` keeps every exposed SMD pad of another net at least 1.0 mm (copper to copper) from every
+through-hole pad and from J1's four shell tabs, room for the iron and a fillet without a bridge.
+
+The four J1 shell tabs get paste over their pads (pin-in-paste), but the stencil leaves about 0.12 mm³ of
+solder for about 0.8 mm³ of slot round each tab: a fillet on the bottom at most. The tabs carry the plug's
+load, so they are soldered from the top as well: by JLCPCB in full assembly (its order remark), by hand
+otherwise ([Hand-soldering](../building/assembly.md#hand-soldering)).
+
+Our drills follow the datasheets; `check.py` wants each within 0.21 mm of JLC's footprint
+([Assembly data](#assembly-data)), the span of JLCPCB's plated-hole tolerance:
+
+| Hole | Ours | JLC's | Datasheet |
+| --- | --- | --- | --- |
+| Key pins (TE 1-1825910-4) | 1.0 mm | 1.2 mm | Not recorded |
+| Encoder pins (Bourns PEC11D) | 1.2 mm | 1.1 mm | 1.2 +0.1/-0 mm |
+| Encoder lug slots | 1.5 x 2.6 mm | 1.5 x 2.6 mm | 1.5 x 2.6 mm |
+| RANGE control terminals (Alps RKJXT1F42001, RKJXT below) | 1.1 mm | 1.2 mm | 1.0 +0.2/-0 mm |
+| RKJXT locating peg (Ø1 -0.1) | 1.3 mm, unplated | 1.3 mm | 1.1 +0.1/-0 mm |
+
+- RKJXT terminals: drilled 1.1 mm, as JLCPCB's plated holes can finish up to 0.08 mm under the drill.
+- RKJXT peg: the 1.3 mm hole follows JLC's footprint, not Alps, as JLCPCB's ±0.2 mm on unplated holes cannot
+  hold Alps' size. The part then floats up to 0.26 mm on its pins, which the plate allows for
+  ([Mechanics](mechanics.md#plate-and-body)).
+
+The derivations of both are in `board.py`, above `RKJXT_HOLES`.
+
+## Assembly data
+
+JLCPCB places the bottom-side parts by its own library footprints. [pcb/footprints/](../../pcb/footprints/)
+keeps each one: its pads (number, position, size) and the pin names of JLC's symbol, saved from JLC's EasyEDA
+library by `footprints/fetch.py`, with source and date in each file. `check.py` fits them onto our pads at the
+place and rotation in the CPL (placement file), offline: every JLC pad must land on our pad with the same
+number, centres within 0.15 mm and edges within 0.25 mm. A footprint that is not mirrored cannot be fixed by a
+rotation; this fit catches one.
+
+- LEDs: our pads stop 0.2 mm short of the board cutout, where JLC's footprints run further in, so the fit
+  allows the two LEDs more at the pad's centre and inner edge (`FP_TOL` in `check.py`).
+- Polarity: we name the pads of the diodes and the LEDs K and A. `check.py` reads which of JLC's pads is the
+  cathode from the stored pin names, not from a fixed pairing.
+
+The CPL follows JLCPCB's convention for the bottom side (180 minus KiCad's bottom angle; the convention's
+sources are in the module docstring of `board.py`): seen from the bottom, the part is JLC's footprint turned
+counter-clockwise by the rotation.
+
+| Parts | CPL rotation |
+| --- | --- |
+| U1, U3, J1 | 180 |
+| U2, U4, Y1, the diodes | 0 |
+| Resistors, capacitors, F1 | 180 (horizontal) or 270 (vertical) |
+| R_SHIFT | 0 (pad 1, its GPIO end, to the east) |
+| R_UNIT | 180 (its GPIO end to the west) |
+| LED_SHIFT | 180 (pin 1, the cathode, to the west) |
+| LED_UNIT | 0 (the cathode to the east) |
+
+The bottom legend has a pin 1 corner mark at U1, pin 1 dots at U2, U3, U4 and Y1, and a cathode bar at each
+diode and LED, for the [placement preview](../building/ordering.md#placement-preview).
+
+In full assembly JLCPCB also places the through-hole parts on the top, from the same CPL (`CPL-full.csv`,
+Layer "Top"). It uses its top-side convention: seen from the top, the part is JLC's footprint turned
+counter-clockwise by the rotation, the footprint origin on the CPL position. The keys, encoders and RANGE
+control are at 0; the encoders' CPL position is JLC's footprint origin, 1 mm north of the shaft. `check.py`
+fits each JLC footprint there onto our holes pin by pin (`TH_PIN`), so an encoder placed the wrong way round
+fails the build.
