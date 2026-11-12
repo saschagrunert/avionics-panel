@@ -18,7 +18,8 @@ the scripts one by one. Generated files are named `avionics-panel-rev1-*`.
 `./build.sh` regenerates everything, runs every check and copies the results to `production/` and `renders/`;
 `./build.sh --route` re-runs the board routing first. Its sections run in parallel and print their outputs in
 a fixed order, the firmware tests with their coverage first. A failed section does not stop the others, and
-the build then exits 1; Ctrl-C stops everything.
+the build then exits 1; Ctrl-C stops everything. It needs [Nix](https://nixos.org/download) and is tested only
+on Linux; on Windows run it in WSL 2.
 
 Renders 1 to 4 and 9 are stills of the 3D view, not part of the build. Open
 [viewer/index.html](../../viewer/index.html) with the fragment after the URL (it hides the page's controls),

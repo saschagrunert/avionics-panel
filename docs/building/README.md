@@ -10,7 +10,7 @@ flowchart LR
   jlc3dp["JLC3DP<br>body, caps, knobs, light pipes"]
   jlcmc["JLCMC<br>screws"]
   lcsc["LCSC<br>spare keys"]
-  local["Local shop<br>feet, sandpaper, tools"]
+  local["Local shop<br>feet, cable, sandpaper, tools"]
   arrival["On arrival<br>checks"]
   bringup["Bring-up<br>flash and test"]
   assembly["Assembly"]
@@ -19,8 +19,8 @@ flowchart LR
 ```
 
 1. **Order** ([details, shopping list](ordering.md)), in the sequence of
-   [Order step by step](ordering.md#order-step-by-step): the six encoders into JLCPCB's Parts Manager first.
-   Every file name below starts with `avionics-panel-rev1-`:
+   [Order step by step](ordering.md#order-step-by-step); with full assembly, buy the six encoders into
+   JLCPCB's Parts Manager first. Every file name below starts with `avionics-panel-rev1-`:
 
    | Shop | What | Files |
    | --- | --- | --- |
@@ -29,16 +29,16 @@ flowchart LR
    | JLC3DP | Body, four key cap sets, knobs, light pipes | [body.step](../../production/avionics-panel-rev1-body.step), [caps-A.zip](../../production/avionics-panel-rev1-caps-A.zip) to [caps-D.zip](../../production/avionics-panel-rev1-caps-D.zip), `knob-*.step`, [lightpipes.step](../../production/avionics-panel-rev1-lightpipes.step) |
    | JLCMC | Seven M3 x 8 flanged button head screws (five and two spares) | |
    | LCSC | Spare keys | |
-   | Local | Feet, sandpaper, a few tools | |
+   | Local | Feet, a USB-C cable, sandpaper, a few tools | |
 
    Hand-soldering the keys, encoders and RANGE control is an option
    ([assembly variants](ordering.md#assembly-variants)).
 2. **What arrives**: two assembled boards (and three bare ones), the plate, the body, four sets of 28 key
    caps (one of them fits), the knobs with tighter and looser spares, two light pipe bars, the screws and the
    spare keys.
-3. **Check on arrival**: look at the rail edge, try the plate threads, check that the encoder lugs and the J1
-   shell tabs are soldered and the parts sit flat, choose the cap set ([On arrival](bring-up.md#on-arrival);
-   with hand-soldering only the rail edge, the threads and the cap set).
+3. **Check on arrival**: look at the rail edge, try the plate threads, check that the encoder lugs and the
+   shell tabs of J1 (the USB-C socket) are soldered and the parts sit flat, choose the cap set
+   ([On arrival](bring-up.md#on-arrival); with hand-soldering only the rail edge, the threads and the cap set).
 4. **Bring-up**: flash CircuitPython and the [firmware](../../firmware/), then test every key, knob and light
    on the bare board ([Flash and test](bring-up.md#flash-and-test); with hand-soldering, you solder the J1
    shell tabs, the keys and last the encoders and RANGE control along the way). Optional before the boards

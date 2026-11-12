@@ -79,8 +79,8 @@ Heights as drawn, z = 0 at the top of the board. Anodising raises the plate's fa
   because the leads of the four keys round it stand 5.3 mm off its axis. The counterbore is wider than the
   bar, so it is open to the room under the board on the bar's two long sides.
 - Board support: with the middle mount a firm key press (10 N, about six times the switch force) dips the
-  board by 0.21 mm at most (`stack.PRESS_FIRM`; the plate model behind it is not in the repository). The post
-  at board (98.3, 30.75) is a backstop that never lifts the board.
+  board by 0.21 mm at most (`stack.PRESS_FIRM`). The post at board (98.3, 30.75) is a backstop that never
+  lifts the board.
 
 ## Plate and body
 
@@ -102,9 +102,9 @@ Heights as drawn, z = 0 at the top of the board. Anodising raises the plate's fa
   board. The gaps beside and under it are cosmetic (the dark cavity shows through them); the fit check keeps
   them under 1.6 mm (`stack.USB_GAP_MAX`).
 - Body: PA12 printed by MJF (JLC3DP's nylon print), with 2.0 mm walls and ribs (JLC3DP's wall for parts over
-  100 mm). The cavity leaves 0.5 mm per side round the board and 4.0 mm under it for the SMD parts, the socket
-  and the untrimmed leads (2.7 mm at most). The milled outline fits as delivered, and so does the V-cut rail
-  edge (±0.4 mm); V-cut short edges would have to be sanded
+  100 mm). The cavity leaves 0.5 mm per side round the board and 4.0 mm under it for the SMD (surface-mount)
+  parts, the socket and the untrimmed leads (2.7 mm at most). The milled outline fits as delivered, and so
+  does the V-cut (scored and snapped) rail edge (±0.4 mm); V-cut short edges would have to be sanded
   ([On arrival](../building/bring-up.md#on-arrival)).
 - Bottom: a 5 mm hole in the floor over the two BOOT pads, for recovery only
   ([Bring-up](../building/bring-up.md#updates-and-recovery)), and four flat 12 mm pads under the corners for
@@ -169,9 +169,9 @@ Heights as drawn, z = 0 at the top of the board. Anodising raises the plate's fa
   other, are told apart by feel.
 - RANGE knob: Ø13.6 with a Ø17.3 skirt that hides the plate hole at full tilt. Its bottom is dished: flat
   over the hub, then a cone that rises 0.9 mm to the rim at the tilt's own 9°, so at full tilt the hub's
-  corner and the rim come equally close to the plate. Alps' drawing shows the tilt fulcrum (4.65 mm off the
-  axis) on the side the lever tilts away from, but its formal specification is not public, so every RANGE row
-  takes the worse side. The four pan arrows start 10.15 mm from the hole's centre, outside the skirt.
+  corner and the rim come equally close to the plate. Every RANGE row assumes the tilt fulcrum (4.65 mm off
+  the axis) on whichever side is worse. The four pan arrows start 10.15 mm from the hole's centre, outside the
+  skirt.
 
 ## Fits
 
