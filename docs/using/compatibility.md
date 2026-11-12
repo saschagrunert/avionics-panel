@@ -7,7 +7,8 @@ aircraft, so one panel drives every avionics family below. Keys without a counte
 unused.
 
 Covered families: G1000 and G1000 NXi, TDS GTN 750Xi, GNS 530/430, Bendix/King (KAP 140, KFC 150 + KAS 297B,
-KFC 225, KX 155/165, KR 87, KT 76, KMA 28), GTX 327, newer Garmin (GFC 500, G3X, G500 TXi).
+KFC 225, KX 155/165, KR 87, KT 76, KMA 28), GTX 327, newer Garmin (GFC 500, G3X, G500 TXi). For some of them
+in MSFS 2024 the mapping comes ready as a [generated profile](mapping.md#generated-profiles).
 
 Checked against these reference aircraft:
 
@@ -60,23 +61,23 @@ Navigators:
 | MSG, NRST, VNAV, TERR, MAP (with SHIFT) | Softkeys / pages; hold CLR | Touchscreen | MSG key; NRST page; VNAV key (530); hold CLR |
 | CDI, OBS | Softkeys | Touchscreen | Bezel keys |
 | FMS knob, push CRSR | FMS knob | The GTN's dual knob (no cursor, see below) | Right knob, push CRSR |
-| RANGE, pan, push PTR | RANGE knob + joystick | Map zoom | RNG keys |
+| RANGE, pan, push PTR | RANGE knob + joystick | Touchscreen; the inner knob zooms on the map page | RNG keys |
 | UNIT (SHIFT, HOME) | Radio 2 only; the FMS keys stay on the MFD | GTN / second unit | 530 / 430 |
 
 On units without a HOME key (G1000, GNS) map HOME to whatever is used most there.
 
 The TDS GTN 750Xi and 650Xi take only their bezel controls from outside: HOME, D→, the dual knob and its
 push, and the volume knob and its push. Their touchscreen functions (FPL, PROC, MENU, CLR, ENT, MSG, NRST,
-TERR, VNAV, MAP, CDI, OBS) have no event or variable, so these keys do nothing with a GTN: press HOME and
-touch the function on the screen.
+TERR, VNAV, MAP, CDI, OBS, the map's pan) have no event or variable, so these controls do nothing with a GTN:
+press HOME and touch the function on the screen.
 
 Radios, transponder, audio:
 
 | Panel | G1000 | GTN / GNS | Bendix/King |
 | --- | --- | --- | --- |
-| FREQ knob, push COM/NAV/ADF | COM and NAV knobs, ADF window | Dual knob, C/V push | KX 155/165 knobs, KR 87 |
+| FREQ knob, push COM/NAV/ADF | COM and NAV knobs, ADF window | COM and NAV radios, shown on the unit | KX 155/165 knobs, KR 87 |
 | COM ⇆, NAV ⇆, ADF ⇆ | Flip-flops | Flip-flops (GTN: no key, see below) | Flip-flops, KR 87 FRQ |
-| 121.5 (SHIFT, COM ⇆) | Hold COM ⇆ | GNS: hold COM ⇆; GTN: hold the volume knob pushed for about 2 s | Sets COM standby to 121.5 |
+| 121.5 (SHIFT, COM ⇆) | Hold COM ⇆ | GNS: hold COM ⇆ (not in the Working Title GNS); GTN: hold the volume knob pushed for about 2 s | Sets COM standby to 121.5 |
 | UNIT for radio 2 | COM 2 / NAV 2 tuning box | Second unit | Second radio |
 | Squawk, XPDR mode, IDENT, VFR | GTX 345 | GTX 327 / GTN XPDR | KT 76 |
 | MIC / COM / NAV / ADF / DME audio | GMA 1347 | GMA 340 / GMA 35 | KMA 28 |

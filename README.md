@@ -1,9 +1,9 @@
 # Avionics Panel [![Firmware test coverage](https://codecov.io/gh/saschagrunert/avionics-panel/graph/badge.svg)](https://codecov.io/gh/saschagrunert/avionics-panel)
 
 DIY desktop panel for GA avionics in flight sims ([G1000][g1000], [GTN 750][gtn750], [GNS 530/430][gns530],
-[Bendix/King][bendixking], [GFC 500][gfc500]): autopilot, audio, radio and FMS keys, three dual concentric
-knobs and a RANGE knob that tilts to pan. It shows up on the PC as two USB joysticks, mapped in
-[MobiFlight][mobiflight].
+[GFC 500][gfc500], [Bendix/King][bendixking] radios with the [KAP 140][kap140]): autopilot, audio, radio and
+FMS keys, three dual concentric knobs and a RANGE knob that tilts to pan. It shows up on the PC as two USB
+joysticks, mapped in [MobiFlight][mobiflight].
 
 [![Top view: autopilot keys and ALT/HDG and RANGE knobs left, audio, radio and FMS keys, FREQ and FMS knobs right](renders/2-top.png)](https://saschagrunert.de/avionics-panel/)
 
@@ -39,8 +39,8 @@ Using the panel:
 - [Controls](docs/using/controls.md): what each key and knob does, [SHIFT](docs/using/controls.md#shift),
   workflows, [knobs](docs/using/controls.md#knobs),
   [keys](docs/using/controls.md#keys-label-shift-legend-in-parentheses)
-- [Compatibility](docs/using/compatibility.md): what each control does on the G1000, GFC 500, GTN, GNS and
-  Bendix/King, by aircraft
+- [Compatibility](docs/using/compatibility.md): what each control does on the G1000, GFC 500, GTN, GNS,
+  Bendix/King radios and KAP 140, by aircraft
 - [Mapping](docs/using/mapping.md): the two joysticks,
   [generated profiles](docs/using/mapping.md#generated-profiles), update mode and GUIDs, the device name
 - [Simulator](docs/using/simulator.md): the panel on the PC before the hardware exists, in the browser and as
@@ -71,6 +71,7 @@ Working on the design:
 [g1000]: https://www.garmin.com/en-US/p/588901/
 [gtn750]: https://www.garmin.com/en-US/p/67886/
 [gns530]: https://www.garmin.com/en-US/p/8052/
-[bendixking]: https://www.bendixking.com/
 [gfc500]: https://www.garmin.com/en-US/p/604257/
+[bendixking]: https://en.wikipedia.org/wiki/Bendix/King
+[kap140]: https://www.honeywellaerospace.com/content/dam/bendixking/en/documents/document-lists/downloads-and-manuals/006-18034-0000-KAP-140-Pilots-Guide.pdf
 [mobiflight]: https://mobiflight.com/
