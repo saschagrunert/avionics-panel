@@ -10,8 +10,8 @@ is in [Controls](controls.md), and what it maps to per aircraft in [Compatibilit
 
 | Device | Buttons | Carries |
 | --- | --- | --- |
-| 1 | 117 of 128 | everything, with unit 1 |
-| 2 | 39 of 64 | the unit 2 copies of the FMS keys, FMS knob, CDI and OBS, flip-flops and FREQ knob, sent while unit 2 is selected (SHIFT, HOME) |
+| 1 | 117 of 128 | Everything, with unit 1 |
+| 2 | 39 of 64 | The unit 2 copies of the FMS keys, FMS knob, CDI and OBS, flip-flops and FREQ knob, sent while unit 2 is selected (SHIFT, HOME) |
 
 [BUTTONS.md](../../firmware/BUTTONS.md) lists every button with what sends it, numbered as Windows and
 MobiFlight show them.

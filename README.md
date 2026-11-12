@@ -47,8 +47,8 @@ Building one, in build order:
 - [Overview](docs/building/README.md): the steps from ordering to mapping
 - [Ordering](docs/building/ordering.md): what to order where, the order remarks, the
   [shopping list](docs/building/ordering.md#shopping-list), review questions, shipping
-- [Bring-up](docs/building/bring-up.md): checks on arrival, the cap set, flashing, testing, first-board checks,
-  updates and recovery, the Pico bench
+- [Bring-up](docs/building/bring-up.md): checks on arrival, the cap set, flashing, testing, first-board
+  checks, updates and recovery, the Pico bench
 - [Assembly](docs/building/assembly.md): assembly, disassembly, hand-soldering (an option)
 
 How it works:
@@ -56,8 +56,8 @@ How it works:
 - [Electronics](docs/architecture/electronics.md): RP2040 board, USB protection, GPIO map, lights,
   [schematic](docs/architecture/avionics-panel-rev1-schematic.pdf)
 - [Firmware](docs/architecture/firmware.md): state, knob timing, switch bounce, USB, tests
-- [Mechanics](docs/architecture/mechanics.md): stack, fastening, seating, caps, light pipes, knobs,
-  [dimensions](docs/architecture/mechanics.md#dimensions)
+- [Mechanics](docs/architecture/mechanics.md): stack, fastening, plate and body, caps, light pipes, knobs,
+  [fits](docs/architecture/mechanics.md#fits), [dimensions](docs/architecture/mechanics.md#dimensions)
 
 Working on the design:
 

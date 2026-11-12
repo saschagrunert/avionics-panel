@@ -8,43 +8,37 @@ the firmware works is in [Firmware](../architecture/firmware.md).
 
 Full assembly (the default), in this order:
 
-1. Rail edge (the long edge away from J1): the rail is gone and both corners are round (R3). File a square
-   corner to R3 (it would stand 0.74 mm into the body) and sand off a burr.
-2. Plate threads: turn one of the M3 screws into each boss by hand with the 2 mm hex key, about ten turns, and
-   out again. It must run freely: an anodised thread that was neither masked nor cut again stops it early
-   (take it up with JLCCNC). Don't drive it home: without the body it would go past the 6.0 mm of full thread.
-3. Seating: the plate pockets leave the encoders and the RANGE control little room
-   ([why](../architecture/mechanics.md#seating)), so check what JLCPCB soldered:
-   - Encoders: a 0.05 mm feeler blade must not slide under an encoder body anywhere round it, and the lugs are
-     soldered.
-   - RANGE control (RKJXT): press the loose one from the LCSC order fully down into the footprint of a bare
-     board and note at each of its four [gauge spots](assembly.md#gauge-spots) the thickest blade (or stack)
-     that slides under its base frame: that is the reference, about 0.40 mm. On each assembled board that
-     blade must slide in at every spot and that blade plus 0.03 mm must not. If both boards read outside the
-     same way, read the loose part again in another bare board first.
-   - The keys sit flat.
-
-   A part that stands proud: reheat its pins while pressing it down, or use the second board for the panel.
-4. J1 shell tabs: all four slots filled from the top and wetting the tabs; if not, solder them as in
-   [Hand-soldering](assembly.md#hand-soldering).
+1. Rail edge (the long edge away from J1): check that the rail is gone and both corners are round (R3). File
+   a square corner to R3 (it would stand 0.74 mm into the body) and sand off a burr.
+2. Plate threads: turn one of the M3 screws into each of the five bosses by hand with the 2 mm hex key, about
+   ten turns, and out again. It must run freely: an anodised thread that was neither masked nor cut again
+   stops it early (take it up with JLCCNC). Do not drive it home: without the body it would go past the 6.0 mm
+   of full thread.
+3. Joints the remark asked for: check that the two mounting lugs of each encoder are soldered in their slots
+   (bottom side), and that all four J1 shell tab slots are filled from the top with the solder wetting the
+   tabs. If not, solder them as in [Hand-soldering](assembly.md#hand-soldering).
+4. Parts: check that the keys, the encoders and the RANGE control sit flat on the board. Reheat the pins of
+   one that does not while pressing it down, or use the second board for the panel.
 5. Cap set: [choose it](#choosing-the-cap-set) on one of the spare keys from the LCSC order.
 
-Nothing else needs a tool: the leads stay untrimmed, and a solder bridge shows up in steps 6 and 7 of
+Nothing else needs checking: the leads stay untrimmed, and a solder bridge shows up in steps 6 and 7 of
 [Flash and test](#flash-and-test), where every key, ring, tilt and push is read.
 
 Hand-soldering option: the board is milled all round and fits the body as delivered. Check the plate threads
 and choose the cap set (the two spare keys come with the LCSC set); the rest follows in
 [Flash and test](#flash-and-test).
 
-Should a board arrive with a rail anyway, break it off along its score with pliers, without bending the board.
-Then take that edge down with a flat file or coarse sandpaper on a block until the board drops into the body
-(outdoors or wet: glass-fibre dust).
+A board that arrives with a rail anyway:
+
+1. Break the rail off along its score with flat-nose pliers, without bending the board.
+2. Take that edge down with a flat file or coarse sandpaper on a block until the board drops into the body
+   (outdoors or wet: glass-fibre dust).
 
 ## Choosing the cap set
 
 The order has four sets of 28 caps (A to D, one to four dimples on the bottom) that differ only in their
-grip ([why](../architecture/mechanics.md#caps-light-pipes-knobs)). Try one cap of each set on a spare key (no
-tools), so pulling off a tight cap loads no soldered key.
+grip ([why](../architecture/mechanics.md#key-caps)). Try one cap of each set on a spare key (no tools), so
+pulling off a tight cap loads no soldered key.
 
 - The right set pushes down by hand until the cap sits on the plunger top (it stops hard there; on the board
   its top is then level with its neighbours), holds when the key is turned over and does not wobble.
@@ -133,23 +127,23 @@ steps 1, 4 and 7, the encoders and the RANGE control last ([Ordering](ordering.m
       PROC, and the firmware sends PTR only once that contact opens again).
    3. Do the [first-board checks](#first-board).
 
-Then the panel goes together: [Assembly](assembly.md#putting-it-together).
+Then the panel goes together: [Putting it together](assembly.md#putting-it-together).
 
 ## When bring-up fails
 
-The steps are those of [Flash and test](#flash-and-test).
+By the step of [Flash and test](#flash-and-test) that shows the fault:
 
-- No RPI-RP2 drive (step 2): try another cable (a charge-only cable shows nothing) and another USB port, then
+- Step 2, no RPI-RP2 drive: try another cable (a charge-only cable shows nothing) and another USB port, then
   measure 3V3 again. With 3V3 right, look at J1's contacts and the crystal Y1 under the magnifier for bridges
   or a lifted pin (solder wick for a bridge). Still nothing: put this board aside and use the second one. The
   bench Pico can also serve as an SWD probe on the board's SWCLK and SWDIO pads (bottom, next to the RP2040;
   GND on J1's shell) with Raspberry Pi's debugprobe firmware, to see whether the RP2040 answers at all.
-- A key that never registers (step 6): check its diode, the SOD-123 next to it on the bottom, under the
+- Step 6, a key that never registers: check its diode, the SOD-123 next to it on the bottom, under the
   magnifier: its cathode band must be on the pad with the silkscreen bar. Turn a reversed one round with the
   iron. Then check the key's four solder joints (hand-soldering).
-- A key that registers as another one, or several keys at once: a solder bridge, or the phantom press of a
-  slow column (step 6).
-- A ring that counts the wrong way or rings swapped: `RINGS` in `code.py` (step 7).
+- Step 6, a key that registers as another one, or several keys at once: a solder bridge, or the phantom press
+  of a slow column.
+- Step 7, a ring that counts the wrong way or rings swapped: `RINGS` in `code.py`.
 
 ## First board
 
@@ -187,12 +181,14 @@ On the first board, after step 7 of [Flash and test](#flash-and-test):
   repository's `code.py` back afterwards.
 - GP25: check that the FREQ outer ring counts normally once `code.py` runs
   ([why](../architecture/firmware.md#pins)).
-- The lights: judge both behind their light pipes once the panel is assembled. If the console (step 5) shows
-  "LED drive strength not set", the lights stay dimmer at the RP2040's 4 mA default. The brightness is
-  `LED_DUTY` in [code.py](../../firmware/code.py): 0x4800 for SHIFT and 0x4000 for UNIT, about 28 and 25 % of
-  full; change those first (up to 0xFFFF). Only if the white light is still too dim at full duty (a part from
-  the highest forward voltage bin), bridge R_UNIT's pads with solder or fit a 0603 0 R (for example C21189) in
-  its place ([Electronics](../architecture/electronics.md#lights)), then keep `LED_DUTY[1]` at 0x8000 or less.
+- Lights: judge both behind their light pipes once the panel is assembled.
+  - The brightness is `LED_DUTY` in [code.py](../../firmware/code.py): 0x4800 for SHIFT and 0x5500 for UNIT,
+    about 28 and 33 % of full. Change those first (up to 0xFFFF).
+  - If the console showed "LED drive strength not set" in step 5 of [Flash and test](#flash-and-test), the
+    lights stay dimmer at the RP2040's 4 mA default.
+  - Only if the white light is still too dim at full duty (a part from the highest forward voltage bin):
+    bridge R_UNIT's pads with solder or fit a 0603 0 R (for example C21189) in its place
+    ([why](../architecture/electronics.md#lights)), then keep `LED_DUTY[1]` at 0x8000 or less.
 
 ## Normal and update mode
 
