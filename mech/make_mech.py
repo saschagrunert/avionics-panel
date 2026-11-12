@@ -33,9 +33,9 @@ from occ_util import box, common, cut, cyl, export, fuse, move, prism, rrect_pri
 
 # PCB to cavity wall: the cavity (161.0 x 61.0) may print 0.4 % small (JLC3DP MJF) and the routed board outline
 # is +-0.2 (JLCPCB), so 0.5 per side; walls 2.0 (JLC3DP MJF: 2.0 for parts over 100 mm), so the outline
-# (stack.OVH, shared with the plate) is 2.5 out from the PCB. Edge rails (docs/building/ordering.md): a
-# hand-soldering board has none, so its outline is routed all round. Full assembly (Standard assembly, 70 x 70 mm
-# minimum) has one rail on the long edge away from J1, V-cut (stack.PCB_VCUT_TOL on the board width).
+# (stack.OVH, shared with the plate) is 2.5 out from the PCB. Edge rails (docs/building/ordering.md):
+# Standard assembly (70 x 70 mm minimum) puts one rail on the long edge away from J1, V-cut (stack.PCB_VCUT_TOL
+# on the board width); the other three edges are routed.
 CLEAR, WALL = 0.5, 2.0
 if abs(CLEAR + WALL - S.OVH) > 1e-9:
     raise ValueError("the body outline must be the plate outline")

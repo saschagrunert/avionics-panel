@@ -11,14 +11,14 @@ out (`body.step` is `avionics-panel-rev1-body.step`). What follows the order is 
 
 By default JLCPCB fits and solders both sides of the board, so nothing needs soldering at home. Hand-soldering
 the through-hole parts (keys, encoders, RANGE control) is the cheaper option for those who like to solder.
-Both use the same Gerbers and the same bottom side.
+Both are Standard assembly orders with the same Gerbers (`gerbers.zip`), the same bottom side and the same
+edge rail.
 
 | | Full assembly (default) | Hand-soldering (option) |
 | --- | --- | --- |
-| JLCPCB assembly | Standard, both sides | Economic, bottom side only (all SMD) |
-| Files for JLCPCB | `gerbers.zip`, `BOM-full.csv`, `CPL-full.csv`: one BOM (parts list) and one CPL (placement file) for both sides, the only ones to upload | `gerbers.zip`, `BOM.csv`, `CPL.csv` |
+| JLCPCB assembles | Both sides | The bottom side only (all SMD) |
+| BOM and CPL for JLCPCB | `BOM-full.csv`, `CPL-full.csv`: one BOM (parts list) and one CPL (placement file) for both sides, the only ones to upload | `BOM.csv`, `CPL.csv` |
 | Through-hole parts | From JLCPCB's parts library, on both boards ([Parts and stock](#parts-and-stock)) | From LCSC (`THT-LCSC.csv`), soldered by hand with the J1 shell tabs ([Hand-soldering](assembly.md#hand-soldering)) |
-| Edge rails | One, removed by JLCPCB before delivery ([Edge rails](#edge-rails)) | None |
 | Bring-up | Every part is on from the start: a board that turns out dead takes its encoders and RANGE control with it, and the second board is the spare | The encoders and the RANGE control go on last, after the board has been tested |
 | Cost | Higher ([cost](#shipping-tax-and-cost)) | The LCSC parts on top of a cheaper board order; 28 keys, three encoders and the RANGE control to solder per board |
 
@@ -28,8 +28,8 @@ Both use the same Gerbers and the same bottom side.
    ([Parts and stock](#parts-and-stock)).
 2. [JLCCNC](#jlccnc): the plate. It is paid after its review.
 3. [JLCPCB](#jlcpcb): the boards. Go through the [placement preview](#placement-preview), then pay.
-4. [JLC3DP](#jlc3dp): body, key caps, knobs, light pipes, as an order and a parcel of its own (hand-soldering:
-   it may share the JLCPCB cart, see [shipping](#shipping-tax-and-cost)).
+4. [JLC3DP](#jlc3dp): body, key caps, knobs, light pipes, as an order and a parcel of its own
+   ([why](#shipping-tax-and-cost)).
 5. [LCSC](#lcsc): the spare keys (or, hand-soldering, the through-hole parts), shipped on its own.
 6. JLCMC: the screws from the [shopping list](#shopping-list), an order and a parcel of its own. JLCMC does
    not combine with JLCPCB, JLC3DP or JLCCNC.
@@ -83,38 +83,39 @@ Tools:
 | ☐ | Flat-nose pliers | 1 | Local | | Only if a board arrives with its rail, [On arrival](bring-up.md#on-arrival) |
 
 The LCSC numbers for home items are an alternative only: every line of an EU import pays a €2 handling fee
-([shipping](#shipping-tax-and-cost)), so a cheap item costs more in fees than in goods. Many of LCSC's USB-C
+([why](#shipping-tax-and-cost)), so a cheap item costs more in fees than in goods. Many of LCSC's USB-C
 cables are charge-only, and their listings rarely say so: buy the cable where its data lines are stated.
 
 ## JLCPCB
 
 4 layers, 1.6 mm, ENIG, black solder mask with white silkscreen, via covering Tented
 ([why](../architecture/electronics.md#solder-mask)); everything else at JLCPCB's defaults (0.3 mm via, 1 oz
-outer copper, stackup, PCB quantity 5). Assembly quantity 2 (JLCPCB's minimum); the panel needs one, the
-second is the spare. Confirm Parts Placement and Confirm Production File: yes.
+outer copper, stackup, PCB quantity 5). Standard assembly, assembly quantity 2 (JLCPCB's minimum); the panel
+needs one, the second is the spare. JLCPCB does not offer Economic assembly for a black board with ENIG. Edge
+Rails/Fiducials: Added by JLCPCB, with the paid option to remove the edge rail before delivery. Confirm Parts
+Placement and Confirm Production File: yes.
 
-- Full assembly: Standard assembly, both sides; `BOM-full.csv` and `CPL-full.csv` (the BOM step must find all
-  27 lines with stock for 2 boards); Edge Rails/Fiducials: Added by JLCPCB, with JLCPCB's paid option to
-  remove the edge rail before delivery; remark:
+- Full assembly: both sides; `BOM-full.csv` and `CPL-full.csv` (the BOM step must find all 27 lines with
+  stock for 2 boards); remark:
 
   > J1 (USB-C) overhangs the y = 60 mm edge by 0.5 mm by design: no rail there. One edge rail of at least
-  > 10 mm on the y = 0 edge only, removed before delivery; keep the R3 corners milled. Solder the mounting
-  > lugs of ENC_ALTHDG, ENC_FREQ and ENC_FMS in their slots. Solder the four J1 shell tabs from the top,
-  > filling the slots. Solder mask: keep the 0.13 mm dams between the pads of U1, J1 and C_X2/R_X; please ask
-  > before removing any. The two 2.2 x 2.4 mm internal cutouts in the outline are for reverse-mount LEDs:
-  > please mill them with R0.5 inside corners (1.0 mm router).
+  > 10 mm on the y = 0 edge only, removed before delivery; keep the R3 corners milled. Solder mask: keep the
+  > 0.13 mm dams between the pads of U1, J1 and C_X2/R_X; please ask before removing any. The two
+  > 2.2 x 2.4 mm internal cutouts in the outline are for reverse-mount LEDs: please mill them with R0.5
+  > inside corners (1.0 mm router). Solder the mounting lugs of ENC_ALTHDG, ENC_FREQ and ENC_FMS in their
+  > slots. Solder the four J1 shell tabs from the top, filling the slots.
 
-- Hand-soldering: Economic assembly, bottom side; `BOM.csv` and `CPL.csv`; Edge Rails/Fiducials: None;
-  remark:
+- Hand-soldering: bottom side; `BOM.csv` and `CPL.csv` (the BOM step must find all 24 lines with stock for
+  2 boards); remark:
 
-  > J1 (USB-C) overhangs the y = 60 mm edge by 0.5 mm by design. No edge rails, please. Solder mask: keep
-  > the 0.13 mm dams between the pads of U1, J1 and C_X2/R_X; please ask before removing any. The two
+  > J1 (USB-C) overhangs the y = 60 mm edge by 0.5 mm by design: no rail there. One edge rail of at least
+  > 10 mm on the y = 0 edge only, removed before delivery; keep the R3 corners milled. Solder mask: keep the
+  > 0.13 mm dams between the pads of U1, J1 and C_X2/R_X; please ask before removing any. The two
   > 2.2 x 2.4 mm internal cutouts in the outline are for reverse-mount LEDs: please mill them with R0.5
   > inside corners (1.0 mm router).
 
-The reasons: [edge rails](#edge-rails), [J1 shell tabs](assembly.md#hand-soldering),
-[solder mask](../architecture/electronics.md#solder-mask),
-[LED cutouts](../architecture/electronics.md#lights).
+The reasons: [edge rails](#edge-rails), [solder mask](../architecture/electronics.md#solder-mask),
+[LED cutouts](../architecture/electronics.md#lights), [J1 shell tabs](assembly.md#hand-soldering).
 
 JLCPCB lists black among its standard colours at standard pricing, but its build-time table is for green:
 check the price and build time the quote shows for black.
@@ -123,11 +124,12 @@ check the price and build time the quote shows for black.
 
 - J1 overhangs its long edge (y = 60 mm in the Gerbers) by 0.5 mm, so the plug reaches it through the body
   wall: no rail can go there. Every other bottom-side part keeps 3.7 mm from the edges.
-- Full assembly: Standard assembly needs 70 x 70 mm and the board is 60 mm wide, so one rail of at least 10 mm
-  goes on the opposite long edge (y = 0). JLCPCB removes it before delivery (a paid option), and the V-cut
-  edge it leaves (±0.4 mm) fits the body.
-- Hand-soldering: JLCPCB lists rails as not needed for Economic assembly, and the milled outline fits the body
-  as delivered. Should their engineer add rails anyway, accept if the J1 edge stays free.
+- Standard assembly needs edge rails and at least 70 x 70 mm with them. The board is 60 mm wide and the J1
+  edge takes no rail, so one rail of at least 10 mm goes on the opposite long edge (y = 0). JLCPCB removes it
+  before delivery (a paid option), and the V-cut edge it leaves (±0.4 mm) fits the body.
+- JLCPCB's default is a 5 mm rail on two opposite edges. If its engineer wants more than the one rail, accept
+  any that leaves the J1 edge free; a rail on a short edge leaves a V-cut edge that may need sanding
+  ([On arrival](bring-up.md#on-arrival)).
 - The R3 corners stay milled: a V-cut square corner does not fit the body.
 
 A board that arrives with a rail anyway: [On arrival](bring-up.md#on-arrival).
@@ -135,18 +137,18 @@ A board that arrives with a rail anyway: [On arrival](bring-up.md#on-arrival).
 ### Parts and stock
 
 `BOM-full.csv` lists the through-hole parts for one board; JLCPCB multiplies by the 2 assembled boards. They
-are extended parts in JLCPCB's own library, whose stock is not LCSC's. The parts whose stock is worth a look
-before ordering:
+come from JLCPCB's own parts library, whose stock is not LCSC's. The parts whose stock is worth a look before
+ordering:
 
-| Part | JLC part | Library | Per board |
-| --- | --- | --- | --- |
-| TE 1-1825910-4 key switch | C589907 | Extended | 28 (full assembly only) |
-| Bourns PEC11D-4120F-S0015 dual encoder | C19270361 | Extended | 3 (full assembly only) |
-| Alps RKJXT1F42001 RANGE control | C160841 | Extended | 1 (full assembly only) |
-| U4: hongjiacheng SRV05-4 ESD array, SOT-23-6 | C7420376 | Preferred extended | 1 |
-| F1: Bourns MF-NSMF050-2 PTC fuse, 0.5 A hold, 1206 | C75464 | Extended | 1 |
-| LiteOn LTST-C230KSKT yellow LED (the amber SHIFT light) | C125108 | Extended | 1 |
-| LiteOn LTW-C230DS white LED | C575513 | Extended | 1 |
+| Part | JLC part | Per board |
+| --- | --- | --- |
+| TE 1-1825910-4 key switch | C589907 | 28 (full assembly only) |
+| Bourns PEC11D-4120F-S0015 dual encoder | C19270361 | 3 (full assembly only) |
+| Alps RKJXT1F42001 RANGE control | C160841 | 1 (full assembly only) |
+| U4: hongjiacheng SRV05-4 ESD array, SOT-23-6 | C7420376 | 1 |
+| F1: Bourns MF-NSMF050-2 PTC fuse, 0.5 A hold, 1206 | C75464 | 1 |
+| LiteOn LTST-C230KSKT yellow LED (the amber SHIFT light) | C125108 | 1 |
+| LiteOn LTW-C230DS white LED | C575513 | 1 |
 
 The encoders are the tight part: JLCPCB stocks few of them. Buy the six into your Parts Manager stock as soon
 as you order: the assembly takes them from there, so no other order can take them first. If the stock is
@@ -156,10 +158,6 @@ short:
 - Send six as consigned parts.
 - Unselect the three encoder lines in the BOM step and solder the encoders by hand (buy them at LCSC or a
   Bourns distributor; [Hand-soldering](assembly.md#hand-soldering)).
-
-JLCPCB charges a fee per part type: in Economic assembly for each extended part (the RP2040, the flash, the
-crystal, J1, F1 and the two LEDs), in Standard assembly for every part type, basic parts included. JLCPCB
-moves parts between the classes, so go by the quote.
 
 ### Placement preview
 
@@ -280,7 +278,8 @@ to its shop again.
 
 The JLC shops share one account but each has its own checkout, payment by PayPal, card or Google Pay.
 
-- JLC3DP items can join the JLCPCB cart and be paid together. JLCCNC is paid separately after its review.
+- JLC3DP items can join the JLCPCB cart; keep them out of it (the €150 line below). JLCCNC is paid separately
+  after its review.
 - LCSC combines its parcel with a JLC order only if that order is shipped to LCSC's Hong Kong warehouse
   (chosen as the address at the JLC checkout, and not changeable after). Ship LCSC on its own: added to a JLC
   parcel it also pushes it over the €150 line below.
@@ -290,9 +289,9 @@ The JLC shops share one account but each has its own checkout, payment by PayPal
     customs duty of €3 per tariff line (an interim rule, until 2028-07-01) and a carrier's disbursement fee
     can come on top, so check the tax lines before paying.
   - A shipment over €150 is cleared on delivery instead, with the carrier's fee.
-  - Full assembly: the JLCPCB order alone is over €150, so ship JLC3DP on its own. Hand-soldering: JLC3DP may
-    share the JLCPCB cart if both together stay under €150 of goods.
+  - Ship JLC3DP on its own: in one shipment with the JLCPCB order it is likely over €150. A full assembly
+    JLCPCB order is over €150 by itself.
 
 Rough cost of the panel with its spare board, without the rail removal fee: about €370 to 420 with shipping
-for full assembly, €250 to 300 with hand-soldering, plus the screws with their own shipping and the local
-items. The quotes give the current figures.
+for full assembly, €290 to 340 with hand-soldering. The screws with their own shipping and the local items
+come on top. The quotes give the current figures.

@@ -295,10 +295,8 @@ diodes to its VCC pin and a clamp from VCC to GND.
   GND on a via under the body. A clamp that fails short, or U4 placed turned by 180° (its VCC on GND, the
   clamp diode forward across VBUS_F), then sits behind R_IN and the fuse instead of shorting the host's VBUS
   (see below for what gives way).
-- Part choice: a USBLC6-2SC6 does the same job with the same pinout, but at JLCPCB it is an extended part with
-  a fee in both assembly variants; the SRV05-4 is a preferred extended part
-  ([Ordering](../building/ordering.md#parts-and-stock)). No USB ESD array is a basic part there, and no
-  resettable fuse is basic or preferred extended.
+- Part choice: the SRV05-4 ([Ordering](../building/ordering.md#parts-and-stock)); a USBLC6-2SC6 does the same
+  job with the same pinout.
 - Checked: `check.py` cuts U4's pads out of the bottom copper and checks that J1's contacts then no longer
   reach the 27 R resistors (no copper runs past the array), and that U4 is at most 5 mm of copper from J1.
 

@@ -1148,12 +1148,11 @@ def clearances(plate, outer, inner, range_knob):
     corner = min(-rrect_sd(mx - B.W / 2, my - B.H / 2, B.W + 2 * MM.o, B.H + 2 * MM.o, B.CORNER_R + MM.o)
                  for mx, my in B.CORNER_MOUNTS) - cb_hi   # counterbore to the outer body surface
     cav_w_tol = mjf(B.H + 2 * MM.CLEAR)                             # MJF on the cavity width (61 mm)
-    # width: routed long edges (hand-soldering), or full assembly's V-cut one after its rail comes off
+    # width: the routed long edge, or the V-cut one after its rail comes off
     w_tol = max(S.PCB_OUTLINE_TOL, S.PCB_VCUT_TOL)
     cav = MM.CLEAR - w_tol / 2 - cav_w_tol / 2                       # per side
     cav_len = (B.W + 2 * MM.CLEAR) * (1 - S.MJF_SCALE)        # the cavity length, printed small
-    # length: routed short edges (no rails there, hand-soldered or fully assembled), or V-cut ones sanded (rails
-    # added anyway)
+    # length: routed short edges (no rails there), or V-cut ones sanded (rails added anyway)
     pcb_len = max(B.W + S.PCB_OUTLINE_TOL, S.PCB_SANDED_LEN)
     # ---- assembly, body ----
     caps = [(x, y) for y in B.ROWS for x in B.COLS]
@@ -1394,8 +1393,8 @@ def clearances(plate, outer, inner, range_knob):
                     *(abs(v - bo["d"]) for v in pm["boss_d"]))),
         ("body boss tops bear on the PCB all round its holes (all five; MJF -0.15)",
          MM.BOSS_R - pt["body_hole"] - offset - off - hole_hi),
-        (f"PCB width in the cavity (MJF -{cav_w_tol:.1f}; routed long edges +{S.PCB_OUTLINE_TOL}, or full "
-         f"assembly's V-cut rail edge +{S.PCB_VCUT_TOL}), per side", cav),
+        (f"PCB width in the cavity (MJF -{cav_w_tol:.1f}; routed long edge +{S.PCB_OUTLINE_TOL}, or the V-cut rail "
+         f"edge +{S.PCB_VCUT_TOL}), per side", cav),
         (f"PCB length in the cavity ({cav_len:.2f} at MJF -{100 * S.MJF_SCALE:g} %): routed short edges "
          f"(+{S.PCB_OUTLINE_TOL}), or V-cut ones sanded until the board drops in ({S.PCB_SANDED_LEN} at most), "
          "per side",

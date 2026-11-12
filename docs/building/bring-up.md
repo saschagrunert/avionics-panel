@@ -24,13 +24,11 @@ Full assembly (the default), in this order:
 Nothing else needs checking: the leads stay untrimmed, and a solder bridge shows up in steps 6 and 7 of
 [Flash and test](#flash-and-test), where every key, ring, tilt and push is read.
 
-Hand-soldering option: the board is milled all round and fits the body as delivered. Check the plate threads
-and choose the cap set (the two spare keys come with the LCSC set); the rest follows in
-[Flash and test](#flash-and-test).
+Hand-soldering: steps 1, 2 and 5 only; the soldering follows in [Flash and test](#flash-and-test).
 
-A board that arrives with a rail anyway:
+A board that arrives with a rail anyway, or with a V-cut edge that does not fit the body:
 
-1. Break the rail off along its score with flat-nose pliers, without bending the board.
+1. If the rail is still on, break it off along its score with flat-nose pliers, without bending the board.
 2. Take that edge down with a flat file or coarse sandpaper on a block until the board drops into the body
    (outdoors or wet: glass-fibre dust).
 
