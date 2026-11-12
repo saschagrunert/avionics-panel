@@ -35,8 +35,8 @@ DRAWING_MIN = 0.45
 
 
 def P(x, y):
-    """board coordinates (y down) -> plate coordinates (y up, origin bottom-left)."""
-    return x + OVH, B.H + OVH - y
+    """board coordinates (y down) -> plate coordinates (stack.plate_xy)."""
+    return S.plate_xy(x, y, B.H)
 
 
 def tap_hole():

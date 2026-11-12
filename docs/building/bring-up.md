@@ -45,8 +45,9 @@ pulling off a tight cap loads no soldered key.
 - If two sets fit, take the tighter one (from tight to loose: D, A, B, C).
 - Without a spare key, try them on a soldered key from loose to tight (C, B, A, D) and stop at the first set
   that holds, so no tight cap has to be pulled off.
-- If even C is too tight, or even D too loose, reprint with `CAP_SETS` in [mech/stack.py](../../mech/stack.py)
-  moved by 0.1 mm for each set it missed by (up to 0.3 mm; one round may not do).
+- If even C is too tight, or even D too loose, reprint with `CAP_SETS_MOVE` in
+  [mech/stack.py](../../mech/stack.py) raised (C too tight) or lowered (D too loose) by 0.1 mm for each set it
+  missed by (up to 0.3 mm either way; one round may not do).
 
 Keep the other three sets as spares.
 

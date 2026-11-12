@@ -16,6 +16,8 @@ pad of the board is missing from it. Renders: [top](../../renders/5-pcb-top.png)
 - On the design data the Gerbers are written from: the clearances of the outer copper and the holes.
 - The files against that data, one for one: the copper Gerbers (every pad, via and trace), the drill files,
   the outline with its cutouts, and a cathode bar at every diode and LED.
+- The BOM and CPL against `board.py` and each other: every part on its side with its value and LCSC number,
+  each BOM line's quantity, and the hand-soldering files the bottom side of the full ones.
 
 It prints what each build reaches, and the build passes when:
 
@@ -30,6 +32,7 @@ It prints what each build reaches, and the build passes when:
 | Smallest drills | At least 0.3 mm plated, 0.5 mm unplated |
 | Smallest annular rings | At least 0.075 mm on vias, 0.15 mm on pads |
 | JLC's footprints | Every bottom-side part's footprint lands, mirrored, on our pads of the same number ([Assembly data](#assembly-data)) |
+| BOM and CPL | They name every part of `board.py` on its side, with its value, LCSC number and quantity |
 
 ## Solder mask
 
@@ -116,8 +119,8 @@ RP2040's driver it sets the source impedance the full-speed specification asks f
 JLCPCB places the bottom-side parts by its own library footprints. [pcb/footprints/](../../pcb/footprints/)
 keeps each one: its pads (number, position, size) and the pin names of JLC's symbol, saved from JLC's EasyEDA
 library by `footprints/fetch.py`, with source and date in each file. `check.py` fits them onto our pads at the
-rotation in the CPL (placement file), offline: every JLC pad must land on our pad with the same number,
-centres within 0.15 mm and edges within 0.25 mm. A footprint that is not mirrored cannot be fixed by a
+place and rotation in the CPL (placement file), offline: every JLC pad must land on our pad with the same
+number, centres within 0.15 mm and edges within 0.25 mm. A footprint that is not mirrored cannot be fixed by a
 rotation; this fit catches one.
 
 - LEDs: our pads stop 0.2 mm short of the board cutout, where JLC's footprints run further in, so the fit

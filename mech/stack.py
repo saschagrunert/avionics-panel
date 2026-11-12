@@ -101,7 +101,10 @@ CAP_SOCKET = dict(d=3.8, rib_w=1.2, rib_angles=(0, 90, 180, 270), relief=0.35, l
 # One compliant set cannot replace them in a 9.6 x 6.4 cap: springs that grip over the drawing's 0.6 and the print's
 # 0.4 deflect up to 0.55 each, and two of them, one printed 0.1 thin and one 0.1 thick, hold the cap up to 0.18 off
 # its plunger, twice the 0.09 the key hole leaves for that.
-CAP_SETS = {"A": 3.15, "B": 3.25, "C": 3.35, "D": 3.05}
+# A reprint for a plunger lot off TE's model moves every set by CAP_SETS_MOVE, 0.1 per set it missed by, up to
+# TE's +-0.30 on the plunger diameter (docs/building/bring-up.md); check_fit.py takes the plunger that far off.
+CAP_SETS_MOVE = 0.0
+CAP_SETS = {n: d + CAP_SETS_MOVE for n, d in {"A": 3.15, "B": 3.25, "C": 3.35, "D": 3.05}.items()}
 CAP_GRIP = (0.02, 0.15)                    # diametral interference: holds from, still seats by hand up to
 # Dimples 1.0 across (WJP holes 1.0 min.) and 0.9 deep (engraved detail 0.8 min.), one in each corner region
 # between the socket and the outline, where the cap is thickest: set A uses the first, D all four.
@@ -120,6 +123,12 @@ PLATE_Z0, PLATE_T = 6.55, 4.0
 PLATE_Z1 = PLATE_Z0 + PLATE_T              # 10.55
 PLATE_T_TOL = 0.1                          # 4.0 +-0.1 before anodising (drawing); depths go from the back
 OVH = 2.5                                  # plate and body overhang the PCB by clearance + wall
+
+
+def plate_xy(x, y, board_h):
+    """a board point (y down, the board board_h high) in the plate's frame: origin at the plate's bottom-left
+    corner seen from the front, y up. The plate STEP and the DXF artwork both use it."""
+    return x + OVH, board_h + OVH - y
 
 # through holes in the plate
 KEY_HOLE = (10.2, 7.0, 1.4)                # caps are 9.6 x 6.4: 0.3 per side, see the cap budget below
@@ -301,7 +310,9 @@ KEY_W, KEY_R = 1.4, 2.3
 # A variant counts as fitting when its bore prints within FIT_OFF of the size drawn: up to that much under, it opens
 # with the drill and the file; up to that much over, it has at most 0.25 of play on the smallest shaft and still
 # turns it through its key or D flat (assumed; the first print shows). check_fit.py holds the three variants
-# against the resin's tolerance with it.
+# against the resin's tolerance with it. A reprint sets FIT to the variant that fit (docs/building/assembly.md),
+# which takes out the printer's own bias: the variants come about FIT, and check_fit.py takes the resin's tolerance
+# about it too, with FIT itself within that tolerance.
 # A single compliant bore cannot replace the variants: the friction must carry the detent torque (PEC11D: 100 +-70
 # gf cm, 16.7 N mm at most; RKJXT: 15 +-8 mN m, 23 N mm at most), which on the inner knob's D flat (1.58 from the
 # axis to its corner) takes a spring preload of 10.6 N and on the RANGE lever's (1.12) about 20.5 N; over the bore's
@@ -312,7 +323,7 @@ FIT_VARIANTS = {"tight": -0.2, "loose": 0.2}   # extra outer, FMS, inner and RAN
 FIT_OFF = 0.15
 # Garmin proportions: outer rings 17 on all three dual knobs, inner knobs 12, so 2.5 of ring shows each side.
 # The outer ring ends flush with the 6 mm shaft top: no neck rises into the inner knob, since a recess round a
-# neck in a 12 mm knob cannot leave 1.0 of resin on both and still clear a loose knob (check_fit.py). Its bottom
+# neck in a 12 mm knob cannot leave 1.0 of resin on both and still clear a loose knob. Its bottom
 # is 1.15 over the plate, so the slot floor's spread and a high plate face (high bosses, a thick plate, anodised,
 # bowed up) leave 0.24.
 OUTER_KNOB = dict(d=17.0, z0=1.15, z1=7.45)
@@ -355,8 +366,9 @@ SHIFT_LEGEND = dict(dy=1.9, size=1.7, track=0.08)
 PLATE_TEXT = dict(cap=0.72, space=0.26, mid=0.35)
 # The marked frame round all keys (make_plate_art.py and the 3D view): lines `line` wide, `side`, `back` and
 # `front` outside the outer caps, corners of radius r. One line splits AUTOPILOT from the rest (between key columns
-# 3 and 4), one AUDIO from RADIO (between columns 5 and 6) and one both from FMS below: it runs through the middle
-# of what is left between key rows 2 and 3 after `fms` under row 2 for its amber legends.
+# 2 and 3, counted from 0 as in pcb/board.py), one AUDIO from RADIO (between columns 4 and 5) and one both from FMS
+# below: it runs through the middle of what is left between key rows 1 and 2 after `fms` under row 1 for its amber
+# legends.
 KEY_FRAME = dict(side=3.0, back=4.2, front=4.6, fms=2.6, r=1.6, line=0.3)
 # The group titles break the frame's lines: capitals `size` high, letters `track` apart, the line cleared `pad`
 # on each side of the text, which starts `inset` after the group's left line (`inset_first` after the frame's
