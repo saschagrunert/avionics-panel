@@ -7,7 +7,7 @@ import zipfile
 
 import board as B
 import numpy as np
-from geom import bbox, boxes_near, item_dist, pad_geom, pt_seg, rounded_rect
+from geom import SILK_EDGE, bbox, boxes_near, item_dist, pad_geom, pt_seg, rounded_rect
 from matplotlib.font_manager import FontProperties
 from matplotlib.path import Path
 from matplotlib.textpath import TextPath
@@ -53,10 +53,10 @@ CAP_H = TextPath((0, 0), "H", size=1.0, prop=FONT).get_extents().height
 STEM = TextPath((0, 0), "I", size=1.0, prop=FONT).get_extents().width
 # JLCPCB clips the legend off pads and holes (check.py: SILK_CLEAR, 0.15 mm on the Gerbers). Each text keeps
 # LEGEND_GAP between its bounding box and the mask openings on its side, every hole and the legend placed before
-# it, and SILK_EDGE inside the board outline (check.py: SILK_EDGE); where its spot is taken (a via the router put
-# there), it moves to the nearest free one, at most 3 mm sideways and 1 mm up or down. A line (a diode's cathode
-# bar) is left out for HOLE_GAP round a via instead. The checks are plain raises: asserts vanish under -O.
-LEGEND_GAP, HOLE_GAP, SILK_EDGE = 0.25, 0.2, 0.3
+# it, and geom.SILK_EDGE inside the board outline; where its spot is taken (a via the router put there), it moves
+# to the nearest free one, at most 3 mm sideways and 1 mm up or down. A line (a diode's cathode bar) is left out
+# for HOLE_GAP round a via instead. The checks are plain raises: asserts vanish under -O.
+LEGEND_GAP, HOLE_GAP = 0.25, 0.2
 NUDGE = sorted(((0.25 * i, 0.25 * j) for i in range(-12, 13) for j in range(-4, 5)),
                key=lambda d: (math.hypot(d[0], 2 * d[1]), d))
 

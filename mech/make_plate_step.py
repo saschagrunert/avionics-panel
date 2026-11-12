@@ -8,16 +8,17 @@ pockets for the encoder and RANGE bodies, the bosses, which stand down to the PC
 the front face is machined from the back in one setup; the front may be faced in a second one.
 
 Coordinates: origin at the bottom-left corner of the plate seen from the front, X right, Y up, mm.
-Needs pythonocc-core (nix-shell nix/shells.nix -A occ, from the repository root).
+Needs pythonocc-core (nix-shell nix/shells.nix -A gen, from the repository root).
 """
 import sys
 import textwrap
+from pathlib import Path
 
 from OCC.Core.BRepCheck import BRepCheck_Analyzer
 from OCC.Core.TopAbs import TopAbs_FACE
 from OCC.Core.TopExp import TopExp_Explorer
 
-sys.path.insert(0, "../pcb")
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "pcb"))
 import board as B
 import stack as S
 from occ_util import box, cut, cyl, fuse, move, revolve, rrect_prism, volume, write_step

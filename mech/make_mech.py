@@ -22,11 +22,12 @@ Output frame: X right, Y away from the user (board y flipped), Z up.
 """
 import math
 import sys
+from pathlib import Path
 
 from OCC.Core.BRepBuilderAPI import BRepBuilderAPI_Transform
 from OCC.Core.gp import gp_Ax1, gp_Ax2, gp_Dir, gp_Pnt, gp_Trsf
 
-sys.path.insert(0, "../pcb")
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "pcb"))
 import board as B
 import stack as S
 from occ_util import box, common, cut, cyl, export, fuse, move, prism, rrect_prism, volume

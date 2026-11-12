@@ -1,16 +1,17 @@
 """Geometry for the 3D view (viewer/geometry.js, a plain script so the page also opens from disk), taken from
-board.py, stack.py and make_mech.py, so the viewer never carries hand copies of them.
+board.py, stack.py, make_mech.py and make_caps.py, so the viewer never carries hand copies of them.
 
 Board coordinates in mm (x to the right, y from the back edge towards the user), heights with z = 0 at the PCB
 top. The file is byte-stable (sorted keys, fixed rounding), so CI can check it is up to date.
-Needs pythonocc-core (make_mech.py imports it).
+Needs pythonocc-core and pillow (make_mech.py and make_caps.py import them).
 """
 import json
 import sys
 from pathlib import Path
 
-sys.path.insert(0, "../pcb")
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "pcb"))
 import board as B
+import make_caps as MC
 import make_mech as MM
 import stack as S
 
@@ -75,10 +76,12 @@ geometry = {
     "keys": {"cols": B.COLS, "rows": B.ROWS, "cap": [S.CAP["w"], S.CAP["h"], S.CAP["r"]],
              "cap_height": S.CAP["height"], "cap_chamfer": S.CAP["cham"], "cap_base": S.CAP["base"],
              "plunger_top": S.PLUNGER_TOP, "plunger": S.PLUNGER, "switch_body": S.SWITCH_BODY,
-             "bar": {k: S.CAP_BAR[k] for k in ("w", "d", "proud", "inset")},
-             "legend": {"weight": S.LEGEND_WEIGHT, "grow": S.LEGEND_GROW, "line": S.LEGEND_LINE,
-                        "em_max": S.LEGEND_EM_MAX, "fill": S.LEGEND_FILL, "direct_to": S.DIRECT_TO,
-                        "flip_polys": S.CAP_FLIP_ICON}},
+             # stack.CAP_BAR_EDGE for every cap, 0 included: the page fails on a key geometry.js lacks
+             "bar": {**{k: S.CAP_BAR[k] for k in ("w", "d", "proud", "inset")},
+                     "edge": {label: S.CAP_BAR_EDGE.get(label, 0) for row in S.KEY_LEGENDS for label, _ in row}},
+             # em: the one legend size (mm), as make_caps.py sizes it with the font's own metrics
+             "legend": {"em": MC.LEGEND_EM, "weight": S.LEGEND_WEIGHT, "grow": S.LEGEND_GROW, "line": S.LEGEND_LINE,
+                        "direct_to": S.DIRECT_TO, "flip_polys": S.CAP_FLIP_ICON}},
     "key_legends": S.KEY_LEGENDS,
     "flip_icon": {"w": S.FLIP_W, "gap": S.FLIP_GAP, "polys": S.FLIP_ICON},
     "knobs": {name: {"x": x, "y": y, "flutes": S.OUTER_FLUTES.get(name), "legend_tilt": S.KNOB_LEGEND_TILT[name],

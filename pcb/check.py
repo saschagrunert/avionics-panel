@@ -50,6 +50,7 @@ import numpy as np
 from geom import (
     DETOUR_FACTOR,
     DETOUR_SLACK,
+    SILK_EDGE,
     USB_MAX,
     USB_SKEW,
     bbox,
@@ -1222,11 +1223,6 @@ def silk_clear(pth, npth):
                   f"{dist[lab == c].min():.2f} mm")
         print(f"legend {side}: closest to a mask opening or hole {dist[legend].min():.2f} mm (min {SILK_CLEAR})")
     return bad
-
-
-# JLCPCB publishes no legend-to-outline figure. It keeps copper 0.2 mm from a routed edge and mills the outline to
-# +-0.2 mm: legend closer than SILK_EDGE to the outline may be clipped or run off the edge (make.py: T()).
-SILK_EDGE = 0.3
 
 
 def contours(fname):

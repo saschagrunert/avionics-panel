@@ -1,22 +1,10 @@
 """The key legends live in mech/stack.py: the caps, the plate, the 3D view and the board silkscreen read them
 from there. The firmware button map (CircuitPython, no access to stack.py) keeps its own names; these tests
 make sure they agree."""
-import importlib.util
-import os
-
 import buttonmap as BM
 from panel import BOUNCE_MS, Panel
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-
-def load(name, path):
-    """a module by file path, so neither mech/ nor pcb/ goes on sys.path for the whole test run"""
-    spec = importlib.util.spec_from_file_location(name, os.path.join(ROOT, path))
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
+from conftest import load
 
 S = load("_labels_stack", "mech/stack.py")
 AUDIO = ("MIC1", "COM1", "MIC2", "COM2")              # their shift legends select audio sources

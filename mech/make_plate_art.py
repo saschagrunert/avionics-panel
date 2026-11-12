@@ -15,7 +15,7 @@ from matplotlib.textpath import TextPath, TextToPath
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "pcb"))
 import board as B
 import stack as S
-from dxf import write_dxf
+from geom import rounded_rect
 
 FONTS = Path(__file__).resolve().parent.parent / "viewer" / "fonts"
 SEMI = FontProperties(fname=str(FONTS / "BarlowSemiCondensed-SemiBold.ttf"))
@@ -35,16 +35,6 @@ layers = {"CUT": [], "LASER": [], "UV_AMBER": []}     # closed polygons, PCB coo
 
 
 # ---------------- geometry helpers ----------------
-def rrect(cx, cy, w, h, r, n=8):
-    pts = []
-    for (qx, qy, a0) in ((cx + w / 2 - r, cy - h / 2 + r, -90), (cx + w / 2 - r, cy + h / 2 - r, 0),
-                         (cx - w / 2 + r, cy + h / 2 - r, 90), (cx - w / 2 + r, cy - h / 2 + r, 180)):
-        for i in range(n + 1):
-            a = math.radians(a0 + 90 * i / n)
-            pts.append((qx + r * math.cos(a), qy + r * math.sin(a)))
-    return pts
-
-
 def circle(cx, cy, r, n=72):
     return [(cx + r * math.cos(2 * math.pi * i / n), cy + r * math.sin(2 * math.pi * i / n)) for i in range(n)]
 
@@ -118,10 +108,11 @@ def arc_text(layer, segs, cx, cy, r, mid, track):
 
 
 # ---------------- CUT: outline and holes ----------------
-layers["CUT"].append(rrect(B.W / 2, B.H / 2, B.W + 2 * OVH, B.H + 2 * OVH, B.CORNER_R + OVH, 12))
+layers["CUT"].append(rounded_rect(-OVH, -OVH, B.W + OVH, B.H + OVH, B.CORNER_R + OVH))
 for y in B.ROWS:
     for x in B.COLS:
-        layers["CUT"].append(rrect(x, y, HOLE[0], HOLE[1], HOLE[2]))
+        layers["CUT"].append(rounded_rect(x - HOLE[0] / 2, y - HOLE[1] / 2, x + HOLE[0] / 2, y + HOLE[1] / 2,
+                                            HOLE[2], 8))
 for name in ("ALTHDG", "FREQ", "FMS"):
     layers["CUT"].append(circle(*getattr(B, name), SHAFT_HOLE / 2))
 layers["CUT"].append(circle(*B.RANGE, RANGE_HOLE / 2))
@@ -201,6 +192,30 @@ for rI, y in enumerate(B.ROWS):
 
 
 # ---------------- writers ----------------
+# A minimal DXF HEADER: $INSUNITS 4 = millimetres (CAM reads it as the drawing unit; R12 readers that do not know
+# it skip it), $MEASUREMENT 1 = metric.
+DXF_HEADER = ["0", "SECTION", "2", "HEADER", "9", "$INSUNITS", "70", "4", "9", "$MEASUREMENT", "70", "1", "0", "ENDSEC"]
+
+
+def dxf_layers():
+    """the layers as the DXF has them: in the plate's frame (stack.plate_xy), y up, origin at its bottom-left
+    corner."""
+    return {layer: [[S.plate_xy(x, y, B.H) for x, y in poly] for poly in polys] for layer, polys in layers.items()}
+
+
+def write_dxf(path):
+    """R12 DXF of dxf_layers(): each polygon one closed POLYLINE on its layer, coordinates to 0.1 um."""
+    out = DXF_HEADER + ["0", "SECTION", "2", "ENTITIES"]
+    for layer, polys in dxf_layers().items():
+        for poly in polys:
+            out += ["0", "POLYLINE", "8", layer, "66", "1", "70", "1"]
+            for x, y in poly:
+                out += ["0", "VERTEX", "8", layer, "10", f"{x:.4f}", "20", f"{y:.4f}"]
+            out += ["0", "SEQEND", "8", layer]
+    out += ["0", "ENDSEC", "0", "EOF"]
+    Path(path).write_text("\n".join(out) + "\n")
+
+
 def write_svg(path):
     colours = {"CUT": ("none", "#202020"), "LASER": ("#d8dadd", "none"), "UV_AMBER": (S.AMBER["hex"], "none")}
     w, h = B.W + 2 * OVH, B.H + 2 * OVH
@@ -214,13 +229,7 @@ def write_svg(path):
     Path(path).write_text("\n".join(body))
 
 
-def dxf_layers():
-    """the layers as the DXF has them: in the plate's frame (stack.plate_xy), y up, origin at its bottom-left
-    corner."""
-    return {layer: [[S.plate_xy(x, y, B.H) for x, y in poly] for poly in polys] for layer, polys in layers.items()}
-
-
 if __name__ == "__main__":                              # check_fit.py imports the layers
-    write_dxf("avionics-panel-rev1-plate.dxf", dxf_layers())
+    write_dxf("avionics-panel-rev1-plate.dxf")
     write_svg("avionics-panel-rev1-plate-preview.svg")
     print({k: len(v) for k, v in layers.items()}, "polygons")

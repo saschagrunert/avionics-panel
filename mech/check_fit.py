@@ -4,8 +4,10 @@ Sections run through the ALT/HDG knob, the RANGE knob and the SHIFT light pipe (
 PCB top). Grey: PCB and part outlines from the datasheets. Blue: plate. Black: printed parts.
 """
 import functools
+import io
 import math
 import sys
+import zipfile
 from pathlib import Path
 
 import matplotlib
@@ -19,9 +21,12 @@ from OCC.Core.BRepAlgoAPI import BRepAlgoAPI_Section
 from OCC.Core.BRepBuilderAPI import BRepBuilderAPI_Transform
 from OCC.Core.GCPnts import GCPnts_QuasiUniformDeflection
 from OCC.Core.gp import gp_Ax1, gp_Dir, gp_Pln, gp_Pnt, gp_Trsf
+from OCC.Core.IFSelect import IFSelect_RetDone
+from OCC.Core.STEPControl import STEPControl_Reader
 from OCC.Core.TopAbs import TopAbs_EDGE
 from OCC.Core.TopExp import TopExp_Explorer
 from OCC.Core.TopoDS import topods
+from PIL import Image
 
 HERE = Path(__file__).resolve().parent              # works from any directory
 sys.path[:0] = [str(HERE), str(HERE.parent / "pcb")]
@@ -32,6 +37,7 @@ import make_plate_art as PA  # noqa: E402
 import make_plate_step as PS  # noqa: E402
 import stack as S  # noqa: E402
 from geom import item_dist, pad_geom  # noqa: E402
+from occ_util import face_meshes  # noqa: E402
 
 
 def section(shape, y):
@@ -156,39 +162,15 @@ def stl_triangles(path):
 
 
 def body_triangles():
-    """the body mesh in board frame: the STL make_mech.py exported in this build, or a fresh mesh when that STL
-    is missing or older than its sources."""
-    stl = HERE / "avionics-panel-rev1-body.stl"
-    sources = [HERE / f for f in ("make_mech.py", "stack.py", "occ_util.py")]
-    sources.append(HERE.parent / "pcb" / "board.py")
-    if stl.exists() and stl.stat().st_mtime >= max(f.stat().st_mtime for f in sources):
-        tri = stl_triangles(stl)
-        tri[:, :, 1] *= -1                                       # output frame (Y = -board y) back to board y
-        return tri
-    print("  (body STL missing or stale: meshing make_mech.body())")
-    return mesh_triangles(MM.body())
+    """the body mesh in board frame, from the STL make_mech.py wrote (build.sh runs it first)."""
+    tri = stl_triangles(HERE / "avionics-panel-rev1-body.stl")
+    tri[:, :, 1] *= -1                                           # output frame (Y = -board y) back to board y
+    return tri
 
 
 def mesh_triangles(shape, deflection=0.02):
-    """triangles (n, 3, 3) of an OpenCascade solid, meshed here: check the body as make_mech.py builds it now."""
-    from OCC.Core.BRep import BRep_Tool
-    from OCC.Core.BRepMesh import BRepMesh_IncrementalMesh
-    from OCC.Core.TopAbs import TopAbs_FACE
-    from OCC.Core.TopLoc import TopLoc_Location
-    BRepMesh_IncrementalMesh(shape, deflection, False, 0.15, True)
-    out = []
-    ex = TopExp_Explorer(shape, TopAbs_FACE)
-    while ex.More():
-        loc = TopLoc_Location()
-        tri = BRep_Tool.Triangulation(topods.Face(ex.Current()), loc)
-        if tri is not None:
-            t = loc.Transformation()
-            nodes = np.array([[q.X(), q.Y(), q.Z()] for q in
-                              (tri.Node(i + 1).Transformed(t) for i in range(tri.NbNodes()))])
-            idx = np.array([tri.Triangle(i + 1).Get() for i in range(tri.NbTriangles())]) - 1
-            out.append(nodes[idx])
-        ex.Next()
-    return np.concatenate(out)
+    """triangles (n, 3, 3) of an OpenCascade solid, meshed here."""
+    return np.concatenate([nodes[idx] for _, nodes, idx in face_meshes(shape, deflection, 0.15)])
 
 
 def raster_section(tri, axis, value, res, grid=False):
@@ -314,7 +296,6 @@ def d_bore_len(shape, d, flat):
 def first_cap(name):
     """triangles (n, 3, 3) of the first cap in the set's generated OBJ (caps-<set>.zip, as ordered); it sits at
     the origin of the print grid, the next one 16 mm away."""
-    import zipfile
     base = f"avionics-panel-rev1-caps-{name}"
     with zipfile.ZipFile(HERE / f"{base}.zip") as z:
         lines = z.read(f"{base}.obj").decode().splitlines()
@@ -352,8 +333,6 @@ def cap_build_rows():
 def knob_solids():
     """every knob STEP make_knobs.py wrote (build.sh runs it first), {(FLUTES name, fit variant or "nominal"):
     solid}."""
-    from OCC.Core.IFSelect import IFSelect_RetDone
-    from OCC.Core.STEPControl import STEPControl_Reader
     kinds = {K.outer_knob: "outer", K.inner_knob: "inner", K.range_knob: "range"}
     out = {}
     for name, solid, args in K.parts():
@@ -713,10 +692,6 @@ def rib_profile(name, dz=0.02):
 
 def cap_texture():
     """the caps' texture as ordered (caps-A.zip; every set has the same one), RGB array."""
-    import io
-    import zipfile
-
-    from PIL import Image
     base = "avionics-panel-rev1-caps-A"
     with zipfile.ZipFile(HERE / f"{base}.zip") as z:
         return np.asarray(Image.open(io.BytesIO(z.read(f"{base}.png"))).convert("RGB"))
@@ -772,6 +747,7 @@ def cap_rows(face_lo, bow_dn):
     fit = {n: plunger - S.cap_rib_d(n, hs) for n in S.CAP_SETS}
     # set dimples: walls to the socket bore and to the cap outline, nominal and at the worst print
     mk, bar = S.CAP_MARK, S.CAP_BAR
+    front = [lab for lab, edge in S.CAP_BAR_EDGE.items() if edge == 1]       # the caps with a front bar
     to_socket = min(math.hypot(x, y) - sk["d"] / 2 for x, y in mk["pos"]) - mk["d"] / 2
     to_edge = min(-rrect_sd(np.array(x), np.array(y), c["w"], c["h"], c["r"]) for x, y in mk["pos"]) - mk["d"] / 2
     dim_wall = min(to_socket, to_edge)
@@ -790,10 +766,10 @@ def cap_rows(face_lo, bow_dn):
          "0.8", dim_worst - 0.8),
         (f"tactile bars {bar['d']} wide, beyond 0.8 (JLC3DP embossed detail; only {bar['proud']} proud, see stack.py)",
          bar["d"] - 0.8),
-        (f"front tactile bar ({bar['proud']} proud) hides none of the SHIFT and DN legends from "
+        (f"front tactile bar ({bar['proud']} proud) hides none of the {' and '.join(front)} legends from "
          f"{S.CAP_VIEW_DEG:.0f} deg",
          min(S.CAP["h"] / 2 - S.CAP["cham"] - legend_front(lab) - bar["inset"] - bar["d"] / 2
-             for lab in ("SHIFT", "DN")) - bar["proud"] / math.tan(math.radians(S.CAP_VIEW_DEG))),
+             for lab in front) - bar["proud"] / math.tan(math.radians(S.CAP_VIEW_DEG))),
         (f"cap legend strokes at least {S.LEGEND_STROKE_MIN} wide (WJP colour): thinner ink reaches {ink_d:.2f} "
          f"(on {ink_at}), corners and tips only, within 0.25", 0.25 - ink_d),
         (f"cap bore clears the plunger between the ribs (bore {sk['d']} -{hole_tol}, plunger {plunger:.2f} "

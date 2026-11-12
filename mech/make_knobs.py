@@ -16,7 +16,7 @@ come from stack.py (datasheet shaft dimensions); each part has its bottom at z =
 Fits get tested on the first print (stack.FIT): the knobs are held by friction only, so one outer ring, one FMS
 ring, one inner and the RANGE knob also come with a bore 0.2 tighter and 0.2 looser (stack.FIT_VARIANTS); keep
 whichever grips, or open a tight bore with a drill of the shaft size and file the D flat.
-Needs pythonocc-core (see make_plate_step.py).
+Needs pythonocc-core (nix-shell nix/shells.nix -A gen, from the repository root).
 """
 import contextlib
 import io

@@ -1,26 +1,13 @@
 """Every GPIO the firmware uses against the board: code.py and boot.py (CircuitPython, no access to pcb/) name
 their pins themselves; these tests run them on the simulator's stand-in hardware (sim/hardware.py) and compare
 with the nets in pcb/board.py."""
-import importlib.util
-import os
-
 import buttonmap as BM
 import test_boot
 
+from conftest import load
 from sim.hardware import RINGS, Board
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PICO = [("\nPICO_TEST = False\n", "\nPICO_TEST = True\n")]   # code.py edited for the Pico bench
-
-
-def load(name, path):
-    """a module by file path, so pcb/ does not go on sys.path for the whole test run"""
-    spec = importlib.util.spec_from_file_location(name, os.path.join(ROOT, path))
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
 B = load("_pins_board", "pcb/board.py")
 NET = {p.name: p.net for p in B.build()}
 
