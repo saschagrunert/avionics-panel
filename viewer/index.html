@@ -121,7 +121,7 @@ const KEYS = G.key_legends;
 const KNOB_IN = G.inner_knob.d / 2;
 const at = (name, extra) => {   // position, size and legends from mech/stack.py via geometry.js
   const k = G.knobs[name];
-  return { x: k.x, y: k.y, r: k.flutes ? G.outer_knob.d / 2 : 0, flutes: k.flutes && G.flutes[k.flutes], legendTilt: k.legend_tilt,
+  return { name, x: k.x, y: k.y, r: k.flutes ? G.outer_knob.d / 2 : 0, flutes: k.flutes && G.flutes[k.flutes], legendTilt: k.legend_tilt,
            main: k.legend, shift: k.legend_shift, ...extra };
 };
 const KNOBS = {
@@ -131,7 +131,7 @@ const KNOBS = {
   radio: at('FREQ',   { kind: 'dual' }),
   fms:   at('FMS',    { kind: 'dual' }) };   // shifted: cockpit lighting
 // lights: SHIFT (amber) is on while SHIFT applies (pulsing in its last second), UNIT 2 (white) while unit 2 is selected
-const light = name => ({ x: G.lights[name].x, y: G.lights[name].y, r: G.lights[name].d / 2 });
+const light = name => ({ name, x: G.lights[name].x, y: G.lights[name].y, r: G.lights[name].d / 2 });
 const LIGHTS = [
   { ...light('SHIFT'), color: 0x20180a, emissive: G.amber, on: 1.0 },     // shown armed, same amber as the legends
   { ...light('UNIT'), color: 0x8c8f94, emissive: 0xffffff, on: 0.0 } ];   // shown off
@@ -494,6 +494,7 @@ async function main() {
   // ---------------- front plate (anodised aluminium, laser-marked and UV-printed legends) ----------------
   const plateG = new THREE.Group(); assembly.add(plateG);
   const pipeG = new THREE.Group(); assembly.add(pipeG);
+  let plate;
   {
     const ppm = 12;
     const c = document.createElement('canvas');
@@ -586,7 +587,7 @@ async function main() {
     for (const L of LIGHTS) s.holes.push(circlePath(px(L.x), -pz(L.y), L.r + bs));
     const geo = new THREE.ExtrudeGeometry(s, { depth: PLATE_Z1 - PLATE_Z0 - 2 * bs, bevelEnabled: true, bevelThickness: bs, bevelSize: bs, bevelOffset: 0, bevelSegments: 2, curveSegments: 16 });
     geo.rotateX(-Math.PI / 2); geo.translate(0, PLATE_Z0 + bs, 0); plainBottom(geo, 1);
-    const plate = new THREE.Mesh(geo, [topMat, plateSide]); plate.castShadow = true; plate.receiveShadow = true;
+    plate = new THREE.Mesh(geo, [topMat, plateSide]); plate.castShadow = true; plate.receiveShadow = true;
     plateG.add(plate);
     // the tongue on the plate's back edge, down into the body's slot over the USB-C socket
     const TG = G.plate.tongue;
@@ -600,7 +601,7 @@ async function main() {
     // annunciators: stepped light pipes standing on the board over the LEDs, their tops a little under the face
     const PP = G.pipe;
     for (const L of LIGHTS) {
-      const lensMat = new THREE.MeshStandardMaterial({ color: L.color, emissive: L.emissive, emissiveIntensity: L.on, roughness: 0.3 });
+      const lensMat = L.lens = new THREE.MeshStandardMaterial({ color: L.color, emissive: L.emissive, emissiveIntensity: L.on, roughness: 0.3 });
       lensMat.color.convertSRGBToLinear(); lensMat.emissive.convertSRGBToLinear();
       const rr = L.r - PP.clear / 2;                                       // slip fit in its hole
       const lens = new THREE.Mesh(new THREE.CylinderGeometry(rr, rr, SKIN, 32), lensMat);   // the lit top of the pipe
@@ -653,11 +654,13 @@ async function main() {
       // more matte than the cap round it: no glare over the legends from a low angle
       new THREE.MeshStandardMaterial({ map: capTexture(key.label, color, bg), roughness: 0.8 }));
     top.rotation.x = -Math.PI / 2; top.position.set(px(key.x), base + height + SKIN, pz(key.y)); capsG.add(top);
+    key.meshes = [m, top];                                   // the cap's parts, for the panel page (sim.js)
     // tactile bars, found without looking, on the edge stack.CAP_BAR_EDGE gives
     const BAR = G.keys.bar, barEdge = BAR.edge[key.label];   // as printed (mech/make_caps.py)
     if (barEdge) {
       const bar = new THREE.Mesh(new THREE.BoxGeometry(BAR.w, BAR.proud, BAR.d), capMat);
       bar.position.set(px(key.x), base + height + BAR.proud / 2, pz(key.y) + barEdge * (CAP_TOP[1] / 2 - BAR.inset)); bar.castShadow = true; capsG.add(bar);
+      key.meshes.push(bar);
     }
   }
 
@@ -686,12 +689,14 @@ async function main() {
     p.needsUpdate = true; g.computeVertexNormals();
     const m = new THREE.Mesh(g, knobPlastic);
     m.position.set(px(x), z0 + bv, pz(y)); m.castShadow = true; m.receiveShadow = true; grp.add(m);
+    return m;
   }
   for (const k of Object.values(KNOBS)) {
     const R = k.r, OK = G.outer_knob, IK = G.inner_knob, RK = G.range_knob;
     if (k.kind === 'dual') {
-      knob(k.x, k.y, R, PLATE_Z1 + OK.z0, OK.z1 - OK.z0, k.flutes, outerG);                     // outer ring (FMS: coarser grip)
-      knob(k.x, k.y, KNOB_IN, PLATE_Z1 + IK.z0, IK.z1 - IK.z0, G.flutes.inner, innerG);         // inner knob, on the shaft tip
+      k.rings = {                                                                                // their parts, for sim.js
+        outer: [knob(k.x, k.y, R, PLATE_Z1 + OK.z0, OK.z1 - OK.z0, k.flutes, outerG)],           // outer ring (FMS: coarser grip)
+        inner: [knob(k.x, k.y, KNOB_IN, PLATE_Z1 + IK.z0, IK.z1 - IK.z0, G.flutes.inner, innerG)] };   // inner knob, on the shaft tip
     } else {                                                  // RANGE: turns, tilts to pan, pushes; skirt hides the tilt opening
       // the skirt as mech/make_knobs.py turns it: the flat hub, the dished underside up to the rim, the rim, a
       // 45 degree cone up into the fluted body. Each corner is there twice, so its two faces are shaded apart
@@ -699,7 +704,7 @@ async function main() {
       const prof = [[0, 0], [RK.hub_d / 2, 0], [sk, RK.dish], [sk, RK.dish + RK.rim], [neck, top], [0, top]];
       const skirt = new THREE.Mesh(new THREE.LatheGeometry(prof.flatMap(([r, z]) => [new THREE.Vector2(r, z), new THREE.Vector2(r, z)]), 64), knobPlastic);
       skirt.position.set(px(k.x), PLATE_Z1 + RK.z0, pz(k.y)); skirt.castShadow = true; outerG.add(skirt);
-      knob(k.x, k.y, RK.d / 2, PLATE_Z1 + RK.z0 + RK.dish, RK.z1 - RK.z0 - RK.dish, G.flutes.range, outerG);
+      k.rings = { ring: [skirt, knob(k.x, k.y, RK.d / 2, PLATE_Z1 + RK.z0 + RK.dish, RK.z1 - RK.z0 - RK.dish, G.flutes.range, outerG)] };
     }
   }
 
@@ -725,6 +730,8 @@ async function main() {
     return [bodyG, pcbG, plateG, capsG].map(g => [g, new THREE.Box3().setFromObject(g)]);
   });
   const reach = boxes[1][0].min.distanceTo(boxes[1][0].max);   // no part is further from a point of the model
+  pose(0, 0); assembly.updateMatrixWorld();                    // round the plate and the knobs, for the panel page
+  const playBox = [plateG, outerG, innerG].reduce((b, g) => b.union(new THREE.Box3().setFromObject(g)), new THREE.Box3());
 
   // a view: the camera position as drawn (for a landscape window), what it looks at, exploded or not, turned over or not
   const view = (pos, tgt, exploded = 0, flipped = 0) => ({ pos0: new THREE.Vector3(...pos), pos: new THREE.Vector3(...pos), tgt: new THREE.Vector3(...tgt), exploded, flipped });
@@ -736,6 +743,9 @@ async function main() {
     B: view([-30, 270, 150], [0, 30, 0], 0, 1),  // the underside: the panel lies on its knobs
     H: view([-80, 140, 200], [-2, 9, 4]),        // stills only: hero close-up
     C: view([0, 2400, 0.01], [0, 0, 0]) };       // stills only: plan view from far above (nearly orthographic)
+  // the panel page only (sim.js): from the top view's direction, as close as the plate and its knobs allow
+  const playAt = playBox.getCenter(new THREE.Vector3());
+  views.P = { ...view(new THREE.Vector3(0, 330, 28).setLength(1).add(playAt).toArray(), playAt.toArray()), box: playBox };
   const buttons = [...document.querySelectorAll('.bar button')];   // one per view, its id v and the view's key
   let cur = views.A, t = 1, step = 1, shot = false, plan = false, queued = false;
   const from = { pos: new THREE.Vector3(), tgt: new THREE.Vector3(), explode: 0, flip: 0 }, state = { explode: 0, flip: 0 };
@@ -747,7 +757,7 @@ async function main() {
   function fit(v) {
     let dist = fwd.subVectors(v.pos0, v.tgt).length();
     fwd.normalize(); right.crossVectors(up, fwd).normalize(); upw.crossVectors(fwd, right);
-    const tv = 0.94 * Math.tan(camera.fov * Math.PI / 360), th = tv * camera.aspect, b = boxes[v.exploded][v.flipped];   // a small margin
+    const tv = 0.94 * Math.tan(camera.fov * Math.PI / 360), th = tv * camera.aspect, b = v.box || boxes[v.exploded][v.flipped];   // a small margin
     if (!shot) for (let i = 0; i < 8; i++) {
       p.set(i & 1 ? b.max.x : b.min.x, i & 2 ? b.max.y : b.min.y, i & 4 ? b.max.z : b.min.z).sub(v.tgt);
       dist = Math.max(dist, p.dot(fwd) + Math.max(Math.abs(p.dot(right)) / th, Math.abs(p.dot(upw)) / tv));
@@ -761,6 +771,7 @@ async function main() {
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
     const far = Math.max(...buttons.map(b => fit(views[b.id[1]])));
+    fit(cur);                                               // also a view without a button (the panel page's)
     controls.maxDistance = shot ? Infinity : 2 * far;
     // the camera stays where the user turned it, at the new distance
     camera.position.sub(controls.target).multiplyScalar(cur.pos.distanceTo(cur.tgt) / was).add(controls.target);
@@ -772,7 +783,7 @@ async function main() {
     // without damping the update applies what is left of a drag at once, so the view lands exactly on its target
     controls.enabled = controls.enableDamping = false; controls.update();
     from.pos.copy(camera.position); from.tgt.copy(controls.target); from.explode = state.explode; from.flip = state.flip;
-    cur = views[key]; t = 0; step = jump || reduce ? 1 : 0.028;
+    cur = views[key]; fit(cur); t = 0; step = jump || reduce ? 1 : 0.028;
     for (const b of buttons) {
       b.classList.toggle('on', b.id === 'v' + key); b.setAttribute('aria-pressed', String(b.id === 'v' + key));
     }
@@ -837,6 +848,13 @@ async function main() {
     window.removeEventListener('error', onError);          // the view is up: a later error is not about loading it
   }
   readHash();
+  // python3 -m sim.page serves this page with ?sim: the panel then plays, its firmware run by that program (sim.js)
+  if (new URLSearchParams(location.search).has('sim')) {
+    const s = document.createElement('script');
+    s.src = 'sim.js';
+    s.onload = () => window.playPanel({ G, camera, controls, canvas, assembly, go, invalidate, keys: keyList, knobs: KNOBS, lights: LIGHTS, px, pz });
+    document.head.appendChild(s);
+  }
 }
 main().catch(e => { console.error(e); fail(); });
 </script>

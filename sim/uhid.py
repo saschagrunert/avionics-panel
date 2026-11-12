@@ -5,9 +5,10 @@ console) is not there.
 
     python3 -m sim.uhid
 
-reads actions from stdin, one per line (USAGE), such as `tap AP`, `tap AP 500` (held 500 ms), `turn FREQ_INNER 3`,
-`tilt UP 500`, `press SHIFT`, `release SHIFT` or `wait 1000`. `lights` prints the duty of both lights once the
-actions before it have taken effect. The end of the input ends it, after the actions have run.
+reads actions from stdin, one per line (LINES), such as `tap AP`, `tap AP 500` (held 500 ms), `turn FREQ_INNER 3`,
+`tilt UP 500`, `press SHIFT`, `release SHIFT` or `wait 1000`; a turn is 30 detents at most (sim.live.TURN_MAX, a
+turn of the knob). `lights` prints the duty of both lights once the actions before it have taken effect. The end
+of the input ends it, after the actions have run.
 
 It needs write access to /dev/uhid: run it as root, or give your user access with a udev rule, which lets it
 create any HID device, keyboards included.
@@ -20,7 +21,7 @@ import struct
 import sys
 import threading
 
-from sim.live import SETTLE_MS, Live
+from sim.live import SETTLE_MS, USAGE, Live, parse
 
 # <linux/uhid.h>
 UHID_START, UHID_GET_REPORT, UHID_GET_REPORT_REPLY, UHID_CREATE2, UHID_INPUT2 = 2, 9, 10, 11, 12
@@ -29,9 +30,7 @@ EVENT_SIZE = 4376          # sizeof(struct uhid_event)
 BUS_USB = 3
 VID, PID = 0x239A, 0x80F4  # CircuitPython's Raspberry Pi Pico build (docs/using/mapping.md): boot.py keeps them
 VERSION = 0x0100           # bcdDevice
-USAGE = {"press": "press NAME", "release": "release NAME", "tap": "tap NAME [HOLD_MS]",
-         "tilt": "tilt UP|DN|LEFT|RIGHT [HOLD_MS]", "turn": "turn RING DETENTS [EVERY_MS]", "wait": "wait MS",
-         "lights": "lights"}
+LINES = {**USAGE, "lights": "lights"}   # what stdin takes
 
 
 class Uhid:
@@ -91,26 +90,6 @@ class Uhid:
         os.close(self.fd)                              # the kernel removes the device
 
 
-def parse(line):
-    """(action, arguments) of a line of input, None for a blank line. ValueError with the usage for a wrong one."""
-    words = line.split()
-    if not words:
-        return None
-    if words[0] not in USAGE:
-        raise ValueError("actions: " + ", ".join(USAGE.values()))
-    fields = USAGE[words[0]].split()[1:]
-    if not len([f for f in fields if f[0] != "["]) <= len(words) - 1 <= len(fields):
-        raise ValueError(f"usage: {USAGE[words[0]]}")
-    args = []
-    for field, word in zip(fields, words[1:], strict=False):
-        if field.strip("[]").endswith(("MS", "DETENTS")):
-            if not word.lstrip("-").isdigit():
-                raise ValueError(f"usage: {USAGE[words[0]]} ({field.strip('[]')} is a whole number)")
-            word = int(word)
-        args.append(word)
-    return words[0], args
-
-
 def main(argv=None):
     argparse.ArgumentParser(prog="python3 -m sim.uhid", description=__doc__.split("\n\n")[0]).parse_args(argv)
     live = Live()
@@ -125,7 +104,7 @@ def main(argv=None):
         try:
             for line in sys.stdin:
                 try:
-                    action = parse(line)
+                    action = parse(line, LINES)
                     if action and action[0] == "lights":
                         live.act("wait", SETTLE_MS)
                         live.do(lambda b: print(f"SHIFT {b.light('SHIFT'):#06x} UNIT {b.light('UNIT'):#06x}",
