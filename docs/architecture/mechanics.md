@@ -123,7 +123,7 @@ Heights as drawn, z = 0 at the top of the board. Anodising raises the plate's fa
   3.15 (A), 3.25 (B) and 3.35 mm (C) at the socket mouth, where the plunger is 3.29 mm. Together they cover a
   print 0.2 mm small to 0.2 mm large. One to four dimples on the bottom name the set (A to D).
   [Bring-up](../building/bring-up.md#choosing-the-cap-set) says how to find the set; a plunger lot near the
-  edge of TE's ±0.30 mm needs the sets moved (`stack.CAP_SETS`).
+  edge of TE's ±0.30 mm needs the sets moved (`stack.CAP_SETS_MOVE`).
 - Firm press: the board bends, and the cap can dip up to 0.85 mm under the plate back and tilt 0.43° with its
   plunger. It may then rub the face edge of its hole on one side. It cannot wedge across the hole, and the
   edge break on the hole's back edge leads it back in; `check_fit.py` has a row for each.

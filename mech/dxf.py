@@ -1,4 +1,5 @@
-"""R12 DXF of closed polylines for the CNC and laser-cutting services (make_plate_art.py, make_mech.py)."""
+"""R12 DXF of closed polylines: the plate artwork for JLCCNC (make_plate_art.py), which mills the plate and laser
+marks and UV prints its front."""
 from pathlib import Path
 
 # A minimal HEADER: $INSUNITS 4 = millimetres (CAM reads it as the drawing unit; R12 readers that do not know

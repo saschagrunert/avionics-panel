@@ -44,9 +44,9 @@ script inside its directory. The shells: `gen` (numpy, scipy, matplotlib, pillow
 | `gen` | `pcb/` | `python3 precheck.py` | Placement clearances, bottom-side part bodies, mount keep-outs |
 | `gen` | `pcb/` | `python3 run_route.py 8` | Routing, writes `routed.json` for a fully routed board ([seeds](#routing-seeds)) |
 | `gen` | `pcb/` | `python3 make.py` | Gerbers |
-| `gen` | `pcb/` | `python3 check.py` | The electrical and manufacturing checks ([Electronics](electronics.md)) |
-| `gen` | `pcb/` | `python3 render.py` | Board renders |
 | `gen` | `pcb/` | `python3 make_bom.py` | BOM (parts list) and CPL (placement file) |
+| `gen` | `pcb/` | `python3 check.py` | The electrical and manufacturing checks, on the Gerbers, BOM and CPL ([Electronics](electronics.md)) |
+| `gen` | `pcb/` | `python3 render.py` | Board renders |
 | `gen` | `pcb/` | `python3 make_schematic.py` | Schematic |
 | `gen` | `mech/` | `python3 make_plate_art.py` | Plate artwork |
 | `occ` | `mech/` | `python3 make_caps.py` | Key caps |

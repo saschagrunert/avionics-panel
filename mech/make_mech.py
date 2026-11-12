@@ -80,11 +80,11 @@ HOLLOW_H_MIN = 1.0
 # counterbore is wider than the bar, so it is open to the PCB room on the bar's two long sides, from the floor up
 # to the seat; the bar's two ends carry the boss. An arm towards +x would reach the pull-up R_PU3. check_fit.py
 # holds the column against the leads, their solder fillets and the bottom-side parts.
-# One post backs the board between key columns 4 and 5, midway between rows 1 and 2. Its place and size are set by
-# what hangs under the board round it: the leads of the keys K14, K15, K24 and K25 (their pads 5.5 mm from its axis)
-# and the pull-up R_PU5 (its body 4.55 mm from the axis), each of which may come 1.84 mm closer at the worst
-# offsets (check_fit.py). It ends stack.SUPPORT_SHORT under the PCB, so the MJF tolerance cannot bow the board up
-# towards the light pipes.
+# One post backs the board between key columns 4 and 5, midway between rows 1 and 2 (counted from 0, as in
+# board.py). Its place and size are set by what hangs under the board round it: the leads of the keys K14, K15,
+# K24 and K25 (their pads 5.5 mm from its axis) and the pull-up R_PU5 (its body 4.55 mm from the axis), each of
+# which may come 1.84 mm closer at the worst offsets (check_fit.py). It ends stack.SUPPORT_SHORT under the PCB, so
+# the MJF tolerance cannot bow the board up towards the light pipes.
 SUPPORTS = [(98.3, 30.75)]
 SUPPORT_R = 2.0
 SUPPORT_TOP = -S.PCB_T - S.SUPPORT_SHORT
@@ -178,8 +178,7 @@ USB_PLUG = (12.35, 6.5)             # USB-C spec: the plug's overmould, at most 
 # solid down to the desk plane under the USB-C opening, 0.8 wider than it on each side: no thin floor between the
 # opening and the hollow
 USB_KEEP = (USB_OPEN["w"] + 1.6, 3.0)   # width, board y up to which the floor stays solid
-J1_FACE = -0.52                     # socket face, board y (2.62 ahead of its front shell tabs at 2.10)
-J1_BODY = (8.94, 3.26)              # socket width and height under the PCB (HRO TYPE-C-31-M-12)
+J1_H = 3.26                         # socket height under the PCB (HRO TYPE-C-31-M-12); its plan is board.J1_BODY
 # J1's front shell tabs come up through the board at y 2.10 (board.add_usb), their pads from y 1.2; the solder
 # fillets on top may spread a little past the pad, so the plate's tongue stays short of y 1.0 (check_fit.py)
 J1_TABS_IN = 1.0

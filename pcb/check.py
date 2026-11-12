@@ -11,14 +11,14 @@
 6. copper path from every RP2040 supply pin to its nearest decoupling capacitor, one capacitor of its own per
    IOVDD pin over the outer layers, and every decoupling capacitor with its own plane vias
 7. routed length of every net against its shortest tree (no detours), USB D+ / D- length and skew
-8. JLCPCB's footprint of every bottom-side part on our pads at its CPL rotation (pad numbers, positions; the
-   cathode and anode of the diodes and LEDs by the pin names of JLC's symbol)
+8. JLCPCB's footprint of every bottom-side part on our pads at its place and rotation in the CPL file (pad
+   numbers, positions; the cathode and anode of the diodes and LEDs by the pin names of JLC's symbol)
 9. no copper on F or B within the keep-out of each mounting hole (plate boss, body boss), only the plane
    inside, and copper on every layer clear of the LED cutouts
 10. no exposed SMD pad of another net near a through-hole pad (solder bridges where a pad is soldered by hand:
     J1's shell tabs after full assembly, every through-hole pad with the hand-soldering option)
-11. JLCPCB's footprint of every through-hole part at its top-side CPL position and rotation (full assembly) on
-   our holes pin by pin, each hole within TH_DRILL_TOL of JLC's in size
+11. JLCPCB's footprint of every through-hole part at its top-side position and rotation in the CPL file (full
+   assembly) on our holes pin by pin, each hole within TH_DRILL_TOL of JLC's in size
 12. no copper on B under J1's shell but J1's own pads
 13. the legend clear of mask openings and holes, inside the board outline and outside the LED cutouts by
    SILK_EDGE
@@ -30,9 +30,14 @@
     corner radius, and nothing else
 17. a cathode bar in the bottom legend at every diode and LED, beyond its cathode pad on the side away from the
     anode
+18. the BOM and CPL files as make_bom.py wrote them: JLCPCB's headers, each BOM line's designators in the CPL
+    with Quantity their count and the Comment and LCSC of board.py, the hand-soldering files the bottom side of
+    the full ones, every part of board.py on its side (8 and 11 read their parts from these files, and fail
+    unless they fit every part of their side)
 (precheck.py checks the placement before routing: fixed copper clearances, the bottom-side part bodies and the
 mounting holes' keep-outs.)
 """
+import csv
 import functools
 import heapq
 import json
@@ -280,8 +285,77 @@ def footprint_fit(ref, lcsc, cx, cy, rot, ours):
     return worst_c, worst_e, worst_i, bad
 
 
-def footprints(pads):
-    """Every bottom-side part against JLC's footprint at its CPL rotation (see FP_POS_TOL above)."""
+# The headers JLCPCB's assembly upload takes, column for column.
+CPL_HEADER = ["Designator", "Mid X", "Mid Y", "Layer", "Rotation"]
+BOM_HEADER = ["Comment", "Designator", "Footprint", "LCSC Part #", "Quantity"]
+
+
+def read_csv(fname, header):
+    """The rows of a CSV file that make_bom.py wrote, as dicts by its header, which must be `header`."""
+    with open(fname, newline="") as f:
+        r = csv.DictReader(f)
+        if r.fieldnames != header:
+            raise SystemExit(f"ASSEMBLY FILES: {fname} has the header {r.fieldnames}, JLCPCB takes {header}")
+        return list(r)
+
+
+def assembly_files():
+    """The BOM and CPL files as uploaded to JLCPCB, read back: the parts of full assembly as {ref: (value, LCSC,
+    x, y, rotation, layer)} (x, y in board mm, y down; from CPL-full.csv and BOM-full.csv), and how many problems
+    it found between the files and with board.PARTS. Each BOM line's designators are CPL rows of its variant, Quantity
+    their count, Comment and LCSC those of board.py; the hand-soldering CPL is the bottom rows of the full one;
+    every part of board.py is in the full files on its side, and nothing else."""
+    bad, cpl, bom = [], {}, {}
+    for v in ("", "-full"):
+        rows = read_csv(f"avionics-panel-rev1-CPL{v}.csv", CPL_HEADER)
+        cpl[v] = {r["Designator"]: r for r in rows}
+        if len(cpl[v]) != len(rows):
+            bad.append(f"CPL{v}.csv names a designator twice")
+        bom[v] = read_csv(f"avionics-panel-rev1-BOM{v}.csv", BOM_HEADER)
+        seen = []
+        for line in bom[v]:
+            refs = line["Designator"].split(",")
+            seen += refs
+            if int(line["Quantity"]) != len(refs):
+                bad.append(f"BOM{v}.csv: {line['Comment']} has Quantity {line['Quantity']} for {len(refs)} designators")
+        if sorted(seen) != sorted(cpl[v]):
+            bad.append(f"BOM{v}.csv and CPL{v}.csv differ in {sorted(set(seen) ^ set(cpl[v]))} or name one twice")
+    full = cpl["-full"]
+    if cpl[""] != {ref: r for ref, r in full.items() if r["Layer"] == "Bottom"}:
+        bad.append("CPL.csv is not the bottom rows of CPL-full.csv")
+    if any(line not in bom["-full"] for line in bom[""]):
+        bad.append("a line of BOM.csv is not in BOM-full.csv")
+    lines = {ref: (line["Comment"], line["LCSC Part #"])
+             for line in bom["-full"] for ref in line["Designator"].split(",")}
+    want = {ref: (value, lcsc) for ref, value, lcsc, *_r in B.PARTS}
+    if lines != want:
+        bad.append(f"BOM-full.csv's Comment or LCSC differs from board.py's for "
+                   f"{sorted(r for r in lines.keys() | want.keys() if lines.get(r) != want.get(r))}")
+    sides = {ref: {"top": "Top", "bottom": "Bottom"}[side] for ref, *_r, side in B.PARTS}
+    if {ref: r["Layer"] for ref, r in full.items()} != sides:
+        bad.append("CPL-full.csv does not place every part of board.py on its side (Layer Top or Bottom)")
+    # the footprint fits take the parts on their own side; fitted_all() counts the others as missing
+    parts = {ref: (*lines[ref], float(r["Mid X"].removesuffix("mm")), B.H - float(r["Mid Y"].removesuffix("mm")),
+                   int(r["Rotation"]), r["Layer"]) for ref, r in full.items()
+             if ref in lines and r["Layer"] == sides.get(ref)}
+    for p in bad:
+        print("ASSEMBLY FILES:", p)
+    print(f"assembly files: BOM-full and CPL-full {len(full)} parts, BOM and CPL {len(cpl[''])} (the bottom side), "
+          f"{len(bad)} problems")
+    return parts, len(bad)
+
+
+def fitted_all(types, side):
+    """1 (a problem) unless the footprint fit took as many parts as board.py has on that side, else 0."""
+    n, want = sum(len(t["refs"]) for t in types.values()), sum(p[-1] == side for p in B.PARTS)
+    if n != want:
+        print(f"FOOTPRINT FIT: {n} {side}-side parts fitted from the CPL, board.py has {want}")
+    return int(n != want)
+
+
+def footprints(pads, parts):
+    """Every bottom-side part against JLC's footprint at its place and rotation in the CPL (see FP_POS_TOL above);
+    parts: assembly_files()."""
     bad = 0
     byref = {}
     for p in pads:
@@ -289,8 +363,8 @@ def footprints(pads):
         if not re.fullmatch(r"[FV]\d+|E", pin):
             byref.setdefault(ref, {})[pin] = p
     types = {}
-    for ref, value, lcsc, x, y, rot, side in B.PARTS:
-        if side != "bottom":
+    for ref, (value, lcsc, x, y, rot, layer) in parts.items():
+        if layer != "Bottom":
             continue
         t = types.setdefault(lcsc, {"value": value, "refs": [], "rots": set(), "c": 0.0, "e": 0.0, "i": 0.0})
         t["refs"].append(ref); t["rots"].add(rot % 360)
@@ -309,6 +383,7 @@ def footprints(pads):
               f"edges within {t['e']:.3f} mm" + (f", inner edges within {t['i']:.3f} mm" if lcsc in FP_TOL else ""))
     leds = "".join(f"; {types[lcsc]['value']} {c} centre, {i} inner edge" for lcsc, (c, i) in FP_TOL.items()
                    if lcsc in types)
+    bad += fitted_all(types, "bottom")
     print(f"footprints: {len(types)} JLC footprints on {sum(len(t['refs']) for t in types.values())} bottom-side "
           f"parts (tolerance {FP_POS_TOL} centre, {FP_EDGE_TOL} edge{leds}), {bad} problems")
     return bad
@@ -584,7 +659,7 @@ def hand_solder(pads):
 
 # Through-hole parts: JLC's footprint (footprints/<LCSC>.json, "holes" and "npth") against our holes, as JLCPCB
 # places it in full assembly (Standard assembly, both sides): at the top-side CPL position and rotation
-# (board.cpl, as make_bom.py writes it; JLC's top convention: seen from the top, the footprint turned
+# (CPL-full.csv as make_bom.py wrote it; JLC's top convention: seen from the top, the footprint turned
 # counter-clockwise by the rotation, its origin on the CPL position). Every JLC hole must land on our hole of the
 # pin TH_PIN names for it, within FP_POS_TOL, every unplated one on one of ours, and none of ours may be left
 # over. A wrong rotation misses the holes or, on a symmetric hole pattern, puts a pin on the wrong hole: an
@@ -646,11 +721,14 @@ def cpl_fit(ref, lcsc, fp, cx, cy, rot, ours):
     return worst, bad
 
 
-def tht_footprints(pads):
+def tht_footprints(pads, parts):
+    """Every top-side part against JLC's footprint at its place and rotation in CPL-full.csv (see TH_PIN above);
+    parts: assembly_files()."""
     bad = 0
     types = {}
-    for ref, value, lcsc, x, y, rot, side in B.PARTS:
-        if side != "top":
+    at = {ref: (x, y) for ref, _v, _l, x, y, *_r in B.PARTS}
+    for ref, (value, lcsc, cx, cy, crot, layer) in parts.items():
+        if layer != "Top":
             continue
         fp = jlc_footprint(lcsc)
         ours = [p for p in pads if p.name.split(".")[0] == ref and p.drill]
@@ -658,18 +736,15 @@ def tht_footprints(pads):
                                     "cpl": set(), "cw": 0.0, "off": set()})
         t["refs"].append(ref)
         t["ours"] |= {p.drill for p in ours}
-        _ref, mx, my, layer, crot = B.cpl(ref, x, y, rot, side)
-        cx, cy = mx, B.H - my                                   # back from JLC's frame (y up) to the board's
         cw, probs = cpl_fit(ref, lcsc, fp, cx, cy, crot, ours)
-        if layer != "Top":
-            raise ValueError(f"{ref}: through-hole part not on the top in the CPL")
+        x, y = at[ref]
         t["cpl"].add(crot); t["cw"] = max(t["cw"], cw); t["off"].add((round(cx - x, 2), round(cy - y, 2)))
         if probs:
             bad += 1
             ok = [r for r in (0, 90, 180, 270) if not cpl_fit(ref, lcsc, fp, cx, cy, r, ours)[1]]
             more = f"; {len(probs) - 2} more" if len(probs) > 2 else ""
-            print(f"TOP CPL {ref} ({lcsc}) at CPL ({mx:.3f}, {my:.3f}) rotation {crot}: " + "; ".join(probs[:2]) + more
-                  + f". Rotations that fit there: {ok or 'none'}")
+            print(f"TOP CPL {ref} ({lcsc}) at CPL ({cx:.3f}, {B.H - cy:.3f}) rotation {crot}: " + "; ".join(probs[:2])
+                  + more + f". Rotations that fit there: {ok or 'none'}")
     def mm(v):
         return "/".join(f"{d:g}" for d in sorted(v))
     for lcsc, t in sorted(types.items(), key=lambda kv: kv[1]["refs"][0]):
@@ -678,6 +753,7 @@ def tht_footprints(pads):
         off = "/".join(f"{dx:+g},{dy:+g}" for dx, dy in sorted(t["off"]))
         print(f"  {lcsc:9s} {t['value']:20s} {refs:16s} drills ours {mm(t['ours'])}, JLC {mm(t['jlc'])}; top CPL "
               f"{cpl}, origin {off} from the part (y down), pins within {t['cw']:.3f} mm")
+    bad += fitted_all(types, "top")
     print(f"through-hole footprints: {len(types)} JLC footprints on {sum(len(t['refs']) for t in types.values())} "
           f"top-side parts (tolerance {FP_POS_TOL}, hole sizes within {TH_DRILL_TOL:g} of JLC's), at the top-side "
           f"CPL of full assembly, {bad} problems")
@@ -1505,6 +1581,7 @@ if __name__ == "__main__":
     hole_bad += edge_cuts()
     hole_bad += silk_edge()
     hole_bad += cathode_bars(pads)
-    pin_bad = footprints(pads)
-    pin_bad += tht_footprints(pads)
+    parts, pin_bad = assembly_files()
+    pin_bad += footprints(pads, parts)
+    pin_bad += tht_footprints(pads, parts)
     sys.exit(1 if (bad or floating or viol or hole_bad or pin_bad) else 0)

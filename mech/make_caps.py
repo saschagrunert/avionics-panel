@@ -82,7 +82,8 @@ def socket(p, name):
     def r(z):                                        # rib circle radius at height z above the cap bottom
         return S.cap_rib_d(name, hs - z) / 2
     cap = cut(cap_body(p), cyl(R, -1, hs))
-    prof = [(r(lead) + SK["lead_r"], 0), (R + 0.1, 0), (R + 0.1, top), (r(top), top), (r(lead), lead)]
+    # the lead-in starts inside the profile's outer edge, also on a set moved large (stack.CAP_SETS_MOVE)
+    prof = [(min(r(lead) + SK["lead_r"], R + 0.05), 0), (R + 0.1, 0), (R + 0.1, top), (r(top), top), (r(lead), lead)]
     for a in SK["rib_angles"]:
         cap = fuse(cap, rotz(xz_prism(prof, -hw, hw), a))
     m = S.CAP_MARK

@@ -44,7 +44,7 @@ PART_METAL = ("3225 4-pad", "1206 reverse", "USB-C 16P")
 if missing := sorted(set(B.BODY) - set(PART_H)):
     raise SystemExit(f"make_viewer_data.py: no height in PART_H for the footprints {missing} of board.BODY")
 # their bodies: outline (x0, y0, x1, y1), height under the board, metal or black
-bodies = [[*box, MM.J1_BODY[1] if ref == "J1" else PART_H[B.FOOTPRINT[ref]], B.FOOTPRINT[ref] in PART_METAL]
+bodies = [[*box, MM.J1_H if ref == "J1" else PART_H[B.FOOTPRINT[ref]], B.FOOTPRINT[ref] in PART_METAL]
           for ref, box in B.bodies().items()]
 
 geometry = {

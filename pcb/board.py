@@ -76,6 +76,7 @@ ENC_PAD, ENC_DRILL = 1.8, 1.2   # Bourns PEC11D: pin holes 1.2 +0.1/-0
 SLOT = (1.5, 2.6)
 
 COL_PITCH = 11.85
+# Key columns and rows count from 0 in this file, as in COLS, ROWS and the key names (K12: row 1, column 2).
 COLS = [40.0 + COL_PITCH * k for k in range(3)] + [116.35 - COL_PITCH * k for k in (3, 2, 1, 0)]
 ROWS = [12.5, 23.5, 38.0, 49.0]         # rows 2/3 lower: room for the FMS line on the plate
 # Column pull-ups (10k to 3V3, one per column): the RP2040's own pull-ups (50 to 80k) with 20 to 30 pF of column
@@ -548,8 +549,9 @@ def add_protection(pads):
 
 
 # J1's metal shell seen from the top (HRO drawing: 8.94 wide, 7.35 long), its face 0.52 mm past the board edge
-# (mech/make_mech.py J1_FACE). It is grounded with only solder mask between it and the bottom copper, so nothing
-# but J1's own pads may run under it (keepouts(); check.py measures it on the Gerbers).
+# (mech/check_fit.py and the 3D view take its face and width from here). It is grounded with only solder mask
+# between it and the bottom copper, so nothing but J1's own pads may run under it (keepouts(); check.py measures
+# it on the Gerbers).
 J1_BODY = (USB_X - 4.47, -0.52, USB_X + 4.47, -0.52 + 7.35)
 LDO = (125.4 + SHIFT_X, 8.0)    # VIN pad 1.0 mm clear of J1's hand-soldered shell tab (check.py)
 LDO_PX = 1.2                    # U3's pad centres east and west of LDO (add_support); the breakouts end there

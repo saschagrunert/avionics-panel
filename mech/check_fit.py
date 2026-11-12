@@ -3,6 +3,7 @@
 Sections run through the ALT/HDG knob, the RANGE knob and the SHIFT light pipe (XZ plane, z = 0 is the
 PCB top). Grey: PCB and part outlines from the datasheets. Blue: plate. Black: printed parts.
 """
+import functools
 import math
 import sys
 from pathlib import Path
@@ -309,6 +310,7 @@ def d_bore_len(shape, d, flat):
     return end - max(starts)
 
 
+@functools.cache
 def first_cap(name):
     """triangles (n, 3, 3) of the first cap in the set's generated OBJ (caps-<set>.zip, as ordered); it sits at
     the origin of the print grid, the next one 16 mm away."""
@@ -320,6 +322,104 @@ def first_cap(name):
     F = np.array([[int(t.split("/")[0]) - 1 for t in ln.split()[1:4]] for ln in lines if ln.startswith("f ")])
     near = np.all(np.abs(V[:, :2]) < 8.0, axis=1)
     return V[F[near[F].all(axis=1)]]
+
+
+def cap_measures(name):
+    """measured on the first cap of set name (first_cap): its size over all (w, h, height) and how deep it is at
+    each of the CAP_MARK positions (0 where it has no dimple), by rays up from under the cap."""
+    tri = first_cap(name)
+    v = tri.reshape(-1, 3)
+    up = np.array([0.0, 0.0, 1.0])
+    return v.max(0) - v.min(0), [ray_hit(tri, np.array([x, y, -1.0]), up) - 1.0 for x, y in S.CAP_MARK["pos"]]
+
+
+def cap_build_rows():
+    """the generated caps (first_cap of each set) against stack.CAP and stack.CAP_MARK: the outline, the height and
+    the set's dimples, the first 1 to 4 of CAP_MARK's positions by the set's place in CAP_SETS."""
+    c, mk = S.CAP, S.CAP_MARK
+    sizes, off = [], 0.0
+    for k, n in enumerate(S.CAP_SETS):
+        size, depths = cap_measures(n)
+        sizes.append(size)
+        off = max(off, *np.abs(size - (c["w"], c["h"], c["height"])),
+                  *(abs(d - (mk["depth"] if i <= k else 0.0)) for i, d in enumerate(depths)))
+    lo, hi = np.min(sizes, axis=0), np.max(sizes, axis=0)
+    return [(f"caps as built: {lo[0]:.2f} to {hi[0]:.2f} x {lo[1]:.2f} to {hi[1]:.2f}, {lo[2]:.2f} to {hi[2]:.2f} "
+             f"high, set dimples (1 to {len(S.CAP_SETS)}) off by up to {off:.3f} (the first cap of each set, "
+             f"measured) are the stack's ({c['w']} x {c['h']}, {c['height']}, {mk['depth']} deep)", 0.01 - off)]
+
+
+def knob_solids():
+    """every knob STEP make_knobs.py wrote (build.sh runs it first), {(FLUTES name, fit variant or "nominal"):
+    solid}."""
+    from OCC.Core.IFSelect import IFSelect_RetDone
+    from OCC.Core.STEPControl import STEPControl_Reader
+    kinds = {K.outer_knob: "outer", K.inner_knob: "inner", K.range_knob: "range"}
+    out = {}
+    for name, solid, args in K.parts():
+        if solid not in kinds:
+            continue
+        kind = args[0] if solid is K.outer_knob and args else kinds[solid]     # outer_knob's flutes, if given
+        r = STEPControl_Reader()
+        if r.ReadFile(str(HERE / f"{name}.step")) != IFSelect_RetDone:
+            raise SystemExit(f"check_fit.py: no {name}.step, run make_knobs.py first")
+        r.TransferRoots()
+        out[kind, next((t for t in S.FIT_VARIANTS if name.endswith(f"-{t}")), "nominal")] = r.OneShape()
+    return out
+
+
+def knob_measures(tri, kind):
+    """measured on a knob's mesh (bottom at z 0): the bore's diameter (the largest reading over TURN, from the
+    axis), the outer knob's key width (None on the others) and the flute depth at each flute (crest to trough,
+    rays in from outside), half a millimetre under the top chamfer."""
+    f = S.FLUTES[kind]
+    if kind == "inner":
+        ik = S.INNER_KNOB
+        h, top = ik["z1"] - ik["z0"], S.INNER_TOP - S.PLATE_Z1 - ik["z0"]          # the bore ends on the shaft tip
+        zb = top - K.inner_d_len() / 2
+    elif kind == "range":
+        rk = S.RANGE_KNOB
+        h, lever0, lever1 = rk["z1"] - rk["z0"], S.LEVER_Z0 - S.PLATE_Z1 - rk["z0"], S.LEVER_Z1 - S.PLATE_Z1 - rk["z0"]
+        zb = (max(lever0, S.RANGE_RELIEF[1]) + lever1) / 2
+    else:
+        h = S.OUTER_KNOB["z1"] - S.OUTER_KNOB["z0"]
+        zb = (K.outer_key_z0() + h) / 2                                         # beside the key
+    bore = max(across(tri, (0.0, 0.0, zb), d)[0] for d in TURN)
+    key = None
+    if kind.startswith("outer"):
+        key = across(tri, ((S.KEY_R + bore / 2) / 2, 0.0, zb), np.array([0.0, 1.0, 0.0]))[0]   # inside the key
+    zf, far = h - f["cham"] - 0.5, 20.0
+
+    def radius(a):
+        d = np.array([math.cos(a), math.sin(a), 0.0])
+        return far - ray_hit(tri, np.array([far * d[0], far * d[1], zf]), -d)
+    a, e = 2 * math.pi / f["n"], 1e-4                       # e: off the crest and trough edges of the mesh
+    flutes = [radius(k * a + e) - radius((k + 0.5) * a + e) for k in range(f["n"])]
+    return bore, key, flutes
+
+
+def knob_rows(meshes):
+    """every knob as make_knobs.py writes it (meshes: {(FLUTES name, variant): mesh}) against the stack: the bore
+    (the shaft, FIT and the variant's offset), the outer knobs' key width and the flute depth."""
+    rows = []
+    for kind, shaft in {"outer": S.OUTER_D, "outer_fms": S.OUTER_D, "inner": S.INNER_D, "range": S.LEVER_D}.items():
+        tags = [t for k, t in meshes if k == kind]
+        if sorted(tags) != sorted(["nominal", *S.FIT_VARIANTS]):
+            rows.append((f"{kind} knob: make_knobs.py writes the fit variants {tags}", -1.0))
+            continue
+        got = {t: knob_measures(meshes[kind, t], kind) for t in tags}
+        want = {t: shaft + S.FIT + S.FIT_VARIANTS.get(t, 0.0) for t in tags}
+        f = S.FLUTES[kind]
+        flutes = [d for _b, _k, fl in got.values() for d in fl]
+        keys = [k for _b, k, _fl in got.values() if k is not None]
+        off = max(*(abs(got[t][0] - want[t]) for t in tags), *(abs(d - f["depth"]) for d in flutes),
+                  *(abs(k - S.KEY_W) for k in keys))
+        rows.append((f"{kind} knob as built ({', '.join(tags)}): bores "
+                     f"{', '.join(f'Ø{got[t][0]:.2f}' for t in tags)}, flutes {min(flutes):.2f} to {max(flutes):.2f} "
+                     "deep" + (f", key {min(keys):.2f} to {max(keys):.2f} wide" if keys else "")
+                     + f" (measured on the solids) are the stack's ({', '.join(f'Ø{want[t]:g}' for t in tags)}, "
+                     f"{f['depth']}" + (f", {S.KEY_W}" if keys else "") + ")", 0.01 - off))
+    return rows
 
 
 def ray_hit(tri, o, d):
@@ -341,6 +441,21 @@ def ray_hit(tri, o, d):
 def ray_hits(tri, origins, d):
     """ray_hit for each origin along the same direction d."""
     return np.array([ray_hit(tri, np.asarray(o, float), np.asarray(d, float)) for o in origins])
+
+
+def across(tri, c, d):
+    """the two walls seen from the point c along +-d: (distance between them, their middle off c)."""
+    a, b = ray_hit(tri, np.array(c), -np.asarray(d)), ray_hit(tri, np.array(c), np.asarray(d))
+    return a + b, (b - a) / 2
+
+
+def through_holes(tri):
+    """how many holes go through a closed mesh: its genus, from V - E + F = 2 - 2 g with the faces' meshes joined
+    at their shared edges."""
+    _, idx = np.unique(np.round(tri.reshape(-1, 3), 6), axis=0, return_inverse=True)
+    f = idx.reshape(-1, 3)
+    edges = np.unique(np.sort(np.concatenate([f[:, [0, 1]], f[:, [1, 2]], f[:, [2, 0]]]), axis=1), axis=0)
+    return (2 - (idx.max() + 1 - len(edges) + len(f))) // 2
 
 
 def ring(cx, cy, z, r, n=72):
@@ -442,14 +557,23 @@ def plate_measures(tri):
     bosses: how far the worst is off its place `boss_off`, their diameters `boss_d` and heights `boss_h` (least and
     most; the height from below, between the tapped hole and the boss edge) and the deepest tapped hole `tap` (up
     its axis from the boss end to the drill point). The tongue `tongue`: off its place along the edge `x`, its
-    outer face off the plate's edge `out`, and its size w, d, h."""
+    outer face off the plate's back edge (the DXF outline) `out`, and its size w, d, h. Over the pockets: the key
+    holes `keys` (width w and height h, least and most, and the worst middle off its key), the encoder holes
+    `shaft` (diameter, least and most) and the RANGE hole `range_d`, the worst of those holes off its part's axis
+    `hole_off`. The through holes of the DXF's CUT layer `cut`, each where the DXF has it: the worst middle off
+    and size off; how many the DXF has `cut_n` and the plate `through`; the plate's extent off the DXF's outline
+    `extent`."""
     ex, ey, up = np.array([1.0, 0.0, 0.0]), np.array([0.0, 1.0, 0.0]), np.array([0.0, 0.0, 1.0])
     z0 = -20.0
 
-    def across(c, d):
-        """the two walls seen from the point c along +-d: (distance between them, their middle off c)"""
-        a, b = ray_hit(tri, np.array(c), -d), ray_hit(tri, np.array(c), d)
-        return a + b, (b - a) / 2
+    def opening(x, y, z, round_):
+        """the hole or pocket round (x, y) at height z: its middle off (x, y) and its width and height (a round
+        one: its diameter for both)"""
+        t = near(tri, x, y, 15.0)
+        (w, ox), (h, oy) = across(t, (x, y, z), ex), across(t, (x, y, z), ey)
+        if round_:
+            w = h = max(across(t, (x + ox, y + oy, z), d)[0] for d in TURN)
+        return ox, oy, w, h
 
     def from_outside(c, d, reach):
         """a part that stands alone round the point c, found from `reach` away on both sides along d: (its size,
@@ -460,19 +584,35 @@ def plate_measures(tri):
     ec_w, ec_h, ec_depth, pocket_off = [], [], [], []
     for name in ("ALTHDG", "FREQ", "FMS"):
         cx, cy = PS.P(*getattr(B, name))
-        (w, ox), (h, oy) = across((cx, cy, 1.0), ex), across((cx, cy, 1.0), ey)
+        ox, oy, w, h = opening(cx, cy, 1.0, False)
         ec_w.append(w); ec_h.append(h); pocket_off.append(math.hypot(ox, oy))
         ec_depth.append(ray_hit(tri, np.array([cx + S.EC11_POCKET[0] / 2 - 1.0, cy, z0]), up) + z0)
     cx, cy = PS.P(*B.RANGE)
-    ox, oy = across((cx, cy, 1.0), ex)[1], across((cx, cy, 1.0), ey)[1]
+    ox, oy, rp_d, _ = opening(cx, cy, 1.0, True)
     pocket_off.append(math.hypot(ox, oy))
-    rp_d = max(across((cx + ox, cy + oy, 1.0), d)[0] for d in TURN)
     rp_depth = ray_hit(tri, np.array([cx + (S.RANGE_HOLE + S.RANGE_POCKET[0]) / 4, cy, z0]), up) + z0
     lights = {}
     for name, ((lx, ly), _g, _c) in B.LEDS.items():
-        px, py = PS.P(lx, ly)
-        ox, oy = across((px, py, S.PLATE_T / 2), ex)[1], across((px, py, S.PLATE_T / 2), ey)[1]
-        lights[name] = (math.hypot(ox, oy), max(across((px + ox, py + oy, S.PLATE_T / 2), d)[0] for d in TURN))
+        ox, oy, dia, _ = opening(*PS.P(lx, ly), S.PLATE_T / 2, True)
+        lights[name] = (math.hypot(ox, oy), dia)
+    zf = (max(S.EC11_POCKET[3], S.RANGE_POCKET[1]) + S.PLATE_T) / 2         # over every pocket floor
+    keys = [opening(*PS.P(x, y), zf, False) for y in B.ROWS for x in B.COLS]
+    shaft = [opening(*PS.P(*getattr(B, n)), zf, True) for n in ("ALTHDG", "FREQ", "FMS")]
+    rng = opening(*PS.P(*B.RANGE), zf, True)
+    cut_layer = PA.dxf_layers()["CUT"]
+    outline = max(cut_layer, key=lambda p: np.ptp(np.array(p), axis=0).prod())
+    cut_off, cut_size = 0.0, 0.0
+    for poly in cut_layer:
+        if poly is outline:
+            continue
+        p = np.array(poly)
+        (hx, hy), (w, h) = (p.max(0) + p.min(0)) / 2, np.ptp(p, axis=0)
+        r = np.hypot(*(p - (hx, hy)).T)
+        ox, oy, mw, mh = opening(hx, hy, zf, r.max() - r.min() < 1e-3)
+        cut_off, cut_size = max(cut_off, math.hypot(ox, oy)), max(cut_size, abs(mw - w), abs(mh - h))
+    v = tri.reshape(-1, 3)
+    o = np.array(outline)
+    extent = float(np.abs(np.concatenate([v[:, :2].min(0) - o.min(0), v[:, :2].max(0) - o.max(0)])).max())
     rb = (S.TAP["drill"] / 2 + S.TAP["cham"] + S.BOSS["d"] / 2) / 2      # between the countersink and the boss edge
     zb = -S.BOSS["h"] / 2
     offs, dias, heights, depths = [], [], [], []
@@ -483,18 +623,25 @@ def plate_measures(tri):
         dias.append(max(from_outside((px + ox, py + oy, zb), d, 6.0)[0] for d in TURN))   # across its own middle
         end = ray_hit(tri, np.array([px + rb, py, z0]), up) + z0                 # the boss end face
         heights.append(-end)
-        hole = ray_hit(tri, np.array([px, py, z0]), up) + z0                     # the drill point's tip
-        depths.append(hole - end)
+        tip = ray_hit(tri, np.array([px, py, z0]), up) + z0                      # the drill point's tip
+        depths.append(tip - end)
     tg = S.USB_TONGUE
     tx, ty = PS.P(B.USB_X, -S.OVH)
     c = (tx, ty - tg["d"] / 2, -tg["h"] / 2)                             # the tongue's middle
     (w, x_off), (d, y_off) = from_outside(c, ex, tg["w"] / 2 + 6.0), from_outside(c, ey, tg["d"] / 2 + 6.0)
-    tongue = dict(x=x_off, out=y_off + (d - tg["d"]) / 2, w=w, d=d,
+    # its outer face against the plate's back edge, the DXF outline's largest y
+    tongue = dict(x=x_off, out=c[1] + y_off + d / 2 - o[:, 1].max(), w=w, d=d,
                   h=-(ray_hit(tri, np.array([tx, ty - tg["d"] / 2, z0]), up) + z0))
     return dict(ec_w=(min(ec_w), max(ec_w)), ec_h=(min(ec_h), max(ec_h)), ec_depth=(min(ec_depth), max(ec_depth)),
                 rp_d=rp_d, rp_depth=rp_depth, pocket_off=max(pocket_off), lights=lights, boss_off=max(offs),
                 boss_d=(min(dias), max(dias)),
-                boss_h=(min(heights), max(heights)), tap=max(depths), tongue=tongue)
+                boss_h=(min(heights), max(heights)), tap=max(depths), tongue=tongue,
+                keys=dict(w=(min(k[2] for k in keys), max(k[2] for k in keys)),
+                          h=(min(k[3] for k in keys), max(k[3] for k in keys)),
+                          off=max(math.hypot(k[0], k[1]) for k in keys)),
+                shaft=(min(s[2] for s in shaft), max(s[2] for s in shaft)), range_d=rng[2],
+                hole_off=max(math.hypot(s[0], s[1]) for s in [*shaft, rng]), cut=(cut_off, cut_size),
+                cut_n=len(cut_layer) - 1, through=through_holes(tri), extent=extent)
 
 
 def turned_measures(range_knob, pipe):
@@ -517,17 +664,13 @@ def pair_measures(tri):
     (width, height) and the part's size over all, largest first."""
     pp, pitch = S.PIPE, K.PIPE_PITCH
     ey, ez = np.array([0.0, 1.0, 0.0]), np.array([0.0, 0.0, 1.0])
-
-    def across(c, d):
-        return ray_hit(tri, np.array(c), -d) + ray_hit(tri, np.array(c), d)
-
-    neck_d = [max(across((x, 0.0, -pp["neck_len"] / 2), d) for d in TURN) for x in (0.0, pitch)]
+    neck_d = [max(across(tri, (x, 0.0, -pp["neck_len"] / 2), d)[0] for d in TURN) for x in (0.0, pitch)]
     beside = (pp["neck_d"] + pp["bar"][0]) / 4                           # between a neck and the bar's edge
     neck_len = [ray_hit(tri, np.array([x + beside, 0.0, -1e-3]), -ez) + 1e-3 for x in (0.0, pitch)]
     mid = (pitch / 2, 0.0, -pp["neck_len"] - pp["bar"][1] / 2)           # inside the bar
     size = sorted((tri.reshape(-1, 3).max(0) - tri.reshape(-1, 3).min(0)).tolist(), reverse=True)
     return dict(neck_d=(min(neck_d), max(neck_d)), neck_len=(min(neck_len), max(neck_len)),
-                bar=(across(mid, ey), across(mid, ez)), size=size)
+                bar=(across(tri, mid, ey)[0], across(tri, mid, ez)[0]), size=size)
 
 
 def rib_width(name, z=1.5):
@@ -622,8 +765,11 @@ def cap_rows(face_lo, bow_dn):
     lo_i, hi_i = S.CAP_GRIP
     sizes = sorted(S.CAP_SETS.values())
     step = max(b - a for a, b in zip(sizes, sizes[1:], strict=False))   # the widest step between two sets
+    # the plunger the sets are for: TE's model, or as far off it as a reprint moved them (stack.CAP_SETS_MOVE)
+    move = S.CAP_SETS_MOVE
+    plunger = S.plunger_d(hs) + move
     # interference on a true print (diametral) at the socket mouth, from the design: the sets' print coverage
-    fit = {n: S.plunger_d(hs) - S.cap_rib_d(n, hs) for n in S.CAP_SETS}
+    fit = {n: plunger - S.cap_rib_d(n, hs) for n in S.CAP_SETS}
     # set dimples: walls to the socket bore and to the cap outline, nominal and at the worst print
     mk, bar = S.CAP_MARK, S.CAP_BAR
     to_socket = min(math.hypot(x, y) - sk["d"] / 2 for x, y in mk["pos"]) - mk["d"] / 2
@@ -650,8 +796,8 @@ def cap_rows(face_lo, bow_dn):
              for lab in ("SHIFT", "DN")) - bar["proud"] / math.tan(math.radians(S.CAP_VIEW_DEG))),
         (f"cap legend strokes at least {S.LEGEND_STROKE_MIN} wide (WJP colour): thinner ink reaches {ink_d:.2f} "
          f"(on {ink_at}), corners and tips only, within 0.25", 0.25 - ink_d),
-        (f"cap bore clears the plunger between the ribs (bore {sk['d']} -{hole_tol}, plunger {S.plunger_d(hs):.2f} "
-         "at the mouth)", (sk["d"] - hole_tol - S.plunger_d(hs)) / 2),
+        (f"cap bore clears the plunger between the ribs (bore {sk['d']} -{hole_tol}, plunger {plunger:.2f} "
+         "at the mouth)", (sk["d"] - hole_tol - plunger) / 2),
         (f"cap seats on the plunger top: cap bottom over the switch body ({S.SWITCH_BODY_TOP:.1f}), pressed",
          c["base"] - S.KEY_TRAVEL - S.PLUNGER_TOP_TOL - S.SWITCH_BODY_TOP),
         # The plate bowed towards the board at the key nearest its middle, the board taken flat: a board bowed
@@ -666,7 +812,7 @@ def cap_rows(face_lo, bow_dn):
     # the generated caps (caps-<set>.zip), one per set, cut by rays from the socket axis along every rib
     for n in S.CAP_SETS:
         zs, ds, dev = rib_profile(n)
-        i = S.plunger_d(hs - zs[0]) - ds[0]                        # interference at the lowest contact
+        i = S.plunger_d(hs - zs[0]) + move - ds[0]                 # interference at the lowest contact
         rows += [
             (f"cap set {n} as built: ribs {ds[0]:.2f} to {ds[-1]:.2f} (interference {i:.2f}), off the set's cone "
              f"by {dev:.3f}, within 0.01", 0.01 - dev),
@@ -680,7 +826,9 @@ def cap_rows(face_lo, bow_dn):
     worst = min(max(min(f - e - lo_i, hi_i - (f - e)) for f in fit.values())
                 for e in np.linspace(e_lo, e_hi, 301))
     rows.append((f"cap sets grip rib circles printed {-e_lo:.2f} small to {e_hi:.2f} large (one of {len(fit)} within "
-                 f"{lo_i} to {hi_i})", worst))
+                 f"{lo_i} to {hi_i}), on a plunger {move:+.2f} off TE's model", worst))
+    rows.append((f"cap sets moved {move:+.2f} (stack.CAP_SETS_MOVE), up to TE's +-0.30 on the plunger diameter",
+                 0.35 - abs(move)))                       # three 0.1 steps either way, not a fourth
     return rows
 
 
@@ -721,7 +869,7 @@ def usb_rows():
     # it within mjf() of that length from the wall: this also covers a body printed large, whose gap grows
     edge = MM.CLEAR + S.PCB_VCUT_TOL
     float_ = edge + max(mjf(B.USB_X + MM.CLEAR), mjf(B.W - B.USB_X + MM.CLEAR))   # 0.9 + 0.51 (left wall)
-    j1w, j1h = MM.J1_BODY
+    j1w, j1h = B.J1_BODY[2] - B.J1_BODY[0], MM.J1_H     # the socket face is at board y J1_BODY[1]
     bot = u["z"] - u["h"] / 2                            # opening bottom
     z_tol = mjf(-S.PCB_T - bot)                         # MJF: boss top (the PCB underside) to the opening bottom
     om_w, om_h = MM.USB_PLUG
@@ -741,7 +889,7 @@ def usb_rows():
             sd = np.minimum(rrect_sd(x, z, ow, oh, orr), np.where(z > 0, np.abs(x) - ow / 2, np.inf))   # the slot
             om = min(om, -sd.max())
     return [
-        (f"USB-C socket ({j1w} wide, {-MM.J1_FACE:.2f} past the PCB edge) passes the wall slot: board "
+        (f"USB-C socket ({j1w:.2f} wide, {-B.J1_BODY[1]:.2f} past the PCB edge) passes the wall slot: board "
          f"{float_:.2f} off (cavity, V-cut edge, MJF on the opening), J1 {place}, MJF -{hole}",
          ow / 2 - j1w / 2 - float_ - place),
         (f"USB-C socket ({j1h} high under the PCB, J1 {place}) over the opening bottom (MJF -{hole}, body "
@@ -772,7 +920,7 @@ def tongue_rows(back_lo, back_hi, bow, board, slot, measured):
     end_lo = back_lo - bow - t["h"] - t["tol"]                      # the tongue's end over the PCB top
     end_hi = back_hi + bow - t["h"] + t["tol"]
     # the plug on the socket's middle, the socket hanging under a thin board (the plate stands on the board's top)
-    om_top = -S.PCB_T + pcb_tol - MM.J1_BODY[1] / 2 + om_h / 2 + place
+    om_top = -S.PCB_T + pcb_tol - MM.J1_H / 2 + om_h / 2 + place
     # the tongue's inner face, how far outside the board's back edge: the board that far towards it, the tongue thick
     inner = S.OVH - t["d"] - t["d_tol"] - board
     m = measured
@@ -1074,17 +1222,19 @@ def pipe_rows(back_lo, back_hi, face_lo, board, caps):
     return rows
 
 
-def clearances(plate, outer, inner, range_knob):
+def clearances(plate, outer, inner, range_knob, knobs):
     """clearances that must stay positive, with the inner knob pushed down; each one can fail. Measured where a
-    row says so: on the plate and knob solids, the body STL and the cap zips."""
+    row says so: on the plate and knob solids, the body STL and the cap zips. knobs: the mesh of every knob
+    make_knobs.py writes, {(FLUTES name, fit variant): mesh}."""
     ok, ik, rk = S.OUTER_KNOB, S.INNER_KNOB, S.RANGE_KNOB
     p, es = S.PUSH_TRAVEL, S.ENC_SPREAD
     resin = S.RESIN_TOL["depth"]                        # resin knob, key to counterbore and bore depths (+-)
     # ---- knob walls and radial clearances, worst case (stack.RESIN_TOL, SHAFT_TOL, SHAFT_ECC): a knob's bore on
     # its shaft at the loose variant, a hole printed large and the shaft at its low limit can sit off centre by
-    # bore_play; the inner shaft off the outer one by ecc ----
+    # bore_play; the inner shaft off the outer one by ecc. FIT takes out the printer's own bias (a reprint at the
+    # variant that fit, stack.FIT), so the bores print within the resin's tolerance about the variants' offsets ----
     part_tol, hole_tol, shaft_tol, ecc = S.RESIN_TOL["size"], S.RESIN_TOL["hole"], S.SHAFT_TOL, S.SHAFT_ECC
-    loose = max(S.FIT, *S.FIT_VARIANTS.values())
+    loose = max(0.0, *S.FIT_VARIANTS.values())
     bore_play = (loose + hole_tol + shaft_tol) / 2
     fi, ring_r, cb_d = S.FLUTES["inner"], ok["d"] / 2, K.outer_counterbore_d()
 
@@ -1189,6 +1339,7 @@ def clearances(plate, outer, inner, range_knob):
     (void, void_at), (wall, wall_at), (wall2, wall2_at) = body_thin(body_tri)
     bm = body_measures(body_tri)
     pm = plate_measures(mesh_triangles(plate))
+    kh = pm["keys"]
     pipe = K.light_pipe()
     pair_m = pair_measures(mesh_triangles(K.light_pipe_pair()))
     knob_m, pipe_m = turned_measures(range_knob, pipe)
@@ -1201,8 +1352,8 @@ def clearances(plate, outer, inner, range_knob):
     # MJF wall height, PCB, lowest back face, bowed towards the walls
     wall_gap = back_lo - bm["wall_top"][1] - seat_tol - pcb_tol - S.PLATE_FLAT * bow_wall
     # ---- knob bores: the variants (stack.FIT_VARIANTS) against the resin's tolerance on holes: for a bore printed
-    # anywhere within it, how far the nearest variant ends up from the size drawn
-    fits = [S.FIT, *(S.FIT + v for v in S.FIT_VARIANTS.values())]
+    # anywhere within it about FIT, how far the nearest variant ends up from the size drawn
+    fits = [0.0, *S.FIT_VARIANTS.values()]
     fit_off = max(min(abs(v + e) for v in fits) for e in np.linspace(-hole_tol, hole_tol, 601))
     legend_off, legend_at = legend_gap()
     # ---- RANGE: knob height from the lever top (+-0.3) and its bore depth (resin) ----
@@ -1309,6 +1460,8 @@ def clearances(plate, outer, inner, range_knob):
          f"holes: one of them prints within {fit_off:.2f} of the size drawn, within {S.FIT_OFF} (stack.FIT_OFF, an "
          "assumption about the printed bores, not a measurement)",
          S.FIT_OFF - fit_off),
+        (f"knob FIT {S.FIT:+.1f} (the variants about it; a reprint takes the one that fit) within the resin's "
+         f"+-{hole_tol} on holes", hole_tol - abs(S.FIT)),
         (f"encoder bushing ({S.SLEEVE_D} +{S.ENC_TOL['lt10']}) in its {S.SHAFT_HOLE} plate hole (-{gen}, anodised "
          f"-{an}), radial: board {board:.2f} off, plate, PCB, pins",
          (S.SHAFT_HOLE - gen - an - S.SLEEVE_D - S.ENC_TOL["lt10"]) / 2 - on_board),
@@ -1349,6 +1502,19 @@ def clearances(plate, outer, inner, range_knob):
          0.01 - max(*(abs(v - n) for k, n in (("ec_w", S.EC11_POCKET[0]), ("ec_h", S.EC11_POCKET[1]),
                                               ("ec_depth", S.EC11_POCKET[3])) for v in pm[k]),
                     abs(pm["rp_depth"] - S.RANGE_POCKET[1]), abs(pm["rp_d"] - S.RANGE_POCKET[0]), pm["pocket_off"])),
+        (f"key holes as built: {kh['w'][0]:.2f} to {kh['w'][1]:.2f} x {kh['h'][0]:.2f} to {kh['h'][1]:.2f}, the "
+         f"worst {kh['off']:.3f} off its key (all {len(caps)}, measured on the plate) are the stack's "
+         f"({S.KEY_HOLE[0]} x {S.KEY_HOLE[1]})",
+         0.01 - max(*(abs(v - S.KEY_HOLE[0]) for v in kh["w"]), *(abs(v - S.KEY_HOLE[1]) for v in kh["h"]),
+                    kh["off"])),
+        (f"encoder holes Ø{pm['shaft'][0]:.2f} to Ø{pm['shaft'][1]:.2f}, RANGE hole Ø{pm['range_d']:.2f}, the worst "
+         f"{pm['hole_off']:.3f} off its part's axis (measured on the plate) are the stack's (Ø{S.SHAFT_HOLE}, "
+         f"Ø{S.RANGE_HOLE})",
+         0.01 - max(*(abs(v - S.SHAFT_HOLE) for v in pm["shaft"]), abs(pm["range_d"] - S.RANGE_HOLE), pm["hole_off"])),
+        (f"plate through holes where the DXF's CUT layer has them (all {pm['cut_n']}; the plate has {pm['through']}, "
+         f"measured on the plate): the worst {pm['cut'][0]:.3f} off and {pm['cut'][1]:.3f} off in size, the plate's "
+         f"extent {pm['extent']:.3f} off the DXF's outline",
+         0.01 - max(*pm["cut"], pm["extent"]) if pm["cut_n"] == pm["through"] else -1.0),
         (f"encoder pocket (-{pd}, its floor anodised over bare boss ends) over encoder body ({S.EC11_BODY} "
          f"+{S.ENC_TOL['lt10']}), low plate, bowed {S.PLATE_FLAT * bow_enc:.3f} down, board "
          f"{S.PCB_BOW * bow_enc:.3f} up", ec_top),
@@ -1365,6 +1531,8 @@ def clearances(plate, outer, inner, range_knob):
          f"front edge break ({S.FRONT_BREAK} at most): what is left is for the UV print's register, which JLCCNC "
          "does not state", legend_off - S.FRONT_BREAK),
         *cap_rows(face_lo, S.PLATE_FLAT * bow_key),
+        *cap_build_rows(),
+        *knob_rows(knobs),
         (f"cap pressed firmly ({S.PRESS_FIRM:.0f} N) comes back into its key hole: {cap_dip:.2f} under the plate back "
          f"(travel {S.KEY_TRAVEL}, plunger -{S.PLUNGER_TOP_TOL}, high plate bowed up, board {flex:.2f} down), tilted "
          f"{math.degrees(slope):.2f} deg with the bent board, lands on the {S.KEY_BACK_BREAK} edge break",
@@ -1497,12 +1665,13 @@ def clearances(plate, outer, inner, range_knob):
     rows = [(r[0], r[1], r[2] if len(r) > 2 else "mm") for r in rows]   # a margin in mm unless a row says
     for name, v, unit in rows:
         print(f"  {name:106s} {v:6.3f} {unit:2s} {'OK' if v > 0 else 'FAIL'}")
-    if any(v <= 0 for _, v, _ in rows):              # a plain raise: asserts vanish under -O
-        raise SystemExit(f"fit check failed: {[n for n, v, _ in rows if v <= 0]}")
+    if any(not v > 0 for _, v, _ in rows):           # NaN fails too; a plain raise: asserts vanish under -O
+        raise SystemExit(f"fit check failed: {[n for n, v, _ in rows if not v > 0]}")
 
 
 if __name__ == "__main__":
     plate, _ = PS.build()
-    outer, inner, range_knob = K.outer_knob(), K.inner_knob(), K.range_knob()
+    knobs = knob_solids()
+    outer, inner, range_knob = knobs["outer", "nominal"], knobs["inner", "nominal"], knobs["range", "nominal"]
     draw_sections(plate, outer, inner, range_knob)
-    clearances(plate, outer, inner, range_knob)
+    clearances(plate, outer, inner, range_knob, {k: mesh_triangles(s) for k, s in knobs.items()})

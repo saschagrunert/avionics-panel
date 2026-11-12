@@ -46,7 +46,7 @@ firmware() {
 # Routing goes first and shows its progress: it takes about half a minute, and the board section reads its
 # routed.json.
 # Nothing else reads the routing (the other sections import board.py, which does not).
-BOARD="python3 make.py >/dev/null && python3 check.py && python3 render.py >/dev/null && python3 make_bom.py >/dev/null && python3 make_schematic.py"
+BOARD="python3 make.py >/dev/null && python3 make_bom.py >/dev/null && python3 check.py && python3 render.py >/dev/null && python3 make_schematic.py"
 if [ "${1:-}" = --route ]; then
   echo "== placement check and routing"
   gen pcb "python3 precheck.py && python3 run_route.py 8"
@@ -83,14 +83,15 @@ stop() {
   exit 1
 }
 trap stop INT TERM HUP QUIT
-# Which generator reads which output: check_fit.py reads the caps (make_caps.py) and the body STL
-# (make_mech.py), and builds the knobs, the plate and the plate's legends itself (it imports their generators);
-# no other generator reads another one's files.
+# Which generator reads which output: check_fit.py reads the knobs (make_knobs.py), the caps (make_caps.py) and
+# the body STL (make_mech.py), and builds the plate and the plate's legends itself (it imports their generators);
+# check.py reads the Gerbers (make.py) and the BOM and CPL (make_bom.py). Each runs in the section of the files it
+# reads; no other generator reads another one's files.
 section "firmware" firmware
 section "board" gen pcb "$BOARD"
 section "plate artwork" gen mech "python3 make_plate_art.py && rsvg-convert -w 2400 avionics-panel-rev1-plate-preview.svg -o avionics-panel-rev1-plate-preview.png"
-section "knobs, light pipes" occ mech "python3 make_knobs.py"
-section "caps, body, fits" occ mech "python3 make_caps.py && python3 make_mech.py && python3 check_fit.py"
+section "knobs, light pipes, caps, body, fits" occ mech \
+  "python3 make_knobs.py && python3 make_caps.py && python3 make_mech.py && python3 check_fit.py"
 section "plate, viewer data" occ mech "python3 make_plate_step.py && python3 make_viewer_data.py"
 
 # A failed section does not stop the others: they take seconds, and a run then reports every failed check.

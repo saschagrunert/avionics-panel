@@ -214,9 +214,13 @@ def write_svg(path):
     Path(path).write_text("\n".join(body))
 
 
+def dxf_layers():
+    """the layers as the DXF has them: in the plate's frame (stack.plate_xy), y up, origin at its bottom-left
+    corner."""
+    return {layer: [[S.plate_xy(x, y, B.H) for x, y in poly] for poly in polys] for layer, polys in layers.items()}
+
+
 if __name__ == "__main__":                              # check_fit.py imports the layers
-    # DXF: y up, origin at the plate's bottom-left corner
-    write_dxf("avionics-panel-rev1-plate.dxf", {layer: [[(x + OVH, B.H + OVH - y) for x, y in poly] for poly in polys]
-                                                for layer, polys in layers.items()})
+    write_dxf("avionics-panel-rev1-plate.dxf", dxf_layers())
     write_svg("avionics-panel-rev1-plate-preview.svg")
     print({k: len(v) for k, v in layers.items()}, "polygons")

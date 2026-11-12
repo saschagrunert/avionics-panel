@@ -120,7 +120,8 @@ def parts():
            ("avionics-panel-rev1-knob-outer-fms", outer_knob, ("outer_fms",)),  # FMS: same fits, coarser grip
            ("avionics-panel-rev1-knob-inner", inner_knob, ()),
            ("avionics-panel-rev1-knob-range", range_knob, ())]
-    for tag, fit in S.FIT_VARIANTS.items():
+    for tag, v in S.FIT_VARIANTS.items():
+        fit = S.FIT + v                                             # tighter and looser than the others
         out += [(f"avionics-panel-rev1-knob-outer-{tag}", outer_knob, ("outer", fit)),   # ALT/HDG and FREQ
                 (f"avionics-panel-rev1-knob-outer-fms-{tag}", outer_knob, ("outer_fms", fit)),
                 (f"avionics-panel-rev1-knob-inner-{tag}", inner_knob, (fit,)),
