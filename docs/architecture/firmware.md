@@ -259,5 +259,6 @@ and MobiFlight are tested on Windows.
 [windows/make_zip.py](../../windows/make_zip.py) builds the zip the [Simulator](../using/simulator.md) page
 describes, on Linux: Python's embeddable package for Windows (amd64, pinned by version and SHA-256), whose
 `._pth` file gets the zip's folder, with `firmware/`, `sim/`, `viewer/` and the batch files in `windows/`.
-The `windows` workflow builds it for every pull request and push to main, keeps it as an artifact of the run,
-and attaches it to every published release.
+The `windows` workflow builds it for every pull request and push to main, keeps it as an artifact of the run
+and attaches it to every published release. Pushes to main also replace the zip of the `rolling` pre-release,
+which the Simulator page links, so it is from a recent commit on main, which the release names.

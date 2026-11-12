@@ -15,10 +15,10 @@ The simulator is one zip with everything it needs, Python included. The virtual 
 1. Install vJoy 2.2.2.0: `vJoySetup_v2.2.2.0_Win10_Win11.exe` from its
    [release page](https://github.com/BrunnerInnovation/vJoy/releases/tag/v2.2.2.0). It is the build signed for
    Windows 10 and 11; older vJoy builds often fail to install there.
-2. Download `avionics-panel-sim-windows.zip` from the latest
-   [release](https://github.com/saschagrunert/avionics-panel/releases), under Assets. Right-click it,
-   Properties, tick Unblock, OK, or Windows warns before each batch file. Then right-click it, Extract All.
-   The files are in the `avionics-panel-sim` folder inside the extracted one.
+2. Download [avionics-panel-sim-windows.zip][sim-zip], built from a recent commit on main, which the
+   [release][sim-release] names. Right-click it, Properties, tick Unblock, OK, or Windows warns before each
+   batch file. Then right-click it, Extract All. The files are in the `avionics-panel-sim` folder inside the
+   extracted one.
 3. Right-click `vjoy-setup.bat` in that folder, Run as administrator. It sets up vJoy devices 1 and 2 with 128
    and 64 buttons and no axes, and replaces whatever these two devices were before. It also removes vJoy's
    force feedback registration, which all vJoy devices share: if another vJoy device uses force feedback, set
@@ -110,3 +110,6 @@ and USB IDs, so programs that read joysticks see the panel's two joysticks. It n
   can delay a step slightly; the board's real loop time is tested on the board.
 - A mouse is not the panel: the feel of the keys and knobs, their reach and the legends' legibility are for
   the real panel to show.
+
+[sim-zip]: https://github.com/saschagrunert/avionics-panel/releases/download/rolling/avionics-panel-sim-windows.zip
+[sim-release]: https://github.com/saschagrunert/avionics-panel/releases/tag/rolling
