@@ -39,6 +39,7 @@ in
         ps: with ps; [
           pytest
           pytest-cov
+          (toPythonModule pkgs.hid-tools) # its report descriptor parser, for tests/test_descriptor.py
         ]
       ))
       (pkgs.micropython.overrideAttrs (_: {

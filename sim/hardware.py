@@ -127,7 +127,7 @@ class PWMOut:
 
     def __init__(self, board, pin, *, duty_cycle=0, frequency=500, variable_frequency=False):
         self.board, self.pin, self.frequency, self._duty = board, pin, frequency, duty_cycle
-        self.history = []                      # (ms, duty) of every write
+        self.history = board.log()             # (ms, duty) of every write
         board.leds.append(self)
 
     @property
@@ -199,7 +199,7 @@ class Device:
         self.board, self.report_descriptor, self.usage_page, self.usage = board, report_descriptor, usage_page, usage
         self.report_ids, self.in_report_lengths, self.out_report_lengths = report_ids, in_report_lengths, \
             out_report_lengths
-        self.tries = []                        # ms of every call
+        self.tries = board.log()               # ms of every call
         board.created.append(self)
 
     def send_report(self, report, report_id=None):
@@ -211,12 +211,13 @@ class Device:
             raise OSError("USB busy")
         b.advance(max(b.taken - b.t, 0))       # the endpoint still holds the last report until the host's poll
         b.taken = (b.t // FRAME_MS + 1) * FRAME_MS
-        b.received.append((b.taken, self, bytes(report)))
+        b.take(b.taken, self, bytes(report))
         b.advance(b.waits.pop(t, 0))
 
 
 class Board:
-    def __init__(self, script=None, work_ms=0, wrap=65536):
+    def __init__(self, script=None, work_ms=0, wrap=65536, log=list):
+        self.log = log                         # makes the records below that grow with the run
         self.t, self.until = 0, None
         self.script = {} if script is None else script     # ms -> [action(board)]
         self.work_ms = work_ms
@@ -231,8 +232,8 @@ class Board:
         self.keypads, self.encoders, self.leds, self.regs, self.ios = [], [], [], {}, {}
         self.matrix = self.direct = None
         self.created, self.devices = [], []    # usb_hid devices boot.py made, and those it enabled
-        self.calls, self.boot_sleeps, self.reloads, self.printed = [], [], [], []
-        self.sleeps = []                       # (ms, seconds) of every sleep in code.py
+        self.calls, self.boot_sleeps, self.reloads, self.printed = [], [], log(), log()
+        self.sleeps = log()                    # (ms, seconds) of every sleep in code.py
         self.code = None                       # globals of the file running or last run
         pins = SimpleNamespace(**{f"GPIO{i}": f"GP{i}" for i in range(30)})
         self.modules = {
@@ -281,11 +282,15 @@ class Board:
     def advance(self, ms):
         for _ in range(ms):
             self.t += 1
-            for action in self.script.get(self.t, ()):
-                action(self)
+            self.hand()
             for keys in self.keypads:
                 if self.t >= keys.next_scan:
                     keys.scan()
+
+    def hand(self):
+        """What the hand does at this ms: the script's actions for it"""
+        for action in self.script.get(self.t, ()):
+            action(self)
 
     def sleep(self, seconds):
         """time.sleep in code.py. The run ends here once the next loop pass would start at or after until."""
@@ -305,6 +310,10 @@ class Board:
     @property
     def usb_connected(self):
         return self.t >= self.usb_from and not self.usb_gap[0] <= self.t < self.usb_gap[1]
+
+    def take(self, ms, device, report):
+        """The host takes a report from a device at ms"""
+        self.received.append((ms, device, report))
 
     def enable(self, devices):
         self.devices[:] = devices

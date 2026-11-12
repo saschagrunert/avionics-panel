@@ -151,6 +151,9 @@ Run `pytest` from the repository root for the host tests:
 | `firmware/test_code.py` | `code.py`, on the simulator's stand-in hardware |
 | `firmware/test_boot.py` | `boot.py`, on the simulator's stand-in hardware |
 | `tests/test_workflows.py` | The [workflows](../using/controls.md#workflows), keys and knobs, on the simulator |
+| `tests/test_live.py` | The simulator in real time: actions, reports, the lights, a reload after an error |
+| `tests/test_descriptor.py` | `boot.py`'s report descriptor, parsed, and the simulator's reports read with it |
+| `tests/test_uhid.py` | The simulator as a Linux HID device: descriptor, name and IDs, a key press |
 | `tests/test_pins.py` | Every pin `code.py` uses, against the nets in `pcb/board.py` |
 | `tests/test_micropython.py` | Every board file, compiled with two compilers |
 
@@ -172,3 +175,34 @@ syntax only: a module or argument the board's build lacks shows up on the bench.
 pinned by its hash; on other systems it prints a notice and that check skips. `build.sh` also provides
 MicroPython. Each check skips without its compiler; `build.sh` sets `REQUIRE_MICROPYTHON=1` and, where it
 provides `mpy-cross`, `REQUIRE_MPY_CROSS=1`, which turn the skips into failures.
+
+### The simulator in real time
+
+[sim/live.py](../../sim/live.py) runs `code.py` on the same stand-ins in a thread of its own, paced to the
+wall clock. Any thread queues the simulator's actions by the firmware's input names (`act("tap", "AP")`,
+`act("turn", "FREQ_INNER", 3)`), each after the ones before it: press, release and a turn with no spacing
+(`act("turn", "FREQ_INNER", 3, 0)`) run at once, while a tap, a tilt and a turn with its default spacing take
+their time. Every report the PC takes goes to an output function as the device (1 or 2) and the report bytes,
+report ID first; `light()` reads a light's duty. An error in the loop goes as on the board: `code.py` releases
+every button, waits 2 s and reloads, on the same board.
+
+[sim/uhid.py](../../sim/uhid.py) makes it a HID device on Linux through `/dev/uhid`: one device with the
+report descriptor `boot.py` builds (both report IDs), the name `DIY Avionics Panel` and the IDs 239A:80F4. It
+reads actions from stdin, one per line, and needs write access to `/dev/uhid` (root, or a udev rule):
+
+```sh
+sudo python3 -m sim.uhid   # then type, for example:
+tap AP
+turn FREQ_INNER 3
+tilt UP 500
+lights
+```
+
+`hid-recorder` or a `/dev/hidrawN` node shows every report. Linux's input layer makes one input device of
+both joysticks and maps only the first 80 buttons of device 1, so `evtest` sees part of it, as with the panel
+([Linux](../using/mapping.md#linux)). The USB layer (enumeration, interfaces, the drive in update mode) is not
+simulated. `tests/test_uhid.py` runs where `/dev/uhid` and the new hidraw node are accessible and skips
+elsewhere, CI included: the hosted runners' kernel has `uhid` only in an extra modules package.
+`REQUIRE_UHID=1` turns the skips into failures. Without a kernel, `tests/test_descriptor.py` parses the
+descriptor with the parser of [hid-tools](https://gitlab.freedesktop.org/libevdev/hid-tools) (`build.sh`
+provides it) and reads the simulator's reports with it.

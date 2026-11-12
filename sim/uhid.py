@@ -1,0 +1,150 @@
+"""The live panel (sim/live.py) as a Linux HID device, through uhid: the kernel gets the report descriptor boot.py
+builds (both joysticks, report IDs 4 and 5, as on the panel's one HID interface), the name and IDs the panel has
+on USB, and every report code.py sends. The USB layer itself (enumeration, interfaces, update mode's drive and
+console) is not there.
+
+    python3 -m sim.uhid
+
+reads actions from stdin, one per line (USAGE), such as `tap AP`, `tap AP 500` (held 500 ms), `turn FREQ_INNER 3`,
+`tilt UP 500`, `press SHIFT`, `release SHIFT` or `wait 1000`. `lights` prints the duty of both lights once the
+actions before it have taken effect. The end of the input ends it, after the actions have run.
+
+It needs write access to /dev/uhid: run it as root, or give your user access with a udev rule, which lets it
+create any HID device, keyboards included.
+"""
+import argparse
+import errno
+import os
+import select
+import struct
+import sys
+import threading
+
+from sim.live import SETTLE_MS, Live
+
+# <linux/uhid.h>
+UHID_START, UHID_GET_REPORT, UHID_GET_REPORT_REPLY, UHID_CREATE2, UHID_INPUT2 = 2, 9, 10, 11, 12
+UHID_SET_REPORT, UHID_SET_REPORT_REPLY, UHID_INPUT_REPORT = 13, 14, 2
+EVENT_SIZE = 4376          # sizeof(struct uhid_event)
+BUS_USB = 3
+VID, PID = 0x239A, 0x80F4  # CircuitPython's Raspberry Pi Pico build (docs/using/mapping.md): boot.py keeps them
+VERSION = 0x0100           # bcdDevice
+USAGE = {"press": "press NAME", "release": "release NAME", "tap": "tap NAME [HOLD_MS]",
+         "tilt": "tilt UP|DN|LEFT|RIGHT [HOLD_MS]", "turn": "turn RING DETENTS [EVERY_MS]", "wait": "wait MS",
+         "lights": "lights"}
+
+
+class Uhid:
+    """One uhid device with both joysticks. send(device, report) is Live's output. A thread answers the kernel's
+    requests: GET_REPORT of an input report with the last one sent, any other with EIO, as SET_REPORT (the
+    descriptor has no feature or output reports)."""
+
+    def __init__(self, board, phys="avionics-panel-sim", path="/dev/uhid"):
+        descriptor = b"".join(d.report_descriptor for d in board.devices)
+        manufacturer, product, *ids = next(c[1:] for c in board.calls if c[0] == "set_usb_identification")
+        vid, pid = ids[:2] if ids else (VID, PID)
+        self.name = f"{manufacturer} {product}"    # as Linux names a USB HID device
+        self.last, self.closing = {}, threading.Event()   # the last report sent, by report ID
+        try:
+            self.fd = os.open(path, os.O_RDWR | os.O_CLOEXEC)
+        except PermissionError as e:
+            raise PermissionError(e.errno, f"{e.strerror}: {path} needs write access (root, or a udev rule)") from e
+        try:
+            self.write(UHID_CREATE2, struct.pack("<128s64s64sHHIIII", self.name.encode(), phys.encode(), b"",
+                                                 len(descriptor), BUS_USB, vid, pid, VERSION, 0) + descriptor)
+            if not select.select([self.fd], [], [], 2)[0] or self.read()[0] != UHID_START:
+                raise OSError(f"{path}: the kernel did not start the device (see dmesg)")
+        except BaseException:
+            os.close(self.fd)
+            raise
+        self.thread = threading.Thread(target=self.answer, name="uhid", daemon=True)
+        self.thread.start()
+
+    def write(self, kind, data):
+        os.write(self.fd, struct.pack("<I", kind) + data.ljust(EVENT_SIZE - 4, b"\0"))
+
+    def read(self):
+        """The next event from the kernel: (type, its data)"""
+        event = os.read(self.fd, EVENT_SIZE)
+        return struct.unpack_from("<I", event)[0], event[4:]
+
+    def answer(self):
+        while not self.closing.is_set():
+            if not select.select([self.fd], [], [], 0.05)[0]:
+                continue
+            kind, data = self.read()                   # start, open, close: nothing to do
+            if kind == UHID_GET_REPORT:
+                request, number, report_type = struct.unpack_from("<IBB", data)
+                report = self.last.get(number, b"") if report_type == UHID_INPUT_REPORT else b""
+                self.write(UHID_GET_REPORT_REPLY,
+                           struct.pack("<IHH", request, 0 if report else errno.EIO, len(report)) + report)
+            elif kind == UHID_SET_REPORT:
+                self.write(UHID_SET_REPORT_REPLY, struct.pack("<IH", struct.unpack_from("<I", data)[0], errno.EIO))
+
+    def send(self, device, report):
+        self.last[report[0]] = report
+        self.write(UHID_INPUT2, struct.pack("<H", len(report)) + report)
+
+    def close(self):
+        self.closing.set()
+        self.thread.join()
+        os.close(self.fd)                              # the kernel removes the device
+
+
+def parse(line):
+    """(action, arguments) of a line of input, None for a blank line. ValueError with the usage for a wrong one."""
+    words = line.split()
+    if not words:
+        return None
+    if words[0] not in USAGE:
+        raise ValueError("actions: " + ", ".join(USAGE.values()))
+    fields = USAGE[words[0]].split()[1:]
+    if not len([f for f in fields if f[0] != "["]) <= len(words) - 1 <= len(fields):
+        raise ValueError(f"usage: {USAGE[words[0]]}")
+    args = []
+    for field, word in zip(fields, words[1:], strict=False):
+        if field.strip("[]").endswith(("MS", "DETENTS")):
+            if not word.lstrip("-").isdigit():
+                raise ValueError(f"usage: {USAGE[words[0]]} ({field.strip('[]')} is a whole number)")
+            word = int(word)
+        args.append(word)
+    return words[0], args
+
+
+def main(argv=None):
+    argparse.ArgumentParser(prog="python3 -m sim.uhid", description=__doc__.split("\n\n")[0]).parse_args(argv)
+    live = Live()
+    try:
+        uhid = Uhid(live)
+    except OSError as e:
+        sys.exit(f"sim.uhid: {e}")
+    print(f"{uhid.name} on uhid; actions, one per line:", file=sys.stderr)
+    sys.stdin.reconfigure(errors="replace")
+    live.start(uhid.send)
+    try:
+        try:
+            for line in sys.stdin:
+                try:
+                    action = parse(line)
+                    if action and action[0] == "lights":
+                        live.act("wait", SETTLE_MS)
+                        live.do(lambda b: print(f"SHIFT {b.light('SHIFT'):#06x} UNIT {b.light('UNIT'):#06x}",
+                                                flush=True))
+                    elif action:
+                        live.act(action[0], *action[1])
+                except ValueError as e:
+                    print(f"{line.strip()}: {e}", file=sys.stderr)
+            live.idle()
+        finally:
+            try:
+                live.stop()
+            finally:
+                uhid.close()
+    except KeyboardInterrupt:
+        pass
+    except Exception as e:                             # the panel stopped: the output or code.py itself failed
+        sys.exit(f"sim.uhid: {e.__cause__ or e}")
+
+
+if __name__ == "__main__":
+    main()

@@ -8,11 +8,10 @@ from sim import Sim
 
 def test_unknown_names_fail_when_the_action_is_scheduled():
     sim = Sim()
-    for action in (lambda: sim.tap("AP1"), lambda: sim.turn("FREQ inner", 1), lambda: sim.tilt("up")):
+    for action in (lambda: sim.tap("AP1"), lambda: sim.turn("FREQ inner", 1), lambda: sim.tilt("up"),
+                   lambda: sim.wait(-1), lambda: sim.turn("FREQ_INNER", 1, every=-1)):
         with pytest.raises(ValueError):
             action()
-    with pytest.raises(AssertionError):
-        sim.wait(-1)
     assert sim.script == {}
 
 
