@@ -293,16 +293,23 @@ def d_bore_len(shape, d, flat):
 
 
 @functools.cache
-def first_cap(name):
-    """triangles (n, 3, 3) of the first cap in the set's generated OBJ (caps-<set>.zip, as ordered); it sits at
-    the origin of the print grid, the next one 16 mm away."""
+def set_caps(name):
+    """triangles (n, 3, 3) of each cap in the set's generated OBJ (caps-<set>.zip, as ordered), each moved to the
+    origin: the caps sit on the print grid stack.CAP_LAYOUT, in the order of stack.KEY_LEGENDS."""
     base = f"avionics-panel-rev1-caps-{name}"
     with zipfile.ZipFile(HERE / f"{base}.zip") as z:
         lines = z.read(f"{base}.obj").decode().splitlines()
     V = np.array([[float(t) for t in ln.split()[1:4]] for ln in lines if ln.startswith("v ")])
     F = np.array([[int(t.split("/")[0]) - 1 for t in ln.split()[1:4]] for ln in lines if ln.startswith("f ")])
-    near = np.all(np.abs(V[:, :2]) < 8.0, axis=1)
-    return V[F[near[F].all(axis=1)]]
+    tri, pitch, n = V[F], S.CAP_LAYOUT["pitch"], S.CAP_LAYOUT["per_row"]
+    col, row = np.round(tri.mean(1)[:, :2] / (pitch, -pitch)).astype(int).T
+    k = col + n * row
+    return [tri[k == i] - (pitch * (i % n), -pitch * (i // n), 0.0) for i in range(k.max() + 1)]
+
+
+def first_cap(name):
+    """triangles (n, 3, 3) of the first cap of set name (set_caps)."""
+    return set_caps(name)[0]
 
 
 def cap_measures(name):
@@ -328,6 +335,43 @@ def cap_build_rows():
     return [(f"caps as built: {lo[0]:.2f} to {hi[0]:.2f} x {lo[1]:.2f} to {hi[1]:.2f}, {lo[2]:.2f} to {hi[2]:.2f} "
              f"high, set dimples (1 to {len(S.CAP_SETS)}) off by up to {off:.3f} (the first cap of each set, "
              f"measured) are the stack's ({c['w']} x {c['h']}, {c['height']}, {mk['depth']} deep)", 0.01 - off)]
+
+
+def cap_bar_rows():
+    """the tactile bars on the generated caps (set_caps, every cap of each set) against stack.CAP_BAR_EDGE and
+    CAP_BAR, set by set: which edge each one stands on (the mesh over the top face; model -y is the front), how far
+    proud, and its top face (the vertices over the cap top) against the stack's bar (w, d, inset)."""
+    labels = [lab for row in S.KEY_LEGENDS for lab, _ in row]
+    c, b = S.CAP, S.CAP_BAR
+    top, yb = c["height"], (c["h"] - 2 * c["cham"]) / 2 - b["inset"]    # yb: the bar's middle off the cap's middle
+    got, proud, off = set(), [], 0.0
+    for n in S.CAP_SETS:
+        for lab, tri in zip(labels, set_caps(n), strict=True):
+            v = tri.reshape(-1, 3)
+            bar = v[v[:, 2] > top + 0.01, :2]
+            if len(bar):
+                e = 1 if bar[:, 1].max() < 0 else -1 if bar[:, 1].min() > 0 else 0
+                got.add((n, lab, e))
+                proud.append(v[:, 2].max() - top)
+                y = -e * yb
+                off = max(off, *np.abs(np.r_[bar.min(0), bar.max(0)]
+                                       - (-b["w"] / 2, y - b["d"] / 2, b["w"] / 2, y + b["d"] / 2)))
+    want = {(n, lab, e) for n in S.CAP_SETS for lab, e in S.CAP_BAR_EDGE.items() if e}
+
+    def say(bars):
+        return ", ".join(f"{lab} {('back', 'middle', 'front')[e + 1]}" for lab, e in
+                         sorted(bars, key=lambda t: labels.index(t[0]))) or "none"
+
+    def by_set(bars):
+        return ", ".join(f"set {n} {say({(lab, e)})}" for n, lab, e in sorted(bars)) or "none"
+    found = (f"{say({(lab, e) for _, lab, e in got})} in each set, none on the other caps" if got == want
+             else f"missing {by_set(want - got)}, extra {by_set(got - want)}")
+    p = b["proud"]
+    return [(f"cap tactile bars as built: {found}, {min(proud, default=0):.2f} to "
+             f"{max(proud, default=0):.2f} proud, their tops {off:.3f} off (every cap of each set, measured) are the "
+             f"stack's ({say((lab, e) for lab, e in S.CAP_BAR_EDGE.items() if e)}; {b['w']} x {b['d']}, inset "
+             f"{b['inset']}, {p} proud)",
+             0.01 - max([off, *(abs(v - p) for v in proud)]) if got == want else -1.0)]
 
 
 def knob_solids():
@@ -426,6 +470,26 @@ def across(tri, c, d):
     """the two walls seen from the point c along +-d: (distance between them, their middle off c)."""
     a, b = ray_hit(tri, np.array(c), -np.asarray(d)), ray_hit(tri, np.array(c), np.asarray(d))
     return a + b, (b - a) / 2
+
+
+def fit_circle(pts):
+    """centre (2,) and radius of the circle fitted to the points (n, 2) by least squares, NaN for fewer than
+    three."""
+    if len(pts) < 3:
+        return np.full(2, math.nan), math.nan
+    m = pts.mean(0)
+    p = pts - m
+    (a, b, c), *_ = np.linalg.lstsq(np.c_[2 * p, np.ones(len(p))], (p * p).sum(1), rcond=None)
+    return m + (a, b), math.sqrt(c + a * a + b * b)
+
+
+def corner_arcs(p):
+    """the corners of a rounded rectangle given as points (n, 2) round it: the points off its bounding box's
+    sides, in four groups by quarter. The DXF's corners are such points, each on its arc (geom.rounded_rect)."""
+    lo, hi = p.min(0), p.max(0)
+    off = ((p - lo > 1e-4) & (hi - p > 1e-4)).all(1)
+    q = (p > (lo + hi) / 2) @ (1, 2)
+    return [p[off & (q == k)] for k in range(4)]
 
 
 def through_holes(tri):
@@ -541,7 +605,8 @@ def plate_measures(tri):
     `shaft` (diameter, least and most) and the RANGE hole `range_d`, the worst of those holes off its part's axis
     `hole_off`. The through holes of the DXF's CUT layer `cut`, each where the DXF has it: the worst middle off
     and size off; how many the DXF has `cut_n` and the plate `through`; the plate's extent off the DXF's outline
-    `extent`."""
+    `extent`. The corner radii of every key hole `key_r` and of the outline `out_r`, each a pair of lists (in the
+    DXF, on the plate)."""
     ex, ey, up = np.array([1.0, 0.0, 0.0]), np.array([0.0, 1.0, 0.0]), np.array([0.0, 0.0, 1.0])
     z0 = -20.0
 
@@ -580,15 +645,34 @@ def plate_measures(tri):
     rng = opening(*PS.P(*B.RANGE), zf, True)
     cut_layer = PA.dxf_layers()["CUT"]
     outline = max(cut_layer, key=lambda p: np.ptp(np.array(p), axis=0).prod())
-    cut_off, cut_size = 0.0, 0.0
+
+    xy = np.unique(tri[:, :, :2].reshape(-1, 2), axis=0)
+
+    def corners(p):
+        """the corner radii of a rounded rectangle in the DXF (points p) and on the plate there: the circle fitted
+        to the mesh's vertices (each on its face) in the corner's quarter within 0.25 of the DXF's arc."""
+        dxf, plate = [], []
+        for arc in corner_arcs(p):
+            c, r = fit_circle(arc)
+            w = xy - c
+            on = (w * (arc.mean(0) - c) > 0).all(1) & (np.abs(np.hypot(*w.T) - r) < 0.25)
+            dxf.append(r); plate.append(fit_circle(xy[on])[1])
+        return dxf, plate
+
+    cut_off, cut_size, key_r = 0.0, 0.0, [[], []]
+    out_r = corners(np.array(outline))
     for poly in cut_layer:
         if poly is outline:
             continue
         p = np.array(poly)
         (hx, hy), (w, h) = (p.max(0) + p.min(0)) / 2, np.ptp(p, axis=0)
         r = np.hypot(*(p - (hx, hy)).T)
-        ox, oy, mw, mh = opening(hx, hy, zf, r.max() - r.min() < 1e-3)
+        is_round = r.max() - r.min() < 1e-3
+        ox, oy, mw, mh = opening(hx, hy, zf, is_round)
         cut_off, cut_size = max(cut_off, math.hypot(ox, oy)), max(cut_size, abs(mw - w), abs(mh - h))
+        if not is_round:                                    # the key holes, the only ones not round
+            dxf, plate = corners(p)
+            key_r[0] += dxf; key_r[1] += plate
     v = tri.reshape(-1, 3)
     o = np.array(outline)
     extent = float(np.abs(np.concatenate([v[:, :2].min(0) - o.min(0), v[:, :2].max(0) - o.max(0)])).max())
@@ -620,7 +704,7 @@ def plate_measures(tri):
                           off=max(math.hypot(k[0], k[1]) for k in keys)),
                 shaft=(min(s[2] for s in shaft), max(s[2] for s in shaft)), range_d=rng[2],
                 hole_off=max(math.hypot(s[0], s[1]) for s in [*shaft, rng]), cut=(cut_off, cut_size),
-                cut_n=len(cut_layer) - 1, through=through_holes(tri), extent=extent)
+                cut_n=len(cut_layer) - 1, through=through_holes(tri), extent=extent, key_r=key_r, out_r=out_r)
 
 
 def turned_measures(range_knob, pipe):
@@ -1316,6 +1400,7 @@ def clearances(plate, outer, inner, range_knob, knobs):
     bm = body_measures(body_tri)
     pm = plate_measures(mesh_triangles(plate))
     kh = pm["keys"]
+    kr, orr, r_out = np.array(pm["key_r"]), np.array(pm["out_r"]), B.CORNER_R + S.OVH
     pipe = K.light_pipe()
     pair_m = pair_measures(mesh_triangles(K.light_pipe_pair()))
     knob_m, pipe_m = turned_measures(range_knob, pipe)
@@ -1491,6 +1576,11 @@ def clearances(plate, outer, inner, range_knob, knobs):
          f"measured on the plate): the worst {pm['cut'][0]:.3f} off and {pm['cut'][1]:.3f} off in size, the plate's "
          f"extent {pm['extent']:.3f} off the DXF's outline",
          0.01 - max(*pm["cut"], pm["extent"]) if pm["cut_n"] == pm["through"] else -1.0),
+        (f"plate corners as built (all {kr.shape[1] // 4} key holes, {kr.shape[1]} corners), in the DXF's CUT "
+         f"layer: key holes R{np.min(kr[0]):.3f} to R{np.max(kr[0]):.3f}, outline R{np.min(orr[0]):.3f} to "
+         f"R{np.max(orr[0]):.3f}; on the plate: key holes R{np.min(kr[1]):.3f} to R{np.max(kr[1]):.3f}, outline "
+         f"R{np.min(orr[1]):.3f} to R{np.max(orr[1]):.3f} (measured) are the stack's (R{S.KEY_HOLE[2]}, R{r_out:g})",
+         0.01 - np.abs(np.r_[kr.ravel() - S.KEY_HOLE[2], orr.ravel() - r_out]).max()),
         (f"encoder pocket (-{pd}, its floor anodised over bare boss ends) over encoder body ({S.EC11_BODY} "
          f"+{S.ENC_TOL['lt10']}), low plate, bowed {S.PLATE_FLAT * bow_enc:.3f} down, board "
          f"{S.PCB_BOW * bow_enc:.3f} up", ec_top),
@@ -1508,6 +1598,7 @@ def clearances(plate, outer, inner, range_knob, knobs):
          "does not state", legend_off - S.FRONT_BREAK),
         *cap_rows(face_lo, S.PLATE_FLAT * bow_key),
         *cap_build_rows(),
+        *cap_bar_rows(),
         *knob_rows(knobs),
         (f"cap pressed firmly ({S.PRESS_FIRM:.0f} N) comes back into its key hole: {cap_dip:.2f} under the plate back "
          f"(travel {S.KEY_TRAVEL}, plunger -{S.PLUNGER_TOP_TOL}, high plate bowed up, board {flex:.2f} down), tilted "
