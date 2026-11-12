@@ -2,10 +2,14 @@
  "lcsc": "C125108",
  "title": "LTST-C230KSKT",
  "package": "LED1206-RD_YELLOW-SIDE",
- "source": "JLCPCB / EasyEDA library footprint, https://easyeda.com/api/products/C125108/components, fetched 2026-11-11",
- "frame": "top view, mm, x right, y down, from the footprint origin; pads: number, x, y, size x, size y",
+ "source": "JLCPCB / EasyEDA library footprint, https://easyeda.com/api/products/C125108/components, fetched 2026-11-12",
+ "frame": "top view, mm, x right, y down, from the footprint origin; pads: number, x, y, size x, size y; pins: pad number, the pin's name in JLC's symbol",
  "pads": [
   ["1", -1.7, -0.0, 1.4, 1.6],
   ["2", 1.7, -0.0, 1.4, 1.6]
+ ],
+ "pins": [
+  ["1", "-"],
+  ["2", "+"]
  ]
 }

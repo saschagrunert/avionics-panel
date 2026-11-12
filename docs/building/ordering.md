@@ -182,9 +182,11 @@ review; do not order as is. JLCPCB's reading of bottom rotations can change (the
 [Electronics](../architecture/electronics.md#assembly-data)).
 
 - LED_SHIFT and LED_UNIT (reverse-mount LEDs over the two cutouts in the board): JLC's cathode, pin 1, at our
-  cathode bar (west), the part centred over its cutout. JLC's footprints draw other cutouts than ours (a
-  round hole for the white one, with its pads reaching into it, a smaller square for the amber one): go by the
-  pads and our cutout.
+  cathode bar, which is on the side of each LED away from the other one (LED_SHIFT's bar away from LED_UNIT,
+  LED_UNIT's away from LED_SHIFT; that holds whether or not the preview shows the bottom mirrored), the part
+  centred over its cutout.
+  JLC's footprints draw other cutouts than ours (a round hole for the white one, with its pads reaching into
+  it, a smaller square for the amber one): go by the pads and our cutout.
 - U1 (RP2040): JLC's pin 1 mark in the corner with our silkscreen corner mark (an L next to the corner pad).
 - U2 (flash): JLC's pin 1 mark at our pin 1 dot, next to a corner pad of the row facing away from the RP2040.
 - U3 (regulator): JLC's pin 1 mark at our pin 1 dot; the single pin (3, VIN) faces the USB-C socket.

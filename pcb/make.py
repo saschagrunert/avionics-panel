@@ -1,4 +1,4 @@
-"""Build Gerbers, drill files, DRC and renders from board.py + routed.json."""
+"""Build the Gerbers and drill files from board.py + routed.json."""
 import json
 import math
 import os
@@ -171,10 +171,10 @@ for _name, x, y in B.DIODES:
         bx = next((bx + d for d in BAR_SHIFT
                    if bar_clear(bx + d, y, HOLES, HOLE_GAP) and bar_clear(bx + d, y, MASK_B, BAR_GAP)), bx)
     line("B", [(bx, y - 0.75), (bx, y + 0.75)], BAR_W)   # cathode bar
-# the LEDs' cathode bars west of the cathode pad, between it and its GND via
+# the LEDs' cathode bars on the cathode pad's outer side (away from the anode), between it and its GND via
 for name in B.LEDS:
-    k = next(p for p in pads if p.name == f"LED_{name}.K")
-    bx = k.x - k.w / 2 - MASK_GROW - BAR_GAP - BAR_W / 2
+    k, a = (next(p for p in pads if p.name == f"LED_{name}.{pin}") for pin in "KA")
+    bx = k.x + math.copysign(k.w / 2 + MASK_GROW + BAR_GAP + BAR_W / 2, k.x - a.x)
     line("B", [(bx, k.y - 0.75), (bx, k.y + 0.75)], BAR_W)
 mx, my = B.MCU
 # pin 1 corner, close to the chip: C_IO1 (pin 1's capacitor) sits further out

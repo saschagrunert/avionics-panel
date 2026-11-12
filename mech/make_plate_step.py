@@ -1,10 +1,11 @@
 """CNC front plate for the Avionics Panel rev 1: STEP model for JLCCNC plus a 2D drawing of the back.
 
-6061 aluminium, milled from 12 mm stock, black anodised: a 4 mm web and four round bosses on its back at the
-corner mounts, each tapped M3 from its end face, 10.05 mm high in all. Front face (+Z) is flat: laser marking and
-UV print follow the DXF from make_plate_art.py, in the same coordinates. Back face (Z = 0): pockets for the encoder
-and RANGE bodies and the bosses, which stand down to the PCB. Everything but the front face is machined from the
-back in one setup; the front may be faced in a second one.
+6061 aluminium, milled from 12 mm stock, black anodised: a 4 mm web and five round bosses on its back (at the
+four corner mounts and in the middle of the key field), each tapped M3 from its end face, 10.55 mm high in all, and
+a tongue on its back edge over the USB-C socket (stack.USB_TONGUE), shorter than the bosses. Front face (+Z) is
+flat: laser marking and UV print follow the DXF from make_plate_art.py, in the same coordinates. Back face (Z = 0):
+pockets for the encoder and RANGE bodies, the bosses, which stand down to the PCB, and the tongue. Everything but
+the front face is machined from the back in one setup; the front may be faced in a second one.
 
 Coordinates: origin at the bottom-left corner of the plate seen from the front, X right, Y up, mm.
 Needs pythonocc-core (nix-shell nix/shells.nix -A occ, from the repository root).
@@ -19,17 +20,17 @@ from OCC.Core.TopExp import TopExp_Explorer
 sys.path.insert(0, "../pcb")
 import board as B
 import stack as S
-from occ_util import cut, cyl, fuse, move, revolve, rrect_prism, volume, write_step
+from occ_util import box, cut, cyl, fuse, move, revolve, rrect_prism, volume, write_step
 
 OVH, T = S.OVH, S.PLATE_T
-AMBER_HEX, AMBER_RGB, AMBER_REF = S.AMBER["hex"], ", ".join(map(str, S.AMBER["rgb"])), S.AMBER["ref"]
 PW, PH = B.W + 2 * OVH, B.H + 2 * OVH
 LIGHT_TOL = f"+{S.LIGHT_HOLE_TOL[0]}/-{S.LIGHT_HOLE_TOL[1]:g}"      # light holes: never smaller
 KEY_TOL = f"+{S.KEY_HOLE_TOL[0]}/-{S.KEY_HOLE_TOL[1]:g}"            # key holes, after anodising
-BOSS, TAP = S.BOSS, S.TAP
-STOCK = 12.0                     # plate stock, mm: web and bosses are 10.05 (up to 10.2), the next common size
-# The drawing: the page is split between the plan view (above) and the text block (below). The plan view keeps at
+BOSS, TAP, TONGUE = S.BOSS, S.TAP, S.USB_TONGUE
+STOCK = 12.0                     # plate stock, mm: web and bosses are 10.55 (up to 10.7), the next common size
+# The drawing: an A3 page, split between the plan view (above) and the text block (below). The plan view keeps at
 # least DRAWING_MIN of the page height, so a longer text block fails the build instead of shrinking it unreadable.
+PAGE = (16.54, 11.69)            # inches, landscape
 DRAWING_MIN = 0.45
 
 
@@ -48,14 +49,17 @@ def tap_hole():
 def build():
     plate = rrect_prism(PW / 2, PH / 2, PW, PH, B.CORNER_R + OVH, 0.0, T)
     h = BOSS["h"]
-    for (mx, my) in B.MOUNTS:                                       # bosses down to the PCB top
+    for (mx, my) in B.MOUNTS:                                       # bosses down to the PCB top, all five
         plate = fuse(plate, cyl(BOSS["d"] / 2, -h, 0.01, *P(mx, my)))
+    tx, ty = P(B.USB_X, -OVH)                                       # the tongue, flush with the back edge
+    plate = fuse(plate, box(tx - TONGUE["w"] / 2, ty - TONGUE["d"], -TONGUE["h"], tx + TONGUE["w"] / 2, ty, 0.01))
     tools, features = [], []
     e = 0.5                                                 # through tools overshoot both faces
     for y in B.ROWS:
         for x in B.COLS:
             tools.append(rrect_prism(*P(x, y), *S.KEY_HOLE, -e, T + e))
-    features.append(("key hole", f"{S.KEY_HOLE[0]} x {S.KEY_HOLE[1]} {KEY_TOL} R{S.KEY_HOLE[2]}", "through",
+    features.append(("key hole", f"{S.KEY_HOLE[0]} x {S.KEY_HOLE[1]} {KEY_TOL} R{S.KEY_HOLE[2]}",
+                     f"through, corner R{S.KEY_HOLE_R_MAX} max",
                      len(B.ROWS) * len(B.COLS)))
     for name in ("ALTHDG", "FREQ", "FMS"):
         cx, cy = P(*getattr(B, name))
@@ -77,9 +81,11 @@ def build():
     for (mx, my) in B.MOUNTS:
         tools.append(move(tap_hole(), *P(mx, my), -h))
     features.append(("boss", f"dia {BOSS['d']}, root R{BOSS['root_r']} max",
-                     f"{BOSS['h']} +-{BOSS['h_tol']} high from back, end face flat", 4))
+                     f"{BOSS['h']} +-{BOSS['h_tol']} high from back, end face flat", len(B.MOUNTS)))
     features.append(("tapped hole", f"{TAP['thread']} in each boss",
-                     f"full thread {TAP['full']} min, drill {TAP['drill']} x {TAP['depth']} deep", 4))
+                     f"full thread {TAP['full']} min, drill {TAP['drill']} x {TAP['depth']} deep", len(B.MOUNTS)))
+    features.append(("tongue", f"{TONGUE['w']} +-{TONGUE['tol']} x {TONGUE['d']}, root R{TONGUE['root_r']} max",
+                     f"{TONGUE['h']} +-{TONGUE['tol']} long from back, outer face flush with plate edge", 1))
     return cut(plate, *tools), features
 
 
@@ -104,48 +110,55 @@ def drawing_notes(vol):
     skin = BOSS["h"] - BOSS["h_tol"] + t_min - TAP["depth"] - TAP["point"]
     return [
         f"Material 6061 aluminium, machined from {STOCK:.0f} mm plate: the web {S.PLATE_T:.1f} +-"
-        f"{S.PLATE_T_TOL} mm thick before anodising, the 4 bosses on its back, {S.BOSS['h'] + S.PLATE_T:.2f} mm "
-        f"high in all (the front may be faced). Outline {PW:.1f} x {PH:.1f} mm, corner "
-        f"R{B.CORNER_R + OVH:.1f}. Volume {vol / 1000:.1f} cm3. Units mm, general tolerance ISO 2768-m; flatness "
-        f"{S.PLATE_FLAT} over the whole web after bead blasting and anodising (the plate is held only at its bosses).",
+        f"{S.PLATE_T_TOL} mm thick before anodising, the {len(B.MOUNTS)} bosses and the tongue on its back, "
+        f"{S.BOSS['h'] + S.PLATE_T:.2f} mm high in all (the front may be faced). Outline {PW:.1f} x {PH:.1f} mm, "
+        f"corner R{B.CORNER_R + OVH:.1f}. Volume {vol / 1000:.1f} cm3. Units mm, general tolerance ISO 2768-m; "
+        f"flatness {S.PLATE_FLAT} over the whole web after bead blasting and anodising (the plate is held only at its "
+        "bosses).",
         "Front face (+Z in the STEP) is flat: no pockets or fastener holes on the front, and no chamfers beyond "
         "the edge break below.",
-        f"Positions of the 4 bosses and their tapped holes and of all through holes: +-{S.POS_TOL['plate']} to each "
-        "other (the key caps, the board and the screws must line up).",
+        f"Positions of the {len(B.MOUNTS)} bosses and their tapped holes, of the pockets, of the tongue and of all "
+        f"through holes: +-{S.POS_TOL['plate']} to each other (the key caps, the board, the parts in the pockets, "
+        "the screws and the body's slot must line up).",
         f"Bosses: dia {BOSS['d']} +-{BOSS['d_tol']}, {BOSS['h']} +-{BOSS['h_tol']} high from the back face of the web "
         "(required: they set the plate height), "
         f"each end face flat and square to its hole; root R{BOSS['root_r']} max.",
-        f"Threads: 4 x {TAP['thread']}, one in each boss from its end face, full thread at least {TAP['full']} deep, "
-        f"tap drill dia {TAP['drill']} x {TAP['depth']} deep plus the drill point, {TAP['cham']} x 90 deg countersink: "
-        f"at least {skin:.2f} mm of metal stays in front of the drill point. The threads must gauge {TAP['thread']} "
-        "after anodising: mask them while anodising, or cut them again afterwards. The boss end faces may be "
-        "anodised or bare, but all four alike.",
+        f"Tongue on the back edge: {TONGUE['w']} +-{TONGUE['tol']} wide, {TONGUE['d']} thick with its outer face "
+        f"flush with the plate's edge, {TONGUE['h']} +-{TONGUE['tol']} long from the back face of the web (it ends "
+        f"short of the bosses); root R{TONGUE['root_r']} max. It closes the body's slot over the USB-C socket.",
+        f"Threads: {len(B.MOUNTS)} x {TAP['thread']}, one in each boss from its end face, full thread at least "
+        f"{TAP['full']} deep, tap drill dia {TAP['drill']} x {TAP['depth']} deep plus the drill point, {TAP['cham']} x "
+        f"90 deg countersink: at least {skin:.2f} mm of metal stays in front of the drill point. The threads must "
+        f"gauge {TAP['thread']} after anodising: mask them while anodising, or cut them again afterwards. The boss "
+        "end faces may be anodised or bare, but all of them alike.",
         f"Pocket depths +0, never deeper: at least {t_min - S.RANGE_POCKET[1]:.2f} mm of material must stay to the "
         "front face under every pocket; nothing may break through or mark the front face.",
         f"Encoder pockets and RANGE pocket: floor corner (inside radius between wall and floor) at most "
-        f"{S.POCKET_FLOOR_R} mm; the parts' top corners come within about 0.1 mm of the pocket walls or floors.",
+        f"{S.POCKET_FLOOR_R} mm; the parts' top corners come within about 0.2 mm of the pocket walls.",
         "Finish: black anodised, matte (bead blasted before anodising); the pockets may be anodised or bare, but "
         "all pockets alike (all anodised or all bare).",
         "Marking on the front per avionics-panel-rev1-plate.dxf, same origin (bottom-left, seen from the front): "
-        f"layer LASER = laser marking, layer UV_AMBER = UV print in amber, matched to {AMBER_HEX} (RGB {AMBER_RGB}, "
-        f"about {AMBER_REF}) if possible, otherwise the standard orange. Layer CUT = outline and through holes "
-        "for reference. DXF units mm; fill closed contours even-odd (letter counters are separate contours).",
+        "layer LASER = laser marking, layer UV_AMBER = UV print in JLCCNC's standard orange. Layer CUT = outline "
+        "and through holes for reference. DXF units mm; fill closed contours even-odd (letter counters are "
+        "separate contours).",
         f"Key holes {S.KEY_HOLE[0]} x {S.KEY_HOLE[1]} {KEY_TOL} after anodising (never smaller: the key caps "
-        f"centre the board in them). Light holes {LIGHT_TOL} (never smaller: the light pipes slide in them). "
-        "Deburr all edges: edge break at most 0.2 on the front outline and hole edges; on the back edges of the "
-        f"key holes {S.KEY_BACK_BREAK} to 0.2 (a lead-in for the key caps); the light holes' back edges sharp, "
-        f"deburred only ({S.LIGHT_HOLE_BACK_BREAK} max: the light pipes' shoulders bear there).",
+        f"centre the board in them), corners R{S.KEY_HOLE[2]}, R{S.KEY_HOLE_R_MAX} max. Light holes {LIGHT_TOL} "
+        "(never smaller: the light pipes slide in them). "
+        f"Deburr all edges: edge break at most {S.FRONT_BREAK} on the front outline and hole edges; on the back "
+        f"edges of the key holes {S.KEY_BACK_BREAK} to {S.KEY_BACK_BREAK_MAX} (a lead-in for the key caps); the light "
+        f"holes' back edges sharp, deburred only ({S.LIGHT_HOLE_BACK_BREAK} max: the light pipes' shoulders bear "
+        "there).",
     ]
 
 
 def drawing(features, vol):
-    """A4 drawing of the back face: pockets, bosses and threads, plus notes for the order."""
+    """A3 drawing of the back face: pockets, bosses, threads and the tongue, plus notes for the order."""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    from matplotlib.patches import Circle, FancyBboxPatch
+    from matplotlib.patches import Circle, FancyBboxPatch, Rectangle
 
-    fig = plt.figure(figsize=(11.69, 8.27))
+    fig = plt.figure(figsize=PAGE)
     notes = drawing_notes(vol)
     # the text block under the drawing, one (text, font size, bold, monospace) per line, in figure coordinates, laid
     # out from its own height; the drawing takes the page above it
@@ -155,7 +168,7 @@ def drawing(features, vol):
     block += [("Notes", 8.5, True, False)]
     for n in notes:
         block += [(("- " if i == 0 else "  ") + line, 7.0, False, False)
-                  for i, line in enumerate(textwrap.wrap(n, 190))]
+                  for i, line in enumerate(textwrap.wrap(n, 270))]
     text_h = sum(fs * lh for _, fs, _, _ in block) + 2 * 0.5 * 8.5 * lh     # half a line before each heading
     bottom, top = 0.02, 0.95
     ax = fig.add_axes([0.04, bottom + text_h + 0.02, 0.92, top - bottom - text_h - 0.02])
@@ -180,8 +193,8 @@ def drawing(features, vol):
         ax.add_patch(Circle(M(cx, cy), S.SHAFT_HOLE / 2, fc="white", ec="k", lw=0.6))
     lx, ly = M(*P(*B.FREQ))                         # one label for all three, above the plate (clear of the keys)
     ax.annotate(f"3 x pocket {w} x {h} R{r}, {d} +0/-{S.POCKET_TOL} deep (encoders)", (lx, ly + h / 2),
-                xytext=(lx - w / 2, PH + 3.5), ha="left", va="center", fontsize=6.5,
-                arrowprops=dict(arrowstyle="-", lw=0.5))
+                xytext=(M(*P(B.USB_X, 0))[0] - TONGUE["w"] / 2 - 2.0, PH + 3.5), ha="right", va="center",
+                fontsize=6.5, arrowprops=dict(arrowstyle="-", lw=0.5))   # ends short of the tongue's leader
     cx, cy = P(*B.RANGE)
     ax.add_patch(Circle(M(cx, cy), S.RANGE_POCKET[0] / 2, fc="#c9dcf0", ec="#1f5fa0", lw=0.8, hatch="///"))
     ax.add_patch(Circle(M(cx, cy), S.RANGE_HOLE / 2, fc="white", ec="k", lw=0.6))
@@ -195,12 +208,18 @@ def drawing(features, vol):
         ax.add_patch(Circle((px, py), BOSS["d"] / 2, fc="#9aa3ad", ec="k", lw=0.8))
         ax.add_patch(Circle((px, py), TAP["drill"] / 2, fc="white", ec="k", lw=0.6))
         ax.add_patch(Circle((px, py), 1.5, fc="none", ec="k", lw=0.4, ls=(0, (2, 1.5))))   # thread major dia
-    px, py = M(*P(*B.MOUNTS[0]))                                     # one label for all four, above the plate
-    ax.annotate(f"4 x boss dia {BOSS['d']}, {BOSS['h']} +-{BOSS['h_tol']} high, {TAP['thread']} full thread "
-                f"{TAP['full']} min (drill {TAP['drill']} x {TAP['depth']})", (px, py + BOSS["d"] / 2),
+    tx, ty = M(*P(B.USB_X, -OVH))                                    # the tongue on the back edge
+    ax.add_patch(Rectangle((tx - TONGUE["w"] / 2, ty - TONGUE["d"]), TONGUE["w"], TONGUE["d"], fc="#9aa3ad", ec="k",
+                           lw=0.8))
+    ax.annotate(f"tongue {TONGUE['w']} +-{TONGUE['tol']} x {TONGUE['d']}, {TONGUE['h']} +-{TONGUE['tol']} long "
+                "from the back face", (tx, ty - TONGUE["d"] / 2), xytext=(tx - TONGUE["w"] / 2, PH + 7.0), ha="left",
+                va="center", fontsize=6.5, arrowprops=dict(arrowstyle="-", lw=0.5))
+    px, py = M(*P(*B.MOUNTS[0]))                                     # one label for all bosses, above the plate
+    ax.annotate(f"{len(B.MOUNTS)} x boss dia {BOSS['d']}, {BOSS['h']} +-{BOSS['h_tol']} high, {TAP['thread']} full "
+                f"thread {TAP['full']} min (drill {TAP['drill']} x {TAP['depth']})", (px, py + BOSS["d"] / 2),
                 xytext=(px, PH + 3.5), ha="right" if px > PW / 2 else "left", va="center", fontsize=6.5,
                 arrowprops=dict(arrowstyle="-", lw=0.5))
-    ax.set_xlim(-6, PW + 6); ax.set_ylim(-4, PH + 6)
+    ax.set_xlim(-6, PW + 6); ax.set_ylim(-4, PH + 9.5)
     ax.set_title("Avionics Panel rev 1 front plate, seen from the BACK (machined side)", fontsize=11, loc="left")
 
     y = bottom + text_h

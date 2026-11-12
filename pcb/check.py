@@ -1,7 +1,9 @@
 """Independent checks on the generated Gerbers:
 1. rasterise each Gerber file (own minimal parser)
 2. electrical check: shorts and opens per net, using the rasterised copper + drills
-3. geometric clearance DRC on the design primitives
+3. the outer copper Gerbers against the design primitives (the pads of board.py, the segments and vias of
+   routed.json): every pad flashed in its place, shape and size, every via and trace as routed, and nothing
+   else; then the geometric clearance DRC on those primitives
 4. drills and annular rings against JLCPCB's limits, no hole at or in an SMD pad or a paste opening (bar a
    pin-in-paste hole in its own opening), paste on every assembled pad and nowhere else
 5. solder mask dams (between openings on the mask Gerbers) against JLCPCB's black minimum, and every opening
@@ -9,18 +11,27 @@
 6. copper path from every RP2040 supply pin to its nearest decoupling capacitor, one capacitor of its own per
    IOVDD pin over the outer layers, and every decoupling capacitor with its own plane vias
 7. routed length of every net against its shortest tree (no detours), USB D+ / D- length and skew
-8. JLCPCB's footprint of every bottom-side part on our pads at its CPL rotation (pad numbers, positions)
-9. no copper on F or B within the mounting-hole keep-out (plate boss, body boss), only the plane inside, and
-   copper on every layer clear of the LED cutouts
-10. no exposed SMD pad of another net near a through-hole pad (solder bridges; hand-soldered in either variant)
-11. JLCPCB's footprint of every through-hole part at its top-side CPL position and rotation (full variant) on
-   our holes pin by pin (drills reported)
+8. JLCPCB's footprint of every bottom-side part on our pads at its CPL rotation (pad numbers, positions; the
+   cathode and anode of the diodes and LEDs by the pin names of JLC's symbol)
+9. no copper on F or B within the keep-out of each mounting hole (plate boss, body boss), only the plane
+   inside, and copper on every layer clear of the LED cutouts
+10. no exposed SMD pad of another net near a through-hole pad (solder bridges where a pad is soldered by hand:
+    J1's shell tabs after full assembly, every through-hole pad with the hand-soldering option)
+11. JLCPCB's footprint of every through-hole part at its top-side CPL position and rotation (full assembly) on
+   our holes pin by pin, each hole within TH_DRILL_TOL of JLC's in size
 12. no copper on B under J1's shell but J1's own pads
 13. the legend clear of mask openings and holes, inside the board outline and outside the LED cutouts by
    SILK_EDGE
 14. USB protection: the ESD array in line on D+ and D- right behind J1, the damping resistor and the fuse in
     VBUS ahead of every load
-(precheck.py checks the placement before routing: fixed copper clearances and the bottom-side part bodies.)
+15. the drill files against the model: every pad hole, slot and via plated, the mounting holes and the parts'
+    peg holes unplated, each in its place and size, and nothing else
+16. the Edge_Cuts Gerber against the model: the board outline and every LED cutout in its place, size and
+    corner radius, and nothing else
+17. a cathode bar in the bottom legend at every diode and LED, beyond its cathode pad on the side away from the
+    anode
+(precheck.py checks the placement before routing: fixed copper clearances, the bottom-side part bodies and the
+mounting holes' keep-outs.)
 """
 import functools
 import heapq
@@ -148,8 +159,10 @@ def draw_ops(ops):
     return np.array(img) > 127
 
 
-def read_drill(fname):
-    tools, holes, t = {}, [], None
+def drill_hits(fname):
+    """The hits of a drill file as (x0, y0, x1, y1, tool diameter) in the file's mm (y up): a round hole with
+    both ends in one place, a G85 slot from one end to the other."""
+    tools, hits, t = {}, [], None
     with open("gerbers/" + fname) as f:
         lines = f.readlines()
     for line in lines:
@@ -164,8 +177,16 @@ def read_drill(fname):
         if m:
             x0, y0 = float(m.group(1)), float(m.group(2))
             x1, y1 = (float(m.group(3)), float(m.group(4))) if m.group(3) else (x0, y0)
-            n = max(1, round(math.hypot(x1 - x0, y1 - y0) / 0.1))      # a G85 slot: circles along it
-            holes += [(x0 + (x1 - x0) * i / n, B.H - (y0 + (y1 - y0) * i / n), t) for i in range(n + 1)]
+            hits.append((x0, y0, x1, y1, t))
+    return hits
+
+
+def read_drill(fname):
+    """The holes of a drill file as (x, y, diameter) in board mm (y down); a slot as circles along it."""
+    holes = []
+    for x0, y0, x1, y1, t in drill_hits(fname):
+        n = max(1, round(math.hypot(x1 - x0, y1 - y0) / 0.1))
+        holes += [(x0 + (x1 - x0) * i / n, B.H - (y0 + (y1 - y0) * i / n), t) for i in range(n + 1)]
     return holes
 
 
@@ -177,15 +198,23 @@ def read_drill(fname):
 # another number there or misses by a pitch (0.4 mm on the RP2040, 1.27 mm on the flash); the tolerances take
 # our own land sizes (diodes, SOT-23, 0603, 0402 differ from JLC's by up to 0.22 mm at an edge).
 FP_POS_TOL, FP_EDGE_TOL = 0.15, 0.25
-FP_PIN = {"C81598": {"K": "1", "A": "2"}, "C2040": {"EP": "57"},          # our pad name -> JLC's pad number
-          "C165948": {"SH1a": "1", "SH1b": "2", "SH-1b": "3", "SH-1a": "4"},
-          "C125108": {"K": "1", "A": "2"}, "C575513": {"K": "1", "A": "2"}}
+# Our pad name -> JLC's pad number, where we name a pad JLC numbers: the RP2040's exposed pad and J1's shell tabs.
+FP_PIN = {"C2040": {"EP": "57"}, "C165948": {"SH1a": "1", "SH1b": "2", "SH-1b": "3", "SH-1a": "4"}}
+# The diodes and LEDs: our pads are K and A. Which of JLC's pads is the cathode is read from JLC's own symbol of
+# the part (the "pins" of footprints/<LCSC>.json, pad number and pin name): it names the cathode K, C or -, the
+# anode A or +. Each part type is looked up on its own, so a footprint with the anode on pad 1 fits the other
+# way round and a part placed against it fails.
+POLARITY = {"K": ("K", "C", "-"), "A": ("A", "+")}
 # The reverse-mount LEDs (LiteOn's C230 package): our pads stop JLCPCB's 0.2 mm short of the cutout (board.py
-# LED_CUTOUT), JLC's footprint of C125108 runs them to 0.05 mm from its 1.9 mm cutout, so the inner edges differ by
-# up to 0.3 and the centres by 0.18: these two get that much. JLC's footprint of the white LTW-C230DS (C575513), the
-# same package, draws its pads 0.3 mm into a 2.3 mm round hole; it is checked against the amber one's footprint.
-FP_TOL = {"C125108": (0.2, 0.32)}
-FP_SAME = {"C575513": "C125108"}
+# LED_CUTOUT), 1.3 mm from the LED's centre. JLC's footprint of the amber LTST-C230KSKT (C125108) runs them to
+# 0.05 mm from its 1.9 mm cutout (1.0 from the centre); JLC's footprint of the white LTW-C230DS (C575513), the
+# same package, draws its pads 0.33 mm into a 2.3 mm round hole (0.82 from the centre). So each pad differs from
+# JLC's at its inner edge, the one towards the cutout, by 0.3 and 0.48, and with it at its centre by 0.18 and
+# 0.24; its outer edge and its width agree with JLC's to 0.07 mm. FP_TOL gives each LED that much at the centre
+# and at the inner edge alone (centre, inner edge): the other three edges keep FP_EDGE_TOL, so another package's
+# footprint in the LED's place fails (a SOD-123F's pads are 0.3 mm narrower on either side). An LED the wrong
+# way round misses by 3.5 mm and more.
+FP_TOL = {"C125108": (0.2, 0.32), "C575513": (0.25, 0.5)}
 
 
 def jlc_place(x, y, rot):
@@ -195,19 +224,36 @@ def jlc_place(x, y, rot):
 
 
 @functools.cache
-def jlc_pads(lcsc):
-    """the pads of JLC's footprint of one part (footprints/<LCSC>.json), read once per part type."""
-    with open(f"footprints/{FP_SAME.get(lcsc, lcsc)}.json") as f:
-        return json.load(f)["pads"]
+def jlc_footprint(lcsc):
+    """JLC's footprint of one part (footprints/<LCSC>.json), read once per part type."""
+    with open(f"footprints/{lcsc}.json") as f:
+        return json.load(f)
+
+
+def jlc_number(lcsc, pin):
+    """JLC's pad number for our pad `pin` of a part: FP_PIN's where we name the pad, for K and A the pad of the
+    one pin JLC's symbol names so (POLARITY; None unless there is exactly one), else the pin itself, a number."""
+    if pin in FP_PIN.get(lcsc, {}):
+        return FP_PIN[lcsc][pin]
+    if pin in POLARITY:
+        nums = [num for num, name in jlc_footprint(lcsc)["pins"] if name in POLARITY[pin]]
+        return nums[0] if len(nums) == 1 else None
+    return pin
 
 
 def footprint_fit(ref, lcsc, cx, cy, rot, ours):
-    """(worst centre offset, worst edge offset, problems) of JLC's footprint at rotation rot on our pads."""
-    ref_pads = jlc_pads(lcsc)
-    alias = FP_PIN.get(lcsc, {})
-    mine = {alias.get(pin, pin): p for pin, p in ours.items()}
-    worst_c, worst_e, bad = 0.0, 0.0, []
-    pos_tol, edge_tol = FP_TOL.get(FP_SAME.get(lcsc, lcsc), (FP_POS_TOL, FP_EDGE_TOL))
+    """(worst centre offset, worst edge offset, worst inner edge offset, problems) of JLC's footprint at rotation
+    rot on our pads. The inner edge, the one towards the part's centre, counts on its own for a part in FP_TOL
+    (else it is one of the edges)."""
+    ref_pads = jlc_footprint(lcsc)["pads"]
+    mine, worst_c, worst_e, worst_i, bad = {}, 0.0, 0.0, 0.0, []
+    for pin, p in ours.items():
+        num = jlc_number(lcsc, pin)
+        if num is None:
+            bad.append(f"JLC's symbol of {lcsc} has no single pin named {' / '.join(POLARITY[pin])} for {p.name}")
+        else:
+            mine[num] = p
+    pos_tol, inner_tol = FP_TOL.get(lcsc, (FP_POS_TOL, None))
     for num, x, y, w, h in ref_pads:
         dx, dy = jlc_place(x, y, rot)
         X, Y = cx + dx, cy + dy
@@ -217,16 +263,21 @@ def footprint_fit(ref, lcsc, cx, cy, rot, ours):
         if p is None:
             bad.append(f"JLC pad {num} has no pad {ref}.{num} on the board"); continue
         c = math.hypot(p.x - X, p.y - Y)
-        e = max(abs(p.x - p.w / 2 - (X - w / 2)), abs(p.x + p.w / 2 - (X + w / 2)),
-                abs(p.y - p.h / 2 - (Y - h / 2)), abs(p.y + p.h / 2 - (Y + h / 2)))
-        worst_c, worst_e = max(worst_c, c), max(worst_e, e)
-        if c > pos_tol or e > edge_tol:
+        edges = [abs(p.x - p.w / 2 - (X - w / 2)), abs(p.x + p.w / 2 - (X + w / 2)),     # west, east,
+                 abs(p.y - p.h / 2 - (Y - h / 2)), abs(p.y + p.h / 2 - (Y + h / 2))]     # north, south
+        inner = 0.0
+        if inner_tol is not None:       # JLC's pad west of the part's centre: its east edge, and so on
+            inner = edges.pop(int(cx > X) if abs(X - cx) > abs(Y - cy) else 2 + (cy > Y))
+        e = max(edges)
+        worst_c, worst_e, worst_i = max(worst_c, c), max(worst_e, e), max(worst_i, inner)
+        if c > pos_tol or e > FP_EDGE_TOL or inner > (inner_tol or 0.0):
             near = min((q for q in mine.values()), key=lambda q: math.hypot(q.x - X, q.y - Y))
             bad.append(f"JLC pad {num} lands at ({X:.2f}, {Y:.2f}), {c:.2f} mm from {p.name} ({p.net}), "
-                       f"edges off by {e:.2f}; nearest is {near.name} ({near.net})")
+                       f"edges off by {e:.2f}" + (f", the inner edge by {inner:.2f}" if inner_tol else "")
+                       + f"; nearest is {near.name} ({near.net})")
     extra = set(mine) - {r[0] for r in ref_pads}
     bad += [f"{ref}.{n} is not in JLC's footprint" for n in sorted(extra)]
-    return worst_c, worst_e, bad
+    return worst_c, worst_e, worst_i, bad
 
 
 def footprints(pads):
@@ -241,13 +292,13 @@ def footprints(pads):
     for ref, value, lcsc, x, y, rot, side in B.PARTS:
         if side != "bottom":
             continue
-        t = types.setdefault(lcsc, {"value": value, "refs": [], "rots": set(), "c": 0.0, "e": 0.0})
+        t = types.setdefault(lcsc, {"value": value, "refs": [], "rots": set(), "c": 0.0, "e": 0.0, "i": 0.0})
         t["refs"].append(ref); t["rots"].add(rot % 360)
-        c, e, probs = footprint_fit(ref, lcsc, x, y, rot, byref.get(ref, {}))
-        t["c"], t["e"] = max(t["c"], c), max(t["e"], e)
+        c, e, inner, probs = footprint_fit(ref, lcsc, x, y, rot, byref.get(ref, {}))
+        t["c"], t["e"], t["i"] = max(t["c"], c), max(t["e"], e), max(t["i"], inner)
         if probs:
             bad += 1
-            fits = [r for r in (0, 90, 180, 270) if not footprint_fit(ref, lcsc, x, y, r, byref.get(ref, {}))[2]]
+            fits = [r for r in (0, 90, 180, 270) if not footprint_fit(ref, lcsc, x, y, r, byref.get(ref, {}))[3]]
             more = f"; {len(probs) - 2} more" if len(probs) > 2 else ""
             print(f"FOOTPRINT {ref} ({lcsc}) at CPL rotation {rot}: " + "; ".join(probs[:2]) + more
                   + f". Rotations that fit: {fits or 'none'}")
@@ -255,9 +306,11 @@ def footprints(pads):
         refs = t["refs"][0] + (f" and {len(t['refs']) - 1} more" if len(t["refs"]) > 1 else "")
         rots = "/".join(str(r) for r in sorted(t["rots"]))
         print(f"  {lcsc:9s} {t['value']:20s} {refs:22s} CPL {rots:7s} centres within {t['c']:.3f} mm, "
-              f"edges within {t['e']:.3f} mm")
+              f"edges within {t['e']:.3f} mm" + (f", inner edges within {t['i']:.3f} mm" if lcsc in FP_TOL else ""))
+    leds = "".join(f"; {types[lcsc]['value']} {c} centre, {i} inner edge" for lcsc, (c, i) in FP_TOL.items()
+                   if lcsc in types)
     print(f"footprints: {len(types)} JLC footprints on {sum(len(t['refs']) for t in types.values())} bottom-side "
-          f"parts (tolerance {FP_POS_TOL} centre, {FP_EDGE_TOL} edge), {bad} problems")
+          f"parts (tolerance {FP_POS_TOL} centre, {FP_EDGE_TOL} edge{leds}), {bad} problems")
     return bad
 
 
@@ -282,6 +335,105 @@ def flashes(fname):
         else:
             out.append(("cap", x, y - (b - a) / 2, x, y + (b - a) / 2, a / 2))
     return out
+
+
+# The outer copper Gerbers against the design primitives. The clearance DRC, the footprint fits, the hand-solder
+# distances and the lengths are worked out on the primitives (the pads of board.py, the segments and vias of
+# routed.json), so the Gerbers must hold exactly that copper: every pad flashed on each of its layers in its
+# shape, size and place, every via flashed on both, every segment drawn in its width from end to end, and
+# nothing else. COPPER_TOL takes the Gerber number format (aperture sizes to 0.0001 mm). The inner planes are
+# drawn from the same pads and vias; they are measured on the raster (plane clearance, keep-outs, cutouts).
+COPPER_TOL = 2e-4
+
+
+def copper_model(pads, segments, vias):
+    """The flashes and lines of the F and B copper Gerbers against the pads, vias and segments, one for one."""
+    bad, counts = 0, []
+    for layer, fname in (("F", "avionics-F_Cu.gtl"), ("B", "avionics-B_Cu.gbl")):
+        want = [(("flash", {"rect": "R", "circle": "C"}.get(p.shape, "O")),
+                 (p.w, p.w if p.shape == "circle" else p.h, p.x, p.y), f"pad {p.name}")
+                for p in pads if layer in p.layers]
+        want += [(("flash", "C"), (v[3], v[3], v[0], v[1]), f"via ({v[2]})") for v in vias]
+        for x1, y1, x2, y2, ly, net, w in segments:
+            if ly != layer:
+                continue
+            if (x1, y1) == (x2, y2):                # make.py flashes a segment without length
+                want.append((("flash", "C"), (w, w, x1, y1), f"trace point ({net})"))
+            else:
+                want.append((("line", "C"), (w, x1, y1, x2, y2), f"trace ({net})"))
+        got = {}
+        for op in gerber_ops(fname):
+            if op[0] == "flash":
+                (k, a, b), (x, y) = op[1], op[2]
+                got.setdefault(("flash", k), []).append((a, a if k == "C" else b, x, y))
+            elif op[0] == "line":
+                got.setdefault(("line", op[1][0]), []).append((op[1][1], *op[2], *op[3]))
+            elif op != ("dark", True):
+                bad += 1; print(f"COPPER {layer}: a {'region' if op[0] == 'region' else 'clear polarity'} on the "
+                                "Gerber, the model has none")
+        for key, vals, what in want:
+            pool = got.get(key, [])
+            hit = next((i for i, g in enumerate(pool)
+                        if max(abs(a - b) for a, b in zip(g, vals, strict=True)) < COPPER_TOL), None)
+            if hit is None:
+                bad += 1
+                print(f"COPPER {layer}: {what} is not on the Gerber as modelled, a {key[0]} {key[1]} "
+                      + " ".join(f"{v:g}" for v in vals))
+            else:
+                pool.pop(hit)
+        for key, pool in got.items():
+            for g in pool:
+                bad += 1
+                print(f"COPPER {layer}: a {key[0]} {key[1]} " + " ".join(f"{v:g}" for v in g)
+                      + " on the Gerber is not in the model")
+        counts.append(f"{layer} {sum(k[0][0] == 'flash' for k in want)} flashes and "
+                      f"{sum(k[0][0] == 'line' for k in want)} traces")
+    print(f"copper Gerbers against the model: {', '.join(counts)} (pads, vias, segments), compared one for one in "
+          f"place, shape and size (within {COPPER_TOL:g} mm); {bad} problems")
+    return bad
+
+
+# The drill files against the model. The hole checks below measure the plated holes of the file against the copper
+# round them, and the footprint fits, the keep-outs and the hole distances work on the model's holes, so the files
+# must hold exactly those: plated, every pad's hole in its drill, every slot from end to end in its width (along
+# the pad's long side) and every via; unplated, the mounting holes (board.MOUNTS, board.MOUNT_HOLE) and the
+# parts' peg holes (board.NPTH). DRILL_TOL takes the drill file's number format (0.001 mm).
+DRILL_TOL = 1e-3
+
+
+def drill_model(pads, vias):
+    """The hits of the two drill files against the holes of the model, one for one in place and size."""
+    plated = [((p.x, p.y, p.x, p.y, p.drill), f"the hole of {p.name}") for p in pads if p.drill and not p.slot]
+    for p in pads:
+        if p.slot:
+            d, tall = (p.slot[1] - p.slot[0]) / 2, p.h >= p.w
+            plated.append(((p.x - d * (not tall), p.y - d * tall, p.x + d * (not tall), p.y + d * tall, p.slot[0]),
+                           f"the slot of {p.name}"))
+    plated += [((v[0], v[1], v[0], v[1], v[4]), f"a via ({v[2]})") for v in vias]
+    unplated = [((x, y, x, y, B.MOUNT_HOLE), "a mounting hole") for x, y in B.MOUNTS]
+    unplated += [((x, y, x, y, d), "a peg hole") for x, y, d in B.NPTH]
+    bad = 0
+
+    def at(x0, y0, x1, y1):
+        return f"at ({x0:.3f}, {y0:.3f})" + (f" to ({x1:.3f}, {y1:.3f})" if (x0, y0) != (x1, y1) else "")
+    for fname, want in (("avionics-PTH.drl", plated), ("avionics-NPTH.drl", unplated)):
+        got = [(x0, B.H - y0, x1, B.H - y1, t) for x0, y0, x1, y1, t in drill_hits(fname)]
+        for (*ends, size), what in want:
+            there = [g for g in got if any(max(abs(a - b) for a, b in zip(g[:4], e, strict=True)) < DRILL_TOL
+                                           for e in (ends, ends[2:] + ends[:2]))]       # a slot from either end
+            hit = next((g for g in there if abs(g[4] - size) < DRILL_TOL), None)
+            if hit is None:
+                bad += 1
+                print(f"DRILL {fname}: {what} {at(*ends)}, {size:g} mm in the model, is "
+                      + (f"{there[0][4]:g} mm in the file" if there else "not in the file"))
+            if there:
+                got.remove(hit or there[0])
+        for *ends, t in got:
+            bad += 1; print(f"DRILL {fname}: a {t:g} mm hole {at(*ends)} in the file is not in the model")
+    print(f"drill files against the model: {len(plated)} plated ({sum(bool(p.slot) for p in pads)} slots, "
+          f"{len(vias)} vias), {len(unplated)} unplated ({len(B.MOUNTS)} mounting holes), compared one for one in "
+          f"place and size (within {DRILL_TOL:g} mm); {bad} problems")
+    return bad
 
 
 # JLCPCB keeps copper this far from a routed edge (the LED cutouts; the outline has its own EDGE_CLEAR)
@@ -431,13 +583,18 @@ def hand_solder(pads):
 
 
 # Through-hole parts: JLC's footprint (footprints/<LCSC>.json, "holes" and "npth") against our holes, as JLCPCB
-# places it in the full variant (Standard assembly, both sides): at the top-side CPL position and rotation
+# places it in full assembly (Standard assembly, both sides): at the top-side CPL position and rotation
 # (board.cpl, as make_bom.py writes it; JLC's top convention: seen from the top, the footprint turned
 # counter-clockwise by the rotation, its origin on the CPL position). Every JLC hole must land on our hole of the
 # pin TH_PIN names for it, within FP_POS_TOL, every unplated one on one of ours, and none of ours may be left
 # over. A wrong rotation misses the holes or, on a symmetric hole pattern, puts a pin on the wrong hole: an
-# encoder's A on B. That also places a hand-soldered part. The drills are reported side by side: ours follow the
-# part's datasheet.
+# encoder's A on B. That also places a hand-soldered part.
+# The hole sizes: ours follow the part's datasheet, JLC's are its library's choice for the same pin, and each of
+# ours (a round hole's drill, a slot's width and length, the unplated peg hole) must be within TH_DRILL_TOL of
+# JLC's. That is the span of JLCPCB's plated-hole tolerance (+0.13 / -0.08 mm): up to it, our hole can finish the
+# size JLC's own would. The pins differ by less (keys 1.0 against JLC's 1.2, PEC11D 1.2 against 1.1, RKJXT 1.1
+# against 1.2); a hole further off is a mistyped drill or a hole for another pin.
+TH_DRILL_TOL = 0.13 + 0.08
 TH_PIN = {                                  # JLC's pin number -> our pins it may land on
     # key: pins 1-2 and 3-4 are joined inside, so 0 and 180 are the same switch (the 6.5 x 4.5 pattern misses at 90)
     "C589907": dict.fromkeys("1234", ("A", "B", "C", "D")),
@@ -461,23 +618,30 @@ def cpl_fit(ref, lcsc, fp, cx, cy, rot, ours):
     pins = TH_PIN.get(lcsc)
     if pins is None:
         return 9.0, [f"no TH_PIN entry for {lcsc}"]
-    for num, hx, hy, _d, _slot in fp["holes"]:
+    for num, hx, hy, d, slot in fp["holes"]:
         dx, dy = jlc_top(hx, hy, rot)
         X, Y = cx + dx, cy + dy
         p = min(ours, key=lambda q, X=X, Y=Y: math.hypot(q.x - X, q.y - Y))
         c = math.hypot(p.x - X, p.y - Y)
         worst = max(worst, c)
+        mine = p.slot or (p.drill, 0.0)                         # width and length, as JLC's drill and slot length
         if c > FP_POS_TOL:
             bad.append(f"JLC pin {num} lands at ({X:.2f}, {B.H - Y:.2f}), {c:.2f} mm from the nearest hole {p.name}")
         elif p.name.split(".", 1)[1] not in pins.get(num, ()):
             bad.append(f"JLC pin {num} lands on {p.name} ({p.net}), not on {'/'.join(pins.get(num, ('?',)))}")
+        elif max(abs(mine[0] - d), abs(mine[1] - slot)) > TH_DRILL_TOL + 1e-6:
+            bad.append(f"{p.name} is drilled {mine[0]:g}" + (f" x {mine[1]:g}" if mine[1] else "") + f", JLC's pin "
+                       f"{num} {d:g}" + (f" x {slot:g}" if slot else "") + f": over {TH_DRILL_TOL:g} mm apart")
         used.add(p.name)
-    for hx, hy, _d in fp["npth"]:
+    for hx, hy, d in fp["npth"]:
         dx, dy = jlc_top(hx, hy, rot)
-        c = min((math.hypot(nx - cx - dx, ny - cy - dy) for nx, ny, _d in B.NPTH), default=9.0)
+        c, hole_d = min(((math.hypot(nx - cx - dx, ny - cy - dy), hole_d) for nx, ny, hole_d in B.NPTH),
+                        default=(9.0, 0.0))
         worst = max(worst, c)
         if c > FP_POS_TOL:
             bad.append(f"JLC's unplated hole lands {c:.2f} mm from ours")
+        elif abs(hole_d - d) > TH_DRILL_TOL + 1e-6:
+            bad.append(f"the unplated hole is {hole_d:g}, JLC's {d:g}: over {TH_DRILL_TOL:g} mm apart")
     bad += [f"{p.name} has no JLC pin" for p in ours if p.name not in used]
     return worst, bad
 
@@ -488,8 +652,7 @@ def tht_footprints(pads):
     for ref, value, lcsc, x, y, rot, side in B.PARTS:
         if side != "top":
             continue
-        with open(f"footprints/{lcsc}.json") as f:
-            fp = json.load(f)
+        fp = jlc_footprint(lcsc)
         ours = [p for p in pads if p.name.split(".")[0] == ref and p.drill]
         t = types.setdefault(lcsc, {"value": value, "refs": [], "ours": set(), "jlc": {h[3] for h in fp["holes"]},
                                     "cpl": set(), "cw": 0.0, "off": set()})
@@ -516,7 +679,8 @@ def tht_footprints(pads):
         print(f"  {lcsc:9s} {t['value']:20s} {refs:16s} drills ours {mm(t['ours'])}, JLC {mm(t['jlc'])}; top CPL "
               f"{cpl}, origin {off} from the part (y down), pins within {t['cw']:.3f} mm")
     print(f"through-hole footprints: {len(types)} JLC footprints on {sum(len(t['refs']) for t in types.values())} "
-          f"top-side parts (tolerance {FP_POS_TOL}), at the full variant's top-side CPL, {bad} problems")
+          f"top-side parts (tolerance {FP_POS_TOL}, hole sizes within {TH_DRILL_TOL:g} of JLC's), at the top-side "
+          f"CPL of full assembly, {bad} problems")
     return bad
 
 
@@ -1002,6 +1166,34 @@ def contours(fname):
     return out
 
 
+def edge_cuts():
+    """The Edge_Cuts Gerber against the model: the board outline and every LED cutout (board.CUTOUTS), each one
+    contour in its place and size with its corners rounded as modelled, vertex for vertex the polygon make.py
+    draws (geom.rounded_rect), and no other contour. The cutout checks work on board.CUTOUTS, so JLCPCB must mill
+    exactly those."""
+    cs = contours("avionics-Edge_Cuts.gko")
+    want = [(B.W / 2, B.H / 2, B.W, B.H, B.CORNER_R, "the board outline")]
+    want += [(*c, f"the LED cutout at ({c[0]:g}, {c[1]:g})") for c in B.CUTOUTS]
+    bad = 0
+    for x, y, w, h, r, what in want:
+        pts = rounded_rect(x - w / 2, y - h / 2, x + w / 2, y + h / 2, r)
+        hit = next((c for c in cs if len(c) == len(pts) and all(
+            math.dist(a, p) < COPPER_TOL and math.dist(b, q) < COPPER_TOL
+            for (a, b), p, q in zip(c, pts, pts[1:] + pts[:1], strict=True))), None)
+        if hit is None:
+            bad += 1; print(f"EDGE CUTS: {what}, {w:g} x {h:g} mm R{r:g}, is not on the Gerber as modelled")
+        else:
+            cs.remove(hit)
+    for c in cs:
+        (x0, y0), (x1, y1) = (f([a for a, _b in c], axis=0) for f in (np.min, np.max))
+        bad += 1
+        print(f"EDGE CUTS: a contour round ({(x0 + x1) / 2:g}, {(y0 + y1) / 2:g}), {x1 - x0:g} x {y1 - y0:g} mm, on "
+              "the Gerber is not in the model")
+    print(f"Edge_Cuts against the model: the outline {B.W:g} x {B.H:g} mm R{B.CORNER_R:g} and {len(B.CUTOUTS)} LED "
+          f"cutouts, vertex for vertex (within {COPPER_TOL:g} mm); {bad} problems")
+    return bad
+
+
 def silk_edge():
     """Every legend shape inside the board outline (the Edge_Cuts Gerber) and outside each LED cutout by
     SILK_EDGE. Measured on the Gerber vertices: the outline and the cutouts are convex, so a shape's closest point
@@ -1048,6 +1240,41 @@ def silk_edge():
                     print(f"LEGEND {where} on {side} at ({q[i, 0]:.2f}, {q[i, 1]:.2f}), {d[i]:.2f} mm from it")
     print(f"legend to board outline and LED cutouts: closest F {worst['F']:.2f} mm, B {worst['B']:.2f} mm (min "
           f"{SILK_EDGE}); {bad} problems")
+    return bad
+
+
+# The cathode marks that JLCPCB's placement preview is checked against (docs/building/ordering.md): every diode
+# and LED has a bar in the bottom legend beyond its cathode pad K, on the side away from its anode pad A, at most
+# CATHODE_BAR from the pad's outer edge and alongside at least half of that edge. make.py leaves a bar out round
+# a via and in a cutout (HOLE_GAP); one left out altogether, or drawn at the anode, fails here.
+CATHODE_BAR = 1.0
+
+
+def cathode_bars(pads):
+    by = {p.name: p for p in pads}
+    lines = [op[2:] for op in gerber_ops("avionics-B_Silkscreen.gbo") if op[0] == "line"]
+    bad, short, n = 0, (9.0, ""), 0
+    for k in pads:
+        if not k.name.endswith(".K"):
+            continue
+        n += 1
+        a = by[k.name[:-1] + "A"]
+        d = math.dist((k.x, k.y), (a.x, a.y))
+        ux, uy = (k.x - a.x) / d, (k.y - a.y) / d                   # from the anode to the cathode
+        out, half = (k.w / 2, k.h / 2) if abs(ux) > abs(uy) else (k.h / 2, k.w / 2)   # half the pad that way, across
+        along = 0.0
+        for ends in lines:                                          # each end: beyond the outer edge, along it
+            t = [(x - k.x) * ux + (y - k.y) * uy - out for x, y in ends]
+            s = sorted(max(-half, min(half, (y - k.y) * ux - (x - k.x) * uy)) for x, y in ends)
+            if all(0 < v <= CATHODE_BAR for v in t):
+                along += s[1] - s[0]
+        short = min(short, (along, k.name))
+        if along < half - 1e-6:
+            bad += 1
+            print(f"NO CATHODE BAR AT {k.name}: {along:.2f} mm of legend line beyond the pad, away from {a.name} "
+                  f"(min {half:.2f})")
+    print(f"cathode bars: {n} diodes and LEDs, each with a bar in the bottom legend beyond its K pad, away from "
+          f"its A pad; the shortest {short[0]:.2f} mm alongside {short[1]} (min half its edge); {bad} problems")
     return bad
 
 
@@ -1152,15 +1379,21 @@ if __name__ == "__main__":
     plane_px = {ly: np.isin(lab[ly], [c for c in range(1, ncomp[ly] + 1) if comp_nets.get(find((ly, c))) == {pnet}])
                 for ly, pnet in B.PLANES.items()}
     r = int(reach / PX)
+
+    def near_mm(v):
+        return f"{v:.2f} mm" if v < math.inf else f"none within {reach:.1f} mm"
+
     for mx, my in B.MOUNTS:
         i0, j0 = ij(mx, my)
         ii, jj = np.mgrid[max(i0 - r, 0):min(i0 + r + 1, HPX), max(j0 - r, 0):min(j0 + r + 1, WPX)]
         d = np.hypot(jj * PX - mx, ii * PX - my)
         inside = d <= ko
+        here = dict.fromkeys(LAYERS, math.inf)   # this hole's closest copper
         for ly in LAYERS:
             win = ras[ly][ii, jj] & (d <= reach)
             if win.any():
-                ko_near[ly] = min(ko_near[ly], float(d[win].min()))
+                here[ly] = float(d[win].min())
+                ko_near[ly] = min(ko_near[ly], here[ly])
             hit = win & inside
             if not hit.any():
                 continue
@@ -1173,10 +1406,12 @@ if __name__ == "__main__":
                 ko_bad += 1
                 print(f"MOUNT KEEP-OUT {ly}: copper {d[hit].min():.2f} mm from the hole centre at ({mx}, {my}) "
                       f"(keep-out {ko})")
+        print(f"  mounting hole at ({mx:g}, {my:g}): closest copper F {near_mm(here['F'])}, B {near_mm(here['B'])}, "
+              f"inner planes {near_mm(min(here[ly] for ly in B.PLANES))}")
     ko_near["planes"] = min(ko_near[ly] for ly in B.PLANES)
-    near = {ly: f"{v:.2f} mm" if v < math.inf else f"none within {reach:.1f} mm" for ly, v in ko_near.items()}
-    print(f"mount keep-out: closest copper to a mounting-hole centre F {near['F']}, B {near['B']} (min {ko}); "
-          f"inner planes from {near['planes']}, plane copper only; {ko_bad} violations")
+    near = {ly: near_mm(v) for ly, v in ko_near.items()}
+    print(f"mount keep-out: {len(B.MOUNTS)} holes, closest copper to a hole centre F {near['F']}, B {near['B']} "
+          f"(min {ko}); inner planes from {near['planes']}, plane copper only; {ko_bad} violations")
     bad += ko_bad
 
     # --- LED cutouts (milled through the board, in Edge_Cuts): no copper inside on any layer, the inner planes
@@ -1196,7 +1431,10 @@ if __name__ == "__main__":
           f"{min(cut_near[ly] for ly in B.PLANES):.2f} mm (raster {PX}); {cut_bad} violations")
     bad += cut_bad
 
-    # --- geometric clearance DRC (outer layers) ---
+    # --- the outer copper Gerbers and the drill files hold the design primitives, and the geometric clearance DRC
+    # on those ---
+    bad += copper_model(pads, rd["segments"], rd["vias"])
+    bad += drill_model(pads, rd["vias"])
     items = copper_items(pads, rd["segments"], rd["vias"])
     worst, viol = 9, 0
     for i, j in near_pairs([it[1] for it in items], 0.5):
@@ -1210,9 +1448,12 @@ if __name__ == "__main__":
             print("CLEARANCE", round(dd, 3), a[2], a[3], b[2], b[3], a[0])
     for it in items:
         bb = bbox(it[1])
+        # the board edge: bounding boxes against the outline's straight sides, exact on the primitives, so the
+        # tolerance is rounding alone (as in precheck.py). At the rounded corners the corner holes' keep-outs
+        # reach to within 0.11 mm of the outline, less than any trace is wide.
         e = min(bb[0], bb[1], B.W - bb[2], B.H - bb[3])
-        if e < B.EDGE_CLEAR - 0.05:
-            viol += 1; print("NEAR EDGE", it[2], it[3], round(e, 2))
+        if e < B.EDGE_CLEAR - 1e-6:
+            viol += 1; print("NEAR EDGE", it[2], it[3], round(e, 3))
         for (x, y, dd) in B.NPTH:
             dist = item_dist(it[1], ("cap", x, y, x, y, dd / 2))
             if dist < 0.15:
@@ -1261,7 +1502,9 @@ if __name__ == "__main__":
     hole_bad += j1_shell(ras["B"], pads)
     hole_bad += usb_protection(ras, pth, pads, rd["segments"], rd["vias"])
     hole_bad += silk_clear(pth, npth)
+    hole_bad += edge_cuts()
     hole_bad += silk_edge()
+    hole_bad += cathode_bars(pads)
     pin_bad = footprints(pads)
     pin_bad += tht_footprints(pads)
     sys.exit(1 if (bad or floating or viol or hole_bad or pin_bad) else 0)

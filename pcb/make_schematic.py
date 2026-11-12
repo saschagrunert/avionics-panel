@@ -45,7 +45,7 @@ SHEETS = ("USB-C and power", "RP2040, flash, crystal", "Key matrix", "Knobs and 
 # figure 3 (pinout, QFN-56), Winbond W25Q16JV datasheet section 3.1 (SOIC-8 208 mil / 150 mil pin names),
 # USB Type-C specification release 2.x table 3-4 (receptacle pin assignments).
 RP2040_PINS = {1: "IOVDD", 10: "IOVDD", 19: "TESTEN", 20: "XIN", 21: "XOUT", 22: "IOVDD", 23: "DVDD",
-               24: "SWCLK", 25: "SWD", 26: "RUN", 33: "IOVDD", 42: "IOVDD", 43: "ADC_AVDD", 44: "VREG_IN",
+               24: "SWCLK", 25: "SWD", 26: "RUN", 33: "IOVDD", 42: "IOVDD", 43: "ADC_AVDD", 44: "VREG_VIN",
                45: "VREG_VOUT", 46: "USB_DM", 47: "USB_DP", 48: "USB_VDD", 49: "IOVDD", 50: "DVDD",
                51: "QSPI_SD3", 52: "QSPI_SCLK", 53: "QSPI_SD0", 54: "QSPI_SD2", 55: "QSPI_SD1", 56: "QSPI_SS"}
 GPIO_PIN = dict(zip(range(30), [*range(2, 10), *range(11, 19), *range(27, 33), *range(34, 42)], strict=True))
@@ -343,7 +343,7 @@ def sheet_power(s):
         s.end(*p[top], ref, top, "u")
         s.end(*p[bot], ref, bot, "d")
     s.note(20, 46, ["C_IO1, C_IO10, C_IO22, C_IO49: one at each IOVDD pin but 33 (C_IO49 also USB_VDD); C_D2 (1 uF):",
-                    "IOVDD 42, ADC_AVDD and VREG_IN. C_D1, C_D3, C_BULK: on the 3V3 plane, shared by IOVDD 33. C_FL:",
+                    "IOVDD 42, ADC_AVDD and VREG_VIN. C_D1, C_D3, C_BULK: on the 3V3 plane, shared by IOVDD 33. C_FL:",
                     "flash VCC. C_1V0 to C_1V2: DVDD and VREG_VOUT (the RP2040's internal 1.1 V core regulator).",
                     "U4 takes D+ and D- through two channels each. R_IN (1 ohm) damps the hot-plug ringing on C_IN",
                     "and gives way first on a short on VBUS_F (U4's clamp included); F1 (0.5 A PTC) covers slow",
@@ -358,7 +358,7 @@ def sheet_mcu(s):
     by_name = {}
     for n, name in RP2040_PINS.items():
         by_name.setdefault(name, []).append(n)
-    left_names = ["IOVDD", "DVDD", "VREG_IN", "VREG_VOUT", "USB_VDD", "ADC_AVDD", None, "RUN", "TESTEN", None,
+    left_names = ["IOVDD", "DVDD", "VREG_VIN", "VREG_VOUT", "USB_VDD", "ADC_AVDD", None, "RUN", "TESTEN", None,
                   "XIN", "XOUT", None, "SWCLK", "SWD", None, "USB_DP", "USB_DM", None, "QSPI_SS", "QSPI_SCLK",
                   "QSPI_SD0", "QSPI_SD1", "QSPI_SD2", "QSPI_SD3"]
     left = []
@@ -381,7 +381,7 @@ def sheet_mcu(s):
     s.wire([rb["2"], jp["1"]], [("R_BOOT", "2"), ("JP_BOOT", "1")])
     s.text(193, 138, net("R_BOOT", "2"), 5.6, color=WIRE, ha="right")
     s.end(*jp["2"], "JP_BOOT", "2", "d")
-    s.note(212, 146, ["JP_BOOT: bridge pads under a hole in the", "case floor. Bridged while plugging in USB,",
+    s.note(212, 146, ["JP_BOOT: bridge pads under a hole in the", "body floor. Bridged while plugging in USB,",
                       "chip select low starts the USB bootloader."])
 
     s.heading(166, 120, "12 MHz crystal")

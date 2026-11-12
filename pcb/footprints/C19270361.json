@@ -2,8 +2,8 @@
  "lcsc": "C19270361",
  "title": "PEC11D-4120F-S0015",
  "package": "RES-ADJ-TH_PEC11D-4120F-S0015",
- "source": "JLCPCB / EasyEDA library footprint, https://easyeda.com/api/products/C19270361/components, fetched 2026-11-10",
- "frame": "top view, mm, x right, y down, from the footprint origin; pads: number, x, y, size x, size y; holes: number, x, y, drill, slot length (0: round); npth: x, y, diameter",
+ "source": "JLCPCB / EasyEDA library footprint, https://easyeda.com/api/products/C19270361/components, fetched 2026-11-12",
+ "frame": "top view, mm, x right, y down, from the footprint origin; pads: number, x, y, size x, size y; pins: pad number, the pin's name in JLC's symbol; holes: number, x, y, drill, slot length (0: round); npth: x, y, diameter",
  "pads": [
   ["1", -2.5, -8.5, 1.8, 1.8],
   ["2", -0.0, -8.5, 1.8, 1.8],
@@ -15,6 +15,18 @@
   ["8", 2.5, 8.5, 1.8, 1.8],
   ["9", -5.5, 1.0, 2.1, 3.2],
   ["10", 5.5, 1.0, 2.1, 3.2]
+ ],
+ "pins": [
+  ["1", "A"],
+  ["2", "C"],
+  ["3", "B"],
+  ["4", "S"],
+  ["5", "W"],
+  ["6", "A"],
+  ["7", "C"],
+  ["8", "B"],
+  ["9", "EH"],
+  ["10", "EH"]
  ],
  "holes": [
   ["1", -2.5, -8.5, 1.1, 0.0],

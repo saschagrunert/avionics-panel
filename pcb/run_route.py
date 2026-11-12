@@ -1,6 +1,8 @@
 """Routes the rev 1 board. Usage: python3 run_route.py [seed] [x]
 
-Writes routed.json; with any second argument routed_<seed>.json instead, so several seeds can run in parallel."""
+Writes routed.json; with any second argument routed_<seed>.json instead, so several seeds can run in parallel.
+The file is written only when every net is routed, none with a detour and the USB pair within its limits (what
+check.py accepts); otherwise the file is left as it is and the exit status is 1."""
 import json
 import math
 import random
@@ -55,15 +57,12 @@ def span(net):
 local.sort(key=span)
 direct.sort(key=lambda n: -span(n))
 matrix.sort(key=lambda n: span(n))
-if seed:
-    rnd.shuffle(direct)
-    rnd.shuffle(matrix)
 
 # MCU-local nets first (short, critical), then the long ones. The two USB-C lines are not among them: they lead
 # the nets the rip-up below may reorder, so when they take the north fan-out's only way out to the west
-# (GP12, GP13, GP15) those nets move ahead of them on the next pass
-PRIO = ["QSPI_SD2", "QSPI_SCLK", "QSPI_SD0", "QSPI_SD1", "QSPI_SD3", "QSPI_SS",
-        "BOOT_SW", "USB_DM", "USB_DP", "CC1", "CC2", "VBUS"]
+# (GP12, GP13, GP15) those nets move ahead of them on the next pass. (The other QSPI lines, CC1, CC2 and VBUS
+# are pre-routed in board.py: the router does not see them.)
+PRIO = ["QSPI_SS", "BOOT_SW", "USB_DM", "USB_DP"]
 first = [n for n in PRIO if n in bynet]
 rest = [n for n in local + direct + matrix if n not in first]
 keyloc = [n for n in rest if n.startswith("K") and n.endswith("_K")]
@@ -73,7 +72,6 @@ mfirst = [n for n in MATRIX_ORDER if n in bynet and n not in first]
 if seed % 2:
     mfirst.reverse()
 others = [n for n in others if n not in mfirst]
-order = keyloc + first + mfirst + others
 
 
 def run(order):
@@ -152,8 +150,16 @@ if __name__ == "__main__":
         mov = [n for n in mov if n in failed + detour] + [n for n in mov if n not in failed + detour]
     router, failed, detour = best
     segments, vias = merge_fixed_vias(router.segments, router.vias)   # the board's vias, as routed.json has them
-    with open(f"routed_{seed}.json" if len(sys.argv) > 2 else "routed.json", "w") as f:
-        json.dump({"segments": segments, "vias": vias, "failed": failed}, f)
     L = sum(net_lengths(router.segments).values())
     print(f"seed {seed}: failed {failed} detours {detour} vias {len(vias)} length {L:.0f} mm  "
           f"({time.time()-t0:.0f}s)")
+    out = f"routed_{seed}.json" if len(sys.argv) > 2 else "routed.json"
+    if failed or detour:                       # a board check.py would reject: the file stays as it is
+        length = net_lengths(segments)         # (the USB pair over its limits is among the detours too)
+        long = sum(length.get(n, 0) > limit[n] for n in detour)
+        why = [f"{n} net{'s' * (n > 1)} {what}" for n, what in ((len(failed), "not routed"), (long, "with a detour"))
+               if n]
+        why += [] if usb_lengths(length)[1] else ["the USB pair over its length or skew limit"]
+        sys.exit(f"seed {seed}: {', '.join(why)} after {PASSES} passes, {out} not written")
+    with open(out, "w") as f:
+        json.dump({"segments": segments, "vias": vias}, f)

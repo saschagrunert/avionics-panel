@@ -2,8 +2,8 @@
  "lcsc": "C160841",
  "title": "RKJXT1F42001",
  "package": "SW-TH_RKJXT1F42001",
- "source": "JLCPCB / EasyEDA library footprint, https://easyeda.com/api/products/C160841/components, fetched 2026-11-10",
- "frame": "top view, mm, x right, y down, from the footprint origin; pads: number, x, y, size x, size y; holes: number, x, y, drill, slot length (0: round); npth: x, y, diameter",
+ "source": "JLCPCB / EasyEDA library footprint, https://easyeda.com/api/products/C160841/components, fetched 2026-11-12",
+ "frame": "top view, mm, x right, y down, from the footprint origin; pads: number, x, y, size x, size y; pins: pad number, the pin's name in JLC's symbol; holes: number, x, y, drill, slot length (0: round); npth: x, y, diameter",
  "pads": [
   ["5", 1.0, 6.98, 1.8, 1.8],
   ["6", -1.0, -5.78, 1.8, 1.8],
@@ -15,6 +15,18 @@
   ["C", 1.5, -7.8, 1.8, 1.8],
   ["D", -7.8, -1.5, 1.8, 1.8],
   ["10", 6.86, 3.75, 1.8, 1.8]
+ ],
+ "pins": [
+  ["5", "PUSH"],
+  ["6", "COM"],
+  ["7", "E_B"],
+  ["8", "E_A"],
+  ["9", "E_C"],
+  ["A", "A"],
+  ["B", "B"],
+  ["C", "C"],
+  ["D", "D"],
+  ["10", "10"]
  ],
  "holes": [
   ["5", 1.0, 6.98, 1.2, 0.0],

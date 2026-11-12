@@ -2,10 +2,14 @@
  "lcsc": "C23186",
  "title": "0603WAF5101T5E",
  "package": "R0603",
- "source": "JLCPCB / EasyEDA library footprint, https://easyeda.com/api/products/C23186/components, fetched 2026-11-10",
- "frame": "top view, mm, x right, y down, from the footprint origin; pads: number, x, y, size x, size y",
+ "source": "JLCPCB / EasyEDA library footprint, https://easyeda.com/api/products/C23186/components, fetched 2026-11-12",
+ "frame": "top view, mm, x right, y down, from the footprint origin; pads: number, x, y, size x, size y; pins: pad number, the pin's name in JLC's symbol",
  "pads": [
   ["1", -0.753, 0.0, 0.806, 0.864],
   ["2", 0.753, 0.0, 0.806, 0.864]
+ ],
+ "pins": [
+  ["1", "1"],
+  ["2", "2"]
  ]
 }

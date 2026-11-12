@@ -76,7 +76,7 @@ def pushed(knob, shifted):
 
 
 def test_knob_push_legends_match_the_firmware():
-    # the push named on each knob ring (plain legend outside, SHIFT legend inside) is what that knob sends
+    # the push named on each knob ring (plain legend inside, SHIFT legend outside) is what that knob sends
     for knob, legends in S.KNOB_LEGENDS.items():
         for shifted, legend in enumerate(legends):
             if legend is None:

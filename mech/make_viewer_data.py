@@ -30,6 +30,7 @@ part = {ref: (x, y) for ref, _v, _l, x, y, _r, _s in B.PARTS}
 
 geometry = {
     "board": {"w": B.W, "h": B.H, "corner_r": B.CORNER_R, "t": S.PCB_T, "mounts": B.MOUNTS,
+              "corner_mounts": B.CORNER_MOUNTS, "mid_mount": B.MID_MOUNT,
               "mount_hole": B.MOUNT_HOLE, "key_pad_dx": B.KEY_DX, "key_pad_dy": B.KEY_DY},
     "body": {"clear": MM.CLEAR, "wall": MM.WALL, "overhang": S.OVH, "z_bot": MM.Z_BOT,
              "z_floor": MM.Z_FLOOR_TOP, "wall_gap": S.WALL_GAP, "tilt_deg": S.BODY_TILT, "boss_r": MM.BOSS_R,
@@ -38,16 +39,16 @@ geometry = {
              "ribs_y": MM.RIBS_Y, "rib_t": MM.RIB_T, "boss_r_low": MM.BOSS_R_LOW, "counterbore_r": MM.HEAD_R,
              "seat_z": S.SEAT_Z, "feet": MM.FEET, "foot_pad": MM.FOOT_PAD,
              "foot_bridges": MM.foot_bridges(), "support_top": MM.SUPPORT_TOP, "usb_open": MM.USB_OPEN,
-             "usb_notch_w": MM.USB_NOTCH_W, "usb_filler": MM.USB_FILLER},
+             "mid_bar_w": S.MID_BAR["w"], "join_short": MM.JOIN_SHORT},
     "plate": {"z0": S.PLATE_Z0, "z1": S.PLATE_Z1, "key_hole": S.KEY_HOLE, "shaft_hole": S.SHAFT_HOLE,
-              "range_hole": S.RANGE_HOLE},
+              "range_hole": S.RANGE_HOLE, "tongue": {k: S.USB_TONGUE[k] for k in ("w", "d", "h")}},
     "keys": {"cols": B.COLS, "rows": B.ROWS, "cap": [S.CAP["w"], S.CAP["h"]], "cap_height": S.CAP["height"],
              "cap_chamfer": S.CAP["cham"], "cap_base": S.CAP["base"], "plunger_top": S.PLUNGER_TOP,
              "plunger": S.PLUNGER, "switch_top": S.SWITCH_BODY_TOP, "bar": S.CAP_BAR,
              "legend": {"weight": S.LEGEND_WEIGHT, "grow": S.LEGEND_GROW, "line": S.LEGEND_LINE,
                         "flip_polys": S.CAP_FLIP_ICON}},
     "key_legends": S.KEY_LEGENDS,
-    "flip_icon": {"w": S.FLIP_W, "gap": S.FLIP_GAP, "polys": S.FLIP_ICON},
+    "flip_icon": {"w": S.FLIP_W, "gap": S.FLIP_GAP, "polys": S.FLIP_ICON}, "shift_legend": S.SHIFT_LEGEND,
     "knobs": {name: {"x": x, "y": y, "flutes": S.OUTER_FLUTES.get(name), "legend_tilt": S.KNOB_LEGEND_TILT[name],
                      "legend": S.KNOB_LEGENDS[name][0], "legend_shift": S.KNOB_LEGENDS[name][1]}
               for name, (x, y) in (("ALTHDG", B.ALTHDG), ("FREQ", B.FREQ), ("FMS", B.FMS), ("RANGE", B.RANGE))},

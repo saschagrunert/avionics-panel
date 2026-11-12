@@ -10,9 +10,9 @@ copies of the unit controls (FMS keys and knob, CDI / OBS, flip-flops, frequency
 # physical key matrix (rows GP11, GP8, GP5, GP2, GP0 x columns GP1, GP3, GP4, GP6, GP7, GP9, GP10)
 MATRIX = (
     ("AP", "ALT", "HDG", "MIC1", "COM1", "CDI", "COM_SWAP"),
-    ("FD", "VS", "NAV", "MIC2", "COM2", "VFR", "NAV_SWAP"),
-    ("UP", "FLC", "APR", "HOME", "FPL", "DIRECT", "MENU"),
-    ("DN", "VNV", "LVL", "SHIFT", "PROC", "CLR", "ENT"),
+    ("FD", "VNV", "NAV", "MIC2", "COM2", "VFR", "NAV_SWAP"),
+    ("UP", "VS", "APR", "HOME", "FPL", "DIRECT", "MENU"),
+    ("DN", "FLC", "LVL", "SHIFT", "PROC", "CLR", "ENT"),
     ("RANGE_A", "RANGE_B", "RANGE_C", "RANGE_D", "RANGE_COM", "ALTHDG_PUSH", "FMS_PUSH"),
 )
 
@@ -46,12 +46,13 @@ def _turn(base, fast=None):
 # slot, and a key whose plain and shifted functions trade places keeps the numbers of its functions.
 # Joined with +, not *-unpacking: MicroPython (and so CircuitPython) has no * inside a list literal.
 DEVICE1_ONLY = (
-    # plain keys (PLAIN_KEYS), then their shifted functions in the same order
+    # plain keys (PLAIN_KEYS), then their shifted functions in the same order: the numbers' order, not MATRIX's
     ["AP", "ALT", "HDG", "FD", "VS", "NAV", "UP", "FLC", "APR", "DN", "VNV", "LVL", "MIC1", "COM1", "MIC2", "COM2",
      "VFR",
      "TEST", "ARM", "CRS_CTR", "YD", "S_VS", "GPSS", "S_UP", "S_FLC", "BC", "S_DN", "S_VNV", "HALF_BANK",
      "ADF_AUDIO", "NAV1_AUDIO", "DME_AUDIO", "NAV2_AUDIO", "IDENT"]
-    # ALT / HDG knob; with SHIFT: CRS / BARO, push STD
+    # ALT / HDG knob (outer / inner ring); with SHIFT: BARO / CRS, push STD. CRS comes before BARO here: the
+    # order is frozen with the numbers.
     + _turn("ALT_100", "ALT_1000") + _turn("HDG_1", "HDG_10") + ["HDG_SYNC"]
     + _turn("CRS_1", "CRS_10") + _turn("BARO") + ["BARO_STD"]
     # RANGE: turn, tilt (pan), push (pointer); shifted copies are free for own mappings
