@@ -1,10 +1,12 @@
 """The live panel (sim/live.py) in the browser: serves the 3D view (viewer/) with the panel playable in it, and an
 API for it. Python's standard library only.
 
-    python3 -m sim.page [--uhid] [--port N] [--host ADDR]
+    python3 -m sim.page [--uhid | --vjoy] [--port N] [--host ADDR] [--open]
 
 prints the page's URL (http://127.0.0.1:8000/?sim): the ?sim makes the viewer play the panel (viewer/sim.js).
-With --uhid the reports also go to a Linux HID device, as with `python3 -m sim.uhid`.
+With --uhid the reports also go to a Linux HID device, as with `python3 -m sim.uhid`; with --vjoy to vJoy's
+devices 1 and 2 on Windows, as with `python -m sim.vjoy`. --open opens the page in the default browser once it
+is served.
 
 The API, under /sim/:
 
@@ -39,6 +41,7 @@ import socket
 import sys
 import threading
 import time
+import webbrowser
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
@@ -46,6 +49,7 @@ from urllib.parse import parse_qs, urlsplit
 from sim import BM, LIGHTS, TILT, key_name
 from sim.live import USAGE, Live, parse
 from sim.uhid import Uhid
+from sim.vjoy import VJoy
 
 VIEWER = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "viewer")
 GEOMETRY = os.path.join(VIEWER, "geometry.js")
@@ -105,6 +109,9 @@ def lan_address():
 
 class Page(ThreadingHTTPServer):
     daemon_threads = True
+    # Windows' SO_REUSEADDR lets a second server bind a port that another one listens on, and either then gets
+    # the connections: there the port must be free
+    allow_reuse_address = sys.platform != "win32"
 
     def __init__(self, live, address=("127.0.0.1", 0), forward=None):
         """Serves the page for a Live, not started yet: start it with output as its output. forward(device,
@@ -276,20 +283,26 @@ def main(argv=None):
     parser.add_argument("--port", type=int, default=8000, help="the port to serve on (default 8000)")
     parser.add_argument("--host", default="127.0.0.1",
                         help="the address to serve on (default 127.0.0.1; 0.0.0.0 for a tablet on the network)")
-    parser.add_argument("--uhid", action="store_true", help="also feed a Linux HID device (sim.uhid)")
+    outputs = parser.add_mutually_exclusive_group()
+    outputs.add_argument("--uhid", action="store_true", help="also feed a Linux HID device (sim.uhid)")
+    outputs.add_argument("--vjoy", action="store_true", help="also feed vJoy devices 1 and 2 on Windows (sim.vjoy)")
+    parser.add_argument("--open", action="store_true", help="open the page in the default browser")
     args = parser.parse_args(argv)
-    live, uhid = Live(), None
+    live, out = Live(), None
     try:
-        if args.uhid:
-            uhid = Uhid(live)
-        page = Page(live, (args.host, args.port), uhid.send if uhid else None)
+        if args.uhid or args.vjoy:
+            out = Uhid(live) if args.uhid else VJoy(live)
+        page = Page(live, (args.host, args.port), out.send if out else None)
     except OSError as e:
-        if uhid:
-            uhid.close()
+        if out:
+            out.close()
         sys.exit(f"sim.page: {e}")
     live.start(page.output)
     threading.Thread(target=page.serve_forever, name="page", daemon=True).start()
-    print(f"The panel{f' ({uhid.name} on uhid)' if uhid else ''}: {page.url} (Ctrl-C ends it)", flush=True)
+    on = f" ({out.name}{' on uhid' if args.uhid else ''})" if out else ""
+    print(f"The panel{on}: {page.url} (Ctrl-C ends it)", flush=True)
+    if args.open:
+        webbrowser.open(page.url)
     try:
         while live.thread.is_alive():
             live.thread.join(0.5)
@@ -300,8 +313,8 @@ def main(argv=None):
         try:
             live.stop()                        # raises the live panel's fatal error, with its traceback
         finally:
-            if uhid:
-                uhid.close()
+            if out:
+                out.close()
 
 
 if __name__ == "__main__":

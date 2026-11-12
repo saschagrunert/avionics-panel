@@ -20,3 +20,6 @@ coverage.xml
 # MobiFlight: HubHop's presets (python3 -m mobiflight.hubhop) and the projects made from them
 /hubhop-presets.json
 /*.mfproj
+
+# the simulator for Windows (windows/make_zip.py)
+/dist/

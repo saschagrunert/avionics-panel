@@ -109,6 +109,8 @@ interface number, so Windows may list them as two more game controllers with Dir
 - Mappings made on the [Pico bench](../building/bring-up.md#pico-bench) do not carry over to the board: the
   board reports another USB serial number, so Windows gives its joysticks new GUIDs. Map the board's joysticks
   again.
+- Mappings made on the [simulator](simulator.md)'s vJoy devices do not attach to the panel either: bind them to
+  the panel's devices once it is plugged in ([how](simulator.md#from-the-simulator-to-the-panel)).
 
 ## Device name
 

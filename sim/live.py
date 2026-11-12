@@ -11,11 +11,11 @@ the tests, with code.py in a thread of its own, paced to the wall clock.
 act() takes Sim's actions by their names (press, release, tap, tilt, turn, wait), with the same inputs and timing,
 and queues them: each starts when the ones before it have ended, or at once if they have. press, release and
 `turn ring n 0` take no time, so the next action follows at once; tap, tilt, wait and a turn with its default
-spacing take theirs. parse() reads an action from a line of text, as sim.uhid's stdin and the page send them. A
-switch changes no sooner than PRESS_MIN_MS after its last change, on the panel's clock, as a finger does: a click
-shorter than a key scan would be lost, and clicks that reach a panel running late all at once would be one press
-(code.py takes a gap that short for a bounce). A report goes to output as device 1 or 2 and its bytes, the report
-ID first, at the ms the host takes it.
+spacing take theirs. parse() reads an action from a line of text, as the page sends them and from_stdin() reads
+them for sim.uhid and sim.vjoy. A switch changes no sooner than PRESS_MIN_MS after its last change, on the
+panel's clock, as a finger does: a click shorter than a key scan would be lost, and clicks that reach a panel
+running late all at once would be one press (code.py takes a gap that short for a bounce). A report goes to
+output as device 1 or 2 and its bytes, the report ID first, at the ms the host takes it.
 
 An error in code.py's loop goes as on the board: its handler releases every button, prints the error (to stderr,
 and kept in printed), waits 2 s and reloads, and code.py starts again on the same board. boot.py does not run
@@ -25,6 +25,7 @@ do() or in the output, ends the thread: stop(), idle(), act() and do() raise it 
 import math
 import queue
 import re
+import sys
 import threading
 import time
 import traceback
@@ -48,6 +49,7 @@ BEHIND_S = 0.005     # further behind the wall clock than this (a stall): go on 
 # (BOUNCE_MS 30), a pass (3) and up to four frames of the endpoint the devices share (32), with room
 SETTLE_MS = 100
 KEEP = 16            # the records kept of each kind (the last sends, light writes, sleeps, reloads, errors)
+LINES = {**USAGE, "lights": "lights"}   # what from_stdin() takes
 
 
 def parse(line, usage=USAGE):
@@ -74,6 +76,37 @@ def parse(line, usage=USAGE):
             raise ValueError(f"usage: {form} ({TURN_MAX} detents at most)")
         args.append(word if field in NAMES else int(word))
     return words[0], args
+
+
+def from_stdin(live, output, prog):
+    """Runs live into output (its send and close) on the actions read from stdin, one per line (LINES), until the
+    input ends; `lights` prints both lights' duty once the actions before it have taken effect. Exits with prog's
+    message when the panel stops."""
+    sys.stdin.reconfigure(errors="replace")
+    live.start(output.send)
+    try:
+        try:
+            for line in sys.stdin:
+                try:
+                    action = parse(line, LINES)
+                    if action and action[0] == "lights":
+                        live.act("wait", SETTLE_MS)
+                        live.do(lambda b: print(f"SHIFT {b.light('SHIFT'):#06x} UNIT {b.light('UNIT'):#06x}",
+                                                flush=True))
+                    elif action:
+                        live.act(action[0], *action[1])
+                except ValueError as e:
+                    print(f"{line.strip()}: {e}", file=sys.stderr)
+            live.idle()
+        finally:
+            try:
+                live.stop()
+            finally:
+                output.close()
+    except KeyboardInterrupt:
+        pass
+    except Exception as e:                             # the panel stopped: the output or code.py itself failed
+        sys.exit(f"{prog}: {e.__cause__ or e}")
 
 
 class Live(Board):
