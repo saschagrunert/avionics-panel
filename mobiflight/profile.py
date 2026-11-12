@@ -8,7 +8,8 @@ button is one InputConfigItem: the joystick as Controller {Name, Serial "JS-" + 
 the button as Device {"Type": "Button", "Name": "Button N"} (N from 1, as BUTTONS.md numbers them), and its
 actions as MSFS2020CustomInputAction {Command, PresetId}, which MobiFlight 11 uses for MSFS 2020 and 2024.
 MobiFlight matches an event to an item by the serial and the button name; on loading it binds the project's
-controllers to the connected ones by name and serial.
+controllers to the connected ones by name and serial. With onLongRelease empty it runs onRelease however long
+the button was held (ButtonInputConfig.ResolveDispatchedEvent), which a key held on purpose relies on.
 """
 import importlib.util
 import json

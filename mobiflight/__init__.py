@@ -1,7 +1,8 @@
 """MobiFlight profiles for the panel, one per avionics family (docs/using/mapping.md#generated-profiles).
 Standard library only.
 
-- families/: one table per avionics family, each button name of firmware/buttonmap.py -> HubHop preset names.
+- families/: one table per avionics family, each button name of firmware/buttonmap.py -> HubHop preset names,
+  joined from the parts the families share (parts.py).
 - hubhop.py: downloads HubHop's preset database and looks the presets up in it.
 - profile.py: writes the MobiFlight 11 project (.mfproj) for both joysticks.
 

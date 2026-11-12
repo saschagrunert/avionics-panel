@@ -87,10 +87,14 @@ def main(argv=None):
             f.write(data)
     except OSError as e:
         sys.exit(f"cannot save HubHop's presets to {args.output}: {e}")
-    try:
-        lookup(database, names())
-    except ValueError as e:
-        sys.exit(f"saved {args.output}, but {e}")
+    errors = []                  # per family: one that HubHop broke leaves the others usable
+    for key, family in sorted(FAMILIES.items()):
+        try:
+            lookup(database, names([family]))
+        except ValueError as e:
+            errors.append(f"--family {key} cannot be generated: {e}")
+    if errors:                   # still an error, for CI
+        sys.exit(f"saved {args.output}, but " + "\n".join(errors))
     print(f"saved {args.output}: every preset of the family tables found", file=sys.stderr)
 
 

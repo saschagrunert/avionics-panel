@@ -34,6 +34,7 @@ def preset(name, **fields):
 
 DATABASE = [preset(name) for name in sorted(hubhop.names())]
 PRESETS = {profile.key(p): p for p in DATABASE}
+NO_TDS = [p for p in DATABASE if p["vendor"] != "TDS Sim"]          # as if HubHop dropped TDS's presets
 
 
 @pytest.fixture
@@ -77,7 +78,9 @@ def test_every_button_is_mapped_or_listed_as_unmapped(key):
         assert all(reason for reason in family.UNMAPPED[device].values())
 
 
-UP, DOWN = {"inc", "up"}, {"dec", "down", "dn"}
+# the words of a preset that increases or goes up (a GNS knob turned right, its map zoomed out), and of one that
+# decreases or goes down; of several, as in "RANGE ZOOM - Inc", the last one counts
+UP, DOWN = {"inc", "up", "right", "dezoom"}, {"dec", "down", "dn", "left", "zoom"}
 
 
 @FAMILY
@@ -88,22 +91,65 @@ def test_turns_and_tilts_use_presets_of_their_direction(key):
         for button, entry in buttons.items():
             last = button.rsplit("_", 1)[-1]
             for name in profile.actions(entry).values():
-                words = set(re.split(r"[^a-z0-9]+", name.split(".", 2)[2].lower()))
+                words = re.split(r"[^a-z0-9]+", name.split(".", 2)[2].lower())
+                way = [word for word in words if word in UP | DOWN]
                 if last in ("CCW", "DN"):
-                    assert words & DOWN and not words & UP, (button, name)
+                    assert way and way[-1] in DOWN, (button, name)
                 elif last in ("CW", "UP"):
-                    assert words & UP and not words & DOWN, (button, name)
+                    assert way and way[-1] in UP, (button, name)
                 elif last in ("LEFT", "RIGHT"):
                     assert last.lower() in words, (button, name)
 
 
+# the words that name a ring of a dual knob in a preset: the G1000 calls its FMS rings lower and upper
+OUTER, INNER = ("outer", "large", "lower"), ("inner", "small", "upper")
+RINGS = {"ALT_1000": OUTER, "ALT_100": INNER, "FMS_OUTER": OUTER, "FMS_INNER": INNER}
+
+
 @FAMILY
-def test_unit_2_tunes_other_radios(key):
-    # unit 2 is the second COM and NAV radio: no COM or NAV button sends the same preset from both devices
+def test_rings_use_presets_of_their_ring(key):
+    # ALT's outer ring (1000 ft) and inner knob (100 ft), and FMS's, each turn the ring of their name
+    for buttons in FAMILIES[key].DEVICE.values():
+        for button, entry in buttons.items():
+            ring = RINGS.get(button.rsplit("_", 1)[0])
+            if ring is None:
+                continue
+            other = INNER if ring is OUTER else OUTER
+            for name in profile.actions(entry).values():
+                label = name.split(".", 2)[2].lower()
+                assert any(w in label for w in ring) and not any(w in label for w in other), (button, name)
+
+
+@FAMILY
+def test_numbered_buttons_use_presets_of_their_number(key):
+    # MIC 1, COM 1 and NAV 1 audio work radio 1, the ones with 2 radio 2
+    for buttons in FAMILIES[key].DEVICE.values():
+        for button, entry in buttons.items():
+            number = re.fullmatch(r"(?:MIC|COM|NAV)([12])(?:_AUDIO)?", button)
+            if number is None:
+                continue
+            for name in profile.actions(entry).values():
+                assert set(re.findall(r"[12]", name.split(".", 2)[2])) == {number[1]}, (button, name)
+
+
+@FAMILY
+def test_a_press_preset_comes_with_its_release(key):
+    # a preset that holds a key down (TDS's Home_Press and the like) is let go by its own release preset
+    for buttons in FAMILIES[key].DEVICE.values():
+        for button, entry in buttons.items():
+            acts = profile.actions(entry)
+            if acts.get("onPress", "").endswith("_Press"):
+                assert acts.get("onRelease", "").rsplit("_", 1)[0] == acts["onPress"].rsplit("_", 1)[0], button
+
+
+@FAMILY
+def test_units_share_only_the_adf(key):
+    # unit 2 is the second radio and, beside the G1000, whose units share the MFD, the second navigator: only the
+    # one ADF (and the G1000's MFD) gets the same preset from both devices
     device = FAMILIES[key].DEVICE
-    for button in device[2]:
-        if button.startswith(("COM_", "NAV_")) and button in device[1]:
-            assert device[1][button] != device[2][button], button
+    for button in set(device[1]) & set(device[2]):
+        if device[1][button] == device[2][button]:
+            assert button.startswith("ADF_") or key == "g1000" and not button.startswith(("COM_", "NAV_")), button
 
 
 # ---------------- HubHop's database ----------------
@@ -147,17 +193,18 @@ def test_load_says_how_to_download(tmp_path):
 
 
 class Server(http.server.BaseHTTPRequestHandler):
-    """HubHop as it might answer: the database, something else, an error, or a transfer cut off"""
+    """HubHop as it might answer: the database, the database without TDS's presets, something else, an error,
+    or a transfer cut off"""
     def log_message(self, *args):
         pass
 
     def do_GET(self):
         path = self.path.strip("/")
-        if path not in ("db", "empty", "cut", *NOT_THE_DATABASE):
+        if path not in ("db", "no_tds", "empty", "cut", *NOT_THE_DATABASE):
             self.send_error(int(path) if path.isdigit() else 404)
             return
-        body = {"db": json.dumps(DATABASE).encode(), "empty": b"[]", "cut": b"[" + b" " * 500}.get(path) or \
-            NOT_THE_DATABASE[path][0]
+        body = {"db": json.dumps(DATABASE).encode(), "no_tds": json.dumps(NO_TDS).encode(), "empty": b"[]",
+                "cut": b"[" + b" " * 500}.get(path) or NOT_THE_DATABASE[path][0]
         self.send_response(200)
         self.send_header("Content-Length", str(100_000 if path == "cut" else len(body)))
         self.end_headers()
@@ -193,11 +240,16 @@ def test_a_failed_download_keeps_the_saved_database(tmp_path, server, path, erro
     assert out.read_text(encoding="utf-8") == "good"
 
 
-def test_a_database_without_a_tables_preset_is_saved_with_the_error(tmp_path, server):
+@pytest.mark.parametrize("path, saved_presets, broken", [("empty", [], sorted(FAMILIES)), ("no_tds", NO_TDS, ["gtn"])])
+def test_a_database_without_a_tables_preset_is_saved_with_the_error(tmp_path, server, path, saved_presets, broken):
+    # the error names the families that cannot be generated, and only those: the others still can
     out = tmp_path / "saved.json"
-    with pytest.raises(SystemExit, match=f"saved {re.escape(str(out))}, but these names do not name exactly one"):
-        hubhop.main(["-o", str(out), "--url", server + "empty"])
-    assert out.read_text(encoding="utf-8") == "[]"
+    with pytest.raises(SystemExit) as error:
+        hubhop.main(["-o", str(out), "--url", server + path])
+    assert str(error.value).startswith(f"saved {out}, but --family ")
+    assert re.findall(r"--family (\w+) cannot be generated: these names do not name exactly one", str(error.value)) \
+        == broken
+    assert json.loads(out.read_text(encoding="utf-8")) == saved_presets
 
 
 def test_a_database_that_cannot_be_saved(tmp_path, server):
@@ -326,9 +378,10 @@ def test_joysticks_from_a_saved_project(tmp_path, bound, joysticks):
     assert profile.controllers_from(saved(tmp_path, *bound)) == joysticks
 
 
-def test_a_generated_project_reads_back_its_joysticks(tmp_path):
+@FAMILY
+def test_a_generated_project_reads_back_its_joysticks(tmp_path, key):
     out = tmp_path / "out.mfproj"
-    out.write_text(profile.dumps(build(VJOY)), encoding="utf-8")
+    out.write_text(profile.dumps(build(VJOY, key)), encoding="utf-8")
     assert profile.controllers_from(str(out)) == VJOY
 
 
@@ -344,12 +397,20 @@ def test_saved_projects_that_do_not_tell_the_joysticks_apart(tmp_path, bound, pa
 
 
 # ---------------- the command line ----------------
-def test_command_line_from_a_saved_project(tmp_path, database, capsys, monkeypatch):
+@FAMILY
+def test_command_line_from_a_saved_project(tmp_path, database, capsys, monkeypatch, key):
     monkeypatch.chdir(tmp_path)
-    cli.main(["--family", "g1000", "--from", saved(tmp_path, (*PANEL[1], 83), (*PANEL[2], 10)),
-              "--hubhop", database])
-    assert (tmp_path / "g1000.mfproj").read_text(encoding="utf-8") == profile.dumps(build())
-    assert "unmapped (the reasons are in mobiflight/families/g1000.py): TEST, ARM" in capsys.readouterr().err
+    cli.main(["--family", key, "--from", saved(tmp_path, (*PANEL[1], 83), (*PANEL[2], 10)), "--hubhop", database])
+    assert (tmp_path / f"{key}.mfproj").read_text(encoding="utf-8") == profile.dumps(build(key=key))
+    # per device the buttons mapped, then each unmapped button with its reason, one line per reason
+    err = capsys.readouterr().err
+    for device, section in zip((1, 2), re.split(r"^device [12] .*\n", err, flags=re.M)[1:], strict=True):
+        assert f"device {device} ({PANEL[device][0]}, {PANEL[device][1]}): {len(FAMILIES[key].DEVICE[device])} " \
+               "buttons mapped\n" in err
+        lines = re.findall(r"^  unmapped ([A-Z0-9_, ]+): (.+)$", section, flags=re.M)
+        assert len({reason for _, reason in lines}) == len(lines)
+        listed = [(button, reason) for buttons, reason in lines for button in buttons.split(", ")]
+        assert sorted(listed) == sorted(FAMILIES[key].UNMAPPED[device].items())
 
 
 def test_command_line_with_serials(tmp_path, database):
@@ -386,12 +447,12 @@ def test_command_line_with_a_file_that_is_not_the_database(tmp_path, capsys):
     assert not (tmp_path / "out.mfproj").exists()
 
 
-# ---------------- workflows (docs/using/controls.md) through the panel and the G1000 profile ----------------
-def sent(sim):
+# ---------------- workflows (docs/using/controls.md) through the panel and the profiles ----------------
+def sent(sim, key="g1000"):
     """The presets MobiFlight sends for what it saw go down on both joysticks, in order per device (an unmapped
     button sends none)"""
     by_button = {(item["Controller"]["Serial"], item["Device"]["Name"]): item["button"]["onPress"]["Command"]
-                 for item in items(build())}
+                 for item in items(build(key=key))}
     assert sim.held(1) == [] and sim.held(2) == []
     out = ([], [])
     for device in (1, 2):
@@ -405,35 +466,41 @@ def sent(sim):
 GEN = "Microsoft.Generic."
 
 
-def test_g1000_tune_com1_and_swap():
+# every family tunes the radios and the transponder directly (mobiflight/families/parts.py)
+@FAMILY
+def test_tune_com1_and_swap(key):
     sim = Sim()
     sim.turn("FREQ_OUTER", 2)
     sim.turn("FREQ_INNER", -3)
     sim.tap("COM_SWAP")
-    assert sent(sim) == ([GEN + "COM_RADIO_WHOLE_INC"] * 2 + [GEN + "COM_RADIO_FRACT_DEC"] * 3
-                         + [GEN + "COM1_RADIO_SWAP"], [])
+    assert sent(sim, key) == ([GEN + "COM_RADIO_WHOLE_INC"] * 2 + [GEN + "COM_RADIO_FRACT_DEC"] * 3
+                              + [GEN + "COM1_RADIO_SWAP"], [])
 
 
-def test_g1000_tune_com2_and_swap():
+@FAMILY
+def test_tune_com2_and_swap(key):
     # SHIFT, HOME (UNIT) first: radio 2
     sim = Sim()
     sim.tap("SHIFT")
     sim.tap("HOME")
     sim.turn("FREQ_INNER", 2)
     sim.tap("COM_SWAP")
-    assert sent(sim) == ([], [GEN + "COM2_RADIO_FRACT_INC"] * 2 + [GEN + "COM2_RADIO_SWAP"])
+    assert sent(sim, key) == ([], [GEN + "COM2_RADIO_FRACT_INC"] * 2 + [GEN + "COM2_RADIO_SWAP"])
 
 
-def test_g1000_tune_nav1():
+@FAMILY
+def test_tune_nav1(key):
     sim = Sim()
     sim.tap("FREQ_PUSH")
     sim.turn("FREQ_OUTER", 1)
     sim.turn("FREQ_INNER", 1)
     sim.tap("NAV_SWAP")
-    assert sent(sim) == ([GEN + "NAV1_RADIO_WHOLE_INC", GEN + "NAV1_RADIO_FRACT_INC", GEN + "NAV1_RADIO_SWAP"], [])
+    assert sent(sim, key) == ([GEN + "NAV1_RADIO_WHOLE_INC", GEN + "NAV1_RADIO_FRACT_INC", GEN + "NAV1_RADIO_SWAP"],
+                              [])
 
 
-def test_g1000_tune_nav2():
+@FAMILY
+def test_tune_nav2(key):
     # in unit 2 the FREQ push, the turns and NAV ⇆ come from device 2: NAV 2
     sim = Sim()
     sim.tap("SHIFT")
@@ -442,10 +509,12 @@ def test_g1000_tune_nav2():
     sim.turn("FREQ_OUTER", -1)
     sim.turn("FREQ_INNER", 1)
     sim.tap("NAV_SWAP")
-    assert sent(sim) == ([], [GEN + "NAV2_RADIO_WHOLE_DEC", GEN + "NAV2_RADIO_FRACT_INC", GEN + "NAV2_RADIO_SWAP"])
+    assert sent(sim, key) == ([], [GEN + "NAV2_RADIO_WHOLE_DEC", GEN + "NAV2_RADIO_FRACT_INC",
+                                   GEN + "NAV2_RADIO_SWAP"])
 
 
-def test_g1000_squawk_and_ident():
+@FAMILY
+def test_squawk_and_ident(key):
     # 1200 to 7000, then SHIFT, VFR (IDENT)
     sim = Sim()
     sim.tap("SHIFT")
@@ -455,7 +524,8 @@ def test_g1000_squawk_and_ident():
     sim.wait(3500)
     sim.tap("SHIFT")
     sim.tap("VFR")
-    assert sent(sim) == ([GEN + "XPNDR_1000_INC"] * 6 + [GEN + "XPNDR_100_DEC"] * 2 + [GEN + "TransponderIDT"], [])
+    assert sent(sim, key) == ([GEN + "XPNDR_1000_INC"] * 6 + [GEN + "XPNDR_100_DEC"] * 2 + [GEN + "TransponderIDT"],
+                              [])
 
 
 def test_g1000_after_takeoff():
@@ -465,3 +535,22 @@ def test_g1000_after_takeoff():
     sim.tap("FD")
     sim.tap("AP")
     assert sent(sim) == ([GEN + "YAW_DAMPER_TOGGLE", "Microsoft.G1000 (2024).AP - Toggle"], [])
+
+
+def test_gtn_121_5_holds_the_volume_knob_pushed():
+    # tap SHIFT, then hold COM ⇆ for 2.5 s: the GTN's volume knob stays pushed as long, and a push of 2 s tunes
+    # 121.5; the GTN 750's in unit 1, the 650's in unit 2
+    sim = Sim()
+    sim.tap("SHIFT")
+    sim.press("COM_SWAP")
+    sim.wait(2500)
+    assert sim.held(1) == ["COM_121_5"]
+    sim.release("COM_SWAP")
+    sim.wait(300)
+    assert sim.held(1) == [] and sim.presses(1) == ["COM_121_5"]
+    serials = {serial: device for device, (_, serial) in PANEL.items()}
+    held = {serials[item["Controller"]["Serial"]]: item["button"] for item in items(build(key="gtn"))
+            if item["Name"].startswith("COM_121_5")}
+    for device, unit in ((1, "750 1.TDS_GTN750U1_"), (2, "650 2.TDS_GTN650U2_")):
+        assert held[device]["onPress"]["Command"] == f"(TDS Sim.GTNXi {unit}Vol_Press)"
+        assert held[device]["onRelease"]["Command"] == f"(TDS Sim.GTNXi {unit}Vol_Rls)"

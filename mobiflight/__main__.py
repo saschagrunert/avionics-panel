@@ -11,6 +11,14 @@ from mobiflight import hubhop, profile
 from mobiflight.families import FAMILIES
 
 
+def unmapped(family, device):
+    """reason -> the buttons of the device that send nothing for it, in the table's order"""
+    out = {}
+    for button, reason in family.UNMAPPED[device].items():
+        out.setdefault(reason, []).append(button)
+    return out
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="mobiflight", description=__doc__.split("\n\n")[1])
     parser.add_argument("--family", required=True, choices=sorted(FAMILIES))
@@ -39,9 +47,9 @@ def main(argv=None):
         f.write(profile.dumps(profile.build(family, controllers, presets)))
     for device in (1, 2):
         name, serial = controllers[device]
-        print(f"device {device} ({name}, {serial}): {len(family.DEVICE[device])} buttons mapped, unmapped "
-              f"(the reasons are in mobiflight/families/{args.family}.py): "
-              f"{', '.join(family.UNMAPPED[device]) or 'none'}", file=sys.stderr)
+        print(f"device {device} ({name}, {serial}): {len(family.DEVICE[device])} buttons mapped", file=sys.stderr)
+        for reason, buttons in unmapped(family, device).items():
+            print(f"  unmapped {', '.join(buttons)}: {reason}", file=sys.stderr)
     print(f"wrote {output}", file=sys.stderr)
 
 

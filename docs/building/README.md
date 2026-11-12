@@ -46,6 +46,5 @@ flowchart LR
 5. **Assemble**: caps onto the keys, light pipes into the plate, the board face down into the plate, the body
    over it with five screws, the knobs and the feet ([Putting it together](assembly.md#putting-it-together)).
 6. **Map**: two joysticks, every function a fixed button ([Mapping](../using/mapping.md),
-   [BUTTONS.md](../../firmware/BUTTONS.md)), or a [generated profile](../using/mapping.md#generated-profiles)
-   for the G1000 NXi; then the knob timing check of the
-   [first board](bring-up.md#first-board).
+   [BUTTONS.md](../../firmware/BUTTONS.md)), or a [generated profile](../using/mapping.md#generated-profiles);
+   then the knob timing check of the [first board](bring-up.md#first-board).

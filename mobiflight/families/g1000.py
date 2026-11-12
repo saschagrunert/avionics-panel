@@ -1,17 +1,20 @@
 """G1000 NXi (Working Title) with the GFC 700 and GMA 1347, in MSFS 2024: what each button does there
 (docs/using/controls.md, docs/using/compatibility.md) as HubHop presets. What the profile does differently
-from the real G1000 is in docs/using/mapping.md#generated-profiles.
+from the real G1000 is in docs/using/mapping.md#g1000-nxi.
 
 Presets in this order of preference: HubHop's MSFS 2024 G1000 input events (B:AS1000_*, "G1000 (2024)"), the
 simulator's own key events (K:), which act the same in every aircraft, Working Title's G1000 NXi presets
-(audio panel) and the G1000 H: events. Only the first group is marked for MSFS 2024 in HubHop. The keys
-without an amber legend and the RANGE knob send the plain function with SHIFT too, so a stray SHIFT does no
-harm (docs/using/mapping.md#two-joysticks).
+(audio panel) and the G1000 H: events. Only the first group is marked for MSFS 2024 in HubHop. The radios, ADF
+and transponder are the K: parts the tables share (parts.py). The keys without an amber legend and the RANGE
+knob send the plain function with SHIFT too, so a stray SHIFT does no harm
+(docs/using/mapping.md#two-joysticks).
 """
+from mobiflight.families import parts
+
 NAME = "G1000 NXi"
 
 B = "Microsoft.G1000 (2024)."              # MSFS 2024 input events
-GEN = "Microsoft.Generic."
+GEN = parts.GEN
 WT = "Working Title.G1000 NXi."
 
 _UNIT = {
@@ -22,7 +25,6 @@ _UNIT = {
     "PROC": GEN + "AS1000_MFD_PROC_Push",
     "CLR": GEN + "AS1000_MFD_CLR",
     "ENT": GEN + "AS1000_MFD_ENT_Push",
-    "ADF_SWAP": GEN + "ADF1 Swap Freq",
     "MAP": GEN + "AS1000_MFD_CLR_Long",                    # hold CLR
     "S_ENT": GEN + "AS1000_MFD_ENT_Push",
     "FMS_OUTER_CW": GEN + "AS1000_MFD_FMS_Lower_INC",
@@ -30,12 +32,7 @@ _UNIT = {
     "FMS_INNER_CW": GEN + "AS1000_MFD_FMS_Upper_INC",
     "FMS_INNER_CCW": GEN + "AS1000_MFD_FMS_Upper_DEC",
     "FMS_CRSR": GEN + "AS1000_MFD_FMS_Upper_PUSH",
-    "ADF_100_UP": GEN + "ADF_100_INC",
-    "ADF_100_DN": GEN + "ADF_100_DEC",
-    "ADF_1_UP": GEN + "ADF_1_INC",
-    "ADF_1_DN": GEN + "ADF_1_DEC",
-    "ADF_10_UP": GEN + "ADF_10_INC",
-    "ADF_10_DN": GEN + "ADF_10_DEC",
+    **parts.ADF,
 }
 _UNIT_UNMAPPED = {
     "HOME": "the G1000 has no HOME key: free for your own mapping (docs/using/compatibility.md)",
@@ -44,7 +41,7 @@ _UNIT_UNMAPPED = {
     "MSG": "softkeys are positional: a fixed softkey is ALERTS only at the PFD's top level",
     "NRST": "softkeys are positional: a fixed softkey is NRST only at the PFD's top level",
     "TERR": "the G1000 has no TERR key: the terrain page is in the MFD's map pages (FMS knob)",
-    "FREQ_PUSH": "the FREQ knob's mode is the panel's: each mode sends buttons of its own",
+    **parts.RADIO_UNMAPPED,
 }
 
 _DEVICE1 = {
@@ -66,7 +63,6 @@ _DEVICE1 = {
     "COM1": WT + "Mid COM1 Button Push",
     "MIC2": WT + "Mid COM2 Mic Button Push",
     "COM2": WT + "Mid COM2 Button Push",
-    "VFR": "Microsoft.Cessna 172.C_172_XPNDR_VFR",         # squawk 1200
     # shifted keys
     "CRS_CTR": B + "CRS - Direct push",
     "YD": GEN + "YAW_DAMPER_TOGGLE",
@@ -80,7 +76,6 @@ _DEVICE1 = {
     "NAV1_AUDIO": WT + "Mid NAV1 Push",
     "DME_AUDIO": WT + "Mid DME Push",
     "NAV2_AUDIO": WT + "Mid NAV 2 Push",
-    "IDENT": GEN + "TransponderIDT",
     # ALT/HDG knob: the G1000's ALT knob (inner 100 ft, outer 1000 ft) and HDG knob; with SHIFT CRS/BARO
     "ALT_100_UP": B + "ALT - Inner inc",
     "ALT_100_DN": B + "ALT - Inner dec",
@@ -113,60 +108,26 @@ _DEVICE1 = {
     "S_PAN_LEFT": GEN + "AS1000_MFD_JOYSTICK_LEFT",
     "S_PAN_RIGHT": GEN + "AS1000_MFD_JOYSTICK_RIGHT",
     "S_PTR": GEN + "AS1000_MFD_JOYSTICK_PUSH",
-    # squawk: digit 1 is the thousands
-    "SQK_D1_UP": GEN + "XPNDR_1000_INC",
-    "SQK_D1_DN": GEN + "XPNDR_1000_DEC",
-    "SQK_D2_UP": GEN + "XPNDR_100_INC",
-    "SQK_D2_DN": GEN + "XPNDR_100_DEC",
-    "SQK_D3_UP": GEN + "XPNDR_10_INC",
-    "SQK_D3_DN": GEN + "XPNDR_10_DEC",
-    "SQK_D4_UP": GEN + "XPNDR_1_INC",
-    "SQK_D4_DN": GEN + "XPNDR_1_DEC",
+    **parts.SQUAWK,
     # unit 1: radio 1
     **_UNIT,
-    "COM_SWAP": GEN + "COM1_RADIO_SWAP",
-    "NAV_SWAP": GEN + "NAV1_RADIO_SWAP",
+    **parts.RADIO[1],
     "COM_121_5": GEN + "AS1000_PFD_COM_Switch_Long",       # hold COM ⇆
-    "COM_MHZ_UP": GEN + "COM_RADIO_WHOLE_INC",
-    "COM_MHZ_DN": GEN + "COM_RADIO_WHOLE_DEC",
-    "COM_KHZ_UP": GEN + "COM_RADIO_FRACT_INC",
-    "COM_KHZ_DN": GEN + "COM_RADIO_FRACT_DEC",
-    "NAV_MHZ_UP": GEN + "NAV1_RADIO_WHOLE_INC",
-    "NAV_MHZ_DN": GEN + "NAV1_RADIO_WHOLE_DEC",
-    "NAV_KHZ_UP": GEN + "NAV1_RADIO_FRACT_INC",
-    "NAV_KHZ_DN": GEN + "NAV1_RADIO_FRACT_DEC",
-    # lighting
-    "CABIN_LT": GEN + "TOGGLE_CABIN_LIGHTS",
+    **parts.LIGHTS,
 }
 
-_DEVICE2 = {
-    **_UNIT,
-    "COM_SWAP": GEN + "COM2_RADIO_SWAP",
-    "NAV_SWAP": GEN + "NAV2_RADIO_SWAP",
-    "COM_MHZ_UP": GEN + "COM2_RADIO_WHOLE_INC",
-    "COM_MHZ_DN": GEN + "COM2_RADIO_WHOLE_DEC",
-    "COM_KHZ_UP": GEN + "COM2_RADIO_FRACT_INC",
-    "COM_KHZ_DN": GEN + "COM2_RADIO_FRACT_DEC",
-    "NAV_MHZ_UP": GEN + "NAV2_RADIO_WHOLE_INC",
-    "NAV_MHZ_DN": GEN + "NAV2_RADIO_WHOLE_DEC",
-    "NAV_KHZ_UP": GEN + "NAV2_RADIO_FRACT_INC",
-    "NAV_KHZ_DN": GEN + "NAV2_RADIO_FRACT_DEC",
-}
+_DEVICE2 = {**_UNIT, **parts.RADIO[2]}
 
 DEVICE = {1: _DEVICE1, 2: _DEVICE2}
-_DIMMERS = "the dimmers differ by aircraft: no HubHop preset steps them in every G1000 aircraft"
 UNMAPPED = {
     1: {
         "TEST": "the GFC 700 has no TEST key",
         "ARM": "the GFC 700 has no ARM key",
         "GPSS": "the GFC 700 flies GPS steering in NAV mode",
         "HALF_BANK": "no G1000 NXi aircraft in MSFS has a low-bank key",
-        "XPDR_MODE": "no HubHop preset steps the transponder mode",
+        **parts.SQUAWK_UNMAPPED,
         **_UNIT_UNMAPPED,
-        "PANEL_LT_UP": _DIMMERS,
-        "PANEL_LT_DN": _DIMMERS,
-        "FLOOD_LT_UP": _DIMMERS,
-        "FLOOD_LT_DN": _DIMMERS,
+        **parts.LIGHTS_UNMAPPED,
     },
     2: {
         **_UNIT_UNMAPPED,
