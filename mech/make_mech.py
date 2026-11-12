@@ -22,28 +22,23 @@ Output frame: X right, Y away from the user (board y flipped), Z up.
 import math
 import sys
 
-from OCC.Core.BRepBuilderAPI import BRepBuilderAPI_MakeFace, BRepBuilderAPI_MakePolygon, BRepBuilderAPI_Transform
-from OCC.Core.BRepPrimAPI import BRepPrimAPI_MakePrism
-from OCC.Core.gp import gp_Ax1, gp_Ax2, gp_Dir, gp_Pnt, gp_Trsf, gp_Vec
+from OCC.Core.BRepBuilderAPI import BRepBuilderAPI_Transform
+from OCC.Core.gp import gp_Ax1, gp_Ax2, gp_Dir, gp_Pnt, gp_Trsf
 
 sys.path.insert(0, "../pcb")
-import board as B  # noqa: E402
-import stack as S  # noqa: E402
-from dxf import write_dxf  # noqa: E402
-from make_plate_step import rrect_prism  # noqa: E402
-from occ_util import box, common, cut, cyl, export, fuse, move, volume  # noqa: E402
+import board as B
+import stack as S
+from dxf import write_dxf
+from occ_util import box, common, cut, cyl, export, fuse, move, prism, rrect_prism, volume
 
 # PCB to cavity wall: the cavity (161.0 x 61.0) may print 0.4 % small (JLC3DP MJF) and the routed board outline
 # is +-0.2 (JLCPCB), so 0.5 per side; walls 2.0 (JLC3DP MJF: 2.0 for parts over 100 mm), so the outline
-# (stack.OVH, shared with the plate) is 2.5 out from the PCB
+# (stack.OVH, shared with the plate) is 2.5 out from the PCB. Edge rails (docs/building/building.md): the economic
+# variant has none, so its outline is routed all round. The full variant (Standard assembly, 70 x 70 mm minimum)
+# has one rail on the long edge away from J1, V-cut (stack.PCB_VCUT_TOL on the board width).
 CLEAR, WALL = 0.5, 2.0
-assert abs(CLEAR + WALL - S.OVH) < 1e-9, "the body outline is the plate outline"
-PCB_OUTLINE_TOL, BODY_SCALE_TOL = 0.2, 0.004
-# Edge rails (docs/building/building.md): the economic variant has none, so its outline is routed all round. The full
-# variant (Standard assembly, 70 x 70 mm minimum) has one rail on the long edge away from J1, V-cut: +-0.4
-# (JLCPCB) on the board width. Should JLCPCB add rails on the short edges anyway, those V-cut edges can be too
-# long for the cavity at worst: they are then sanded until the board is at most PCB_SANDED_LEN long.
-PCB_VCUT_TOL, PCB_SANDED_LEN = 0.4, 160.2
+if abs(CLEAR + WALL - S.OVH) > 1e-9:
+    raise ValueError("the body outline must be the plate outline")
 UNDER = 4.0                         # room under the PCB: SMD parts, USB-C socket (3.2 mm), THT leads (stack.LEAD_MAX)
 FLOOR = 2.0                         # floor under the PCB room; the wedge below it is hollow
 FRONT = 1.6                         # body under the floor top at the front edge
@@ -105,12 +100,8 @@ o = CLEAR + WALL
 def wedge_cutter():
     """everything below the 6 degree bottom plane (z_bottom)."""
     y0, y1 = -o - 2, B.H + o + 2
-    poly = BRepBuilderAPI_MakePolygon()
-    for y, z in ((y0, z_bottom(y0)), (y1, z_bottom(y1)), (y1, -40), (y0, -40)):
-        poly.Add(gp_Pnt(-o - 2, y, z))
-    poly.Close()
-    face = BRepBuilderAPI_MakeFace(poly.Wire()).Face()
-    return BRepPrimAPI_MakePrism(face, gp_Vec(B.W + 2 * o + 4, 0, 0)).Shape()
+    return prism([(-o - 2, y, z) for y, z in ((y0, z_bottom(y0)), (y1, z_bottom(y1)), (y1, -40), (y0, -40))],
+                 dx=B.W + 2 * o + 4)
 
 
 def z_bottom(y):
@@ -120,12 +111,8 @@ def z_bottom(y):
 
 def slab_under_plane(x0, x1, y0, y1, h):
     """the volume from below the bottom plane up to h above it (vertically), for x0..x1 and y0..y1."""
-    poly = BRepBuilderAPI_MakePolygon()
-    for y, z in ((y0, z_bottom(y0) - 2), (y1, z_bottom(y1) - 2), (y1, z_bottom(y1) + h), (y0, z_bottom(y0) + h)):
-        poly.Add(gp_Pnt(x0, y, z))
-    poly.Close()
-    face = BRepBuilderAPI_MakeFace(poly.Wire()).Face()
-    return BRepPrimAPI_MakePrism(face, gp_Vec(x1 - x0, 0, 0)).Shape()
+    return prism([(x0, y0, z_bottom(y0) - 2), (x0, y1, z_bottom(y1) - 2), (x0, y1, z_bottom(y1) + h),
+                  (x0, y0, z_bottom(y0) + h)], dx=x1 - x0)
 
 
 def steel_x0():
@@ -241,12 +228,8 @@ def usb_filler():
     """the notch filler in its place (board frame): flush with the back wall, on the ledges."""
     f = USB_FILLER
     x0, x1, y0, y1, c = B.USB_X - f["w"] / 2, B.USB_X + f["w"] / 2, -o, -o + f["d"], f["cham"]
-    poly = BRepBuilderAPI_MakePolygon()
-    for x, y in ((x0, y0), (x1, y0), (x1, y1 - c), (x1 - c, y1), (x0 + c, y1), (x0, y1 - c)):
-        poly.Add(gp_Pnt(x, y, USB_TOP))
-    poly.Close()
-    face = BRepBuilderAPI_MakeFace(poly.Wire()).Face()
-    return BRepPrimAPI_MakePrism(face, gp_Vec(0, 0, f["h"])).Shape()
+    return prism([(x, y, USB_TOP) for x, y in ((x0, y0), (x1, y0), (x1, y1 - c), (x1 - c, y1), (x0 + c, y1),
+                                               (x0, y1 - c))], dz=f["h"])
 
 
 def body():
@@ -286,8 +269,8 @@ if __name__ == "__main__":
           f"{STEEL['w']:.0f} x {STEEL['d']:.0f} x {STEEL['t']:.0f} mm (recess {STEEL_RECESS[0]:.0f} x "
           f"{STEEL_RECESS[1]:.0f}) less two {STEEL['notch']:.0f} mm corner "
           f"notches, {steel_mass():.0f} g")
-    export(to_output(b), "avionics-panel-rev1-body", deflection=0.02)
+    export(to_output(b), "avionics-panel-rev1-body", stl=0.02)
     f = USB_FILLER
     print(f"USB-C filler {f['w']:g} x {f['d']:g} x {f['h']:g} mm")
-    export(to_output(usb_filler()), "avionics-panel-rev1-usb-filler")
+    export(to_output(usb_filler()), "avionics-panel-rev1-usb-filler", stl=0.01)
     write_dxf("avionics-panel-rev1-steel.dxf", {"CUT": [steel_outline()]})   # for a laser-cutting service

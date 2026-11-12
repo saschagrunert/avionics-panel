@@ -10,42 +10,33 @@ ceiling sits on the plunger top. A rigid fit needs better than the resin prints,
 the cap underside: the set that seats fully and holds is the one to fit. Black caps, white printed labels, amber
 SHIFT, every coloured stroke at least 0.4 mm wide (stack.LEGEND_*). Exact solids (OpenCascade), meshed
 watertight, one shell per cap.
-Writes caps-<set>.zip (OBJ, MTL and texture of the set's 28 caps) and caps-single-<set>.zip (one zip per cap,
-each with its own texture tile) for a shop that takes one part per file.
+Writes caps-<set>.zip (OBJ, MTL and texture of the set's 28 caps).
 Needs pythonocc-core (see make_plate_step.py) and pillow.
 """
 import io
 import math
-import re
 import zipfile
 from pathlib import Path
 
 import numpy as np
 import stack as S
 from OCC.Core.BRep import BRep_Tool
-from OCC.Core.BRepBuilderAPI import (
-    BRepBuilderAPI_MakeEdge,
-    BRepBuilderAPI_MakeFace,
-    BRepBuilderAPI_MakePolygon,
-    BRepBuilderAPI_MakeWire,
-    BRepBuilderAPI_Transform,
-)
+from OCC.Core.BRepBuilderAPI import BRepBuilderAPI_Transform
 from OCC.Core.BRepCheck import BRepCheck_Analyzer
 from OCC.Core.BRepMesh import BRepMesh_IncrementalMesh
 from OCC.Core.BRepOffsetAPI import BRepOffsetAPI_ThruSections
-from OCC.Core.BRepPrimAPI import BRepPrimAPI_MakePrism
-from OCC.Core.GC import GC_MakeArcOfCircle
-from OCC.Core.gp import gp_Ax1, gp_Dir, gp_Pnt, gp_Trsf, gp_Vec
+from OCC.Core.gp import gp_Ax1, gp_Dir, gp_Pnt, gp_Trsf
 from OCC.Core.TopAbs import TopAbs_FACE, TopAbs_REVERSED
 from OCC.Core.TopExp import TopExp_Explorer
 from OCC.Core.TopLoc import TopLoc_Location
 from OCC.Core.TopoDS import topods
-from occ_util import box, cut, cyl, fuse
+from occ_util import box, cut, cyl, fuse, prism, rrect_wire
 from PIL import Image, ImageDraw, ImageFont
 
 TEX = 4096
-# the plate's condensed face (Barlow Semi Condensed, OFL, in fonts/), Bold on the caps (stack.LEGEND_WEIGHT)
-FONT = str(Path(__file__).resolve().parent / {700: "fonts/BarlowSemiCondensed-Bold.ttf"}[S.LEGEND_WEIGHT])
+# the plate's condensed face (Barlow Semi Condensed, OFL, in viewer/fonts/), Bold on the caps (stack.LEGEND_WEIGHT)
+FONT = str(Path(__file__).resolve().parent.parent / "viewer" / "fonts"
+           / {700: "BarlowSemiCondensed-Bold.ttf"}[S.LEGEND_WEIGHT])
 SS = 4                            # legends are drawn 4x finer, then averaged down into the texture
 BLACK = (18, 18, 20)
 WHITE = (245, 245, 245)
@@ -62,21 +53,6 @@ GRID = TEX // CELL
 
 
 # ---------------- solids ----------------
-def rrect_wire(w, h, r, z):
-    hw, hh = w / 2, h / 2
-    mw = BRepBuilderAPI_MakeWire()
-    corners = [((hw - r, hh - r), 0), ((-hw + r, hh - r), 90), ((-hw + r, -hh + r), 180), ((hw - r, -hh + r), 270)]
-    arcs = []
-    for (ox, oy), a in corners:
-        p = [gp_Pnt(ox + r * math.cos(math.radians(a + d)), oy + r * math.sin(math.radians(a + d)), z)
-             for d in (0, 45, 90)]
-        arcs.append((GC_MakeArcOfCircle(*p).Value(), p[0], p[2]))
-    for i, (arc, _s, e) in enumerate(arcs):
-        mw.Add(BRepBuilderAPI_MakeEdge(arc).Edge())
-        mw.Add(BRepBuilderAPI_MakeEdge(e, arcs[(i + 1) % 4][1]).Edge())
-    return mw.Wire()
-
-
 def rotz(shape, deg):
     t = gp_Trsf(); t.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1)), math.radians(deg))
     return BRepBuilderAPI_Transform(shape, t, True).Shape()
@@ -84,12 +60,7 @@ def rotz(shape, deg):
 
 def xz_prism(pts, y0, y1):
     """a prism from a polygon in the XZ plane, from y0 to y1."""
-    poly = BRepBuilderAPI_MakePolygon()
-    for x, z in pts:
-        poly.Add(gp_Pnt(x, y0, z))
-    poly.Close()
-    face = BRepBuilderAPI_MakeFace(poly.Wire()).Face()
-    return BRepPrimAPI_MakePrism(face, gp_Vec(0, y1 - y0, 0)).Shape()
+    return prism([(x, y0, z) for x, z in pts], dy=y1 - y0)
 
 
 def cap_body(p):
@@ -140,7 +111,8 @@ def with_bar(cap, p, edge):
 
 def mesh(shape, top_z, deflection=0.004):
     """welded triangles of a solid: vertices (n, 3), triangles (m, 3), and which triangles lie on the top face."""
-    assert BRepCheck_Analyzer(shape).IsValid(), "invalid cap solid"
+    if not BRepCheck_Analyzer(shape).IsValid():
+        raise RuntimeError("invalid cap solid")
     BRepMesh_IncrementalMesh(shape, deflection, False, 0.2, True)
     pts, tris, top = [], [], []
     ex = TopExp_Explorer(shape, TopAbs_FACE)
@@ -198,7 +170,7 @@ def draw_label(cell, text, p):
     x0, y0 = gx * CELL, gy * CELL
     ppm = CELL / max(p["w"], p["h"])                 # pixels per mm
     if not text:
-        return x0, y0, ppm
+        return
     q = ppm * SS
     em, g = LEGEND_EM * q, S.LEGEND_GROW * q
     im = Image.new("L", (CELL * SS, CELL * SS), 0)
@@ -240,7 +212,6 @@ def draw_label(cell, text, p):
         write((cx, cy), text, "mm")
     tex.paste(AMBER if text == "SHIFT" else WHITE, (x0, y0, x0 + CELL, y0 + CELL),
               im.resize((CELL, CELL), Image.BOX))
-    return x0, y0, ppm
 
 
 LEGEND_EM = _legend_em()
@@ -276,11 +247,6 @@ def zip_add(z, name, data):
     z.writestr(zi, data)
 
 
-def slug(label):
-    s = label.replace("⇆", "FLIP").replace("→", "TO").replace("½", "HALF")
-    return re.sub(r"[^A-Za-z0-9]+", "-", s).strip("-") or "BLANK"
-
-
 # ---------------- build ----------------
 p = KEY
 for k, label in enumerate(caps):
@@ -293,7 +259,7 @@ summary = []
 for name in S.CAP_SETS:
     plain = socket(p, name)
     meshes = {}                               # one mesh per shape: plain, bar at the front, bar at the back
-    parts, singles = [], []
+    parts = []
     open_edges, vol = 0, 0.0
     for k, label in enumerate(caps):
         edge = BAR_EDGE.get(label, 0)
@@ -305,9 +271,6 @@ for name in S.CAP_SETS:
         # top vertices: planar projection into this cap's texture cell (image y down, model y up)
         px, py = x0 + CELL / 2 + V[:, 0] * ppm, y0 + CELL / 2 - V[:, 1] * ppm
         uv = np.stack([px / TEX, 1 - py / TEX], 1)
-        # the same cap alone, on its own texture tile
-        uv1 = np.stack([(px - x0) / CELL, 1 - (py - y0) / CELL], 1)
-        singles.append((f"{name}-{k + 1:02d}-{slug(label)}", (V, T, top, uv1, (4 / CELL, 1 - 4 / CELL)), (x0, y0)))
         # watertight: every edge used once in each direction
         e = np.concatenate([T[:, [0, 1]], T[:, [1, 2]], T[:, [2, 0]]])
         fwd = {tuple(a) for a in e}
@@ -316,7 +279,8 @@ for name in S.CAP_SETS:
         vol += np.sum(np.einsum("ij,ij->i", tri[:, 0], np.cross(tri[:, 1], tri[:, 2]))) / 6
         col, row = k % 8, k // 8              # print layout: a grid of caps
         parts.append((V + np.array([col * pitch, -row * pitch, 0]), T, top, uv, black_uv))
-    assert open_edges == 0, f"set {name}: {open_edges} open edges"
+    if open_edges:
+        raise RuntimeError(f"set {name}: {open_edges} open edges")
     base = f"avionics-panel-rev1-caps-{name}"
     # one zip for full-colour printing services: model, material and texture together (fixed timestamps)
     obj = io.StringIO()
@@ -325,17 +289,6 @@ for name in S.CAP_SETS:
         zip_add(z, f"{base}.obj", obj.getvalue())
         zip_add(z, f"{base}.mtl", mtl_text(f"{base}.png"))
         zip_add(z, f"{base}.png", png_all.getvalue())
-    # one zip per cap, all in one archive, for a shop that wants one part per file
-    with zipfile.ZipFile(f"avionics-panel-rev1-caps-single-{name}.zip", "w", zipfile.ZIP_DEFLATED) as outer:
-        for cname, part, (x0, y0) in singles:
-            buf, obj, png = io.BytesIO(), io.StringIO(), io.BytesIO()
-            write_obj(obj, f"cap-{cname}.mtl", [part])
-            tex.crop((x0, y0, x0 + CELL, y0 + CELL)).save(png, "PNG")
-            with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
-                zip_add(z, f"cap-{cname}.obj", obj.getvalue())
-                zip_add(z, f"cap-{cname}.mtl", mtl_text(f"cap-{cname}.png"))
-                zip_add(z, f"cap-{cname}.png", png.getvalue())
-            zip_add(outer, f"cap-{cname}.zip", buf.getvalue())
     d_top = S.cap_rib_d(name, SK["relief"])
     summary.append(f"  set {name}: {set_marks(name)} dimple(s), ribs {d_top:.2f} to {S.CAP_SETS[name]:.2f} mm, "
                    f"{len(caps)} caps, {sum(len(q[0]) for q in parts)} vertices, "

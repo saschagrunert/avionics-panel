@@ -1,13 +1,25 @@
-"""Small OpenCascade helpers shared by the plate and knob generators."""
+"""Small OpenCascade helpers shared by the generators of the plate, the body, the caps and the knobs."""
 import math
 
 from OCC.Core.BRepAlgoAPI import BRepAlgoAPI_Common, BRepAlgoAPI_Cut, BRepAlgoAPI_Fuse
-from OCC.Core.BRepBuilderAPI import BRepBuilderAPI_MakeFace, BRepBuilderAPI_MakePolygon, BRepBuilderAPI_Transform
+from OCC.Core.BRepBuilderAPI import (
+    BRepBuilderAPI_MakeEdge,
+    BRepBuilderAPI_MakeFace,
+    BRepBuilderAPI_MakePolygon,
+    BRepBuilderAPI_MakeWire,
+    BRepBuilderAPI_Transform,
+)
 from OCC.Core.BRepCheck import BRepCheck_Analyzer
 from OCC.Core.BRepGProp import brepgprop
 from OCC.Core.BRepMesh import BRepMesh_IncrementalMesh
 from OCC.Core.BRepOffsetAPI import BRepOffsetAPI_ThruSections
-from OCC.Core.BRepPrimAPI import BRepPrimAPI_MakeBox, BRepPrimAPI_MakeCylinder, BRepPrimAPI_MakeRevol
+from OCC.Core.BRepPrimAPI import (
+    BRepPrimAPI_MakeBox,
+    BRepPrimAPI_MakeCylinder,
+    BRepPrimAPI_MakePrism,
+    BRepPrimAPI_MakeRevol,
+)
+from OCC.Core.GC import GC_MakeArcOfCircle
 from OCC.Core.gp import gp_Ax1, gp_Ax2, gp_Dir, gp_Pnt, gp_Trsf, gp_Vec
 from OCC.Core.GProp import GProp_GProps
 from OCC.Core.IFSelect import IFSelect_RetDone
@@ -25,6 +37,38 @@ def box(x0, y0, z0, x1, y1, z1):
 
 def cyl(r, z0, z1, cx=0.0, cy=0.0):
     return BRepPrimAPI_MakeCylinder(gp_Ax2(gp_Pnt(cx, cy, z0), gp_Dir(0, 0, 1)), r, z1 - z0).Shape()
+
+
+def rrect_wire(w, h, r, z, cx=0.0, cy=0.0):
+    """closed wire of a rounded rectangle w x h with corner radius r, centred on (cx, cy) at height z."""
+    hw, hh = w / 2, h / 2
+    mw = BRepBuilderAPI_MakeWire()
+    corners = [((hw - r, hh - r), 0), ((-hw + r, hh - r), 90), ((-hw + r, -hh + r), 180), ((hw - r, -hh + r), 270)]
+    arcs = []
+    for (ox, oy), a in corners:
+        p = [gp_Pnt(cx + (ox + r * math.cos(math.radians(a + d))), cy + (oy + r * math.sin(math.radians(a + d))), z)
+             for d in (0, 45, 90)]
+        arcs.append((GC_MakeArcOfCircle(*p).Value(), p[0], p[2]))
+    for i, (arc, _s, e) in enumerate(arcs):
+        mw.Add(BRepBuilderAPI_MakeEdge(arc).Edge())
+        mw.Add(BRepBuilderAPI_MakeEdge(e, arcs[(i + 1) % 4][1]).Edge())
+    return mw.Wire()
+
+
+def rrect_prism(cx, cy, w, h, r, z0, z1):
+    """a rounded rectangle centred on (cx, cy), from z0 to z1."""
+    face = BRepBuilderAPI_MakeFace(rrect_wire(w, h, r, z0, cx, cy)).Face()
+    return BRepPrimAPI_MakePrism(face, gp_Vec(0, 0, z1 - z0)).Shape()
+
+
+def prism(pts, dx=0.0, dy=0.0, dz=0.0):
+    """the flat closed polygon through the (x, y, z) points, swept by (dx, dy, dz)."""
+    poly = BRepBuilderAPI_MakePolygon()
+    for x, y, z in pts:
+        poly.Add(gp_Pnt(x, y, z))
+    poly.Close()
+    face = BRepBuilderAPI_MakeFace(poly.Wire()).Face()
+    return BRepPrimAPI_MakePrism(face, gp_Vec(dx, dy, dz)).Shape()
 
 
 def revolve(profile):
@@ -64,22 +108,28 @@ def fluted(R, h, flutes, depth, taper, cham, bottom_cham=0.3, z0=0.0):
     return common(body, revolve(env))
 
 
+def done(op):
+    """the shape of a boolean operation, which must have worked."""
+    if not op.IsDone():
+        raise RuntimeError(f"{type(op).__name__} failed")
+    return op.Shape()
+
+
 def cut(a, *tools):
     args, tl = TopTools_ListOfShape(), TopTools_ListOfShape()
     args.Append(a)
     for t in tools:
         tl.Append(t)
     op = BRepAlgoAPI_Cut(); op.SetArguments(args); op.SetTools(tl); op.Build()
-    assert op.IsDone()
-    return op.Shape()
+    return done(op)
 
 
 def fuse(a, b):
-    op = BRepAlgoAPI_Fuse(a, b); assert op.IsDone(); return op.Shape()
+    return done(BRepAlgoAPI_Fuse(a, b))
 
 
 def common(a, b):
-    op = BRepAlgoAPI_Common(a, b); assert op.IsDone(); return op.Shape()
+    return done(BRepAlgoAPI_Common(a, b))
 
 
 def dbore(d, flat, z0, z1):
@@ -121,13 +171,17 @@ def write_step(shape, name):
             product = StepBasic_Product.DownCast(entity)
             product.SetId(TCollection_HAsciiString(name))
             product.SetName(TCollection_HAsciiString(name))
-    assert w.Write(name + ".step") == IFSelect_RetDone
+    if w.Write(name + ".step") != IFSelect_RetDone:
+        raise RuntimeError(f"{name}.step: not written")
     pin_step_time(name + ".step")
 
 
-def export(shape, name, deflection=0.01):
-    assert BRepCheck_Analyzer(shape).IsValid(), f"{name}: invalid solid"
+def export(shape, name, stl=None):
+    """shape -> <name>.step, and <name>.stl meshed to the deflection stl if one is given."""
+    if not BRepCheck_Analyzer(shape).IsValid():
+        raise RuntimeError(f"{name}: invalid solid")
     write_step(shape, name)
-    BRepMesh_IncrementalMesh(shape, deflection, False, 0.15, True)
-    st = StlAPI_Writer(); st.SetASCIIMode(False); st.Write(shape, name + ".stl")
+    if stl:
+        BRepMesh_IncrementalMesh(shape, stl, False, 0.15, True)
+        st = StlAPI_Writer(); st.SetASCIIMode(False); st.Write(shape, name + ".stl")
     print(f"{name}: {volume(shape) / 1000:.2f} cm3")

@@ -10,9 +10,9 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, "../pcb")
-import board as B  # noqa: E402
-import make_mech as MM  # noqa: E402
-import stack as S  # noqa: E402
+import board as B
+import make_mech as MM
+import stack as S
 
 
 def rounded(v):
@@ -57,7 +57,7 @@ geometry = {
                 "inner_top": S.INNER_TOP, "sleeve_d": S.SLEEVE_D, "outer_d": S.OUTER_D, "inner_d": S.INNER_D},
     "rkjxt": {"body": S.RKJXT_BODY, "hub_top": S.RKJXT_HUB_TOP, "hub_d": S.RKJXT_HUB[0], "lever_z0": S.LEVER_Z0,
               "lever_z1": S.LEVER_Z1, "lever_d": S.LEVER_D},
-    "lights": {name: {"x": x, "y": y, "d": S.LIGHT_HOLES[name]} for name, ((x, y), _gp, _c) in B.LEDS.items()},
+    "lights": {name: {"x": x, "y": y, "d": S.LIGHT_HOLE} for name, ((x, y), _gp, _c) in B.LEDS.items()},
     "led": {"cutout": B.LED_CUTOUT, "lens": {k: S.LED_LENS[k] for k in ("l", "w", "h")}}, "amber": S.AMBER["hex"],
     "pipe": {k: S.PIPE[k] for k in ("z0", "len", "clear", "base_d", "base_len")},
     "screw": {"head_z": S.SCREW_HEAD_Z, "length": S.SCREW_L, "d": S.SCREW_D, "head_d": S.SCREW["head_d"],

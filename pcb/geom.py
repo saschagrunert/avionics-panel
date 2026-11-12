@@ -65,6 +65,31 @@ def boxes_near(a, b, margin):
     return not (a[0] > b[2] + margin or b[0] > a[2] + margin or a[1] > b[3] + margin or b[1] > a[3] + margin)
 
 
+def near_pairs(geoms, margin):
+    """Index pairs (i, j), i < j, of the geometry items whose bounding boxes come within margin of each other."""
+    bbs = [bbox(g) for g in geoms]
+    for i, a in enumerate(bbs):
+        for j in range(i + 1, len(bbs)):
+            if boxes_near(a, bbs[j], margin):
+                yield i, j
+
+
+def copper_items(pads, segments, vias):
+    """All copper on the outer layers: (layer, geom, net, kind)."""
+    items = []
+    for p in pads:
+        net = p.net or ("NC:" + p.name)
+        g = pad_geom(p)
+        for ly in p.layers:
+            items.append((ly, g, net, "pad:" + p.name))
+    for (x1, y1, x2, y2, ly, net, w) in segments:
+        items.append((ly, ("cap", x1, y1, x2, y2, w / 2), net, "trace"))
+    for (x, y, net, dd, _dr) in vias:
+        for ly in "FB":
+            items.append((ly, ("cap", x, y, x, y, dd / 2), net, "via"))
+    return items
+
+
 # ---------------- routed length against the shortest tree (check.py and run_route.py) ----------------
 # A routed net may be DETOUR_FACTOR times as long as the shortest 8-direction tree over its pads, plus
 # DETOUR_SLACK for getting out of the RP2040's fan-out and round the parts in the way. In the routing before

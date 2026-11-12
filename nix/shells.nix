@@ -13,7 +13,6 @@ in
           numpy
           scipy
           matplotlib
-          scikit-image
           pillow
         ]
       ))

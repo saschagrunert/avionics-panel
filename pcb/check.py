@@ -2,25 +2,23 @@
 1. rasterise each Gerber file (own minimal parser)
 2. electrical check: shorts and opens per net, using the rasterised copper + drills
 3. geometric clearance DRC on the design primitives
-4. renders of front and back
-5. pin order of the bottom-side parts (mirrored footprints)
-6. drills and annular rings against JLCPCB's limits, no hole at or in an SMD pad or a paste opening (bar a
+4. drills and annular rings against JLCPCB's limits, no hole at or in an SMD pad or a paste opening (bar a
    pin-in-paste hole in its own opening), paste on every assembled pad and nowhere else
-7. solder mask dams (between openings on the mask Gerbers) against JLCPCB's black minimum, and every opening
+5. solder mask dams (between openings on the mask Gerbers) against JLCPCB's black minimum, and every opening
    clear of its pad by the mask's registration
-8. copper path from every RP2040 supply pin to its nearest decoupling capacitor, one capacitor of its own per
+6. copper path from every RP2040 supply pin to its nearest decoupling capacitor, one capacitor of its own per
    IOVDD pin over the outer layers, and every decoupling capacitor with its own plane vias
-9. routed length of every net against its shortest tree (no detours), USB D+ / D- length and skew
-10. JLCPCB's footprint of every bottom-side part on our pads at its CPL rotation (pad numbers, positions)
-11. no copper on F or B within the mounting-hole keep-out (plate boss, body boss), only the plane inside, and
+7. routed length of every net against its shortest tree (no detours), USB D+ / D- length and skew
+8. JLCPCB's footprint of every bottom-side part on our pads at its CPL rotation (pad numbers, positions)
+9. no copper on F or B within the mounting-hole keep-out (plate boss, body boss), only the plane inside, and
    copper on every layer clear of the LED cutouts
-12. no exposed SMD pad of another net near a through-hole pad (solder bridges; hand-soldered in either variant)
-13. JLCPCB's footprint of every through-hole part against our holes (positions, drills reported), and at its
-   top-side CPL position and rotation (full variant) on our holes pin by pin
-14. no copper on B under J1's shell but J1's own pads
-15. the legend clear of mask openings and holes, inside the board outline and outside the LED cutouts by
+10. no exposed SMD pad of another net near a through-hole pad (solder bridges; hand-soldered in either variant)
+11. JLCPCB's footprint of every through-hole part at its top-side CPL position and rotation (full variant) on
+   our holes pin by pin (drills reported)
+12. no copper on B under J1's shell but J1's own pads
+13. the legend clear of mask openings and holes, inside the board outline and outside the LED cutouts by
    SILK_EDGE
-16. USB protection: the ESD array in line on D+ and D- right behind J1, the damping resistor and the fuse in
+14. USB protection: the ESD array in line on D+ and D- right behind J1, the damping resistor and the fuse in
     VBUS ahead of every load
 (precheck.py checks the placement before routing: fixed copper clearances and the bottom-side part bodies.)
 """
@@ -29,6 +27,7 @@ import heapq
 import json
 import math
 import re
+import sys
 
 import board as B
 import numpy as np
@@ -39,8 +38,10 @@ from geom import (
     USB_SKEW,
     bbox,
     boxes_near,
+    copper_items,
     detour_limits,
     item_dist,
+    near_pairs,
     net_lengths,
     pad_geom,
     pt_seg,
@@ -166,35 +167,6 @@ def read_drill(fname):
             n = max(1, round(math.hypot(x1 - x0, y1 - y0) / 0.1))      # a G85 slot: circles along it
             holes += [(x0 + (x1 - x0) * i / n, B.H - (y0 + (y1 - y0) * i / n), t) for i in range(n + 1)]
     return holes
-
-
-def pin_order(pads):
-    """A part on the bottom, seen from the top, is mirrored: its pins must number clockwise. Rotating
-    cannot fix a footprint that is not mirrored, so check every bottom part with 3+ numbered pins (the
-    shoelace sum is positive for clockwise in y-down coordinates), and the USB-C contact order."""
-    bad = 0
-    byref = {}
-    for p in pads:
-        m = re.match(r"(\w+)\.(\d+)$", p.name)
-        if m:
-            byref.setdefault(m.group(1), {})[int(m.group(2))] = (p.x, p.y)
-    for ref, value, _lcsc, _x, _y, _rot, side in B.PARTS:
-        pins = byref.get(ref, {})
-        if side != "bottom" or len(pins) < 3:
-            continue
-        pts = [pins[k] for k in sorted(pins)]
-        area = sum(x1 * y2 - x2 * y1 for (x1, y1), (x2, y2) in zip(pts, pts[1:] + pts[:1], strict=True))
-        ok = area > 0
-        bad += not ok
-        verdict = "clockwise, OK" if ok else "COUNTER-CLOCKWISE: footprint not mirrored"
-        print(f"  {ref:4s} {value:20s} {len(pts):2d} pins  {verdict}")
-    j = {p.name: (p.x, p.y) for p in pads if p.name.startswith("J1.")}
-    oy = (j["J1.SH1b"][1] + j["J1.SH-1b"][1]) / 2 - j["J1.A1B12"][1]      # pad row -> opening (front shell pads)
-    ax = j["J1.A1B12"][0] - j["J1.B1A12"][0]
-    ok = -oy * ax < 0                      # cross(opening, B1->A1): > 0 for the top-view footprint, < 0 mirrored
-    bad += not ok
-    print(f"  J1   USB-C contact order   {'mirrored, OK' if ok else 'NOT MIRRORED: D+/D- swapped'}")
-    return bad
 
 
 # Footprint fit: every bottom-side part's JLCPCB library footprint (footprints/<LCSC>.json, saved from JLC's
@@ -458,17 +430,14 @@ def hand_solder(pads):
     return bad
 
 
-# Through-hole parts: JLC's footprint (footprints/<LCSC>.json, "holes" and "npth") against our holes, twice.
-# By position only, as a hand-soldered part is placed: for each of the four rotations the hole pattern is moved
-# onto ours by its centroid; it fits when every JLC hole lands on one of our holes of the part, centres within
-# FP_POS_TOL, with none of ours left over, and every unplated JLC hole on one of ours. The drills are reported
-# side by side: ours follow the part's datasheet.
-# And as JLCPCB places it in the full variant (Standard assembly, both sides): JLC's footprint at the top-side
-# CPL position and rotation (board.cpl, as make_bom.py writes it; JLC's top convention: seen from the top, the
-# footprint turned counter-clockwise by the rotation, its origin on the CPL position). Every JLC hole must land
-# on our hole of the pin TH_PIN names for it, within FP_POS_TOL, every unplated one on one of ours, and none of
-# ours may be left over. A wrong rotation misses the holes or, on a symmetric hole pattern, puts a pin on the
-# wrong hole: an encoder's A on B.
+# Through-hole parts: JLC's footprint (footprints/<LCSC>.json, "holes" and "npth") against our holes, as JLCPCB
+# places it in the full variant (Standard assembly, both sides): at the top-side CPL position and rotation
+# (board.cpl, as make_bom.py writes it; JLC's top convention: seen from the top, the footprint turned
+# counter-clockwise by the rotation, its origin on the CPL position). Every JLC hole must land on our hole of the
+# pin TH_PIN names for it, within FP_POS_TOL, every unplated one on one of ours, and none of ours may be left
+# over. A wrong rotation misses the holes or, on a symmetric hole pattern, puts a pin on the wrong hole: an
+# encoder's A on B. That also places a hand-soldered part. The drills are reported side by side: ours follow the
+# part's datasheet.
 TH_PIN = {                                  # JLC's pin number -> our pins it may land on
     # key: pins 1-2 and 3-4 are joined inside, so 0 and 180 are the same switch (the 6.5 x 4.5 pattern misses at 90)
     "C589907": dict.fromkeys("1234", ("A", "B", "C", "D")),
@@ -522,34 +491,10 @@ def tht_footprints(pads):
         with open(f"footprints/{lcsc}.json") as f:
             fp = json.load(f)
         ours = [p for p in pads if p.name.split(".")[0] == ref and p.drill]
-        npth = [(nx, ny, d) for nx, ny, d in B.NPTH if math.hypot(nx - x, ny - y) < 12.0]
-        fits = []
-        for r in (0, 90, 180, 270):
-            jl = [(h[0], *jlc_top(h[1], h[2], r), h[3]) for h in fp["holes"]]
-            if len(jl) != len(ours):
-                continue
-            ox = sum(p.x for p in ours) / len(ours) - sum(h[1] for h in jl) / len(jl)
-            oy = sum(p.y for p in ours) / len(ours) - sum(h[2] for h in jl) / len(jl)
-            worst, used = 0.0, set()
-            for _n, hx, hy, _d in jl:
-                p = min(ours, key=lambda q, hx=hx, hy=hy: math.hypot(q.x - hx - ox, q.y - hy - oy))
-                used.add(p.name)
-                worst = max(worst, math.hypot(p.x - hx - ox, p.y - hy - oy))
-            for hx, hy, _d in fp["npth"]:
-                qx, qy = jlc_top(hx, hy, r)
-                worst = max(worst, min((math.hypot(nx - qx - ox, ny - qy - oy) for nx, ny, _d in npth), default=9.0))
-            if worst <= FP_POS_TOL and len(used) == len(ours):
-                fits.append((r, worst))
-        t = types.setdefault(lcsc, {"value": value, "refs": [], "worst": 0.0, "rots": set(), "ours": set(),
-                                    "jlc": {h[3] for h in fp["holes"]}, "cpl": set(), "cw": 0.0, "off": set()})
+        t = types.setdefault(lcsc, {"value": value, "refs": [], "ours": set(), "jlc": {h[3] for h in fp["holes"]},
+                                    "cpl": set(), "cw": 0.0, "off": set()})
         t["refs"].append(ref)
         t["ours"] |= {p.drill for p in ours}
-        if not fits:
-            bad += 1
-            print(f"THROUGH-HOLE FOOTPRINT {ref} ({lcsc}): JLC's holes do not fit ours at any rotation")
-            continue
-        t["worst"] = max(t["worst"], min(w for _r, w in fits))
-        t["rots"] |= {r for r, _w in fits}
         _ref, mx, my, layer, crot = B.cpl(ref, x, y, rot, side)
         cx, cy = mx, B.H - my                                   # back from JLC's frame (y up) to the board's
         cw, probs = cpl_fit(ref, lcsc, fp, cx, cy, crot, ours)
@@ -566,14 +511,12 @@ def tht_footprints(pads):
         return "/".join(f"{d:g}" for d in sorted(v))
     for lcsc, t in sorted(types.items(), key=lambda kv: kv[1]["refs"][0]):
         refs = t["refs"][0] + (f" and {len(t['refs']) - 1} more" if len(t["refs"]) > 1 else "")
-        rots, cpl = ("/".join(map(str, sorted(t[k]))) or "-" for k in ("rots", "cpl"))
+        cpl = "/".join(map(str, sorted(t["cpl"])))
         off = "/".join(f"{dx:+g},{dy:+g}" for dx, dy in sorted(t["off"]))
-        print(f"  {lcsc:9s} {t['value']:20s} {refs:16s} fits at {rots:7s} centres within {t['worst']:.3f} mm; "
-              f"drills ours {mm(t['ours'])}, JLC {mm(t['jlc'])}; top CPL {cpl}, origin {off} from the part "
-              f"(y down), pins within {t['cw']:.3f} mm")
+        print(f"  {lcsc:9s} {t['value']:20s} {refs:16s} drills ours {mm(t['ours'])}, JLC {mm(t['jlc'])}; top CPL "
+              f"{cpl}, origin {off} from the part (y down), pins within {t['cw']:.3f} mm")
     print(f"through-hole footprints: {len(types)} JLC footprints on {sum(len(t['refs']) for t in types.values())} "
-          f"top-side parts (tolerance {FP_POS_TOL}), by position and at the full variant's top-side CPL, "
-          f"{bad} problems")
+          f"top-side parts (tolerance {FP_POS_TOL}), at the full variant's top-side CPL, {bad} problems")
     return bad
 
 
@@ -646,21 +589,18 @@ def mask_dams(pads):
             if layer in p.mask and p.name not in opened:
                 bad += 1; print(f"PAD WITHOUT MASK OPENING: {p.name} on {layer}")
         at_min, worst = 0, 9.0
-        for i in range(len(ops)):
-            for j in range(i + 1, len(ops)):
-                if not boxes_near(bbs[i], bbs[j], 0.2):
-                    continue
-                d = item_dist(ops[i], ops[j])
-                where = f"on {layer} at ({ops[i][1]:.2f}, {ops[i][2]:.2f})"
-                if d <= 1e-6:
-                    if nets[i] != nets[j]:
-                        bad += 1; print(f"MASK OPENINGS MERGED, NO DAM between {nets[i]} and {nets[j]} {where}")
-                    continue
-                worst = min(worst, d)
-                if d < MASK_DAM - 1e-4:
-                    bad += 1; print(f"MASK DAM {d:.3f} mm {where}")
-                elif d < MASK_DAM + 1e-4:
-                    at_min += 1
+        for i, j in near_pairs(ops, 0.2):
+            d = item_dist(ops[i], ops[j])
+            where = f"on {layer} at ({ops[i][1]:.2f}, {ops[i][2]:.2f})"
+            if d <= 1e-6:
+                if nets[i] != nets[j]:
+                    bad += 1; print(f"MASK OPENINGS MERGED, NO DAM between {nets[i]} and {nets[j]} {where}")
+                continue
+            worst = min(worst, d)
+            if d < MASK_DAM - 1e-4:
+                bad += 1; print(f"MASK DAM {d:.3f} mm {where}")
+            elif d < MASK_DAM + 1e-4:
+                at_min += 1
         narrow = f"{worst:.3f} mm" if worst < 9 else "none under 0.2 mm"
         print(f"mask {layer}: {len(ops)} openings, narrowest dam {narrow} (min {MASK_DAM}, black), "
               f"{at_min} at exactly {MASK_DAM}; openings at least {grow:.3f} mm beyond their pads "
@@ -749,17 +689,15 @@ def copper_graph(net, pads, segments, vias, planes=True):
             for ly in "FB":
                 items[ly].append((("cap", x, y, x, y, d / 2), [(("via", x, y, ly), (x, y))]))
     for its in items.values():                 # touching copper: join the anchors through the contact
-        bbs = [bbox(g) for g, _a in its]
-        for i, (ga, anchors_a) in enumerate(its):
-            for j in range(i + 1, len(its)):
-                gb, anchors_b = its[j]
-                if not boxes_near(bbs[i], bbs[j], 1e-3) or item_dist(ga, gb) > 1e-3:
-                    continue
-                ca, cb = closest_pair(centre_line(ga), centre_line(gb))
-                for a, pa in anchors_a:
-                    for b, pb in anchors_b:
-                        if a != b:
-                            edge(a, b, math.dist(pa, ca) + math.dist(ca, cb) + math.dist(cb, pb))
+        for i, j in near_pairs([g for g, _a in its], 1e-3):
+            (ga, anchors_a), (gb, anchors_b) = its[i], its[j]
+            if item_dist(ga, gb) > 1e-3:
+                continue
+            ca, cb = closest_pair(centre_line(ga), centre_line(gb))
+            for a, pa in anchors_a:
+                for b, pb in anchors_b:
+                    if a != b:
+                        edge(a, b, math.dist(pa, ca) + math.dist(ca, cb) + math.dist(cb, pb))
     plane = [k for k in adj if k[0] == "plane"]
     for i, a in enumerate(plane):              # across the plane: via to via in a straight line
         for b in plane[i + 1:]:
@@ -940,11 +878,8 @@ CHAIN_PADS = {"VBUS": {"R_IN.1"}, "VBUS_R": {"R_IN.2", "F1.1"}}            # bes
 LOADS = {"C_IN.2", "U3.3", "U4.5"}              # on VBUS_F, besides the fuse's pin 2
 
 
-def cut_islands(ras, pth, cut):
-    """The copper islands with the pads `cut` removed from the bottom copper: F and B labelled on their own, joined
-    through every plated hole. Returns the labels and find(), which maps (layer, label) to its island."""
-    b = ras["B"] & ~ndimage.binary_dilation(draw_ops(pad_ops(cut)))
-    lab = {"F": ndimage.label(ras["F"])[0], "B": ndimage.label(b)[0]}
+def union_find():
+    """(find, union) over hashable keys: find(a) is the key that stands for a's set, union(a, b) joins two sets."""
     parent = {}
 
     def find(a):
@@ -952,10 +887,22 @@ def cut_islands(ras, pth, cut):
             parent[a] = parent[parent[a]]
             a = parent[a]
         return a
+
+    def union(a, b):
+        parent[find(a)] = find(b)
+    return find, union
+
+
+def cut_islands(ras, pth, cut):
+    """The copper islands with the pads `cut` removed from the bottom copper: F and B labelled on their own, joined
+    through every plated hole. Returns the labels and find(), which maps (layer, label) to its island."""
+    b = ras["B"] & ~ndimage.binary_dilation(draw_ops(pad_ops(cut)))
+    lab = {"F": ndimage.label(ras["F"])[0], "B": ndimage.label(b)[0]}
+    find, union = union_find()
     for x, y, _d in pth:
         f, k = lab["F"][ij(x, y)], lab["B"][ij(x, y)]
         if f and k:
-            parent[find(("F", f))] = find(("B", k))
+            union(("F", f), ("B", k))
     return lab, find
 
 
@@ -1122,17 +1069,7 @@ if __name__ == "__main__":
     lab, ncomp = {}, {}
     for ly, img in ras.items():
         lab[ly], ncomp[ly] = ndimage.label(img)
-    parent = {}
-
-    def find(a):
-        while parent.setdefault(a, a) != a:
-            parent[a] = parent[parent[a]]
-            a = parent[a]
-        return a
-
-    def union(a, b):
-        parent[find(a)] = find(b)
-
+    find, union = union_find()
     probes = []   # (net, layer, x, y)
     for p in pads:
         for ly in p.layers:
@@ -1260,30 +1197,22 @@ if __name__ == "__main__":
     bad += cut_bad
 
     # --- geometric clearance DRC (outer layers) ---
-    with open("design.json") as f:
-        items = json.load(f)["items"]
+    items = copper_items(pads, rd["segments"], rd["vias"])
     worst, viol = 9, 0
-
-    bbs = [bbox(it[1]) for it in items]
-    for i in range(len(items)):
-        a, ba = items[i], bbs[i]
-        for j in range(i + 1, len(items)):
-            b, bb = items[j], bbs[j]
-            if a[0] != b[0] or a[2] == b[2] or not boxes_near(ba, bb, 0.5):
-                continue
-            dd = item_dist(a[1], b[1])
-            worst = min(worst, dd)
-            if dd < B.CLEAR - 1e-6:
-                viol += 1
-                print("CLEARANCE", round(dd, 3), a[2], a[3], b[2], b[3], a[0])
-    for it, bb in zip(items, bbs, strict=True):
+    for i, j in near_pairs([it[1] for it in items], 0.5):
+        a, b = items[i], items[j]
+        if a[0] != b[0] or a[2] == b[2]:
+            continue
+        dd = item_dist(a[1], b[1])
+        worst = min(worst, dd)
+        if dd < B.CLEAR - 1e-6:
+            viol += 1
+            print("CLEARANCE", round(dd, 3), a[2], a[3], b[2], b[3], a[0])
+    for it in items:
+        bb = bbox(it[1])
         e = min(bb[0], bb[1], B.W - bb[2], B.H - bb[3])
         if e < B.EDGE_CLEAR - 0.05:
             viol += 1; print("NEAR EDGE", it[2], it[3], round(e, 2))
-        for (x, y) in B.MOUNTS:
-            dist = item_dist(it[1], ("cap", x, y, x, y, B.MOUNT_HOLE / 2))
-            if dist < 0.4:
-                viol += 1; print("NEAR MOUNT", it[2], round(dist, 2))
         for (x, y, dd) in B.NPTH:
             dist = item_dist(it[1], ("cap", x, y, x, y, dd / 2))
             if dist < 0.15:
@@ -1333,11 +1262,6 @@ if __name__ == "__main__":
     hole_bad += usb_protection(ras, pth, pads, rd["segments"], rd["vias"])
     hole_bad += silk_clear(pth, npth)
     hole_bad += silk_edge()
-    pin_bad = pin_order(pads)
-    print(f"pin order (bottom parts): {pin_bad} problems")
-    pin_bad += footprints(pads)
+    pin_bad = footprints(pads)
     pin_bad += tht_footprints(pads)
-    for ly, img in ras.items():
-        np.save(f"raster{ly}.npy", img)
-    import sys
     sys.exit(1 if (bad or floating or viol or hole_bad or pin_bad) else 0)

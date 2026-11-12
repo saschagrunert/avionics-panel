@@ -5,15 +5,10 @@ __pycache__/
 # intermediate generator output (the files to order are copied to production/)
 pcb/gerbers/
 pcb/avionics-panel-rev1-*
-pcb/design.json
-pcb/silk.pkl
-pcb/raster*.npy
 pcb/render-*.png
-pcb/route_*.log
 pcb/routed_*.json
 mech/avionics-panel-rev1-*
 mech/fit-check.png
-pcb/debug.png
 
 # browser logs from testing the viewer (Playwright)
 .playwright-mcp/

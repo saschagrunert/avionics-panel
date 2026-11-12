@@ -31,9 +31,8 @@ def seg_dist(px, py, x1, y1, x2, y2):
     return np.hypot(px - (x1 + t * dx), py - (y1 + t * dy))
 
 
-def stamp_rect(arr, x0, y0, x1, y1, val, grow=0.0):
-    m = ((x0 - grow - RES * 0.5 <= XS) & (x1 + grow + RES * 0.5 >= XS)
-         & (y0 - grow - RES * 0.5 <= YS) & (y1 + grow + RES * 0.5 >= YS))
+def stamp_rect(arr, x0, y0, x1, y1, val):
+    m = (x0 - RES * 0.5 <= XS) & (x1 + RES * 0.5 >= XS) & (y0 - RES * 0.5 <= YS) & (y1 + RES * 0.5 >= YS)
     arr[m] = val
 
 
@@ -170,7 +169,8 @@ class Router:
             cells.append((int(round(pad.y / RES)), int(round(pad.x / RES))))
         return cells
 
-    def route(self, net, pa, pb=None, goal_mask=None):
+    def route(self, net, pa, goal_mask):
+        """A path from pad pa to the nearest cell of goal_mask (2, NY, NX), committed as segments and vias."""
         nid = self.netid[net]
         extra = bias_maps(net)
         feas = []
@@ -186,23 +186,10 @@ class Router:
         for (iy, ix) in self.pad_cells(pa):
             for ly in pa.layers:
                 start.add((L[ly], iy, ix))
-        if pb is not None:
-            for (iy, ix) in self.pad_cells(pb):
-                for ly in pb.layers:
-                    goal.add((L[ly], iy, ix))
-            gx, gy = pb.x / RES, pb.y / RES
-
-            def h(iy, ix):
-                dx, dy = abs(ix - gx), abs(iy - gy)
-                return (dx + dy) + (math.sqrt(2) - 2) * min(dx, dy)
-        else:
-            for lay in (0, 1):
-                ys, xs = np.nonzero(goal_mask[lay])
-                goal.update((lay, int(a), int(b)) for a, b in zip(ys, xs, strict=True))
-            hd = ndimage.distance_transform_edt(~(goal_mask[0] | goal_mask[1]))
-
-            def h(iy, ix):
-                return hd[iy, ix]
+        for lay in (0, 1):
+            ys, xs = np.nonzero(goal_mask[lay])
+            goal.update((lay, int(a), int(b)) for a, b in zip(ys, xs, strict=True))
+        hd = ndimage.distance_transform_edt(~(goal_mask[0] | goal_mask[1]))   # the A* estimate: cells to the goal
         for (lay, iy, ix) in start | goal:
             feas[lay][iy, ix] = True
 
@@ -211,7 +198,7 @@ class Router:
         heap = []
         for s in start:
             g[s] = 0
-            heapq.heappush(heap, (h(s[1], s[2]), 0.0, s))
+            heapq.heappush(heap, (hd[s[1], s[2]], 0.0, s))
             parent[s] = None
         dirs = [(-1, 0, 1), (1, 0, 1), (0, -1, 1), (0, 1, 1),
                 (-1, -1, math.sqrt(2)), (-1, 1, math.sqrt(2)), (1, -1, math.sqrt(2)), (1, 1, math.sqrt(2))]
@@ -234,14 +221,14 @@ class Router:
                     if ng < g[nn]:
                         g[nn] = ng
                         parent[nn] = node
-                        heapq.heappush(heap, (ng + h(ny_, nx_), ng, nn))
+                        heapq.heappush(heap, (ng + hd[ny_, nx_], ng, nn))
             if via_ok[iy, ix]:
                 nn = (1 - lay, iy, ix)
                 ng = gc + VIA_COST
                 if ng < g[nn]:
                     g[nn] = ng
                     parent[nn] = node
-                    heapq.heappush(heap, (ng + h(iy, ix), ng, nn))
+                    heapq.heappush(heap, (ng + hd[iy, ix], ng, nn))
         if not found:
             return False
         path = []
@@ -250,10 +237,10 @@ class Router:
             path.append(n)
             n = parent[n]
         path.reverse()
-        self._commit(net, path, pa, pb)
+        self._commit(net, path, pa)
         return True
 
-    def _commit(self, net, path, pa, pb):
+    def _commit(self, net, path, pa):
         self.last_path = path
         # split into runs per layer
         runs, cur = [], [path[0]]
@@ -272,8 +259,6 @@ class Router:
             pts = [(n[2] * RES, n[1] * RES) for n in run]
             if ri == 0:
                 pts[0] = (pa.x, pa.y)
-            if ri == len(runs) - 1 and pb is not None:
-                pts[-1] = (pb.x, pb.y)
             # simplify collinear
             simp = [pts[0]]
             for j in range(1, len(pts) - 1):
