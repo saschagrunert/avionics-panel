@@ -5,9 +5,10 @@ from buttonmap import BUTTON, DEVICE, PLAIN_KEYS, SIZE, UNIT_KEYS, shifted
 KNOB = {   # base name -> control; _UP is clockwise, _DN counter-clockwise
     "ALT_100": "ALT/HDG outer, slow", "ALT_1000": "ALT/HDG outer, fast", "HDG_1": "ALT/HDG inner, slow",
     "HDG_10": "ALT/HDG inner, fast", "CRS_1": "SHIFT, ALT/HDG inner, slow", "CRS_10": "SHIFT, ALT/HDG inner, fast",
-    "BARO": "SHIFT, ALT/HDG outer", "SQK_D1": "SHIFT, FREQ inner, digit 1 selected",
-    "SQK_D2": "SHIFT, FREQ inner, digit 2 selected", "SQK_D3": "SHIFT, FREQ inner, digit 3 selected",
-    "SQK_D4": "SHIFT, FREQ inner, digit 4 selected", "COM_MHZ": "FREQ outer, COM mode",
+    "BARO": "SHIFT, ALT/HDG outer", "SQK_D1": "SHIFT, FREQ inner, digit 1 (thousands) selected",
+    "SQK_D2": "SHIFT, FREQ inner, digit 2 (hundreds) selected",
+    "SQK_D3": "SHIFT, FREQ inner, digit 3 (tens) selected", "SQK_D4": "SHIFT, FREQ inner, digit 4 (ones) selected",
+    "COM_MHZ": "FREQ outer, COM mode",
     "COM_KHZ": "FREQ inner, COM mode", "NAV_MHZ": "FREQ outer, NAV mode", "NAV_KHZ": "FREQ inner, NAV mode",
     "ADF_100": "FREQ outer, ADF mode", "ADF_1": "FREQ inner, ADF mode, slow",
     "ADF_10": "FREQ inner, ADF mode, fast", "PANEL_LT": "SHIFT, FMS outer", "FLOOD_LT": "SHIFT, FMS inner",
@@ -16,10 +17,17 @@ OTHER = {
     "HDG_SYNC": "ALT/HDG push", "BARO_STD": "SHIFT, ALT/HDG push", "XPDR_MODE": "SHIFT, FREQ push",
     "FREQ_PUSH": "FREQ push (next mode: COM, NAV, ADF)", "CABIN_LT": "SHIFT, FMS push", "PTR": "RANGE push",
     "RANGE_CW": "RANGE turn, clockwise", "RANGE_CCW": "RANGE turn, counter-clockwise",
-    "PAN_UP": "RANGE tilt up", "PAN_DN": "RANGE tilt down", "PAN_LEFT": "RANGE tilt left",
+    "PAN_UP": "RANGE tilt up (away from you)", "PAN_DN": "RANGE tilt down (towards you)", "PAN_LEFT": "RANGE tilt left",
     "PAN_RIGHT": "RANGE tilt right", "FMS_CRSR": "FMS push", "FMS_OUTER_CW": "FMS outer, clockwise",
     "FMS_OUTER_CCW": "FMS outer, counter-clockwise", "FMS_INNER_CW": "FMS inner, clockwise",
     "FMS_INNER_CCW": "FMS inner, counter-clockwise",
+}
+
+
+FUNCTION = {   # name -> what it does, where the cap label alone could be read as something else
+    "MIC1": "audio, talk on COM 1", "MIC2": "audio, talk on COM 2", "COM1": "audio, listen to COM 1",
+    "COM2": "audio, listen to COM 2", "NAV": "autopilot NAV mode", "VNV": "autopilot vertical navigation",
+    "VNAV": "navigator VNAV key, not the autopilot's VNV",
 }
 
 
@@ -29,6 +37,11 @@ def key_text(k):
 
 
 def control(name):
+    text = describe(name)
+    return f"{text} ({FUNCTION[name]})" if name in FUNCTION else text
+
+
+def describe(name):
     if name in OTHER:
         return OTHER[name]
     if name.startswith("S_") and name[2:] in OTHER:

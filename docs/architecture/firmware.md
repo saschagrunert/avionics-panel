@@ -51,9 +51,8 @@ preconditions and cannot get out of sync with the panel (except with a GNS or GT
 
 ## Knob steps
 
-Knob detents are button pulses: 56 ms pressed, 56 ms released, so 112 ms per step (about 9 steps per second),
-up to 8 queued per button. Press and gap both have to outlast a MobiFlight poll, or two detents merge into
-one:
+Knob detents are button pulses: 56 ms pressed, 56 ms released, so 112 ms per step of one button (about 9
+steps per second). Press and gap both have to outlast a MobiFlight poll, or two detents merge into one:
 
 - MobiFlight polls joysticks from a 20 ms timer, which Windows' 15.6 ms clock stretches to about 31 ms, and
   only sees the state at each poll.
@@ -64,13 +63,32 @@ one:
 So `check_timing` in [panel.py](../../firmware/panel.py) keeps press and gap at 56 ms at least: a poll,
 rounded up to 32 ms, plus three frames.
 
+Everything goes out in the order it came, knob steps, keys and pushes alike, one new press at most every
+56 ms. MobiFlight has seen each press before the next one starts, which may be in its gap; a second press of
+the same button also waits for its own gap. So COM ⇆ after a quick turn swaps the frequency that was dialled,
+and ENT confirms the whole character. A key with nothing ahead of it goes out at once, and two keys pressed
+together go out 56 ms apart.
+
 What the queue does:
 
+- At most 8 detents wait, all rings together, and a detent beyond that is dropped. Keys, pushes and the first
+  step of UP, DN or a tilt are never dropped (up to 8 owed presses per button). So a key waits for at most
+  about 0.9 s.
+- A key or push held while it waits goes down at its turn and stays down until it is let go. Let go before
+  its turn, it reaches the PC as a 56 ms tap.
 - A repeat of a held UP, DN or tilt waits until the last step of its button is through, so a step longer than
   the repeat interval (120 ms tilt, 125 ms UP / DN) slows the repeats down and nothing queues up.
-- A fast spin of a one-step-per-detent knob (FMS, COM kHz) can lose steps beyond the 8 queued and runs on for
-  up to 0.9 s.
-- Turning the other way drops the steps still queued in the old direction, so the knob stops at once.
+- Acceleration: ALT, HDG, CRS and the ADF inner ring have a fine and a coarse step. A detent takes the coarse
+  step within 60 ms of the previous one, and so do two detents read in one loop pass.
+- With detents less than 112 ms apart, such a knob also takes the coarse step while a fine step of it still
+  waits. The two buttons then share the turn, and the last step goes out within about 0.2 s of the
+  hand. A fine step that only waits behind other rings does not count, so a slow turn stays fine.
+- A spin faster than its steps go out can lose detents beyond the 8 waiting and runs on for up to about
+  0.9 s. That holds for knobs with one step per detent (FMS, COM, NAV, the ADF outer ring, BARO, squawk, the
+  dimmers, RANGE), and for the coarse step faster than about 16 detents per second.
+- Turning the other way drops the steps of that ring at the end of the queue, so the knob stops at once.
+  Steps that a key or another ring followed stay, since what followed builds on them (ENT confirms the
+  character they dialled).
 
 The [first-board check](../building/bring-up.md#first-board) measures whether MobiFlight counts every detent.
 
@@ -80,7 +98,7 @@ Keys and pushes follow the same rule as the knobs: a quick tap stays pressed for
 press of the same button waits until that button has been released for 56 ms. MobiFlight then sees every tap,
 and a fast double tap (CLR twice, a flip-flop) stays two presses. A longer press is sent as long as it is held
 (and 30 ms more, see below); right after a quick tap of the same button it starts up to 112 ms late, once the
-tap and its gap are over.
+tap and its gap are over, and it waits its turn behind anything still queued ([Knob steps](#knob-steps)).
 
 The keys are scanned every 20 ms and a press is passed on at the first scan that reads it (no added delay). A
 key already held when the firmware starts is ignored until it is pressed again. A switch that bounces for
@@ -100,7 +118,7 @@ after it keep their time), and a shifted push or tilt keeps SHIFT.
   extra step), the 3 s of a shifted push or tilt start 30 ms after it is let go, and the RANGE centre push
   sends PTR 30 ms after its release. In those 30 ms the push or tilt still counts as held (the release may
   still turn out a bounce), so a key or a second SHIFT tap does not end its SHIFT session; the light stays on
-  and shows it. Presses, the SHIFT one-shot and UNIT act on the press and are not delayed.
+  and shows it. Presses, the SHIFT one-shot and UNIT act on the press and get no bounce delay.
 - After a keypad overflow, `code.py` releases a key whose release was lost at once, without the wait. Raising
   the keypad's `debounce_threshold` instead would delay every press and release by a scan (20 ms) and the
   recovery after a lost event too.
