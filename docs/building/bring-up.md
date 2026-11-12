@@ -108,7 +108,8 @@ CIRCUITPY run `sync` and let it finish before you replug.
      another name, see [Mapping](../using/mapping.md#device-name)). It only shows 32 buttons per device, so
      read the buttons in MobiFlight's input view or a DirectInput tester that shows all 128 (for example
      Pointy's Joystick Test).
-   - Linux: `evtest` and `jstest` stop at 80 buttons. Run `pipx install hid-tools`, then
+   - Linux: `evtest` and `jstest` show one input device with device 1's first 80 buttons and nothing of
+     device 2. Check the buttons with `hid-recorder`: run `pipx install hid-tools`, then
      `sudo ~/.local/bin/hid-recorder`, and pick "Avionics Panel": each report shows `ReportID: 4` (device 1)
      or `5` (device 2) and a `Button:` list of 0 and 1 in button order.
    - Check every key and both lights (before the plate goes on, the LEDs shine up through their cutouts in the

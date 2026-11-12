@@ -70,8 +70,9 @@ HKEY_CURRENT_USER\System\CurrentControlSet\Control\MediaProperties\PrivateProper
 
 ## Linux
 
-Linux maps at most 80 buttons per joystick, so `evtest` and `jstest` never show device 1's buttons 81 to 117:
-check those with `hid-recorder` ([Flash and test](../building/bring-up.md#flash-and-test)) or on Windows.
-While testing on Linux, keep `evtest` or `jstest` open on either joystick (opening one makes the host poll
-both): a host that enumerates the panel but never reads it makes the firmware
-[back off](../architecture/firmware.md#usb), and the lights and timers stutter.
+Linux makes one input device of both joysticks and maps only the first 80 buttons of device 1 to it, so
+`evtest` and `jstest` show nothing of device 2 and never device 1's buttons 81 to 117: check the buttons with
+`hid-recorder` ([Flash and test](../building/bring-up.md#flash-and-test)) or on Windows. While testing on
+Linux, keep `evtest` or `jstest` open on that input device (it makes the host poll the panel): a host that
+enumerates the panel but never reads it makes the firmware [back off](../architecture/firmware.md#usb), and
+the lights and timers stutter.

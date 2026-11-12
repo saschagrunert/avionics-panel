@@ -40,7 +40,8 @@ class Sim:
 
     # ---------------- the pilot ----------------
     def wait(self, ms):
-        assert ms >= 0, "time only moves on"
+        if ms < 0:
+            raise ValueError("time only moves on")
         if ms:
             self.now += ms
             self.board = None
@@ -79,7 +80,8 @@ class Sim:
         the same ms); now moves on by detents x every"""
         if ring not in RINGS:
             raise ValueError(f"no ring {ring!r}")
-        assert every >= 0, "time only moves on"
+        if every < 0:
+            raise ValueError("time only moves on")
         step = 1 if detents > 0 else -1
         for i in range(abs(detents)):
             self._at(self.now + i * every, lambda b: b.turn(ring, step))
