@@ -2,10 +2,32 @@
 window.GEOMETRY = {
  "amber": "#d9a441",
  "board": {
+  "corner_mounts": [
+   [
+    3.5,
+    3.5
+   ],
+   [
+    156.5,
+    3.5
+   ],
+   [
+    3.5,
+    56.5
+   ],
+   [
+    156.5,
+    56.5
+   ]
+  ],
   "corner_r": 3.0,
   "h": 60.0,
   "key_pad_dx": 3.25,
   "key_pad_dy": 2.25,
+  "mid_mount": [
+   72.25,
+   30.75
+  ],
   "mount_hole": 3.8,
   "mounts": [
    [
@@ -23,6 +45,10 @@ window.GEOMETRY = {
    [
     156.5,
     56.5
+   ],
+   [
+    72.25,
+    30.75
    ]
   ],
   "t": 1.6,
@@ -80,53 +106,44 @@ window.GEOMETRY = {
   ],
   "foot_pad": 12.0,
   "hollow_front": 49.1,
+  "join_short": 0.2,
+  "mid_bar_w": 4.0,
   "overhang": 2.5,
   "rib_t": 2.0,
   "ribs_x": [
    36.0,
-   72.3,
-   98.6,
+   72.25,
+   98.3,
    125.0
   ],
   "ribs_y": [
-   30.8
+   30.75
   ],
   "seat_z": -3.2,
-  "support_r": 2.5,
-  "support_top": -1.85,
+  "support_r": 2.0,
+  "support_top": -1.9,
   "supports": [
    [
-    72.3,
-    30.8
-   ],
-   [
-    98.6,
-    30.8
+    98.3,
+    30.75
    ]
   ],
   "tilt_deg": 6.0,
-  "usb_filler": {
-   "cham": 0.3,
-   "d": 2.0,
-   "h": 3.85,
-   "w": 19.7
-  },
-  "usb_notch_w": 20.8,
   "usb_open": {
    "h": 8.4,
    "r": 0.5,
-   "w": 15.8,
+   "w": 16.2,
    "z": -3.2
   },
   "wall": 2.0,
-  "wall_gap": 0.65,
+  "wall_gap": 0.95,
   "z_bot": -7.2,
   "z_floor": -5.6,
   "z_floor_bot": -7.6
  },
  "boss": {
   "d": 5.5,
-  "h": 6.05,
+  "h": 6.55,
   "tap_d": 2.5
  },
  "encoder": {
@@ -237,9 +254,9 @@ window.GEOMETRY = {
  "inner_knob": {
   "d": 12.0,
   "recess_d": 8.0,
-  "recess_top": 10.8,
-  "z0": 9.5,
-  "z1": 19.9
+  "recess_top": 10.25,
+  "z0": 8.95,
+  "z1": 19.35
  },
  "key_legends": [
   [
@@ -278,7 +295,7 @@ window.GEOMETRY = {
     "YD"
    ],
    [
-    "VS",
+    "VNV",
     ""
    ],
    [
@@ -308,7 +325,7 @@ window.GEOMETRY = {
     ""
    ],
    [
-    "FLC",
+    "VS",
     ""
    ],
    [
@@ -338,7 +355,7 @@ window.GEOMETRY = {
     ""
    ],
    [
-    "VNV",
+    "FLC",
     ""
    ],
    [
@@ -479,7 +496,7 @@ window.GEOMETRY = {
   "ALTHDG": {
    "flutes": "outer",
    "legend": "ALT \u00b7 HDG \u00b7 PUSH SYNC",
-   "legend_shift": "CRS \u00b7 BARO \u00b7 PUSH STD",
+   "legend_shift": "BARO \u00b7 CRS \u00b7 PUSH STD",
    "legend_tilt": 20,
    "x": 15.0,
    "y": 15.0
@@ -529,14 +546,14 @@ window.GEOMETRY = {
   },
   "UNIT": {
    "d": 2.3,
-   "x": 85.1,
+   "x": 86.3,
    "y": 43.5
   }
  },
  "outer_knob": {
   "d": 17.0,
-  "z0": 1.09,
-  "z1": 8.0
+  "z0": 1.15,
+  "z1": 7.45
  },
  "parts": {
   "flash": [
@@ -564,9 +581,9 @@ window.GEOMETRY = {
  },
  "pipe": {
   "base_d": 2.8,
-  "base_len": 5.35,
+  "base_len": 5.85,
   "clear": 0.3,
-  "len": 9.0,
+  "len": 10.2,
   "z0": 0.0
  },
  "plate": {
@@ -576,9 +593,14 @@ window.GEOMETRY = {
    1.4
   ],
   "range_hole": 11.1,
-  "shaft_hole": 9.3,
-  "z0": 6.0,
-  "z1": 10.0
+  "shaft_hole": 9.5,
+  "tongue": {
+   "d": 2.0,
+   "h": 5.5,
+   "w": 14.4
+  },
+  "z0": 6.55,
+  "z1": 10.55
  },
  "range_art": {
   "arrow": [
@@ -595,15 +617,17 @@ window.GEOMETRY = {
     0.7
    ]
   ],
-  "arrow_r": 10.1,
-  "legend_r": 12.4
+  "arrow_r": 10.6,
+  "legend_r": 12.95
  },
  "range_knob": {
   "d": 13.6,
-  "rim": 1.1,
-  "skirt_d": 16.6,
-  "z0": 2.3,
-  "z1": 11.0
+  "dish": 0.9,
+  "hub_d": 6.0,
+  "rim": 1.3,
+  "skirt_d": 17.3,
+  "z0": 2.25,
+  "z1": 10.45
  },
  "rkjxt": {
   "body": 8.6,
@@ -621,5 +645,10 @@ window.GEOMETRY = {
   "head_z": -3.2,
   "hex": 2.0,
   "length": 8.0
+ },
+ "shift_legend": {
+  "dy": 1.9,
+  "size": 1.7,
+  "track": 0.08
  }
 };

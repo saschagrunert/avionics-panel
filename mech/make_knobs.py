@@ -7,7 +7,8 @@ come from stack.py (datasheet shaft dimensions); each part has its bottom at z =
               FMS ring has fewer, deeper flutes, so it feels different from FREQ above it.
   inner knob  dia 12, all three: D bore on the 3.5 mm inner shaft. The bore bottom sits on the shaft tip,
               so a push goes straight to the switch.
-  RANGE knob  dia 13.6 with a 16.6 skirt over the 11.1 mm plate hole, D bore on the RKJXT lever.
+  RANGE knob  dia 13.6 with a 17.3 skirt over the 11.1 mm plate hole, D bore on the RKJXT lever; the underside
+              is dished from the hub to the skirt's rim, so the rim clears the plate at full tilt.
   light pipes clear resin, stepped: a base that stands on the board over the LED's cutout, up to a shoulder
               under the plate back, and the rod through the plate hole; captive, no glue. Both are printed as
               one part on a snap-off bar under their bases (JLC3DP's minimum resin part is 10 x 2 x 2 mm), on
@@ -74,12 +75,16 @@ def inner_knob(fit=S.FIT):
 
 
 def range_knob(fit=S.FIT):
+    """the RANGE knob: fluted body, the skirt with its 45 degree top, the underside dished from the flat hub
+    (hub_d across) up by `dish` to the rim (stack.RANGE_KNOB)."""
     rk = S.RANGE_KNOB
     h = rk["z1"] - rk["z0"]
-    sk = rk["skirt_d"] / 2
+    sk, r0, u = rk["skirt_d"] / 2, rk["hub_d"] / 2, rk["dish"]
+    top = u + rk["rim"] + sk - rk["d"] / 2 + 0.3            # where the skirt's 45 degree top meets the body
     body = fuse(knurl("range", rk["d"] / 2, h, bottom_cham=0.0),
-                revolve([(0, 0), (sk, 0), (sk, rk["rim"]), (rk["d"] / 2 - 0.3, rk["rim"] + sk - rk["d"] / 2 + 0.3),
-                         (0, rk["rim"] + sk - rk["d"] / 2 + 0.3)]))
+                revolve([(0, 0), (sk, 0), (sk, u + rk["rim"]), (rk["d"] / 2 - 0.3, top), (0, top)]))
+    # the dish: everything under the cone from the hub's edge (r0, 0) to the rim's bottom edge (sk, u)
+    body = cut(body, revolve([(r0, -1), (r0, 0), (sk + 1, u * (sk + 1 - r0) / (sk - r0)), (sk + 1, -1)]))
     lever0 = S.LEVER_Z0 - S.PLATE_Z1 - rk["z0"]; lever1 = S.LEVER_Z1 - S.PLATE_Z1 - rk["z0"]
     relief_d, relief_min = S.RANGE_RELIEF
     return cut(body, cyl(relief_d / 2, -1, max(lever0, relief_min)),
@@ -90,11 +95,14 @@ def light_pipe():
     """the stepped light pipe (bottom at z = 0, on the board): the base up to the shoulder, then the rod, a slip
     fit in its plate hole (stack.PIPE)."""
     pp = S.PIPE
-    base = cyl(pp["base_d"] / 2, 0, pp["base_len"] + 0.01)
-    return fuse(base, cyl((S.LIGHT_HOLE - pp["clear"]) / 2, pp["base_len"], pp["len"]))
+    base = cyl(pp["base_d"] / 2, 0, pp["base_len"])
+    return fuse(base, cyl((S.LIGHT_HOLE - pp["clear"]) / 2, pp["base_len"] - 0.01, pp["len"]))   # joined in the base
 
 
-def light_pipe_pair(pitch=12.0):
+PIPE_PITCH = 12.0                 # the two light pipes on their bar, axis to axis
+
+
+def light_pipe_pair(pitch=PIPE_PITCH):
     """Both light pipes on one snap-off bar: JLC3DP prints resin parts from 2 x 2 x 10 mm only. The bar runs
     under the bases on thin necks, so the visible tops stay as printed; sand the stubs flat after breaking off."""
     shift, unit = light_pipe(), move(light_pipe(), dx=pitch)

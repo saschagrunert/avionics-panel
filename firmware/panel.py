@@ -265,9 +265,9 @@ class Panel:
         shifted = self._knob_shift(knob, t)
         dev, slow, quick = 1, None, None
         if ring == "ALTHDG_OUTER":
-            slow, quick = ("CRS_1", "CRS_10") if shifted else ("ALT_100", "ALT_1000")
+            slow, quick = ("BARO", None) if shifted else ("ALT_100", "ALT_1000")
         elif ring == "ALTHDG_INNER":
-            slow, quick = ("BARO", None) if shifted else ("HDG_1", "HDG_10")
+            slow, quick = ("CRS_1", "CRS_10") if shifted else ("HDG_1", "HDG_10")
         elif knob == "FREQ" and shifted:                    # squawk: one digit, one step per detent
             if ring == "FREQ_OUTER":                        # selects the digit, stops at 1 and 4, sends nothing
                 digit = min(max(self.digit + steps, 1), 4)

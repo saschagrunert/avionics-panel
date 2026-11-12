@@ -2,10 +2,14 @@
  "lcsc": "C52923",
  "title": "CL05A105KA5NQNC",
  "package": "C0402",
- "source": "JLCPCB / EasyEDA library footprint, https://easyeda.com/api/products/C52923/components, fetched 2026-11-10",
- "frame": "top view, mm, x right, y down, from the footprint origin; pads: number, x, y, size x, size y",
+ "source": "JLCPCB / EasyEDA library footprint, https://easyeda.com/api/products/C52923/components, fetched 2026-11-12",
+ "frame": "top view, mm, x right, y down, from the footprint origin; pads: number, x, y, size x, size y; pins: pad number, the pin's name in JLC's symbol",
  "pads": [
   ["1", -0.42, 0.0, 0.5, 0.54],
   ["2", 0.42, 0.0, 0.5, 0.54]
+ ],
+ "pins": [
+  ["1", "1"],
+  ["2", "2"]
  ]
 }

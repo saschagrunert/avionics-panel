@@ -2,10 +2,14 @@
  "lcsc": "C25905",
  "title": "0402WGF5101TCE",
  "package": "R0402",
- "source": "JLCPCB / EasyEDA library footprint, https://easyeda.com/api/products/C25905/components, fetched 2026-11-11",
- "frame": "top view, mm, x right, y down, from the footprint origin; pads: number, x, y, size x, size y",
+ "source": "JLCPCB / EasyEDA library footprint, https://easyeda.com/api/products/C25905/components, fetched 2026-11-12",
+ "frame": "top view, mm, x right, y down, from the footprint origin; pads: number, x, y, size x, size y; pins: pad number, the pin's name in JLC's symbol",
  "pads": [
   ["1", -0.433, 0.0, 0.566, 0.54],
   ["2", 0.433, 0.0, 0.566, 0.54]
+ ],
+ "pins": [
+  ["1", "1"],
+  ["2", "2"]
  ]
 }

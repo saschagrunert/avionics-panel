@@ -2,8 +2,8 @@
  "lcsc": "C2456211",
  "title": "W25Q16JVSNIQ TR",
  "package": "SOP-8_L4.9-W3.9-P1.27-LS6.0-BL",
- "source": "JLCPCB / EasyEDA library footprint, https://easyeda.com/api/products/C2456211/components, fetched 2026-11-10",
- "frame": "top view, mm, x right, y down, from the footprint origin; pads: number, x, y, size x, size y",
+ "source": "JLCPCB / EasyEDA library footprint, https://easyeda.com/api/products/C2456211/components, fetched 2026-11-12",
+ "frame": "top view, mm, x right, y down, from the footprint origin; pads: number, x, y, size x, size y; pins: pad number, the pin's name in JLC's symbol",
  "pads": [
   ["1", -1.905, 2.682, 0.63, 1.865],
   ["2", -0.635, 2.682, 0.63, 1.865],
@@ -13,5 +13,15 @@
   ["6", 0.635, -2.682, 0.63, 1.865],
   ["7", -0.635, -2.682, 0.63, 1.865],
   ["8", -1.905, -2.682, 0.63, 1.865]
+ ],
+ "pins": [
+  ["1", "CS#"],
+  ["2", "DO/IO1"],
+  ["3", "WP#/IO2"],
+  ["4", "GND"],
+  ["5", "DI/IO0"],
+  ["6", "CLK"],
+  ["7", "HOLD#/RESET#/IO3"],
+  ["8", "VCC"]
  ]
 }

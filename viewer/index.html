@@ -115,7 +115,7 @@ const at = (name, extra) => {   // position, size and legends from mech/stack.py
 };
 const KNOBS = {
   // legends sit on the near side of each knob (the far side is hidden behind the knob when seated)
-  ap:    at('ALTHDG', { kind: 'dual' }),  // outer ALT, inner HDG (push SYNC); shifted outer CRS, inner BARO (push STD): the push always acts on the inner knob's function.
+  ap:    at('ALTHDG', { kind: 'dual' }),  // outer ALT, inner HDG (push SYNC); shifted outer BARO, inner CRS (push STD), the G1000's order.
   range: at('RANGE',  { kind: 'range' }),
   radio: at('FREQ',   { kind: 'dual' }),
   fms:   at('FMS',    { kind: 'dual' }) };   // shifted: cockpit lighting
@@ -238,7 +238,7 @@ async function main() {
 
   // one legend in one font along a circle, centred on angle `mid` (0 = towards +x, y towards the user). The
   // letters face outward on the far half and inward on the near half; the side is chosen once per legend,
-  // by its centre, so the ends of a long legend can lean past sideways (accepted, see docs/using/controls.md).
+  // by its centre, so the ends of a long legend can lean past sideways (accepted: every legend reads in one piece).
   function arcText(g, text, font, cx, cy, r, mid, color, track) {
     const near = Math.sin(mid) > 0.01;
     g.save(); g.fillStyle = color; g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = font;
@@ -273,8 +273,9 @@ async function main() {
   const bodyG = new THREE.Group(); assembly.add(bodyG);
   {
     const BD = G.body, CW = W + 2 * CLEAR, CH = H + 2 * CLEAR;
-    // the walls as one outline that runs in through the USB-C notch in the back wall (shape y = -pz: the back on top)
-    const UO = BD.usb_open, uo0 = UO.z - UO.h / 2, uo1 = UO.z + UO.h / 2, NW = BD.usb_notch_w;
+    // the walls as one outline that runs in through the USB-C slot in the back wall (shape y = -pz: the back on top);
+    // the slot is as wide as the plug opening and open to the top, for the plate's tongue
+    const UO = BD.usb_open, uo0 = UO.z - UO.h / 2, NW = UO.w;
     const nl = px(USB_X) - NW / 2, nr = px(USB_X) + NW / 2;
     const ring = new THREE.Shape(), ow = WO / 2, oh = HO / 2, cw = CW / 2, ch = CH / 2, cr = R + CLEAR;
     ring.moveTo(nr, oh); ring.lineTo(ow - RO, oh); ring.quadraticCurveTo(ow, oh, ow, oh - RO);
@@ -289,18 +290,11 @@ async function main() {
     ring.lineTo(nr, ch); ring.lineTo(nr, oh);
     const walls = slab(ring, Z_BOT, PLATE_Z0 - BD.wall_gap, bodyMat);   // walls stop short: the plate's bosses set its height
     shearBottom(walls, Z_BOT); bodyG.add(walls);
-    // the wall under the notch, from the desk plane up to the opening's bottom, and beside the opening up to the
-    // ledges level with its top (make_mech.py)
+    // the wall under the slot, from the desk plane up to the opening's bottom (make_mech.py)
     const sill = slab(rrectShape(NW, O - CLEAR, 0.001, px(USB_X), -pz(-(O + CLEAR) / 2)), uo0 - 1, uo0, bodyMat);
     const sp = sill.geometry.attributes.position;
     for (let i = 0; i < sp.count; i++) if (sp.getY(i) < uo0 - 0.5) sp.setY(i, Z_BOT - SLOPE * (HO / 2 - sp.getZ(i)));
     sp.needsUpdate = true; sill.geometry.computeVertexNormals(); bodyG.add(sill);
-    const LW = (NW - UO.w) / 2;
-    for (const s of [-1, 1])
-      bodyG.add(slab(rrectShape(LW, O - CLEAR, 0.001, px(USB_X) + s * (UO.w + LW) / 2, -pz(-(O + CLEAR) / 2)), uo0, uo1, bodyMat));
-    // the notch filler on the ledges, flush with the back wall (make_mech.py)
-    const UF = BD.usb_filler;
-    bodyG.add(slab(rrectShape(UF.w, UF.d, 0.001, px(USB_X), oh - UF.d / 2), uo1, uo1 + UF.h, bodyMat));
     bodyG.add(slab(rrectShape(CW, CH, R + CLEAR), BD.z_floor_bot, Z_FLOOR, bodyMat));   // floor under the PCB room
     // everything under the floor reaches down to the 6 degree desk plane; shapes in absolute coordinates for the shear
     const under = (shape) => { const m = slab(shape, Z_BOT, Z_FLOOR, bodyMat); shearBottom(m, Z_BOT); bodyG.add(m); };
@@ -321,10 +315,25 @@ async function main() {
       const s = new THREE.Shape(pts.map(([x, y]) => new THREE.Vector2(px(x), -pz(y))));
       s.holes.push(circlePath(px(mx), -pz(my), hole)); return s;
     };
-    for (const [mx, my] of MOUNTS) {
+    for (const [mx, my] of G.board.corner_mounts) {
       const low = slab(corner(mx, my, BD.boss_r_low, BD.counterbore_r), Z_BOT, BD.seat_z, bodyMat);
       shearBottom(low, Z_BOT); bodyG.add(low);
       bodyG.add(slab(corner(mx, my, BD.boss_r, BD.boss_hole_r), BD.seat_z, -PCB_T, bodyMat));
+    }
+    // the middle screw's column: a bar along board y with the corners' round boss on top. The counterbore is wider
+    // than the bar, so below the seat only the bar's two ends stand; under the floor it is a round sleeve
+    {
+      const [cx, cy] = G.board.mid_mount, hw = BD.mid_bar_w / 2, hl = BD.boss_r_low, cb = BD.counterbore_r;
+      const sleeve = disc(cx, cy, hl); sleeve.holes.push(circlePath(px(cx), -pz(cy), cb)); under(sleeve);
+      const a0 = Math.acos(hw / cb), yb = Math.sqrt(BD.boss_r * BD.boss_r - hw * hw);
+      for (const s of [-1, 1]) {
+        const pts = [[cx + hw, cy + s * hl], [cx - hw, cy + s * hl]];
+        for (let i = 0; i <= 8; i++) { const a = Math.PI - a0 - (Math.PI - 2 * a0) * i / 8; pts.push([cx + cb * Math.cos(a), cy + s * cb * Math.sin(a)]); }
+        bodyG.add(slab(new THREE.Shape(pts.map(([x, y]) => new THREE.Vector2(px(x), -pz(y)))), Z_FLOOR, BD.seat_z, bodyMat));
+        bodyG.add(slab(rect(cx - hw, cy + s * yb, cx + hw, cy + s * hl), BD.seat_z, -PCB_T - BD.join_short, bodyMat));
+      }
+      const top = disc(cx, cy, BD.boss_r); top.holes.push(circlePath(px(cx), -pz(cy), BD.boss_hole_r));
+      bodyG.add(slab(top, BD.seat_z, -PCB_T, bodyMat));
     }
     const post = (x, y, r) => {                                    // from the floor up to just under the PCB
       const sh = new THREE.Shape(); sh.absarc(0, 0, r, 0, Math.PI * 2, false);
@@ -335,7 +344,7 @@ async function main() {
     for (const [x0, y0, x1, y1] of BD.foot_bridges) {
       under(rect(clamp(x0, -CLEAR, W + CLEAR), clamp(y0, -CLEAR, H + CLEAR), clamp(x1, -CLEAR, W + CLEAR), clamp(y1, -CLEAR, H + CLEAR)));
     }
-    for (const [sx, sy] of SUPPORTS) post(sx, sy, G.body.support_r);                  // two posts under the middle of the PCB
+    for (const [sx, sy] of SUPPORTS) post(sx, sy, G.body.support_r);                  // the post under the PCB
   }
 
   // ---------------- PCB ----------------
@@ -495,9 +504,9 @@ async function main() {
       g.fillStyle = color; flipIcon(g, x0 + tw + FLIP.gap * em, y, em);
     };
     for (const k of keyList) if (k.shift) {
-      const y = Y(k.y + CAP[1] / 2 + 1.6), font = mmFont(1.7, 600);
-      if (k.shift.endsWith('⇆')) flipLegend(k.shift, X(k.x), y, font, 1.7 * ppm / 0.72, AMBER, 0.08);
-      else spaced(k.shift, X(k.x), y, font, AMBER, 0.08);
+      const SL = G.shift_legend, y = Y(k.y + CAP[1] / 2 + SL.dy), font = mmFont(SL.size, 600);
+      if (k.shift.endsWith('⇆')) flipLegend(k.shift, X(k.x), y, font, SL.size * ppm / 0.72, AMBER, SL.track);
+      else spaced(k.shift, X(k.x), y, font, AMBER, SL.track);
     }
     // knob legends on arcs: white = turn, amber = with SHIFT
     // legends on the side facing the keys: seated, the near side of a rear knob is hidden behind the front knob
@@ -527,6 +536,9 @@ async function main() {
     geo.rotateX(-Math.PI / 2); geo.translate(0, PLATE_Z0 + bs, 0);
     const plate = new THREE.Mesh(geo, [topMat, plateSide]); plate.castShadow = true; plate.receiveShadow = true;
     plateG.add(plate);
+    // the tongue on the plate's back edge, down into the body's slot over the USB-C socket
+    const TG = G.plate.tongue;
+    plateG.add(slab(rrectShape(TG.w, TG.d, 0.001, px(USB_X), HO / 2 - TG.d / 2), PLATE_Z0 - TG.h, PLATE_Z0 + 0.01, plateSide));
     const BO = G.boss;                                                    // the bosses, milled with the plate, tapped M3
     for (const [mx, my] of MOUNTS) {
       const sh = new THREE.Shape(); sh.absarc(0, 0, BO.d / 2, 0, Math.PI * 2, false);
@@ -639,9 +651,12 @@ async function main() {
       knob(k.x, k.y, R, PLATE_Z1 + OK.z0, OK.z1 - OK.z0, k.flutes, outerG);                     // outer ring (FMS: coarser grip)
       knob(k.x, k.y, KNOB_IN, PLATE_Z1 + IK.z0, IK.z1 - IK.z0, G.flutes.inner, innerG);         // inner knob, on the shaft tip
     } else {                                                  // RANGE: turns, tilts to pan, pushes; skirt hides the tilt opening
+      // the underside is dished: flat over the hub, then a cone up to the skirt's rim
+      const dish = new THREE.Mesh(new THREE.CylinderGeometry(RK.skirt_d / 2, RK.hub_d / 2, RK.dish, 64), knobPlastic);
+      dish.position.set(px(k.x), PLATE_Z1 + RK.z0 + RK.dish / 2, pz(k.y)); outerG.add(dish);
       const sk = new THREE.Mesh(new THREE.CylinderGeometry(RK.d / 2, RK.skirt_d / 2, RK.rim, 64), knobPlastic);
-      sk.position.set(px(k.x), PLATE_Z1 + RK.z0 + RK.rim / 2, pz(k.y)); sk.castShadow = true; outerG.add(sk);
-      knob(k.x, k.y, RK.d / 2, PLATE_Z1 + RK.z0 + RK.rim - 0.2, RK.z1 - RK.z0 - RK.rim + 0.2, G.flutes.range, outerG);
+      sk.position.set(px(k.x), PLATE_Z1 + RK.z0 + RK.dish + RK.rim / 2, pz(k.y)); sk.castShadow = true; outerG.add(sk);
+      knob(k.x, k.y, RK.d / 2, PLATE_Z1 + RK.z0 + RK.dish + RK.rim - 0.2, RK.z1 - RK.z0 - RK.dish - RK.rim + 0.2, G.flutes.range, outerG);
     }
   }
 

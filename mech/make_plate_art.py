@@ -161,19 +161,21 @@ def hline(xa, xb, y):
         layers["LASER"].append(bar(a, y, b, y))
 
 
-r = 1.6
+# The frame's pieces butt against each other and never overlap, so the marking is the same whether the vendor fills
+# the contours even-odd or non-zero: the straight lines stop at the corner arcs' ends, each corner is one ring
+# quarter, and a line that meets another one ends at that line's edge.
+r, lw = 1.6, 0.3                                             # corner radius, line width (bar's default)
 hline(x0 + r, x1 - r, y0)
 hline(x0 + r, x1 - r, y1)
 layers["LASER"].append(bar(x0, y0 + r, x0, y1 - r))
 layers["LASER"].append(bar(x1, y0 + r, x1, y1 - r))
 for (cx, cy, a0) in ((x1 - r, y0 + r, -90), (x1 - r, y1 - r, 0), (x0 + r, y1 - r, 90), (x0 + r, y0 + r, 180)):
-    for i in range(6):                                       # rounded corners as short bars
-        a, b = math.radians(a0 + 15 * i), math.radians(a0 + 15 * (i + 1))
-        layers["LASER"].append(bar(cx + r * math.cos(a), cy + r * math.sin(a),
-                                   cx + r * math.cos(b), cy + r * math.sin(b)))
-layers["LASER"].append(bar(vAP, y0, vAP, y1))
-hline(vAP, x1, hFMS)
-layers["LASER"].append(bar(vRadio, y0, vRadio, hFMS))
+    arc = [math.radians(a0 + 7.5 * i) for i in range(13)]    # rounded corners: a quarter of a ring each
+    layers["LASER"].append([(cx + (r + lw / 2) * math.cos(a), cy + (r + lw / 2) * math.sin(a)) for a in arc]
+                           + [(cx + (r - lw / 2) * math.cos(a), cy + (r - lw / 2) * math.sin(a)) for a in arc[::-1]])
+layers["LASER"].append(bar(vAP, y0 + lw / 2, vAP, y1 - lw / 2))
+hline(vAP + lw / 2, x1 - lw / 2, hFMS)
+layers["LASER"].append(bar(vRadio, y0 + lw / 2, vRadio, hFMS - lw / 2))
 
 for name, ((kx, ky), main, shift) in KNOBS.items():
     tilt = math.radians(S.KNOB_LEGEND_TILT[name])
@@ -190,13 +192,14 @@ for i in range(4):                                           # pan arrows, outsi
     layers["LASER"].append([(px + u * c - v * s, py + u * s + v * c) for u, v in S.RANGE_ART["arrow"]])
 
 # ---------------- UV_AMBER: shift legends under the keys ----------------
+SL = S.SHIFT_LEGEND
 for rI, y in enumerate(B.ROWS):
     for cI, x in enumerate(B.COLS):
         t = SHIFT_LEGENDS[rI][cI]
         if t.endswith("⇆"):
-            flip_legend("UV_AMBER", t, x, y + CAP[1] / 2 + 1.6, SEMI, em(1.7), 0.08)
+            flip_legend("UV_AMBER", t, x, y + CAP[1] / 2 + SL["dy"], SEMI, em(SL["size"]), SL["track"])
         elif t:
-            text("UV_AMBER", t, x, y + CAP[1] / 2 + 1.6, SEMI, em(1.7), 0.08)
+            text("UV_AMBER", t, x, y + CAP[1] / 2 + SL["dy"], SEMI, em(SL["size"]), SL["track"])
 
 
 # ---------------- writers ----------------
@@ -213,8 +216,9 @@ def write_svg(path):
     Path(path).write_text("\n".join(body))
 
 
-# DXF: y up, origin at the plate's bottom-left corner
-write_dxf("avionics-panel-rev1-plate.dxf",
-          {layer: [[(x + OVH, B.H + OVH - y) for x, y in poly] for poly in polys] for layer, polys in layers.items()})
-write_svg("avionics-panel-rev1-plate-preview.svg")
-print({k: len(v) for k, v in layers.items()}, "polygons")
+if __name__ == "__main__":                              # check_fit.py imports the layers
+    # DXF: y up, origin at the plate's bottom-left corner
+    write_dxf("avionics-panel-rev1-plate.dxf", {layer: [[(x + OVH, B.H + OVH - y) for x, y in poly] for poly in polys]
+                                                for layer, polys in layers.items()})
+    write_svg("avionics-panel-rev1-plate-preview.svg")
+    print({k: len(v) for k, v in layers.items()}, "polygons")

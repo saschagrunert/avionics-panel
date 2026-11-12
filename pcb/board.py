@@ -1,13 +1,13 @@
 """DIY Avionics Panel rev 1 - RP2040 directly on the board, USB-C, 4 layers.
 
 Knob set ALT/HDG + RANGE (Alps RKJXT, turn / 4-way tilt / push) left, FREQ + FMS right, 28 keys, two
-lights, BOOT as bridge pads under a hole in the case floor, SWD debug points.
+lights, BOOT as bridge pads under a hole in the body floor, SWD debug points.
 
 Top view (component side), mm, origin top-left, y down. Layer stack: F (signals), In1 = GND plane,
 In2 = 3V3 plane, B (signals). Switches, knobs and the RANGE control (THT) sit on top; every SMD part (RP2040,
 flash, USB-C, regulator, diodes, passives, the two reverse-mount LEDs that shine up through cutouts in the board)
 is on the bottom, so JLCPCB's Economic assembly does one SMD side and the through-hole parts are soldered by hand.
-Standard assembly of both sides (the full variant, docs/building/building.md) has JLCPCB fit the through-hole
+Standard assembly of both sides (full assembly, docs/building/ordering.md) has JLCPCB fit the through-hole
 parts too, from a top-side CPL.
 
 Footprint sources:
@@ -27,7 +27,7 @@ JLC's library footprint (its top view) turned counter-clockwise by the CPL rotat
 part seen from the top. Seen from the top, as this file works, that is the footprint mirrored left to right,
 then turned clockwise. check.py fits every bottom-side part's JLC footprint (stored in footprints/) onto
 our pads that way: each JLC pad must land on our pad with the same number.
-Top-side CPL rotations (the full variant's through-hole parts) follow JLCPCB's top-side convention: seen from
+Top-side CPL rotations (the through-hole parts in full assembly) follow JLCPCB's top-side convention: seen from
 the top, the part is JLC's library footprint turned counter-clockwise by the rotation, its origin on the CPL
 position. check.py fits each JLC hole pattern that way onto our holes, pin by pin.
 Circuit follows Raspberry Pi's "Hardware design with RP2040" minimal design.
@@ -59,9 +59,15 @@ EDGE_CLEAR = 0.50
 VIA_D, VIA_DRILL = 0.60, 0.30
 SVIA_D, SVIA_DRILL = 0.50, 0.30     # small vias (USB-C, fan-out ends): JLC standard 0.3 mm drill, 0.45 mm pad min.
 MOUNT_HOLE = 3.8      # round the M3 screw: the board floats on the screws, where the caps centre it (mech/stack.py)
-MOUNTS = [(3.5, 3.5), (W - 3.5, 3.5), (3.5, H - 3.5), (W - 3.5, H - 3.5)]
+CORNER_MOUNTS = [(3.5, 3.5), (W - 3.5, 3.5), (3.5, H - 3.5), (W - 3.5, H - 3.5)]
+# The fifth mount, in the middle of the key field: the widest spot between the pins of the four keys round it
+# (K12, K13, K22, K23: pin centres 5.3 mm off in x and 5.0 in y), with no bottom-side part within 6.9 mm. The
+# same hole, keep-out, plate boss and screw as at the corners.
+MID_MOUNT = (72.25, 30.75)
+MOUNTS = CORNER_MOUNTS + [MID_MOUNT]
 # no copper on F and B within this radius of a mounting-hole centre: the plate boss and the body boss press on
-# the board there (check.py measures it on the Gerbers, mech/check_fit.py fits the plate boss inside it)
+# the board there (precheck.py holds the fixed copper and the bottom-side part bodies to it, check.py measures it
+# on the Gerbers, mech/check_fit.py fits the plate boss inside it)
 MOUNT_KEEPOUT = 3.6
 PLANES = {"In1": "GND", "In2": "3V3"}
 
@@ -75,7 +81,7 @@ COLS = [40.0 + COL_PITCH * k for k in range(3)] + [116.35 - COL_PITCH * k for k 
 ROWS = [12.5, 23.5, 38.0, 49.0]         # rows 2/3 lower: room for the FMS line on the plate
 # Column pull-ups (10k to 3V3, one per column): the RP2040's own pull-ups (50 to 80k) with 20 to 30 pF of column
 # copper and diodes recover too slowly between two rows of a KeyMatrix scan (about 1 us). On each column bus,
-# midway between key rows 1 and 2, clear of the key pads and of the body's support posts under the board.
+# midway between key rows 1 and 2, clear of the key pads and of the body's post and middle column under the board.
 PULLUP_Y = 31.0
 KEY_LABELS = [[label.replace(" ⇆", "<>").replace("→", "->") for label, _ in row]   # silkscreen: ASCII
               for row in _STACK.KEY_LEGENDS]
@@ -83,14 +89,19 @@ ALTHDG, RANGE = (15.0, 15.0), (15.0, 45.0)   # left: ALT/HDG dual over RANGE (RK
 FREQ, FMS = (XR, 15.0), (XR, 45.0)          # right: frequency dual over FMS dual
 MCU = (122.6 + SHIFT_X, 25.0)   # RP2040 on the bottom, mirrored (pins 1-14 face the keys, bottom to top)
 USB_X = 118.0 + SHIFT_X
-BOOT = (MCU[0] + 0.5, 54.0)     # bridge pads on the bottom, under a hole in the case floor
-# Light pipes in the front plate over the LEDs. In the 4 mm aluminium plate each light hole keeps a web of at
-# least 0.8 mm (JLCCNC's minimum metal wall) to the next key hole. Each LED is a reverse-mount 1206 on the bottom
-# that shines up through a cutout in the board (LED_CUTOUT); its light pipe stands on the board over it, with a
-# base wide enough to stand on the board round the cutout, clear of the switch bodies and out from under the key
-# holes (mech/check_fit.py): SHIFT 5.75 mm below its key's centre, UNIT midway between key rows 2 and 3.
+BOOT = (MCU[0] + 0.5, 54.0)     # bridge pads on the bottom, under a hole in the body floor
+# Light pipes in the front plate over the LEDs. In the 4 mm aluminium plate each light hole keeps at least 0.8 mm
+# to the next key hole, JLCCNC's recommended wall (0.5 mm is its minimum). Each LED is a reverse-mount 1206 on the
+# bottom that shines up through a cutout in the board (LED_CUTOUT); its light pipe stands on the board over it,
+# with a base wide enough to stand on the board round the cutout, clear of the switch bodies and out from under
+# the key holes (mech/check_fit.py): SHIFT 5.75 mm below its key's centre; UNIT midway between key rows 2 and 3
+# and 5.5 mm east of column 3, in the gap between the caps of columns 3 and 4 (its middle is COL_PITCH / 2,
+# 5.925 mm), where the SHIFT cap does not stand in front of it.
 LEDS = {"SHIFT": ((COLS[3], ROWS[3] + 5.75), "GP12", "amber"),
-        "UNIT": ((COLS[3] + 4.3, (ROWS[2] + ROWS[3]) / 2), "GP15", "white")}
+        "UNIT": ((COLS[3] + 5.5, (ROWS[2] + ROWS[3]) / 2), "GP15", "white")}
+# The LEDs that lie with the cathode east and the anode and the series resistor west (add_led); the others have
+# the cathode west. UNIT: east of it the resistor would lie on the column 4 bus, 4.7 mm from the LED's centre.
+LED_CATHODE_EAST = {"UNIT"}
 # The cutout under each LED: 2.2 mm along the pads by 2.4 mm across, R0.5 corners (a 1.0 mm router), round LiteOn's
 # 1.5 x 1.6 mm lens (LiteOn's land pattern: 2.1 x 2.3, sharp corners); in the Edge_Cuts layer. The pads stop
 # LED_CUT_CLEAR short of it, JLCPCB's copper-to-routed-edge minimum, and still reach 0.3 mm under the terminals on
@@ -190,7 +201,7 @@ def smd(name, net, x, y, w, h, shape="rect", paste=True, layer="B", mask=True):
 def part(ref, value, lcsc, x, y, rot=0, side="bottom", foot=None, origin=None):
     """A part for the BOM / CPL. Bottom-side parts are assembled by JLCPCB and need their footprint name; rot is
     the CPL rotation in JLCPCB's convention for the part's side (module docstring). origin: where JLC's footprint
-    has its origin, the CPL position, if not at (x, y) (a top-side part placed by JLC in the full variant)."""
+    has its origin, the CPL position, if not at (x, y) (a top-side part placed by JLC in full assembly)."""
     if not foot and side != "top":                # a plain raise: asserts vanish under -O
         raise ValueError(f"{ref}: bottom-side part without a footprint")
     PARTS.append((ref, value, lcsc, x, y, rot, side))
@@ -286,31 +297,39 @@ def add_rkjxt(pads, ref, cx, cy, enc_a, enc_b):
     part(ref, "RKJXT1F42001", "C160841", cx, cy, side="top")
 
 
-def add_led(pads, name, x, y, gpio, colour):
+def add_led(pads, name, x, y, gpio, colour, cathode_east=False):
     """Reverse-mount 1206 LED on the bottom under a light pipe, its lens up in a cutout through the board, and its
-    series resistor beside it. LiteOn's C230 package (LTST-C230KSKT amber, LTW-C230DS white): cathode west (pad 1
-    of JLC's footprint on the left, rotation 180 on the bottom), anode east."""
+    series resistor beside it. LiteOn's C230 package (LTST-C230KSKT amber, LTW-C230DS white), pad 1 of JLC's
+    footprint the cathode: cathode west and anode east (pad 1 on the left, rotation 180 on the bottom), or with
+    cathode_east the mirror image (pad 1 on the right, rotation 0)."""
     w, h, r = LED_CUTOUT
     CUTOUTS.append((x, y, w, h, r))
     pl, pw = LED_PAD
     off = w / 2 + LED_CUT_CLEAR + pl / 2
+    k = 1 if cathode_east else -1                           # the cathode's side: +1 east, -1 west
     anode = f"LED_{name}_A"
-    pads.append(smd(f"LED_{name}.K", "GND", x - off, y, pl, pw))
-    pads.append(smd(f"LED_{name}.A", anode, x + off, y, pl, pw))
-    plane_via((x - off, y), "GND", -(pl / 2 + 0.95), 0)     # west of the cathode, room for the silk bar between
+    pads.append(smd(f"LED_{name}.K", "GND", x + k * off, y, pl, pw))
+    pads.append(smd(f"LED_{name}.A", anode, x - k * off, y, pl, pw))
+    plane_via((x + k * off, y), "GND", k * (pl / 2 + 0.95), 0)   # beyond the cathode, room for the silk bar between
     # Amber about 13.5 mA from GP12 at 12 mA drive strength (the firmware sets it), 75 R (the basic part between 51
-    # and 100): 8.6 to 17.2 mA over the GPIO's output voltage and the LED's forward voltage, under its 30 mA. White:
-    # forward voltage 2.8 to 3.6 V at 20 mA (+-0.1 per bin), close to the 3.3 V supply, so a small resistor: 22 R
-    # keeps it at about 19 mA at most, under its 20 mA DC limit, with the strongest GPIO and the lowest forward
-    # voltage. The firmware sets both brightnesses with PWM (docs/architecture/electronics.md).
+    # and 100): 6.8 to 17.2 mA over the GPIO's output resistance and the LED's forward voltage (the low end with
+    # 2.4 V across the LED and the pad's 57 ohm at most: (3.3 - 2.4) / (75 + 57)), under its 30 mA. White: forward
+    # voltage 2.8 to 3.6 V at 20 mA (+-0.1 per bin), close to the 3.3 V supply, and 20 mA DC at most. 47 R
+    # keeps it at 15.3 mA at full duty in the worst case: the supply at 3.3 V + 2 % (XC6206P332), the lowest
+    # forward voltage (the 2.8 V bin less 0.1 V), no resistance in the GPIO and the resistor 1 % low. A typical LED
+    # (3.2 V at 20 mA) on 3.3 V gets about 4.9 mA, with 25 ohm in the GPIO. Both figures assume the forward
+    # voltage falls by 0.415 V per decade of current below 20 mA; the worst case stays under 20 mA whatever the
+    # slope, since at 20 mA the resistor alone would need 0.93 V where 0.67 V is left. The firmware sets both
+    # brightnesses with PWM (docs/architecture/electronics.md).
     led_part, lcsc, res, res_lcsc = {"amber": ("LTST-C230KSKT", "C125108", "75R", "C4275"),
-                                     "white": ("LTW-C230DS", "C575513", "22R", "C23345")}[colour]
-    part(f"LED_{name}", led_part, lcsc, x, y, 180, foot="1206 reverse")
-    # The resistor in line east of the anode pad, its anode end 0.3 mm from it (the same net) and its GPIO end
+                                     "white": ("LTW-C230DS", "C575513", "47R", "C23182")}[colour]
+    part(f"LED_{name}", led_part, lcsc, x, y, 0 if cathode_east else 180, foot="1206 reverse")
+    # The resistor in line beyond the anode pad, its anode end 0.3 mm from it (the same net) and its GPIO end
     # beyond. Beside, not below: SHIFT is near the board edge, every part body but J1's stays 2.5 mm from it
     # (JLCPCB's terms).
     roff, rlen, _ = CHIP["0603"]
-    chip(pads, f"R_{name}", x + off + pl / 2 + 0.3 + rlen / 2 + roff, y, gpio, anode, res, res_lcsc, flip=True)
+    chip(pads, f"R_{name}", x - k * (off + pl / 2 + 0.3 + rlen / 2 + roff), y, gpio, anode, res, res_lcsc,
+         flip=not cathode_east)
 
 
 # ---------------- RP2040 (bottom side, mirrored top-to-bottom) ----------------
@@ -603,8 +622,8 @@ def build():
     add_diode(pads, "D_ALTHDG", ALTHDG[0], ALTHDG[1] + 3.0, COL_GP[R4_COL["ALTHDG"]], "ALTHDG_K")      # under the knob
     add_rkjxt(pads, "RANGE", *RANGE, "GP28", "GP29")
     for name, ((lx, ly), gp, colour) in LEDS.items():
-        add_led(pads, name, lx, ly, gp, colour)
-    # BOOT: bridge pads (QSPI_SS via R_BOOT), bridged with a small screwdriver through the case floor
+        add_led(pads, name, lx, ly, gp, colour, cathode_east=name in LED_CATHODE_EAST)
+    # BOOT: bridge pads (QSPI_SS via R_BOOT), bridged with a small screwdriver through the body floor
     bx, by = BOOT
     pads.append(smd("JP_BOOT.1", "BOOT_SW", bx - 0.9, by, 1.2, 1.8, paste=False))
     pads.append(smd("JP_BOOT.2", "GND", bx + 0.9, by, 1.2, 1.8, paste=False))

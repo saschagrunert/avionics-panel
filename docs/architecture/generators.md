@@ -29,7 +29,7 @@ script inside its directory. The shells: `gen` (numpy, scipy, matplotlib, pillow
 | Shell | Directory | Script | Does |
 | --- | --- | --- | --- |
 | `gen` | `pcb/` | `python3 precheck.py` | placement clearances and bottom-side part bodies |
-| `gen` | `pcb/` | `python3 run_route.py 5` | routing, writes `routed.json` ([seeds](#routing-seeds)) |
+| `gen` | `pcb/` | `python3 run_route.py 8` | routing, writes `routed.json` ([seeds](#routing-seeds)) |
 | `gen` | `pcb/` | `python3 make.py` | Gerbers |
 | `gen` | `pcb/` | `python3 check.py` | the electrical and manufacturing checks ([Electronics](electronics.md)) |
 | `gen` | `pcb/` | `python3 render.py` | board renders |
@@ -46,8 +46,8 @@ script inside its directory. The shells: `gen` (numpy, scipy, matplotlib, pillow
 
 ## Routing seeds
 
-`run_route.py <seed>` routes the board from a random seed. Seed 5 routes every net without a detour and within
-the USB length limits, as do 1, 2, 3, 4, 7, 9, 13 and 14 of seeds 1 to 14. `run_route.py <seed> x` writes
+`run_route.py <seed>` routes the board from a random seed. Seed 8 routes every net without a detour and within
+the USB length limits, as do 1, 13 and 14 of seeds 1 to 14. `run_route.py <seed> x` writes
 `routed_<seed>.json` instead of `routed.json`, for trying seeds in parallel.
 
 ## Nix

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Regenerate every output, run all checks and copy the results to production/ and renders/.
-# Usage: ./build.sh [--route]    --route also re-runs the board routing (seed 5, a few minutes) first.
+# Usage: ./build.sh [--route]    --route also re-runs the board routing (seed 8, about half a minute) first.
 # Needs Nix (nix-shell) for the Python environments, all from the nixpkgs revision locked in flake.lock
 # (read through nix/nixpkgs.nix, so without the flakes feature).
 # The independent sections run in parallel. Each one stops at its first failed step. Their outputs are printed
@@ -43,12 +43,13 @@ firmware() {
     --run "pytest -v --cov --cov-report=term-missing --cov-report=xml && cd firmware && python3 make_buttons.py >BUTTONS.md"
 }
 
-# Routing goes first and shows its progress: it takes minutes, and the board section reads its routed.json.
+# Routing goes first and shows its progress: it takes about half a minute, and the board section reads its
+# routed.json.
 # Nothing else reads the routing (the other sections import board.py, which does not).
 BOARD="python3 make.py >/dev/null && python3 check.py && python3 render.py >/dev/null && python3 make_bom.py >/dev/null && python3 make_schematic.py"
 if [ "${1:-}" = --route ]; then
   echo "== placement check and routing"
-  gen pcb "python3 precheck.py && python3 run_route.py 5"
+  gen pcb "python3 precheck.py && python3 run_route.py 8"
 else
   BOARD="python3 precheck.py && $BOARD"
 fi
@@ -83,7 +84,8 @@ stop() {
 }
 trap stop INT TERM HUP QUIT
 # Which generator reads which output: check_fit.py reads the caps (make_caps.py) and the body STL
-# (make_mech.py), and builds the knobs itself; no other generator reads another one's files.
+# (make_mech.py), and builds the knobs, the plate and the plate's legends itself (it imports their generators);
+# no other generator reads another one's files.
 section "firmware" firmware
 section "board" gen pcb "$BOARD"
 section "plate artwork" gen mech "python3 make_plate_art.py && rsvg-convert -w 2400 avionics-panel-rev1-plate-preview.svg -o avionics-panel-rev1-plate-preview.png"
@@ -111,10 +113,9 @@ echo "== copy"
 rm -f production/avionics-panel-rev1-* # a removed output then shows up as a deleted file
 cp pcb/avionics-panel-rev1-{BOM,CPL,BOM-full,CPL-full,THT-LCSC}.csv pcb/avionics-panel-rev1-gerbers.zip production/
 cp pcb/avionics-panel-rev1-schematic.pdf docs/architecture/
-cp mech/avionics-panel-rev1-{body,plate,usb-filler,lightpipes}.step mech/avionics-panel-rev1-knob-*.step \
-  mech/avionics-panel-rev1-{body,usb-filler}.stl mech/avionics-panel-rev1-caps-{A,B,C,D}.zip \
-  mech/avionics-panel-rev1-{plate,steel}.dxf \
-  mech/avionics-panel-rev1-plate-drawing.pdf production/
+cp mech/avionics-panel-rev1-{body,plate,lightpipes}.step mech/avionics-panel-rev1-knob-*.step \
+  mech/avionics-panel-rev1-body.stl mech/avionics-panel-rev1-caps-{A,B,C,D}.zip \
+  mech/avionics-panel-rev1-plate.dxf mech/avionics-panel-rev1-plate-drawing.pdf production/
 cp pcb/render-front.png renders/5-pcb-top.png
 cp pcb/render-back.png renders/6-pcb-bottom.png
 cp mech/avionics-panel-rev1-plate-preview.png renders/7-plate-artwork.png

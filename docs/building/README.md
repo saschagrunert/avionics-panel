@@ -26,10 +26,10 @@ flowchart LR
    | --- | --- | --- |
    | JLCPCB | the board, 2 fully assembled | [gerbers.zip](../../production/avionics-panel-rev1-gerbers.zip), [BOM-full.csv](../../production/avionics-panel-rev1-BOM-full.csv), [CPL-full.csv](../../production/avionics-panel-rev1-CPL-full.csv) |
    | JLCCNC | the aluminium front plate | [plate.step](../../production/avionics-panel-rev1-plate.step), [plate-drawing.pdf](../../production/avionics-panel-rev1-plate-drawing.pdf), [plate.dxf](../../production/avionics-panel-rev1-plate.dxf) |
-   | JLC3DP | body, USB-C filler, four key cap sets, knobs, light pipes | [body.step](../../production/avionics-panel-rev1-body.step), [usb-filler.step](../../production/avionics-panel-rev1-usb-filler.step), [caps-A.zip](../../production/avionics-panel-rev1-caps-A.zip) to [caps-D.zip](../../production/avionics-panel-rev1-caps-D.zip), `knob-*.step`, [lightpipes.step](../../production/avionics-panel-rev1-lightpipes.step) |
+   | JLC3DP | body, four key cap sets, knobs, light pipes | [body.step](../../production/avionics-panel-rev1-body.step), [caps-A.zip](../../production/avionics-panel-rev1-caps-A.zip) to [caps-D.zip](../../production/avionics-panel-rev1-caps-D.zip), `knob-*.step`, [lightpipes.step](../../production/avionics-panel-rev1-lightpipes.step) |
    | JLCMC | six M3 x 8 flanged button-head screws | |
    | LCSC | spare keys and a reference RANGE control | |
-   | local | feet, putty, sandpaper, a few tools | optional [steel.dxf](../../production/avionics-panel-rev1-steel.dxf) |
+   | local | feet, putty, sandpaper, a few tools | |
 
    Hand-soldering the keys, encoders and RANGE control is an option
    ([assembly variants](ordering.md#assembly-variants)).

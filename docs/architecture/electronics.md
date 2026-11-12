@@ -11,7 +11,7 @@ pad of the board is missing from it. Renders: [top](../../renders/5-pcb-top.png)
 
 RP2040 with W25Q16 flash, 12 MHz crystal, XC6206 regulator and USB-C with an ESD array and a fuse ([USB
 protection](#usb-protection)), all on the bottom of a 4-layer board (signals / GND / 3V3 / signals). Fully
-routed (`run_route.py 5`: 127 vias, 3.53 m of trace) and checked: 91 nets and 30 unconnected pins, 0 shorts, 0
+routed (`run_route.py 8`: 124 vias, 3.50 m of trace) and checked: 91 nets and 30 unconnected pins, 0 shorts, 0
 opens, closest copper 0.150 mm, 0 DRC violations, and JLC's footprint of every bottom-side part lands,
 mirrored, on our pads of the same number. Closest holes on different nets 0.544 mm (JLCPCB minimum 0.5), on
 the same net 0.318 mm (minimum 0.254); `check.py` checks both by net. Apart from the GND vias in the RP2040's
@@ -119,13 +119,14 @@ smaller cutout; JLC's footprint of the white LTW-C230DS, the same LiteOn package
 The CPL follows JLCPCB's convention for the bottom side as KiBot's JLCPCB filter and the kicad-jlcpcb-tools
 plugin write it (180 minus KiCad's bottom angle): seen from the bottom, the part is JLC's footprint turned
 counter-clockwise by the rotation. U1 and J1 are at 180, U2 at 0, U3 at 180, U4 at 0, Y1 at 0, the diodes at
-0, the resistors, capacitors and the fuse at 180 (horizontal) or 270 (vertical), except the two LED resistors
-R_SHIFT and R_UNIT at 0 (horizontal, pad 1 on the GPIO side to the east); the LEDs at 180 (pin 1, the cathode,
-to the west). A footprint that is not mirrored cannot be fixed by a rotation; the fit above catches one, as
-every JLC pad must land on our pad with the same number. For the diodes and the LEDs, whose pads we name K and
-A, that rests on a fixed pairing in `check.py` (JLC's pad 1 is the cathode), not on JLC's data. The bottom
-silkscreen has a pin 1 corner mark at U1, pin 1 dots at U2, U3, U4 and Y1 and the LEDs' cathode bars for the
-[placement preview](../building/ordering.md#placement-preview).
+0, the resistors, capacitors and the fuse at 180 (horizontal) or 270 (vertical), except the LED resistor
+R_SHIFT at 0 (horizontal, pad 1 on the GPIO side to the east; R_UNIT, its GPIO side to the west, is at 180).
+LED_SHIFT is at 180 (pin 1, the cathode, to the west) and LED_UNIT at 0 (to the east). A footprint that is not
+mirrored cannot be fixed by a rotation; the fit above catches one, as every JLC pad must land on our pad with
+the same number. For the diodes and the LEDs, whose pads we name K and A, `check.py` reads which of JLC's pads
+is the cathode from the pin names of JLC's symbol, stored in the footprint files, not from a fixed pairing.
+The bottom silkscreen has a pin 1 corner mark at U1, pin 1 dots at U2, U3, U4 and Y1 and the LEDs' cathode
+bars for the [placement preview](../building/ordering.md#placement-preview).
 
 In full assembly JLCPCB also places the through-hole parts on the top, from the same CPL (`CPL-full.csv`,
 Layer "Top"), in its top-side convention: seen from the top, the part is JLC's footprint turned

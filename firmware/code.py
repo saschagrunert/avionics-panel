@@ -1,6 +1,6 @@
 # code.py - Avionics Panel rev 1 (CircuitPython on the panel's RP2040).
-# Flash the CircuitPython 9.2.9 "Raspberry Pi Pico" build (docs/building/bring-up.md, step 3; same chip, 2 MB
-# flash, 12 MHz crystal), then copy boot.py, code.py, panel.py and buttonmap.py to CIRCUITPY and replug.
+# Flash the CircuitPython 9.2.9 "Raspberry Pi Pico" build (docs/building/bring-up.md, Flash and test, step 3; same
+# chip, 2 MB flash, 12 MHz crystal), then copy boot.py, code.py, panel.py and buttonmap.py to CIRCUITPY and replug.
 # From then on boot.py hides CIRCUITPY and the serial console unless SHIFT is held from plugging in until
 # CIRCUITPY appears (about 2 s; boot.py runs up to 1 s after power-up, docs/building/bring-up.md).
 # Logic: panel.py. Button numbers: buttonmap.py / BUTTONS.md. Pins: pcb/board.py.
@@ -39,10 +39,13 @@ COL_PINS = (P.GPIO1, P.GPIO3, P.GPIO4, P.GPIO6, P.GPIO7, P.GPIO9, P.GPIO10)
 FREQ_PUSH = P.GPIO13               # direct input, switch to GND
 SHIFT_LED, UNIT_LED = P.GPIO12, P.GPIO15
 LED_GPIOS = (12, 15)               # their GPIO numbers: both pads drive 12 mA (drive_12ma below)
-# SHIFT (amber), UNIT (white) brightness, 0..0xFFFF. At full duty the amber LED takes about 13.5 mA (75 R) and the
-# white one about 8.5 mA (22 R), both pads at 12 mA drive; these duties, about 28 and 25 % of full, leave three to
-# four times that up to full duty for tuning on the first board (docs/architecture/electronics.md).
-LED_DUTY = (0x4800, 0x4000)
+# SHIFT (amber), UNIT (white) brightness, 0..0xFFFF. At full duty the amber LED takes about 13.5 mA (75 R) and a
+# typical white one about 4.9 mA (47 R), both pads at 12 mA drive. The white LED's forward voltage is close to the
+# 3.3 V supply, so its current differs a lot from part to part: 47 R keeps the worst case at 15.3 mA, under the
+# LED's 20 mA rating, and a part with a high forward voltage takes about 1.8 mA. A typical part gets little
+# current that way, so the white duty is the higher one. These duties, about 28 and 33 % of full, leave three to
+# three and a half times that up to full duty for tuning on the first board (docs/architecture/electronics.md).
+LED_DUTY = (0x4800, 0x5500)
 # SHIFT light duty per panel level (off, dim, full). Dim starts at 1/4 of full: the eye is not linear, so it
 # looks like about half the brightness, a clear pulse that should stay visible through the light pipe in
 # daylight. Tune it on the first board with the amber LED behind its pipe: in PICO_TEST the SHIFT light is

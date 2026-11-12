@@ -66,7 +66,7 @@ def test_knob_keeps_shift():
     s.run(3000); assert not s.p.shift_active(s.t)
     s.turn("FREQ_OUTER", 1); assert s.take() == [(1, "COM_MHZ_UP")]
     s.key("SHIFT"); s.turn("ALTHDG_INNER", 1); s.key("AP")              # a key after a knob session: normal
-    assert [n for _, n in s.take()] == ["BARO_UP", "AP"]
+    assert [n for _, n in s.take()] == ["CRS_1_UP", "AP"]
 
 
 def light_trace(s, end):
@@ -152,6 +152,22 @@ def test_acceleration():
     assert names[0] == "ALT_100_DN" and set(names[1:]) == {"ALT_1000_DN"}, names
     s.turn("FMS_INNER", 5, every=30); s.run(1000)                        # no acceleration on the FMS knob
     assert [n for _, n in s.take()] == ["FMS_INNER_CW"] * 5
+
+
+def test_alt_hdg_knob_with_shift_sets_baro_and_crs():
+    # with SHIFT the outer ring is BARO, one step per detent however fast the turn, and the inner ring is CRS:
+    # 1 degree, or 10 degrees on a fast turn. The push is STD, and both rings and the push are one session
+    s = Sim()
+    s.key("SHIFT")
+    s.turn("ALTHDG_OUTER", 2); s.turn("ALTHDG_INNER", -1); s.key("ALTHDG_PUSH")
+    assert s.take() == [(1, "BARO_UP"), (1, "BARO_UP"), (1, "CRS_1_DN"), (1, "BARO_STD")]
+    s.turn("ALTHDG_OUTER", -3, every=P.FAST_MS // 2); s.run(500)
+    assert [n for _, n in s.take()] == ["BARO_DN"] * 3
+    s.turn("ALTHDG_INNER", 3, every=P.FAST_MS // 2); s.run(500)
+    assert [n for _, n in s.take()] == ["CRS_1_UP", "CRS_10_UP", "CRS_10_UP"]
+    s.run(P.SHIFT_MS)
+    s.turn("ALTHDG_OUTER", 1); s.turn("ALTHDG_INNER", 1)                  # the session ran out: ALT and HDG
+    assert s.take() == [(1, "ALT_100_UP"), (1, "HDG_1_UP")]
 
 
 def test_fms_knob_with_shift_dims_the_lights():
@@ -963,7 +979,7 @@ def test_held_shifted_push_survives_a_stalled_pass():
             s.p.key("ALTHDG_PUSH", False, s.t)
         assert s.p.shift_active(s.t) and s.p.shift_until == s.t + P.SHIFT_MS
         s.turn("ALTHDG_INNER", 1)
-        assert s.take() == [(1, "BARO_STD"), (1, "BARO_UP")]
+        assert s.take() == [(1, "BARO_STD"), (1, "CRS_1_UP")]
 
 
 def test_shifted_push_held_keeps_the_light():
@@ -1038,8 +1054,8 @@ def test_armed_key_keeps_a_held_shifted_push():
     s.key("SHIFT"); s.p.key("ALTHDG_PUSH", True, s.t); s.run(500)
     tap(s, "SHIFT"); tap(s, "VFR")
     assert all(level == P.LIGHT_FULL for level, _ in light_and_edges(s, 4000))
-    s.turn("ALTHDG_INNER", 1)                                # still the shifted session: BARO
-    assert s.take() == [(1, "BARO_STD"), (1, "IDENT"), (1, "BARO_UP")]
+    s.turn("ALTHDG_INNER", 1)                                # still the shifted session: CRS
+    assert s.take() == [(1, "BARO_STD"), (1, "IDENT"), (1, "CRS_1_UP")]
 
 
 def test_second_tap_cancels_shift_unless_a_control_is_held():
@@ -1066,7 +1082,7 @@ def test_a_plain_push_held_does_not_keep_shift():
     s.key("SHIFT"); s.turn("ALTHDG_INNER", 1, every=1)
     s.run(P.SHIFT_MS - 100); assert s.p.shift_active(s.t)
     s.run(100); assert not s.p.shift_active(s.t)
-    assert s.take() == [(1, "HDG_SYNC"), (1, "BARO_UP")]
+    assert s.take() == [(1, "HDG_SYNC"), (1, "CRS_1_UP")]
 
 
 def test_shifted_repeat_stops_when_another_knob_takes_shift():

@@ -2,11 +2,13 @@
 
 The bottom-side parts are placed by JLCPCB by these footprints (its placement preview draws them), so check.py
 fits each one onto our pads, offline, from the files written here; the through-hole parts on the top are
-soldered by hand or, in the full variant, placed by JLCPCB from the top-side CPL, and check.py fits their hole
-patterns at that CPL position and rotation. Run it (needs the network) after adding a part type:
+soldered by hand or, in full assembly, placed by JLCPCB from the top-side CPL, and check.py fits their hole
+patterns at that CPL position and rotation. Run it (needs the network) after adding a part type; it asks for
+one part every PACE seconds, so a run takes about ten minutes:
     cd pcb && python3 footprints/fetch.py
-Each file keeps the pads only: number, centre x / y, size x / y in mm, top view, y down, from the
-footprint's origin (the point JLCPCB puts on the CPL position). Through-hole parts also keep their holes:
+Each file keeps the pads (number, centre x / y, size x / y in mm, top view, y down, from the footprint's
+origin, the point JLCPCB puts on the CPL position) and the name JLC's symbol of the part gives each pad's pin:
+check.py reads from it which pad of a diode or an LED is the cathode. Through-hole parts also keep their holes:
 plated (number, x, y, drill, slot length or 0) and unplated (x, y, diameter).
 """
 import json
@@ -22,6 +24,10 @@ import board as B
 
 URL = "https://easyeda.com/api/products/{}/components?version=6.4.19.5"
 MIL10 = 0.254                       # EasyEDA units: 10 mil
+# Seconds between two parts. The API blocks an address for some minutes after 15 to 19 requests at one every 10 s
+# or faster, and its answer then is HTTP 403, which is final here (retry()). At one every 20 s the 27 parts of
+# this board come through in one run.
+PACE = 20
 
 
 def pads_of(data):
@@ -42,6 +48,17 @@ def pads_of(data):
             w, h = h, w
         out.append((num, round((x - ox) * MIL10, 3), round((y - oy) * MIL10, 3), round(w * MIL10, 3),
                     round(h * MIL10, 3)))
+    return sorted(out, key=lambda p: (len(p[0]), p[0]))
+
+
+def pins_of(data):
+    """(pad number, pin name) of every pin of an EasyEDA symbol: a pin is "P~..." in sections joined by "^^", the
+    fourth holding its name and the fifth its number, the number of its pad in the footprint."""
+    out = []
+    for shape in data["dataStr"]["shape"]:
+        if shape.startswith("P~"):
+            sections = shape.split("^^")
+            out.append((sections[4].split("~")[4], sections[3].split("~")[4]))
     return sorted(out, key=lambda p: (len(p[0]), p[0]))
 
 
@@ -87,13 +104,14 @@ def main():
     B.build()
     here = os.path.dirname(os.path.abspath(__file__))
     top = {p[2] for p in B.PARTS if p[6] == "top"}
-    for lcsc in sorted({p[2] for p in B.PARTS}):
+    for k, lcsc in enumerate(sorted({p[2] for p in B.PARTS})):
         url, answer = URL.format(lcsc), "no footprint in the answer"
+        if k:
+            time.sleep(PACE)                        # between two parts only: none after the last or a failed one
         try:
             data = download(url)["result"]
         except urllib.error.HTTPError as e:
             data, answer = None, f"HTTP {e.code}"
-        time.sleep(1)
         if not data or not data.get("packageDetail"):
             sys.exit(f"{lcsc}: EasyEDA returned no footprint for this part ({url.split('?')[0]}, {answer}); check "
                      "the LCSC number in board.py (check.py needs JLC's footprint of every part)")
@@ -102,10 +120,14 @@ def main():
             "title": data["title"],
             "package": data["packageDetail"]["title"],
             "source": f"JLCPCB / EasyEDA library footprint, {url.split('?')[0]}, fetched {date.today()}",
-            "frame": "top view, mm, x right, y down, from the footprint origin; pads: number, x, y, size x, size y",
+            "frame": "top view, mm, x right, y down, from the footprint origin; pads: number, x, y, size x, size y; "
+                     "pins: pad number, the pin's name in JLC's symbol",
         }
         found = pads_of(data)
-        lists = {"pads": found}
+        lists = {"pads": found, "pins": pins_of(data)}
+        stray = sorted({n for n, _name in lists["pins"]} - {p[0] for p in found})
+        if stray:
+            sys.exit(f"{lcsc}: pins {stray} of JLC's symbol have no pad in its footprint ({url.split('?')[0]})")
         if lcsc in top:                             # through-hole part: its holes too
             lists["holes"], lists["npth"] = holes_of(data)
             ref["frame"] += "; holes: number, x, y, drill, slot length (0: round); npth: x, y, diameter"
