@@ -1,0 +1,38 @@
+name: hubhop
+# The MobiFlight tables name HubHop presets, and HubHop's data is not in the repository: this downloads its
+# database as a user does and checks that every name is in it once. HubHop changes without a push here, so
+# it also runs weekly; a pull request runs it only when it touches the generator. It needs only the runner's
+# Python and the network: a failed or cut-off download fails it with its own message, and the timeouts keep
+# it short. Its own workflow, so a HubHop outage leaves the build green.
+on:
+  schedule:
+    - cron: "17 5 * * 1"
+  push:
+    branches:
+      - main
+    paths:
+      - mobiflight/**
+      - .github/workflows/hubhop.yml
+  pull_request:
+    paths:
+      - mobiflight/**
+      - .github/workflows/hubhop.yml
+  workflow_dispatch:
+# Pull requests cancel their outdated runs; every push to main gets a group of its own.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+permissions: {}
+jobs:
+  hubhop:
+    name: HubHop presets
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read # checkout
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: python3 -m mobiflight.hubhop -o "$RUNNER_TEMP/hubhop-presets.json"
+        timeout-minutes: 5

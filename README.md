@@ -41,7 +41,8 @@ Using the panel:
   [keys](docs/using/controls.md#keys-label-shift-legend-in-parentheses)
 - [Compatibility](docs/using/compatibility.md): what each control does on the G1000, GFC 500, GTN, GNS and
   Bendix/King, by aircraft
-- [Mapping](docs/using/mapping.md): the two joysticks, update mode and GUIDs, the device name
+- [Mapping](docs/using/mapping.md): the two joysticks,
+  [generated profiles](docs/using/mapping.md#generated-profiles), update mode and GUIDs, the device name
 
 Building one, in build order:
 

@@ -16,3 +16,7 @@ coverage.xml
 
 # browser logs from testing the viewer (Playwright)
 .playwright-mcp/
+
+# MobiFlight: HubHop's presets (python3 -m mobiflight.hubhop) and the projects made from them
+/hubhop-presets.json
+/*.mfproj
