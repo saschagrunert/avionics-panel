@@ -21,32 +21,32 @@ Autopilots:
 
 | Panel | GFC 700 (G1000) | GFC 500 | KAP 140 | KFC 150 + KAS 297B | KFC 225 |
 | --- | --- | --- | --- | --- | --- |
-| AP, HDG, NAV, APR, ALT | yes | yes | yes | yes (AP = AP ENG) | yes |
-| TEST (SHIFT, AP) | none (self-test at power-up) | none | none (self-test at power-up) | TEST, preflight check | depends on the aircraft |
-| BC (SHIFT, APR) | BC | none (back course is automatic) | REV | BC | REV |
-| VS | yes | yes | none (VS via UP / DN) | VS on the KAS 297B | yes |
-| FLC | yes | IAS | none | none | none |
-| VNV | yes | yes | none | none | none |
-| LVL | some NXi installs | yes | none | none | none |
-| FD, YD (SHIFT, FD) | yes | yes | none | FD, YD switch | YD if installed |
-| ARM (SHIFT, ALT) | none | none | ARM | ARM on the KAS 297B | ARM |
-| UP / DN | NOSE UP / DN | wheel | UP / DN | vertical trim rocker | UP / DN |
-| ALT knob | ALT knob | ALT SEL knob | altitude select knob | KAS 297B knob | altitude select knob |
+| AP, HDG, NAV, APR, ALT | Yes | Yes | Yes | Yes (AP = AP ENG) | Yes |
+| TEST (SHIFT, AP) | None (self-test at power-up) | None | None (self-test at power-up) | TEST, preflight check | Depends on the aircraft |
+| BC (SHIFT, APR) | BC | None (back course is automatic) | REV | BC | REV |
+| VNV | Yes | Yes | None | None | None |
+| VS | Yes | Yes | None (VS via UP / DN) | VS on the KAS 297B | Yes |
+| FLC | Yes | IAS | None | None | None |
+| LVL | Some NXi installs | Yes | None | None | None |
+| FD, YD (SHIFT, FD) | Yes | Yes | None | FD, YD switch | YD if installed |
+| ARM (SHIFT, ALT) | None | None | ARM | ARM on the KAS 297B | ARM |
+| UP / DN | NOSE UP / DN | Wheel | UP / DN | Vertical trim rocker | UP / DN |
+| ALT knob | ALT knob | ALT SEL knob | Altitude select knob | KAS 297B knob | Altitude select knob |
 | HDG knob, push SYNC | HDG, push sync | HDG, push sync | HDG bug (KI 525), no sync | HSI heading bug, no sync | HDG bug, no sync |
-| SHIFT: CRS, BARO, STD, CRS CTR | CRS/BARO knob | on the G5 / G3X knob | CRS (KI 525), BARO key + knob | HSI course, altimeter | CRS, BARO |
+| SHIFT: BARO, CRS, push STD; CRS CTR (SHIFT, HDG) | CRS/BARO knob: outer BARO, inner CRS; its push centres the course | On the G5 / G3X knob | CRS (KI 525), BARO key + knob | HSI course, altimeter | CRS, BARO |
 
 More autopilots in Black Square and A2A aircraft:
 
 | Panel | KFC 325 + KMC 321 (Black Square TBM 850) | King Air (Black Square) | S-TEC 30 + ST-901 (A2A Comanche) | Century IV (A2A Aerostar) |
 | --- | --- | --- | --- | --- |
-| AP, HDG, NAV, APR, ALT | yes | yes | HDG, NAV, ALT (no APR key) | yes |
-| BC (SHIFT, APR) | BC | BC | none | REV |
-| VS, UP / DN | VS, UP / DN | VS, UP / DN | UP / DN command VS | pitch trim wheel |
-| FLC | IAS | IAS | none | none |
-| YD (SHIFT, FD) | yes | yes | none | option |
-| ½ BANK (SHIFT, LVL) | half bank | half bank | none | none |
-| GPSS (SHIFT, NAV) | via the navigator | via the navigator | ST-901 GPSS | none |
-| ALT knob, ARM | KAS 297B | altitude preselect | none | none |
+| AP, HDG, NAV, APR, ALT | Yes | Yes | HDG, NAV, ALT (no APR key) | Yes |
+| BC (SHIFT, APR) | BC | BC | None | REV |
+| VS, UP / DN | VS, UP / DN | VS, UP / DN | UP / DN command VS | Pitch trim wheel |
+| FLC | IAS | IAS | None | None |
+| YD (SHIFT, FD) | Yes | Yes | None | Option |
+| ½ BANK (SHIFT, LVL) | Half bank | Half bank | None | None |
+| GPSS (SHIFT, NAV) | Via the navigator | Via the navigator | ST-901 GPSS | None |
+| ALT knob, ARM | KAS 297B | Altitude preselect | None | None |
 
 ½ BANK limits the bank angle to about half for a smoother ride. Collins, the KFC 325 and Garmin's
 G3000 and GFC 600 (labelled BANK there) have it.
@@ -55,13 +55,13 @@ Navigators:
 
 | Panel | G1000 / NXi | GTN 750Xi (TDS) | GNS 530/430 |
 | --- | --- | --- | --- |
-| D→, MENU, CLR, ENT, FPL, PROC | bezel keys | D→ is a key; the rest are on the touchscreen | bezel keys |
-| HOME | none | HOME key | none |
-| MSG, NRST, VNAV, TERR, MAP (with SHIFT) | softkeys / pages; hold CLR | touchscreen | MSG key; NRST page; VNAV key (530); hold CLR |
-| CDI, OBS | softkeys | touchscreen | bezel keys |
-| FMS knob, push CRSR | FMS knob | the GTN knob | right knob, push CRSR |
-| RANGE, pan, push PTR | RANGE knob + joystick | map zoom | RNG keys |
-| UNIT (SHIFT, HOME) | radio 2 only; the FMS keys stay on the MFD | GTN / second unit | 530 / 430 |
+| D→, MENU, CLR, ENT, FPL, PROC | Bezel keys | D→ is a key; the rest are on the touchscreen | Bezel keys |
+| HOME | None | HOME key | None |
+| MSG, NRST, VNAV, TERR, MAP (with SHIFT) | Softkeys / pages; hold CLR | Touchscreen | MSG key; NRST page; VNAV key (530); hold CLR |
+| CDI, OBS | Softkeys | Touchscreen | Bezel keys |
+| FMS knob, push CRSR | FMS knob | The GTN knob | Right knob, push CRSR |
+| RANGE, pan, push PTR | RANGE knob + joystick | Map zoom | RNG keys |
+| UNIT (SHIFT, HOME) | Radio 2 only; the FMS keys stay on the MFD | GTN / second unit | 530 / 430 |
 
 On units without a HOME key (G1000, GNS) map HOME to whatever is used most there.
 
@@ -73,10 +73,10 @@ Radios, transponder, audio:
 
 | Panel | G1000 | GTN / GNS | Bendix/King |
 | --- | --- | --- | --- |
-| FREQ knob, push COM/NAV/ADF | COM and NAV knobs, ADF window | dual knob, C/V push | KX 155/165 knobs, KR 87 |
-| COM ⇆, NAV ⇆, ADF ⇆ | flip-flops | flip-flops | flip-flops, KR 87 FRQ |
-| 121.5 (SHIFT, COM ⇆) | hold COM ⇆ | hold COM ⇆ | sets COM standby to 121.5 |
-| UNIT for radio 2 | COM 2 / NAV 2 tuning box | second unit | second radio |
+| FREQ knob, push COM/NAV/ADF | COM and NAV knobs, ADF window | Dual knob, C/V push | KX 155/165 knobs, KR 87 |
+| COM ⇆, NAV ⇆, ADF ⇆ | Flip-flops | Flip-flops | Flip-flops, KR 87 FRQ |
+| 121.5 (SHIFT, COM ⇆) | Hold COM ⇆ | Hold COM ⇆ | Sets COM standby to 121.5 |
+| UNIT for radio 2 | COM 2 / NAV 2 tuning box | Second unit | Second radio |
 | Squawk, XPDR mode, IDENT, VFR | GTX 345 | GTX 327 / GTN XPDR | KT 76 |
 | MIC / COM / NAV / ADF / DME audio | GMA 1347 | GMA 340 / GMA 35 | KMA 28 |
 

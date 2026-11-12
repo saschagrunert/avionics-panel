@@ -126,7 +126,7 @@ joysticks move to another interface number: Windows may then see them as new con
 
 ## Lights
 
-`code.py` drives the SHIFT and UNIT lights with PWM at `LED_DUTY` = 0x4800 and 0x4000 (about 28 and 25 % of
+`code.py` drives the SHIFT and UNIT lights with PWM at `LED_DUTY` = 0x4800 and 0x5500 (about 28 and 33 % of
 full), the amber one dimmed to a quarter for its pulse in SHIFT's last second. It sets the drive strength of
 their pads (GP12, GP15) to 12 mA, which their series resistors need ([Electronics](electronics.md#lights)), by
 writing the RP2040's pad registers through `memorymap` (CircuitPython has no call for it); should that fail,
@@ -149,8 +149,8 @@ Run `pytest` from the repository root for the host tests:
 | `firmware/test_panel.py` | `panel.py` |
 | `firmware/test_code.py` | `code.py`, against stub hardware modules |
 | `firmware/test_boot.py` | `boot.py` |
-| `tests/test_pins.py` | every pin `code.py` uses, against the nets in `pcb/board.py` |
-| `tests/test_micropython.py` | every board file, compiled with two compilers |
+| `tests/test_pins.py` | Every pin `code.py` uses, against the nets in `pcb/board.py` |
+| `tests/test_micropython.py` | Every board file, compiled with two compilers |
 
 The compilers are CircuitPython 9.2's own `mpy-cross` (the board's compiler, passed in `MPY_CROSS`) and the
 MicroPython unix port from nixpkgs (`micropython` on the PATH). MicroPython alone is not enough: CircuitPython
