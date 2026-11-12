@@ -173,7 +173,7 @@ Run `pytest` from the repository root for the host tests:
 | `tests/test_descriptor.py` | `boot.py`'s report descriptor, parsed, and the simulator's reports read with it |
 | `tests/test_uhid.py` | The simulator as a Linux HID device: descriptor, name and IDs, a key press |
 | `tests/test_pins.py` | Every pin `code.py` uses, against the nets in `pcb/board.py` |
-| `tests/test_micropython.py` | Every board file, compiled with two compilers |
+| `tests/test_mpy_cross.py` | Every board file, compiled with the board's compiler |
 
 The simulator in [sim/](../../sim/) runs the unchanged `boot.py` and `code.py` on stand-ins for the hardware
 modules, on virtual time: the keypads scan every 20 ms, a loop pass takes 3 ms, and the PC takes a report at
@@ -183,16 +183,11 @@ turn the FREQ inner ring) and checks the buttons MobiFlight sees at its 31.25 ms
 that none stays pressed. With the firmware's own tests, a firmware change that breaks a documented workflow
 fails the build.
 
-The compilers are CircuitPython 9.2's own `mpy-cross` (the board's compiler, passed in `MPY_CROSS`) and the
-MicroPython unix port from nixpkgs (`micropython` on the PATH). MicroPython alone is not enough: CircuitPython
-9.2 is built on an older MicroPython, so newer syntax could pass it and still fail on the board. Both check
-syntax only: a module or argument the board's build lacks shows up on the bench.
-
-`mpy-cross` is not in nixpkgs: on Linux x86-64 and ARM64, `build.sh` builds
-[firmware/mpy-cross.nix](../../firmware/mpy-cross.nix), which fetches Adafruit's 9.2.9 build for those two,
-pinned by its hash; on other systems it prints a notice and that check skips. `build.sh` also provides
-MicroPython. Each check skips without its compiler; `build.sh` sets `REQUIRE_MICROPYTHON=1` and, where it
-provides `mpy-cross`, `REQUIRE_MPY_CROSS=1`, which turn the skips into failures.
+The compiler is CircuitPython 9.2's own `mpy-cross`, so it rejects the syntax the board rejects. It checks
+syntax only: a module or argument the board's build lacks shows up on the bench. It is not in nixpkgs:
+[nix/mpy-cross.nix](../../nix/mpy-cross.nix) fetches Adafruit's 9.2.9 build for Linux x86-64 and ARM64, pinned
+by its hash, and the firmware shell puts it on the PATH and sets `REQUIRE_MPY_CROSS=1`, which makes a missing
+compiler fail its tests. On other systems the shell prints a notice and those tests skip.
 
 ### The simulator in real time
 
@@ -222,5 +217,5 @@ both joysticks and maps only the first 80 buttons of device 1, so `evtest` sees 
 simulated. `tests/test_uhid.py` runs where `/dev/uhid` and the new hidraw node are accessible and skips
 elsewhere, CI included: the hosted runners' kernel has `uhid` only in an extra modules package.
 `REQUIRE_UHID=1` turns the skips into failures. Without a kernel, `tests/test_descriptor.py` parses the
-descriptor with the parser of [hid-tools](https://gitlab.freedesktop.org/libevdev/hid-tools) (`build.sh`
-provides it) and reads the simulator's reports with it.
+descriptor with the parser of [hid-tools](https://gitlab.freedesktop.org/libevdev/hid-tools) (the firmware
+shell provides it on Linux) and reads the simulator's reports with it.

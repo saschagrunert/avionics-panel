@@ -57,12 +57,15 @@ BODY_TILT = 6.0                            # body wedge (deg)
 # cannot wedge across the hole and that its bottom edge comes back over the back edge, which is broken by
 # KEY_BACK_BREAK at least (drawing)
 CAP = dict(w=9.6, h=6.4, r=1.2, height=5.7, cham=0.45, base=PLUNGER_TOP - 2.7)
-# tactile bars on SHIFT, DN (front edge) and UP (back edge): closed box 1.0 wide (JLC3DP embossed detail: 0.8),
+# tactile bars (CAP_BAR_EDGE): closed box 1.0 wide (JLC3DP embossed detail: 0.8),
 # sunk 0.05 into the top, its outer side 0.1 inside the top face. Only 0.5 proud, below JLC3DP's 0.8 for
 # embossed detail (a solid 3.2 x 1.0 ridge, not fine detail): a taller front bar hides the bottom of the SHIFT
 # and DN legends from the seat; check_fit.py proves it hides none at 45 deg (a review question,
 # docs/building/ordering.md)
 CAP_BAR = dict(w=3.2, d=1.0, proud=0.5, sink=0.05, inset=0.6)
+# The caps with a bar and its edge: 1 the front (towards the user, board +y), -1 the back; a cap not listed has
+# none (0).
+CAP_BAR_EDGE = {"SHIFT": 1, "DN": 1, "UP": -1}
 # seated eye over the cap tops: about 42 deg over a desk plus the 6 deg wedge, 48 deg over the plate; 45 is the
 # conservative value, since a flatter sightline lets the front bar hide more of the legend
 CAP_VIEW_DEG = 45.0

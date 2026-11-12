@@ -2,13 +2,13 @@
 import board as B
 import numpy as np
 from check import HPX, PX, WPX, raster, read_drill
+from geom import rounded_rect
 from PIL import Image, ImageDraw
 
 
 def board_mask():
     img = Image.new("L", (WPX, HPX), 0)
     dr = ImageDraw.Draw(img)
-    from geom import rounded_rect
     dr.polygon([(x / PX, y / PX) for x, y in rounded_rect(0, 0, B.W, B.H, B.CORNER_R)], fill=255)
     holes = read_drill("avionics-PTH.drl") + read_drill("avionics-NPTH.drl")
     for (x, y, d) in holes:

@@ -348,6 +348,36 @@ window.GEOMETRY = {
  "keys": {
   "bar": {
    "d": 1.0,
+   "edge": {
+    "ALT": 0,
+    "AP": 0,
+    "APR": 0,
+    "CDI": 0,
+    "CLR": 0,
+    "COM 1": 0,
+    "COM 2": 0,
+    "COM \u21c6": 0,
+    "DN": 1,
+    "D\u2192": 0,
+    "ENT": 0,
+    "FD": 0,
+    "FLC": 0,
+    "FPL": 0,
+    "HDG": 0,
+    "HOME": 0,
+    "LVL": 0,
+    "MENU": 0,
+    "MIC 1": 0,
+    "MIC 2": 0,
+    "NAV": 0,
+    "NAV \u21c6": 0,
+    "PROC": 0,
+    "SHIFT": 1,
+    "UP": -1,
+    "VFR": 0,
+    "VNV": 0,
+    "VS": 0
+   },
    "inset": 0.6,
    "proud": 0.5,
    "w": 3.2
@@ -366,8 +396,7 @@ window.GEOMETRY = {
     "tail": 0.12,
     "w": 0.55
    },
-   "em_max": 3.1,
-   "fill": 0.84,
+   "em": 2.8407,
    "flip_polys": [
     [
      [0, -0.228],

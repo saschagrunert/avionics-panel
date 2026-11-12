@@ -17,31 +17,16 @@ case "${1:-}" in
     ;;
 esac
 export PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 # no __pycache__ races between the sections
-# every Nix package (nix/shells.nix, and <nixpkgs> in firmware/mpy-cross.nix) comes from the locked nixpkgs
+# every Nix package comes from the locked nixpkgs: nix/shells.nix imports it, and nix-shell takes its bash
+# from <nixpkgs>
 NIX_PATH="nixpkgs=$(nix-instantiate --eval nix/nixpkgs.nix | tr -d '"')"
 export NIX_PATH
 SHELLS=$PWD/nix/shells.nix # the environments
 # start clean: an output a generator no longer writes must not survive into production/
 rm -rf pcb/avionics-panel-rev1-* mech/avionics-panel-rev1-* # (make.py clears pcb/gerbers itself)
 gen() { (cd "$1" && nix-shell "$SHELLS" -A gen --run "$2"); }
-# without OpenCascade's STEP writer statistics; stderr through the same pipe, so it stays in order
-occ() { (cd "$1" && nix-shell "$SHELLS" -A occ --run "$2") 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | { grep -v '^\s*$\|\*\*\|Step File\|Transfer\|WorkSession' || true; }; }
-
-firmware() {
-  # (MicroPython, in nix/shells.nix, checks the firmware compiles with MicroPython's parser)
-  # CircuitPython 9.2 is built on an older MicroPython: its own mpy-cross is the board's compiler. Not in
-  # nixpkgs: firmware/mpy-cross.nix fetches Adafruit's build (pinned by hash) and points it at Nix's glibc
-  case "$(uname -s)-$(uname -m)" in
-    Linux-x86_64 | Linux-aarch64)
-      MPY_CROSS=$(nix-build --no-out-link firmware/mpy-cross.nix)/bin/mpy-cross
-      export MPY_CROSS REQUIRE_MPY_CROSS=1
-      ;;
-    *) echo "no pinned CircuitPython mpy-cross for $(uname -sm): the firmware is only checked with MicroPython" >&2 ;;
-  esac
-  # (--cov measures what .coveragerc names, as a table and as coverage.xml, which CI sends to Codecov)
-  REQUIRE_MICROPYTHON=1 nix-shell "$SHELLS" -A firmware \
-    --run "pytest -v --cov --cov-report=term-missing --cov-report=xml && cd firmware && python3 make_buttons.py >BUTTONS.md"
-}
+# gen without OpenCascade's STEP writer statistics; stderr through the same pipe, so it stays in order
+occ() { gen "$@" 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | { grep -v '^\s*$\|\*\*\|Step File\|Transfer\|WorkSession' || true; }; }
 
 # Routing goes first and shows its progress: it takes about half a minute, and the board section reads its
 # routed.json.
@@ -87,7 +72,9 @@ trap stop INT TERM HUP QUIT
 # the body STL (make_mech.py), and builds the plate and the plate's legends itself (it imports their generators);
 # check.py reads the Gerbers (make.py) and the BOM and CPL (make_bom.py). Each runs in the section of the files it
 # reads; no other generator reads another one's files.
-section "firmware" firmware
+# the tests, with their coverage of what .coveragerc names, as a table and as coverage.xml (CI sends it to Codecov)
+section "firmware" nix-shell "$SHELLS" -A firmware \
+  --run "pytest -v --cov --cov-report=term-missing --cov-report=xml && cd firmware && python3 make_buttons.py >BUTTONS.md"
 section "board" gen pcb "$BOARD"
 section "plate artwork" gen mech "python3 make_plate_art.py && rsvg-convert -w 2400 avionics-panel-rev1-plate-preview.svg -o avionics-panel-rev1-plate-preview.png"
 section "knobs, light pipes, caps, body, fits" occ mech \

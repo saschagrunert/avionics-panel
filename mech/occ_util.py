@@ -1,6 +1,9 @@
 """Small OpenCascade helpers shared by the generators of the plate, the body, the caps and the knobs."""
 import math
+import re
 
+import numpy as np
+from OCC.Core.BRep import BRep_Tool
 from OCC.Core.BRepAlgoAPI import BRepAlgoAPI_Common, BRepAlgoAPI_Cut, BRepAlgoAPI_Fuse
 from OCC.Core.BRepBuilderAPI import (
     BRepBuilderAPI_MakeEdge,
@@ -28,6 +31,10 @@ from OCC.Core.StepBasic import StepBasic_Product
 from OCC.Core.STEPControl import STEPControl_AsIs, STEPControl_Writer
 from OCC.Core.StlAPI import StlAPI_Writer
 from OCC.Core.TCollection import TCollection_HAsciiString
+from OCC.Core.TopAbs import TopAbs_FACE
+from OCC.Core.TopExp import TopExp_Explorer
+from OCC.Core.TopLoc import TopLoc_Location
+from OCC.Core.TopoDS import topods
 from OCC.Core.TopTools import TopTools_ListOfShape
 
 
@@ -146,9 +153,26 @@ def volume(shape):
     p = GProp_GProps(); brepgprop.VolumeProperties(shape, p); return p.Mass()
 
 
+def face_meshes(shape, deflection, angle):
+    """mesh shape, then yield each meshed face as (face, nodes (n, 3) in the shape's frame, triangles (m, 3) as
+    0-based indices into nodes, in the face's own winding)."""
+    BRepMesh_IncrementalMesh(shape, deflection, False, angle, True)
+    ex = TopExp_Explorer(shape, TopAbs_FACE)
+    while ex.More():
+        face = topods.Face(ex.Current())
+        loc = TopLoc_Location()
+        tri = BRep_Tool.Triangulation(face, loc)
+        if tri is not None:
+            t = loc.Transformation()
+            nodes = np.array([[q.X(), q.Y(), q.Z()]
+                              for q in (tri.Node(i + 1).Transformed(t) for i in range(tri.NbNodes()))])
+            idx = np.array([tri.Triangle(i + 1).Get() for i in range(tri.NbTriangles())]) - 1
+            yield face, nodes, idx
+        ex.Next()
+
+
 def pin_step_time(path):
     """STEP headers carry the write time: pin it, so a rebuild without changes leaves the file identical."""
-    import re
     with open(path) as f:
         s = f.read()
     s = re.sub(r"(FILE_NAME\('[^']*',')[^']*(')", r"\g<1>2026-01-01T00:00:00\g<2>", s, count=1)

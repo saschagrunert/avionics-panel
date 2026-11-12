@@ -36,27 +36,27 @@ page at the final size: a resize after the load shifts the top view by a few pix
 
 ## Scripts
 
-The steps one by one, with Nix from the repository root: `nix-shell nix/shells.nix -A <shell>`, then the
-script inside its directory. The shells: `gen` (numpy, scipy, matplotlib, pillow, librsvg), `occ`
-(OpenCascade, for the exact solids) and `firmware` (pytest, pytest-cov, MicroPython).
+The steps one by one, with Nix from the repository root: `nix-shell nix/shells.nix -A gen` (OpenCascade,
+numpy, scipy, matplotlib, pillow, librsvg), then the script inside its directory. The firmware tests run in
+`nix-shell nix/shells.nix -A firmware` (pytest, pytest-cov; on Linux hid-tools and CircuitPython's `mpy-cross`).
 
-| Shell | Directory | Script | Does |
-| --- | --- | --- | --- |
-| `gen` | `pcb/` | `python3 precheck.py` | Placement clearances, bottom-side part bodies, mount keep-outs |
-| `gen` | `pcb/` | `python3 run_route.py 8` | Routing, writes `routed.json` for a fully routed board ([seeds](#routing-seeds)) |
-| `gen` | `pcb/` | `python3 make.py` | Gerbers |
-| `gen` | `pcb/` | `python3 make_bom.py` | BOM (parts list) and CPL (placement file) |
-| `gen` | `pcb/` | `python3 check.py` | The electrical and manufacturing checks, on the Gerbers, BOM and CPL ([Electronics](electronics.md)) |
-| `gen` | `pcb/` | `python3 render.py` | Board renders |
-| `gen` | `pcb/` | `python3 make_schematic.py` | Schematic |
-| `gen` | `mech/` | `python3 make_plate_art.py` | Plate artwork |
-| `occ` | `mech/` | `python3 make_caps.py` | Key caps |
-| `occ` | `mech/` | `python3 make_mech.py` | Body |
-| `occ` | `mech/` | `python3 make_plate_step.py` | Plate STEP and drawing |
-| `occ` | `mech/` | `python3 make_knobs.py` | Knobs, light pipes |
-| `occ` | `mech/` | `python3 check_fit.py` | Sections and clearances ([Mechanics](mechanics.md)) |
-| `occ` | `mech/` | `python3 make_viewer_data.py` | `viewer/geometry.js`, the dimensions the 3D view takes from the generators |
-| `firmware` | Repository root | `pytest` | The [firmware tests](firmware.md#code-and-tests) |
+| Directory | Script | Does |
+| --- | --- | --- |
+| `pcb/` | `python3 precheck.py` | Placement clearances, bottom-side part bodies, mount keep-outs |
+| `pcb/` | `python3 run_route.py 8` | Routing, writes `routed.json` for a fully routed board ([seeds](#routing-seeds)) |
+| `pcb/` | `python3 make.py` | Gerbers |
+| `pcb/` | `python3 make_bom.py` | BOM (parts list) and CPL (placement file) |
+| `pcb/` | `python3 check.py` | The electrical and manufacturing checks, on the Gerbers, BOM and CPL ([Electronics](electronics.md)) |
+| `pcb/` | `python3 render.py` | Board renders |
+| `pcb/` | `python3 make_schematic.py` | Schematic |
+| `mech/` | `python3 make_plate_art.py` | Plate artwork |
+| `mech/` | `python3 make_caps.py` | Key caps |
+| `mech/` | `python3 make_mech.py` | Body |
+| `mech/` | `python3 make_plate_step.py` | Plate STEP and drawing |
+| `mech/` | `python3 make_knobs.py` | Knobs, light pipes |
+| `mech/` | `python3 check_fit.py` | Sections and clearances ([Mechanics](mechanics.md)) |
+| `mech/` | `python3 make_viewer_data.py` | `viewer/geometry.js`, the dimensions the 3D view takes from the generators |
+| Repository root | `pytest` | The [firmware tests](firmware.md#code-and-tests) |
 
 ## Routing seeds
 
@@ -69,7 +69,7 @@ writes `routed_<seed>.json` instead of `routed.json`, for trying seeds in parall
 
 Every Nix package comes from the nixpkgs revision locked in `flake.lock`, so a local build and CI write the
 same files (STEP, STL, PDF and PNG output depends on the OpenCascade and matplotlib versions).
-`nix/nixpkgs.nix` reads the lock without the flakes feature, and `nix/shells.nix` defines the environments
+`nix/nixpkgs.nix` reads the lock without the flakes feature, and `nix/shells.nix` defines the two environments
 above from it. Dependabot proposes newer nixpkgs-unstable revisions as pull requests (weekly, each at least a
 week old), and CI fails on any output that the update changes: run `./build.sh` on that branch and commit what
 changed. To move nixpkgs by hand: `nix --extra-experimental-features 'nix-command flakes' flake update

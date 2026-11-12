@@ -614,23 +614,15 @@ async function main() {
   }
 
   // ---------------- caps: one legend size for every cap, condensed face, Garmin glyphs ----------------
-  // as printed (mech/make_caps.py): Bold, every glyph, arrow and icon grown all round by LEG.grow mm
+  // as printed (mech/make_caps.py): Bold at its em LEG.em, every glyph, arrow and icon grown all round by LEG.grow mm
   const capsG = new THREE.Group(); assembly.add(capsG);
   const CB = G.keys.cap_chamfer, CAP_TOP = [CAP[0] - 2 * CB, CAP[1] - 2 * CB], LEG = G.keys.legend, DTO = LEG.direct_to;
-  const meas = document.createElement('canvas').getContext('2d');
-  function labelWidthEm(label) {
-    meas.font = `${LEG.weight} 100px ${CAP_FONT}`;
-    if (label === 'D→') return meas.measureText('D').width / 100 + DTO.w;
-    if (label.endsWith('⇆')) return meas.measureText(label.slice(0, -1).trimEnd()).width / 100 + FLIP.gap + FLIP.w;
-    return meas.measureText(label).width / 100;
-  }
-  const EM_MM = Math.min(LEG.em_max, ...keyList.map(k => (CAP_TOP[0] * LEG.fill - 2 * LEG.grow) / labelWidthEm(k.label)));
   function capTexture(label, color, bg) {
     const c = document.createElement('canvas'), k = 56;
     c.width = Math.round(CAP_TOP[0] * k); c.height = Math.round(CAP_TOP[1] * k);
     const g = c.getContext('2d');
     g.fillStyle = bg; g.fillRect(0, 0, c.width, c.height);
-    const em = EM_MM * k, cx = c.width / 2, cy = c.height / 2, grow = LEG.grow * k;
+    const em = LEG.em * k, cx = c.width / 2, cy = c.height / 2, grow = LEG.grow * k;
     g.font = `${LEG.weight} ${em}px ${CAP_FONT}`; g.fillStyle = color; g.strokeStyle = color; g.textBaseline = 'alphabetic';
     g.lineJoin = 'round'; g.lineWidth = 2 * grow;
     const capH = g.measureText('H').actualBoundingBoxAscent;   // capitals centred on the cap, as make_caps.py
@@ -661,12 +653,11 @@ async function main() {
       // more matte than the cap round it: no glare over the legends from a low angle
       new THREE.MeshStandardMaterial({ map: capTexture(key.label, color, bg), roughness: 0.8 }));
     top.rotation.x = -Math.PI / 2; top.position.set(px(key.x), base + height + SKIN, pz(key.y)); capsG.add(top);
-    // tactile bars, found without looking: SHIFT and DN at the front edge, UP at the back edge
-    const barEdge = { SHIFT: 1, DN: 1, UP: -1 }[key.label];
+    // tactile bars, found without looking, on the edge stack.CAP_BAR_EDGE gives
+    const BAR = G.keys.bar, barEdge = BAR.edge[key.label];   // as printed (mech/make_caps.py)
     if (barEdge) {
-      const B = G.keys.bar;                                  // as printed (mech/make_caps.py)
-      const bar = new THREE.Mesh(new THREE.BoxGeometry(B.w, B.proud, B.d), capMat);
-      bar.position.set(px(key.x), base + height + B.proud / 2, pz(key.y) + barEdge * (CAP_TOP[1] / 2 - B.inset)); bar.castShadow = true; capsG.add(bar);
+      const bar = new THREE.Mesh(new THREE.BoxGeometry(BAR.w, BAR.proud, BAR.d), capMat);
+      bar.position.set(px(key.x), base + height + BAR.proud / 2, pz(key.y) + barEdge * (CAP_TOP[1] / 2 - BAR.inset)); bar.castShadow = true; capsG.add(bar);
     }
   }
 

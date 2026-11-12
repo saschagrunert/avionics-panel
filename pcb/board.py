@@ -47,8 +47,7 @@ def _load(name, path):
 
 _STACK = _load("_avionics_stack", "../mech/stack.py")   # the one source of the key legends
 
-SHIFT_X = 9.0           # electronics strip + right knob column, moved right as one block from the first draft
-XR = 136.0 + SHIFT_X    # right knob column (FREQ over FMS)
+XR = 145.0              # right knob column (FREQ over FMS)
 W, H = 160.0, 60.0      # layout: ALT/HDG over RANGE | keys | electronics strip (bottom) | FREQ over FMS
 CORNER_R = 3.0
 TRACE_W = 0.25
@@ -87,8 +86,8 @@ KEY_LABELS = [[label.replace(" ⇆", "<>").replace("→", "->") for label, _ in 
               for row in _STACK.KEY_LEGENDS]
 ALTHDG, RANGE = (15.0, 15.0), (15.0, 45.0)   # left: ALT/HDG dual over RANGE (RKJXT: turn, 4-way tilt, push)
 FREQ, FMS = (XR, 15.0), (XR, 45.0)          # right: frequency dual over FMS dual
-MCU = (122.6 + SHIFT_X, 25.0)   # RP2040 on the bottom, mirrored (pins 1-14 face the keys, bottom to top)
-USB_X = 118.0 + SHIFT_X
+MCU = (131.6, 25.0)             # RP2040 on the bottom, mirrored (pins 1-14 face the keys, bottom to top)
+USB_X = 127.0
 BOOT = (MCU[0] + 0.5, 54.0)     # bridge pads on the bottom, under a hole in the body floor
 # Light pipes in the front plate over the LEDs. In the 4 mm aluminium plate each light hole keeps at least 0.8 mm
 # to the next key hole, JLCCNC's recommended wall (0.5 mm is its minimum). Each LED is a reverse-mount 1206 on the
@@ -495,10 +494,10 @@ def add_usb(pads):
 # turned by 180 degrees) burns R_IN open, long before F1 trips: R_IN is the sacrificial element for shorts
 # behind it, F1 covers slow overloads (docs/architecture/electronics.md). U4 centred under the D- contact B7's
 # column: pins 4 / 3 at USB_X - 0.75, 6 / 1 at USB_X + 1.15, VCC (pin 5) towards J1, GND (pin 2) away from it.
-ESD = (118.2 + SHIFT_X, 11.7)
+ESD = (127.2, 11.7)
 ESD_PX, ESD_PY = 0.95, 1.2          # SOT-23-6: pad columns 0.95 apart, rows 2.4 apart (JLC's footprint of C7420376)
-FUSE = (122.0 + SHIFT_X, 12.05)     # F1 centre: its pin 1 under R_IN, clear of CC2 to the west
-R_IN = (120.55 + SHIFT_X, 9.8)      # R_IN centre (0603, vertical): in B4A9's line, between its via and the fuse
+FUSE = (131.0, 12.05)               # F1 centre: its pin 1 under R_IN, clear of CC2 to the west
+R_IN = (129.55, 9.8)                # R_IN centre (0603, vertical): in B4A9's line, between its via and the fuse
 FUSE_PX = 1.5                       # pad centres east and west of FUSE (Bourns: 1.0 x 1.6 pads, 2.0 apart)
 
 
@@ -553,7 +552,7 @@ def add_protection(pads):
 # between it and the bottom copper, so nothing but J1's own pads may run under it (keepouts(); check.py measures
 # it on the Gerbers).
 J1_BODY = (USB_X - 4.47, -0.52, USB_X + 4.47, -0.52 + 7.35)
-LDO = (125.4 + SHIFT_X, 8.0)    # VIN pad 1.0 mm clear of J1's hand-soldered shell tab (check.py)
+LDO = (134.4, 8.0)              # VIN pad 1.0 mm clear of J1's hand-soldered shell tab (check.py)
 LDO_PX = 1.2                    # U3's pad centres east and west of LDO (add_support); the breakouts end there
 
 # Nominal package bodies of the bottom-side parts by footprint name: (x, y) in JLC's footprint frame at
@@ -583,7 +582,7 @@ def bodies():
             w, h = h, w
         out[ref] = (x - w / 2, y - h / 2, x + w / 2, y + h / 2)
     return out
-XTAL = (121.7 + SHIFT_X, 15.6)      # crystal centre, over the XIN fan-out end
+XTAL = (130.7, 15.6)                # crystal centre, over the XIN fan-out end
 
 
 def build():
@@ -669,7 +668,7 @@ def add_flash(pads):
         path(net, [fp[p], (x, fb + ydrop), (ex, fb + ydrop), (ex, ey)], w=0.2)
     # BOOTSEL: QSPI_SS -> 1k (right here, so the long wire to the button is no stub on the chip select)
     chip(pads, "R_BOOT", fan["QSPI_SS"][0] - 1.7, fb + 0.6, "QSPI_SS", "BOOT_SW", "1k", "C21190", vertical=True)
-    a, b = chip(pads, "C_FL", 125.6 + SHIFT_X, ft + 3.0, "3V3", "GND", "100nF", "C14663", vertical=True)
+    a, b = chip(pads, "C_FL", 134.6, ft + 3.0, "3V3", "GND", "100nF", "C14663", vertical=True)
     plane_via(a, "3V3", 1.0, 0); plane_via(b, "GND", 1.0, 0)
 
 
@@ -724,7 +723,7 @@ def add_support(pads):
         JOINED.add(f"{ref}.2")
     # decoupling on the 3V3 / GND planes, besides the capacitor at each IOVDD pin (add_io_caps). C_D0 sat north-west
     # of the chip, where the USB lines now leave the ESD array; the pins it shared have capacitors of their own.
-    for name, (cxx, cyy, d3, dg) in (("C_D1", (127.4 + SHIFT_X, 12.8, (1.0, 0), (1.0, 0))),
+    for name, (cxx, cyy, d3, dg) in (("C_D1", (136.4, 12.8, (1.0, 0), (1.0, 0))),
                                      ("C_D2", (*d2, (1.0, 0), (1.0, 0))),        # next to pins 42-44, 1 uF
                                      ("C_D3", (MCU[0] - 4.5, 47.4, (-1.0, 0), (1.0, 0)))):
         # C_D2 at VREG_VIN (pin 44) is 1 uF: RP2040 datasheet 2.9.3 / 2.10.1, 1 uF close to VREG_VIN
@@ -732,7 +731,7 @@ def add_support(pads):
         a, b = chip(pads, name, cxx, cyy, "3V3", "GND", val, lc, vertical=True)
         plane_via(a, "3V3", *d3); plane_via(b, "GND", *dg)
     # bulk capacitor on the 3V3 plane at the matrix side of the chip (C_OUT0 is the bulk at the regulator)
-    a, b = chip(pads, "C_BULK", 115.6 + SHIFT_X, 44.0, "3V3", "GND", "1uF", "C15849", vertical=True)
+    a, b = chip(pads, "C_BULK", 124.6, 44.0, "3V3", "GND", "1uF", "C15849", vertical=True)
     plane_via(a, "3V3", 1.0, 0); plane_via(b, "GND", 1.0, 0)
 
 
