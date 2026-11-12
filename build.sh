@@ -38,8 +38,9 @@ firmware() {
       ;;
     *) echo "no pinned CircuitPython mpy-cross for $(uname -sm): the firmware is only checked with MicroPython" >&2 ;;
   esac
+  # (--cov measures what .coveragerc names, as a table and as coverage.xml, which CI sends to Codecov)
   REQUIRE_MICROPYTHON=1 nix-shell "$SHELLS" -A firmware \
-    --run "pytest -v && cd firmware && python3 make_buttons.py >BUTTONS.md"
+    --run "pytest -v --cov --cov-report=term-missing --cov-report=xml && cd firmware && python3 make_buttons.py >BUTTONS.md"
 }
 
 # Routing goes first and shows its progress: it takes minutes, and the board section reads its routed.json.

@@ -1,0 +1,14 @@
+# How Codecov shows the firmware's test coverage (.coveragerc says what is measured) and judges a pull request.
+coverage:
+  range: 50..75
+  status:
+    project:
+      default:
+        # The project may lose ten untested lines: the firmware has about 500 statements, so one is 0.2 %.
+        threshold: 2%
+    patch:
+      default:
+        # Fixed, so a change is judged on its own lines: Codecov's default asks for the project's coverage.
+        target: 80%
+comment:
+  layout: "header, diff"
