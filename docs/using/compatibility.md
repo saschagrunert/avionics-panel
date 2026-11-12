@@ -77,7 +77,7 @@ Radios, transponder, audio:
 | --- | --- | --- | --- |
 | FREQ knob, push COM/NAV/ADF | COM and NAV knobs, ADF window | COM and NAV radios, shown on the unit | KX 155/165 knobs, KR 87 |
 | COM ⇆, NAV ⇆, ADF ⇆ | Flip-flops | Flip-flops (GTN: no key, see below) | Flip-flops, KR 87 FRQ |
-| 121.5 (SHIFT, COM ⇆) | Hold COM ⇆ | GNS: hold COM ⇆ (not in the Working Title GNS); GTN: hold the volume knob pushed for about 2 s | Sets COM standby to 121.5 |
+| 121.5 (SHIFT, COM ⇆) | Hold COM ⇆ | GNS: hold COM ⇆ (not in the Working Title GNS); GTN: hold the volume knob pushed for about 2 s | Sets COM to 121.5 |
 | UNIT for radio 2 | COM 2 / NAV 2 tuning box | Second unit | Second radio |
 | Squawk, XPDR mode, IDENT, VFR | GTX 345 | GTX 327 / GTN XPDR | KT 76 |
 | MIC / COM / NAV / ADF / DME audio | GMA 1347 | GMA 340 / GMA 35 | KMA 28 |
