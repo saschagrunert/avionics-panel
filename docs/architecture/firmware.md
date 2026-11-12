@@ -12,7 +12,7 @@ flowchart LR
   lights["SHIFT and UNIT lights<br>(pwmio)"]
   dev1["Joystick device 1<br>128 buttons"]
   dev2["Joystick device 2<br>64 buttons, unit 2"]
-  pc["MobiFlight or the sim"]
+  pc["MobiFlight"]
   matrix --> panel
   push --> panel
   rings --> panel
@@ -29,24 +29,26 @@ the buttons, and `make_buttons.py` (PC only) writes [BUTTONS.md](../../firmware/
 ## State
 
 Every state lives in the firmware and is sent as fixed joystick buttons, so mappings never need variables or
-preconditions and can't get out of sync with the panel:
+preconditions and can't get out of sync with the panel (except with a GNS or GTN together with an ADF,
+[Mapping](../using/mapping.md#per-avionics)):
 
 - SHIFT: one-shot for keys, kept through a knob session ([Controls](../using/controls.md#shift)). Shifted
   functions are their own buttons.
 - UNIT: the firmware keeps the state and drives the white light. The unit 2 versions of the FMS keys, FMS
-  knob, CDI and OBS, flip-flops and frequency knob are sent on the second joystick device. The cockpit
+  knob, CDI and OBS, flip-flops and FREQ knob are sent on the second joystick device. The cockpit
   lighting behind SHIFT on the FMS knob stays on device 1 in either unit. Button numbers are frozen: new
   buttons go at the end of a device, retired ones keep their slot. A snapshot test in `firmware/test_panel.py`
   checks it.
-- Frequency knob: the push cycles COM, NAV, ADF, and each mode sends its own turn buttons. The mode returns to
-  COM 10 s after the last turn or push.
+- FREQ knob: the push cycles COM, NAV, ADF, and each mode sends its own turn buttons. The mode stays
+  until the next push.
 - Knob acceleration ([table](../using/controls.md#knobs)), UP / DN auto-repeat and the pan tilt repeat rate
   are done in the firmware.
-- Squawk with SHIFT: the outer ring steps the first two digits, the inner ring the last two (octal, 0 to 7 per
-  digit).
+- Squawk with SHIFT: the outer ring selects the digit (1 to 4; it stops at both ends and sends no button), the
+  inner ring steps the selected digit, one step per detent, on that digit's own up and down buttons. A new
+  shifted session starts at digit 1; a shifted FREQ push still held keeps its session and the digit.
 - RANGE: a tilt closes its direction switch and "com"; on a slow tilt "com" can close well before the
   direction. So the centre push (PTR) is sent on release, and only if no direction closed during the press. A
-  tilt repeats, first after 300 ms, then every 120 ms.
+  tilt repeats, first after 300 ms, then about every 120 ms.
 
 ## Knob steps
 
@@ -57,10 +59,12 @@ two detents merge into one. The PC fetches reports every 8 ms (the HID endpoint'
 joysticks share that endpoint. With a report still waiting from the previous loop pass and both devices
 changing in the current one, an edge can arrive up to three frames (24 ms) late: a 50 ms gap can reach the PC
 as 26 ms, shorter than a poll. `check_timing` in [panel.py](../../firmware/panel.py) keeps press and gap at
-32 + 3 x 8 = 56 ms or more, and a step no longer than the 120 ms tilt repeat. A fast spin of a
-one-step-per-detent knob (FMS, COM kHz) can lose steps beyond the 8 queued and runs on for up to 0.9 s.
-Turning the other way drops the steps still queued in the old direction, so the knob stops at once. The
-[first-board check](../building/bring-up.md#first-board) measures whether MobiFlight counts every detent.
+32 + 3 x 8 = 56 ms or more. A repeat of a held UP, DN or tilt waits until the last step of its button is through,
+so a step longer than the repeat interval (120 ms tilt, 125 ms UP / DN) slows the repeats down and nothing
+queues up. A fast spin of a one-step-per-detent knob (FMS, COM kHz) can lose steps beyond the 8 queued and
+runs on for up to 0.9 s. Turning the other way drops the steps still queued in the old direction, so the knob
+stops at once. The [first-board check](../building/bring-up.md#first-board) measures whether MobiFlight counts
+every detent.
 
 ## Keys and switch bounce
 
@@ -71,11 +75,12 @@ and a fast double tap (CLR twice, a flip-flop) stays two presses. A longer press
 tap and its gap are over.
 
 The keys are scanned every 20 ms and a press is passed on at the first scan that reads it (no added delay). A
-switch that bounces for longer than a scan shows up as a release and a new press one scan later, which the 56
-ms minimum press would turn into two presses (AP on and straight off again). So a release of a key or push
-waits 30 ms: a new press of it in that time was a bounce, and the press goes on as if never released. A switch
-that chatters while held stays one press throughout: UP and a tilt keep repeating (a repeat due in those 30 ms
-waits for them, the ones after it keep their time), and a shifted push or tilt keeps SHIFT.
+key already held when the firmware starts is ignored until it is pressed again. A switch that bounces for
+longer than a scan shows up as a release and a new press one scan later, which the 56 ms minimum press would
+turn into two presses (AP on and straight off again). So a release of a key or push waits 30 ms: a new press
+of it in that time was a bounce, and the press goes on as if never released. A switch that chatters while held
+stays one press throughout: UP and a tilt keep repeating (a repeat due in those 30 ms waits for them, the ones
+after it keep their time), and a shifted push or tilt keeps SHIFT.
 
 - The 30 ms count from the scans that read the release and the press (`keypad.Event.timestamp`), not from the
   loop pass that picks them up, so a pass that waits for the PC can't stretch a bounce past them.
@@ -126,8 +131,9 @@ it prints "LED drive strength not set" and the lights stay dimmer at the 4 mA de
 
 Seven `rotaryio` encoders use 7 of the RP2040's 8 PIO state machines; the Pico bench creates all seven too.
 GP25, the FREQ outer encoder's B line, is the Pico CircuitPython build's status LED during boot and in safe
-mode (harmless, limited current); a custom board definition would avoid it, and the spare GP14 cannot be
-routed in its place. The pins are in `code.py` and the [GPIO map](electronics.md#gpio-map).
+mode (harmless, limited current, and while `code.py` runs the pin belongs to `rotaryio`); a custom board
+definition would avoid it, and the spare GP14 cannot be routed in its place. The pins are in `code.py` and the
+[GPIO map](electronics.md#gpio-map).
 
 ## Code and tests
 

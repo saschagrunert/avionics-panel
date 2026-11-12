@@ -85,7 +85,7 @@ row:
   sit up to about 0.44 mm off. A cap can turn on its round plunger, and a turned cap has less room: at 1°
   about 0.24 mm, just over the per-key errors, and past about 5° it no longer goes into its hole at all. So
   each row of caps is squared against a steel rule before the plate goes on
-  ([assembly](../building/assembly.md#assembly) step 1);
+  ([assembly](../building/assembly.md#putting-it-together) step 1);
   `check_fit.py` takes the room at 1°. The plate's bosses fix the screws, and the board floats on them: its
   3.8 mm holes (3.6 to 4.0 with JLCPCB's ±0.2) pass the M3 wherever the caps put the board (that takes 0.255
   mm: the bosses and key holes on the plate, the board's holes, centring, the thread's play; the holes leave
@@ -117,7 +117,7 @@ row:
   stays outside each counterbore and 1.9 mm round it inside, 1.6 mm with the counterbore and the boss both
   printed 0.3 mm off (JLC3DP asks for more than 1.5 mm on fastener features). The cavity leaves 0.5 mm per
   side round the PCB, so the board fits even with the body 0.4 % small: the milled outline (±0.2 mm) as
-  delivered, 0.15 mm per side across the width with the full variant's V-cut rail edge (±0.4 mm), and V-cut
+  delivered, 0.15 mm per side across the width with full assembly's V-cut rail edge (±0.4 mm), and V-cut
   short edges, should JLCPCB add rails there anyway, once they are sanded until the board drops into the body,
   160.2 mm or shorter fitting the smallest one; the walls and the ribs under the floor are 2.0 mm (JLC3DP's
   MJF wall for parts over 100 mm).
@@ -173,7 +173,7 @@ Every through-hole part sits flat on the board. The plate leaves little room: wi
 pockets clear the encoder bodies by 0.31 mm and the RANGE pocket the RKJXT by 0.16 mm at worst (the plate
 bowed towards them as far as the drawing allows), less at the pocket floor corners. So an encoder may stand at
 most 0.05 mm proud (`stack.SEAT_GAP`), and no gauge spot of the RKJXT more than 0.05 mm prouder than on a part
-pressed fully down (`stack.RKJXT_SEAT`). The [checks](../building/assembly.md#on-arrival) hold the RKJXT to
+pressed fully down (`stack.RKJXT_SEAT`). The [checks](../building/bring-up.md#on-arrival) hold the RKJXT to
 0.03 mm against its own reading (hand-soldered) or a loose part's (full assembly); the rows pass with an
 encoder up to 0.12 mm proud and the RKJXT's gauge spots up to about 0.06 mm.
 
@@ -228,7 +228,7 @@ encoder up to 0.12 mm proud and the RKJXT's gauge spots up to about 0.06 mm.
   model by as much, together with the print. The set is marked on the cap underside, inside the key hole where
   it never shows: one dimple for A, two for B, three for C, four for D (1.0 mm across, 0.9 mm deep, in the
   corners between the socket and the outline). One set fits;
-  [Assembly](../building/assembly.md#choosing-the-cap-set) says how to find it. A plunger lot near the edge of
+  [Bring-up](../building/bring-up.md#choosing-the-cap-set) says how to find it. A plunger lot near the edge of
   TE's ±0.30 may need the sets moved (`stack.CAP_SETS`).
 - Why not one compliant set: a socket whose springs grip over TE's 0.6 mm and the print's 0.4 mm deflects
   each of two springs by up to 0.55 mm. In a 9.6 x 6.4 mm cap such springs are about 4 mm long and 0.9 mm
@@ -342,4 +342,4 @@ encoder up to 0.12 mm proud and the RKJXT's gauge spots up to about 0.06 mm.
 | Knobs | avionics style: matte black resin, fine vertical flutes, slight taper, chamfered flat top, no index line. Outer ring Ø17 × 6.91 mm on all three (FMS with a coarser grip), inner knob Ø12 × 10.4 mm above it: 19.9 mm above the plate. RANGE Ø13.6 with a Ø16.6 skirt |
 | SHIFT light | stepped light pipe, Ø2.0 mm rod in a Ø2.3 mm hole below the SHIFT cap, amber reverse-mount LED under the PCB |
 | UNIT 2 light | stepped light pipe, Ø2.0 mm rod in a Ø2.3 mm hole right of the UNIT legend, white reverse-mount LED under the PCB |
-| Amber | #d9a441 (RGB 217, 164, 65; nearest Pantone 7563 C, roughly RAL 1004): SHIFT cap legend, UV print on the plate, 3D view. JLCCNC is asked to match it, with its standard orange as the fallback; the caps and the 3D view follow what the plate gets (`stack.AMBER`, [Building](../building/building.md#jlccnc)) |
+| Amber | #d9a441 (RGB 217, 164, 65; nearest Pantone 7563 C, roughly RAL 1004): SHIFT cap legend, UV print on the plate, 3D view. JLCCNC is asked to match it, with its standard orange as the fallback; the caps and the 3D view follow what the plate gets (`stack.AMBER`, [Ordering](../building/ordering.md#jlccnc)) |
