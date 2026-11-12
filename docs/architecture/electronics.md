@@ -33,13 +33,16 @@ that the mask stays off the pads). JLCPCB removes a dam it cannot hold rather th
 for the production file to be confirmed and the dams checked there; the fallback is green
 ([Ordering](../building/ordering.md#review-questions)).
 
-Via covering "Tented" matches the Gerbers: the mask covers every via on both sides except two deliberate
-openings, which JLCPCB keeps because the mask Gerber decides for a Gerber order: the three 1V1 vias under the
-RP2040 are probe points on the top (open there, tented underneath), and the four GND vias in the RP2040's
-exposed pad sit in that pad's mask opening, clear of its paste windows. Should JLC tent those as well,
-assembly is unaffected; only the 1V1 probe points are lost.
+Via covering Tented matches the Gerbers: the mask covers every via on both sides, with two deliberate
+exceptions.
 
-The four USB-C shell tabs get paste over their pads (pin-in-paste), but the stencil leaves about 0.12 mm³ of
+- The three 1V1 vias under the RP2040 are probe points, open on the top and tented underneath.
+- The four GND vias in the RP2040's exposed pad sit in that pad's mask opening, clear of its paste windows.
+
+JLCPCB keeps both, because the mask Gerber decides for a Gerber order. Should it tent them as well, assembly
+is unaffected; only the 1V1 probe points are lost.
+
+The four J1 shell tabs get paste over their pads (pin-in-paste), but the stencil leaves about 0.12 mm³ of
 solder for about 0.8 mm³ of slot around each tab: a fillet on the bottom at most. The tabs carry the load of
 the plug, so they are soldered from the top as well: by JLCPCB in full assembly (its order remark), by hand
 otherwise ([Hand-soldering](../building/assembly.md#hand-soldering)).
@@ -48,24 +51,27 @@ otherwise ([Hand-soldering](../building/assembly.md#hand-soldering)).
 
 Before routing, `precheck.py` checks the bodies of the bottom-side parts as well as the fixed copper: every
 body at least 0.2 mm from every other body and from every pad of another part, where that part's leads or pins
-sit. The sizes are nominal (`board.BODY`): from JLC's package names where they give them, which match the
-datasheets (SOT-23 and SOT-23-6 2.9 x 1.6, SOIC-8 4.9 x 3.9, SOD-123F 2.7 x 1.6, crystal 3.2 x 2.5, LQFN-56 7
-x 7), the EIA sizes for the chip parts (0603 1.6 x 0.8, 0402 1.0 x 0.5, the fuse's 1206 3.2 x 1.6) and the HRO
-drawing for J1 (8.94 x 7.35). The closest bodies are C_1V0 and C_1V2, 0.30 mm apart. U3's pads reach 1.75 mm
-from its centre line (JLC's footprint 1.77, the leads up to 1.5), so each joint gets a toe fillet. J1's shell
-is grounded and has only the solder mask between it and the bottom copper, so nothing but J1's own pads runs
-under it: the router keeps out of the whole body on the bottom, and `check.py` checks it on the Gerbers. The
-ALT/HDG lines cross J1 on the top layer; the top-layer link between the two VBUS contacts turns between the
-shell pegs, close to the pad row, to leave them room.
+sit. The sizes are nominal (`board.BODY`): JLC's package names where they give them, which match the
+datasheets, the EIA sizes for the chip parts and the HRO drawing for J1 (8.94 x 7.35 mm). The closest bodies
+are C_1V0 and C_1V2, 0.30 mm apart. U3's pads reach 1.75 mm from its centre line (JLC's footprint 1.77 mm, the
+leads up to 1.5 mm), so each joint gets a toe fillet.
 
-The legend is at least 1.0 mm high (capital letters, measured on the font; the lowercase text has an x-height
-of 0.82 mm) with 0.26 mm strokes and lines at least 0.16 mm wide, over JLCPCB's minimum of 1.0 mm and 0.153 mm,
-and `check.py` keeps it 0.15 mm clear of every mask opening and hole and 0.3 mm inside the board outline
-(JLCPCB gives no figure for that; it keeps copper 0.2 mm from a milled edge, and the legend is closest at 0.65
-mm; the same 0.3 mm holds round the two LED cutouts). `make.py` moves a part name or key legend to the nearest
-free spot if a via lands on it or it would come too near the edge, and a diode's cathode bar up to 0.3 mm
-sideways if a via would cut it short (D_RANGE_A's and D_RANGE_C's stay cut: no spot within 0.3 mm is free).
-The bottom has a cathode bar beside each LED's cathode pad, for the placement preview.
+J1's shell is grounded and has only the solder mask between it and the bottom copper, so nothing but J1's own
+pads runs under it: the router keeps out of the whole body on the bottom, and `check.py` checks it on the
+Gerbers. The ALT/HDG lines cross J1 on the top layer; the top-layer link between the two VBUS contacts turns
+between the shell pegs, close to the pad row, to leave them room.
+
+The legend:
+
+- Size: capital letters at least 1.0 mm high, measured on the font (the lowercase text has an x-height of
+  0.82 mm), 0.26 mm strokes, lines at least 0.16 mm wide (JLCPCB's minimums: 1.0 mm and 0.153 mm).
+- Clearance: `check.py` keeps the legend 0.15 mm clear of every mask opening and hole, and 0.3 mm inside the
+  board outline and round the two LED cutouts. JLCPCB gives no figure for the outline (it keeps copper 0.2 mm
+  from a milled edge); the legend is closest at 0.65 mm.
+- Placement: `make.py` moves a part name or key legend to the nearest free spot if a via lands on it or it
+  would come too near the edge, and a diode's cathode bar up to 0.3 mm sideways if a via would cut it short
+  (D_RANGE_A's and D_RANGE_C's stay cut: no spot within 0.3 mm is free).
+- LEDs: the bottom has a cathode bar beside each LED's cathode pad, for the placement preview.
 
 ## Through-hole parts
 
@@ -103,14 +109,14 @@ it is a departure from the reference on a board that has to work first time.
 
 JLCPCB places the bottom-side parts by its own library footprints. [pcb/footprints/](../../pcb/footprints/)
 keeps the pads of each one (number, position, size; saved from JLC's EasyEDA library by `footprints/fetch.py`,
-source and date in each file), and `check.py` fits them onto our pads at the CPL rotation, offline: every JLC
-pad must land on our pad with the same number, centres within 0.15 mm and edges within 0.25 mm. The two LEDs
-get 0.2 and 0.32 mm: our pads stop 0.2 mm short of the board cutout (JLCPCB's copper-to-routed-edge minimum),
-where JLC's footprint of the amber LTST-C230KSKT runs them to 0.05 mm from a smaller cutout; JLC's footprint
-of the white LTW-C230DS, the same LiteOn package, draws its pads 0.3 mm into a 2.3 mm round hole, so it is
-checked against the amber one's footprint.
+source and date in each file), and `check.py` fits them onto our pads at the rotation in the CPL (placement
+file), offline: every JLC pad must land on our pad with the same number, centres within 0.15 mm and edges
+within 0.25 mm. The two LEDs get 0.2 and 0.32 mm: our pads stop 0.2 mm short of the board cutout (JLCPCB's
+copper-to-routed-edge minimum), where JLC's footprint of the amber LTST-C230KSKT runs them to 0.05 mm from a
+smaller cutout; JLC's footprint of the white LTW-C230DS, the same LiteOn package, draws its pads 0.3 mm into a
+2.3 mm round hole, so it is checked against the amber one's footprint.
 
-The CPL follows JLC's convention for the bottom side as KiBot's JLCPCB filter and the kicad-jlcpcb-tools
+The CPL follows JLCPCB's convention for the bottom side as KiBot's JLCPCB filter and the kicad-jlcpcb-tools
 plugin write it (180 minus KiCad's bottom angle): seen from the bottom, the part is JLC's footprint turned
 counter-clockwise by the rotation. U1 and J1 are at 180, U2 at 0, U3 at 180, U4 at 0, Y1 at 0, the diodes at
 0, the resistors, capacitors and the fuse at 180 (horizontal) or 270 (vertical), except the two LED resistors
@@ -132,10 +138,10 @@ way round fails the build.
 ## Crystal
 
 The crystal (Abracon ABM8-272-T3) has the crystal itself on pins 1 and 3, diagonally opposite, and GND on 2
-and 4. Seen from the top, the bottom-side part has pin 1 (XO_R, to the 1k) bottom-right, 2 (GND) bottom-left,
+and 4. Seen from the top, the bottom-side part has pin 1 (XO_R, to the 1 k) bottom-right, 2 (GND) bottom-left,
 3 (XIN) top-left and 4 (GND) top-right. Its nets are hand-routed: XIN comes straight up from the RP2040
-between the two lower pads, XOUT runs east to the 1k (R_X) just south of the crystal, clear of its body and
-pads, XO_R from the crystal round its east side to the 1k and C_X2; C_X1 sits west of the crystal on XIN. The
+between the two lower pads, XOUT runs east to the 1 k (R_X) just south of the crystal, clear of its body and
+pads, XO_R from the crystal round its east side to the 1 k and C_X2; C_X1 sits west of the crystal on XIN. The
 top-right GND pad has its own via into the plane, the bottom-left one shares C_X1's GND pad and via.
 
 ## Decoupling
@@ -150,31 +156,34 @@ no pin of theirs fans out:
   (4.7 mm), where the matrix lanes on the top layer leave that row free.
 - C_IO49 below pins 49 and 48 (IOVDD and USB_VDD, 2.1 and 2.0 mm), beside C_1V1, also an 0402 so that the two
   fit between the fan-outs of pins 51 and 47.
-- Pin 42 has C_D2 (1 uF, 3V3) in the corner south-east of the RP2040, on a direct trace from pin 42 and the
-  shared via of pins 42-44 (IOVDD, ADC_AVDD, VREG_VIN): 2.2 to 4.6 mm of copper from those pins. It is 1 uF
-  because the datasheet (2.9.3, 2.10.1) wants 1 uF close to VREG_VIN. C_BULK, the same part, is a 1 uF bulk
+- Pin 42 has C_D2 (1 µF, 3V3) in the corner south-east of the RP2040, on a direct trace from pin 42 and the
+  shared via of pins 42 to 44 (IOVDD, ADC_AVDD, VREG_VIN): 2.2 to 4.6 mm of copper from those pins. It is 1 µF
+  because the datasheet (2.9.3, 2.10.1) wants 1 µF close to VREG_VIN. C_BULK, the same part, is a 1 µF bulk
   capacitor on the 3V3 plane on the matrix side of the chip.
 - Pin 33 has no room: east of its fan-out lane is the only way north for the ALT/HDG and FREQ lines (GP18 to
   GP23), between the fan-out vias and the FREQ encoder's pin A, and with a capacitor there (its GND via south,
   north or north-east of it) one of GP20 to GP24 stayed unrouted on every seed from 1 to 14. It drops into the
   3V3 plane through its via under the chip (1.0 mm of copper) and shares the capacitors on the plane, C_D1 and
   C_D3 (100 nF) among them.
-- Two 0402 capacitors hang from a short trace off VREG_VOUT (pin 45), C_1V0 (1 uF, 2.0 mm of copper) and C_1V2
+- Two 0402 capacitors hang from a short trace off VREG_VOUT (pin 45), C_1V0 (1 µF, 2.0 mm of copper) and C_1V2
   (100 nF), and C_1V1 (100 nF) sits 2.0 mm below DVDD (pin 50).
 
 Every decoupling capacitor has its own GND via at most 1 mm from the pad, and its own 3V3 via on the 3V3 side
 unless that side is the trace from its pin; that pin then feeds the plane itself, through its via under the
-chip, and `check.py` holds it to at most 2 mm of copper to the plane (pins 1, 10, 22, 48 and 49: 1.0 to 1.4
-mm). `check.py` measures the copper path from each supply pin to its nearest capacitor (trace length plus the
-straight via-to-via distance through a plane) and fails a pin with a capacitor of its own above 6 mm (about 2
-nH of trace 0.2 mm over the 3V3 plane, the order of the capacitor's own ESL and GND via), and VREG_VIN or
-VREG_VOUT whose nearest capacitor is under 1 uF. It also follows each IOVDD pin over the outer layers alone,
-without the plane: every one but 33 must reach a capacitor within 6 mm that way, and no two the same one.
-Exceptions, whose path to a capacitor is reported but not limited: IOVDD pin 33 and RUN (pin 26, tied to
-3V3), which must reach the 3V3 plane within 2 mm of copper, and DVDD pin 23 on the north side, which has no
-room between the crystal and the fan-out (C_IO22 takes the gap) and reaches the 1V1 capacitors over the top
-layer through the 1V1 vias under the chip (about 10 mm; the vias are probe points on the top and tented on the
-bottom).
+chip. `check.py` holds the rules:
+
+- A pin that feeds the plane itself has at most 2 mm of copper to the plane (pins 1, 10, 22, 48 and 49: 1.0 to
+  1.4 mm).
+- A supply pin with a capacitor of its own has at most 6 mm of copper to its nearest capacitor (trace length
+  plus the straight via-to-via distance through a plane). That is about 2 nH of trace 0.2 mm over the 3V3
+  plane, the order of the capacitor's own ESL and GND via.
+- The nearest capacitor of VREG_VIN and of VREG_VOUT has at least 1 µF.
+- Every IOVDD pin but 33 reaches a capacitor within 6 mm over the outer layers alone, without the plane, and
+  no two reach the same one.
+- Exceptions, whose path to a capacitor is reported but not limited: IOVDD pin 33 and RUN (pin 26, tied to
+  3V3) must reach the 3V3 plane within 2 mm of copper. DVDD pin 23 on the north side has no room between the
+  crystal and the fan-out (C_IO22 takes the gap) and reaches the 1V1 capacitors over the top layer through the
+  1V1 vias under the chip (about 10 mm).
 
 ## GPIO map
 
@@ -196,19 +205,24 @@ bottom).
 RANGE control's "Push" pin is common to its five switches; centre push = com without A-D.
 
 Each of the seven columns has a 10 k pull-up to 3V3 (R_PU0 to R_PU6, C25804), on its bus between key rows 1
-and 2. KeyMatrix drives a row low and reads the columns at once, then drives that row high and waits about 1
-us before the next row; after a row with a pressed key, a column has to come back up through the RP2040's own
-pull-up (50 to 80 k) with 20 to 30 pF of copper (90 to 170 mm) and five diodes on it, a time constant of 1 to
-2.4 us, long enough for a phantom press in the same column of the next row. The released row is driven high,
-so the pressed key's diode turns off at once and only the column's pull-ups lift it: with 10 k in parallel (a
-time constant of 0.2 to 0.3 us) the column passes the input high threshold well under 1 us later. A pressed
-key draws about 0.3 mA through its pull-ups. So reversed diodes cannot be made up for in the firmware: a
-uniform reversal of all 35 could be scanned with the roles swapped (`KeyMatrix(row_pins=COL_PINS,
-column_pins=ROW_PINS, columns_to_anodes=True)`, and `boot.py` driving GP6 and reading GP2 for SHIFT), but the
-read lines would then only have the RP2040's weak internal pull-ups, and the phantom presses the 10 k column
-pull-ups prevent come back. `columns_to_anodes=False` keeps the roles but reads the columns against internal
-pull-downs, which R_PU0 to R_PU6 overpower (every key would read pressed) until they come off the board. A
-mixed reversal cannot be scanned at all.
+and 2. `KeyMatrix` drives a row low and reads the columns at once, then drives it high again and waits about
+1 µs before the next row. The pressed key's diode then turns off at once, and only the column's pull-ups lift
+the column:
+
+- Without the 10 k, with the RP2040's own pull-up alone (50 to 80 k), 20 to 30 pF of copper (90 to 170 mm)
+  and five diodes on the column, the time constant would be 1 to 2.4 µs: long enough for a phantom press in
+  the same column of the next row.
+- With 10 k in parallel it is 0.2 to 0.3 µs, and the column passes the input high threshold well under 1 µs
+  later. A pressed key draws about 0.3 mA through its pull-ups.
+
+So reversed diodes cannot be made up for in the firmware:
+
+- A uniform reversal of all 35 could be scanned with the roles swapped (`KeyMatrix(row_pins=COL_PINS,
+  column_pins=ROW_PINS, columns_to_anodes=True)`, and `boot.py` driving GP6 and reading GP2 for SHIFT), but
+  the read lines would then only have the RP2040's weak internal pull-ups, and the phantom presses come back.
+- `columns_to_anodes=False` keeps the roles but reads the columns against internal pull-downs, which R_PU0 to
+  R_PU6 overpower (every key would read pressed) until they come off the board.
+- A mixed reversal cannot be scanned at all.
 
 The encoders feed the RP2040 directly: CircuitPython's `rotaryio` decodes the quadrature in one PIO state
 machine per ring (7 of the 8), with no polling and no external decoder. A quadrature-to-up/down converter such
@@ -236,66 +250,92 @@ flowchart LR
 ```
 
 U4, an SRV05-4 ESD array (hongjiacheng, C7420376, SOT-23-6), sits right behind J1: four channels of steering
-diodes to its VCC pin and a clamp from VCC to GND (working voltage 5.0 V, where VBUS may reach 5.25 V;
-breakdown at least 6.0 V at 1 mA), 1.0 pF per channel to GND, ±30 kV contact discharge (IEC 61000-4-2) and 4 A
-at 13.5 V typical, 15 V maximum (8/20 µs). D+ and D- each run through two channels: from J1 into pin 6 (D+) or
-4 (D-), under the body to the opposite pin 1 or 3 and on from there, so the array is in line with no stub, and
-each line sees 2 pF, far less than full speed tolerates. Its pins are 4.5 mm of copper from J1's farthest
-contact. VCC is on VBUS_F, behind the fuse (over the top layer to a via on the line from the fuse to the
-regulator), GND on a via under the body: a clamp that fails short, or U4 placed turned by 180 degrees (its VCC
-on GND, the clamp diode forward across VBUS_F), then sits behind R_IN and the fuse instead of shorting the
-host's VBUS (see below for what gives way). A USBLC6-2SC6 does the same job with the same pinout, but at
-JLCPCB it is an extended part with a fee in both assembly variants; the SRV05-4 is a preferred extended part
-([Ordering](../building/ordering.md#through-hole-parts)). No USB ESD array is a basic part there (the basic
-TVS diodes are for 12 V and up or SMB-sized), and no resettable fuse is basic or preferred extended.
-`check.py` cuts U4's pads out of the bottom copper and checks that J1's contacts then no longer reach the 27 R
-resistors (no copper runs past the array), and that U4 is at most 5 mm of copper from J1.
+diodes to its VCC pin and a clamp from VCC to GND.
 
-F1, a Bourns MF-NSMF050-2 PTC fuse (C75464, 1206), and R_IN, a 1 ohm 0603 resistor (C22936, basic), sit in
+| U4 | Value |
+| --- | --- |
+| Working voltage | 5.0 V (VBUS may reach 5.25 V) |
+| Breakdown | at least 6.0 V at 1 mA |
+| Capacitance | 1.0 pF per channel to GND |
+| ESD | ±30 kV contact discharge (IEC 61000-4-2) |
+| Surge (8/20 µs) | 4 A at 13.5 V typical, 15 V maximum |
+
+- In line: D+ and D- each run through two channels, from J1 into pin 6 (D+) or 4 (D-), under the body to the
+  opposite pin 1 or 3 and on from there. So the array has no stub, and each line sees 2 pF, far less than full
+  speed tolerates. Its pins are 4.5 mm of copper from J1's farthest contact.
+- Behind the fuse: VCC is on VBUS_F (over the top layer to a via on the line from the fuse to the regulator),
+  GND on a via under the body. A clamp that fails short, or U4 placed turned by 180° (its VCC on GND, the
+  clamp diode forward across VBUS_F), then sits behind R_IN and the fuse instead of shorting the host's VBUS
+  (see below for what gives way).
+- Part choice: a USBLC6-2SC6 does the same job with the same pinout, but at JLCPCB it is an extended part with
+  a fee in both assembly variants; the SRV05-4 is a preferred extended part
+  ([Ordering](../building/ordering.md#through-hole-parts)). No USB ESD array is a basic part there, and no
+  resettable fuse is basic or preferred extended.
+- Checked: `check.py` cuts U4's pads out of the bottom copper and checks that J1's contacts then no longer
+  reach the 27 R resistors (no copper runs past the array), and that U4 is at most 5 mm of copper from J1.
+
+F1, a Bourns MF-NSMF050-2 PTC fuse (C75464, 1206), and R_IN, a 1 R 0603 resistor (C22936, basic), sit in
 series in VBUS between J1 and everything else: J1, R_IN, F1, then VBUS_F with C_IN, the regulator and U4's
 VCC. F1 holds 0.5 A and trips at 1.0 A (23 °C; 0.40 A hold at 50 °C), is rated 13.2 V and 100 A, and has 0.15
 to 0.7 ohm. The board draws about 95 mA at most (the RP2040 with CircuitPython a few tens of mA, the flash up
 to 25 mA while writing, the two LEDs up to about 36 mA, 0.3 mA per pressed key in the matrix). For a short on
 VBUS_F (a bridge across C_IN, a failed U3, U4 shorted or placed turned) R_IN, not F1, is what gives way: R_IN
-is a 0.1 W part, and at 1 A (where F1 takes about 7 s to trip) it already takes 1 W, at 1.6 A (F1: about 0.25
-s) 2.6 W, at 2.5 A (about 70 ms) 6 W and at 3.5 A (about 25 ms) 12 W. A port that limits its current at 0.5 to
-1 A may never trip F1 at all and leaves R_IN at 0.25 to 1 W. So R_IN overheats and opens, or drifts or
-scorches, before F1 trips in practically every case: it is the sacrificial element for a short behind it, and
-F1 covers slow overloads below that. Either way the host's port and the cable are protected, but after such a
-fault R_IN, and perhaps F1 (and U4 if it was turned or shorted), must be replaced. A larger R_IN would not
-change that (a 1206 1 ohm takes 0.25 W, still 4 to 48 times over at these currents), and does not fit between
-the VBUS via and the fuse without moving F1 into R_CC2 and the crystal. F1 will not reliably trip on a fault
-behind the regulator either. The XC6206's own current limit handles those: it lets about 0.35 to 0.5 A through
-before it folds back (Torex's curve for the 3.0 V type; 200 mA is guaranteed), and holds about 0.1 A into a
-short. Even at 100 mA (the XC6206's dropout figure) and the lowest VBUS a USB 2.0 port may deliver, 4.40 V,
-R_IN and F1 (at most 1.7 ohm together) leave the regulator 4.23 V, and its maximum dropout of 0.68 V at 100 mA
-still leaves 3.3 V out (typical dropout 0.25 V). `check.py` checks that each net of the chain holds only its
-pads (VBUS: J1 and R_IN; VBUS_R: R_IN and F1; VBUS_F: F1, C_IN, U3 and U4's VCC), and that with either part's
-pads cut out of the copper, the copper on its input side no longer reaches anything on its output side and no
-copper island touches both of its pads: nothing runs past or across them.
+is a 0.1 W part.
+
+| Fault current | F1 trips after | R_IN takes |
+| --- | --- | --- |
+| 1 A | about 7 s | 1 W |
+| 1.6 A | about 0.25 s | 2.6 W |
+| 2.5 A | about 70 ms | 6 W |
+| 3.5 A | about 25 ms | 12 W |
+
+A port that limits its current at 0.5 to 1 A may never trip F1 at all and leaves R_IN at 0.25 to 1 W. So R_IN
+overheats and opens, or drifts or scorches, before F1 trips in practically every case: it is the sacrificial
+element for a short behind it, and F1 covers slow overloads below that. Either way the host's port and the
+cable are protected, but after such a fault R_IN, and perhaps F1 (and U4 if it was turned or shorted), must be
+replaced. A larger R_IN would not change that (a 1206 1 R takes 0.25 W, still 4 to 48 times over at these
+currents), and does not fit between the VBUS via and the fuse without moving F1 into R_CC2 and the crystal.
+
+F1 will not reliably trip on a fault behind the regulator either. The XC6206's own current limit handles
+those: it lets about 0.35 to 0.5 A through before it folds back (Torex's curve for the 3.0 V type; 200 mA is
+guaranteed), and holds about 0.1 A into a short.
+
+Even at 100 mA (the XC6206's dropout figure) and the lowest VBUS a USB 2.0 port may deliver, 4.40 V, R_IN and
+F1 (at most 1.7 ohm together) leave the regulator 4.23 V, and its maximum dropout of 0.68 V at 100 mA still
+leaves 3.3 V out (typical dropout 0.25 V).
+
+`check.py` checks that nothing runs past or across R_IN and F1: each net of the chain holds only its pads
+(VBUS: J1 and R_IN; VBUS_R: R_IN and F1; VBUS_F: F1, C_IN, U3 and U4's VCC), and with either part's pads cut
+out of the copper, no copper connects its input side to its output side or touches both of its pads.
 
 The XC6206 is rated 7.0 V absolute maximum, and C_IN is a ceramic capacitor with next to no loss, so VBUS
 switched on hard rings with the cable's inductance. That happens when the board is plugged into a live USB-A
-port (with an A to C cable); a USB-C source switches VBUS on only after it sees the 5.1k pull-downs, and with
+port (with an A to C cable); a USB-C source switches VBUS on only after it sees the 5.1 k pull-downs, and with
 a controlled slope. R_IN damps it: the cable's inductance, the series resistance (cable, R_IN, F1) and C_IN
-form a series circuit that 1 ohm takes to critical damping or past it (2 x √(L / C) is 0.8 to 1.3 ohm up to 1
-µH, and the capacitance rises again as the voltage falls), so the input settles on the supply voltage without
-ringing above it on the usual cables. The model behind that: a 5.25 V step, 0.3 to 3 µH and 0.05 to 0.4 ohm of
-cable, F1 at 0.15 to 0.7 ohm, no load and no contact bounce, C_IN with the DC-bias loss of a 10 V X5R 0603 (10
-uF nominal, about 3 uF at 5 V and 2.3 to 2.5 uF at 7 V, and a pessimistic curve with 1.8 uF at 5 V and 1.4 uF
-at 7 V), and U4's clamp left out, the worst case (the datasheet gives only a minimum breakdown of 6.0 V at 1
-mA, and about 6 V at 0.5 A to 13 V at 4 A in its figure 4). Up to 1 µH every case stays within 0.05 V of 5.25
-V; long cables (2 to 3 µH) with little resistance ring up to about 6 V (5.8 V on the nominal curves, 6.6 V on
-the pessimistic one), under 7.0 V in every case modelled. Without R_IN the same model rings up to 9.7 V on a
-short, low-resistance cable with no clamp, 2.7 V over the regulator's maximum and above it for about 3 µs;
-0.33 ohm would bring the worst case to 6.4 V and 0.5 ohm to 5.7 V, but 1 ohm is the lowest basic value. R_IN
-takes the inrush: at most 4.1 A, about 17 W at its peak and above half of that current for 5 to 7 µs, under
-0.1 mJ in all. The measure for that is pulse power: an 0603 thick-film resistor takes about 25 W for a 5 µs
-single pulse (Vishay's CRCW0603 pulse curve, as a stand-in for the Uniroyal part), about 1.5 times the peak. A
-separate TVS diode would not do it: an SMF5.0A breaks down at 6.4 to 7.0 V and clamps no lower.
+form a series circuit that 1 ohm takes to critical damping or past it (2 x √(L / C) is 0.8 to 1.3 ohm up to
+1 µH), so the input settles on the supply voltage without ringing above it on the usual cables.
 
-With 10 uF on VBUS_F the board is at the 10 uF the USB 2.0 specification (7.2.4.1) allows a device to show on
-VBUS at attach, and the capacitance behind the regulator (C_OUT0's 10 uF, C_D2 and C_BULK, the 100 nF
+The model behind that: a 5.25 V step, 0.3 to 3 µH and 0.05 to 0.4 ohm of cable, F1 at 0.15 to 0.7 ohm, no load
+and no contact bounce, C_IN with the DC-bias loss of a 10 V X5R 0603 (10 µF nominal, about 3 µF at 5 V and 2.3
+to 2.5 µF at 7 V; a pessimistic curve with 1.8 µF at 5 V and 1.4 µF at 7 V), and U4's clamp left out, the
+worst case.
+
+| R_IN | Cable | Peak on VBUS_F |
+| --- | --- | --- |
+| 1 R | up to 1 µH | within 0.05 V of 5.25 V |
+| 1 R | 2 to 3 µH with little resistance | about 6 V (5.8 V on the nominal curves, 6.6 V on the pessimistic one) |
+| none | short and low resistance | 9.7 V, above the 7.0 V maximum for about 3 µs |
+| 0.33 R | the same cable | 6.4 V |
+| 0.5 R | the same cable | 5.7 V |
+
+With 1 R every case modelled stays under 7.0 V. A smaller value would also do, but 1 R is the lowest basic
+value. R_IN takes the inrush: at most 4.1 A, about 17 W at its peak and above half of that current for 5 to
+7 µs, under 0.1 mJ in all. An 0603 thick-film resistor takes about 25 W for a 5 µs single pulse (Vishay's
+CRCW0603 pulse curve, as a stand-in for the Uniroyal part), about 1.5 times the peak. A separate TVS diode
+would not do it: an SMF5.0A breaks down at 6.4 to 7.0 V and clamps no lower.
+
+With 10 µF on VBUS_F the board is at the 10 µF the USB 2.0 specification (7.2.4.1) allows a device to show on
+VBUS at attach, and the capacitance behind the regulator (C_OUT0's 10 µF, C_D2 and C_BULK, the 100 nF
 capacitors) adds to what the host sees while VBUS comes up; R_IN and the fuse limit that inrush. So the board
 is at the limit and, counting those, over its intent; on PC ports that is no practical issue.
 

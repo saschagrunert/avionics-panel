@@ -8,9 +8,9 @@ soldering, for the hand-soldering option and for rework. The tools are in the
 ## Putting it together
 
 Four screws hold the plate, the board and the body together, and the light pipes are held by their shape.
-Work face down: the encoder shafts stick out 18 mm past the plate face, so the plate rests on two blocks at
-least 25 mm high under its long front and back edges, at most 8 mm in from the edge (the nearest caps and
-shafts are about 10 mm in), with a cloth on top.
+Work face down. The encoder shafts stick out 18 mm past the plate face, so rest the plate on two blocks at
+least 25 mm high, with a cloth on top, under its long front and back edges and at most 8 mm in from the edge
+(the nearest caps and shafts are about 10 mm in).
 
 ```mermaid
 flowchart TD
@@ -66,13 +66,13 @@ until its bore end sits on the shaft tip, and the RANGE knob onto the lever's D 
 on the lever tip. The knobs are held by friction only, and resin bores vary, so the order has each knob type
 also with a bore 0.2 mm tighter and 0.2 mm looser: keep whichever grips.
 
-- A bore that is still too tight opens with a drill of the shaft size turned by hand (6.0 mm outer, 3.5 mm
+- Open a bore that is still too tight with a drill of the shaft size turned by hand (6.0 mm outer, 3.5 mm
   inner, 2.5 mm RANGE), then a needle file on the D flat. In the outer knob, drill from below only up to the
   key (4.41 mm deep) and file the rest, or the drill takes the key off.
 - Never drill past the existing bore depth (mark the drill with tape at it): the inner and the RANGE knob sit
   with their bore end on the shaft or lever tip, so a deeper bore lowers the knob, and the RANGE skirt has
   only 0.22 mm over the plate at full tilt.
-- A loose knob holds with a strip of tape on the shaft.
+- Hold a loose knob with a strip of tape on the shaft.
 - Reprint the rest with that fit (`FIT` in [mech/stack.py](../../mech/stack.py)) if needed.
 
 ## Disassembly
@@ -95,16 +95,16 @@ off its ledges towards the plate back.
 
 Only with the hand-soldering option, and for rework. The board comes with every SMD part on the bottom, the
 two LEDs included; the keys, encoders and RANGE control are soldered by hand from the bottom side. The
-[bring-up](bring-up.md#flash-and-test) says when: the J1 tabs first, then flash and test the bare board, then
-the keys, and the encoders and RANGE control last, as they are the parts that are hard to remove again.
+[bring-up](bring-up.md#flash-and-test) says when: the J1 shell tabs first, then flash and test the bare board,
+then the keys, and the encoders and RANGE control last, as they are the parts that are hard to remove again.
 
-- USB-C shell tabs: solder all four J1 shell tabs from the top before the first plug-in: flux, then feed
-  solder into each slot until it is filled and wets the tab all round (they are GND). The tabs, not the 0.3 mm
-  contacts, take the load of the plug; the reflow leaves only a fillet under them.
+- J1 shell tabs: solder all four from the top before the first plug-in: flux, then feed solder into each slot
+  until it is filled and wets the tab all round (they are GND). The tabs take the load of the plug, and the
+  reflow leaves only a fillet under them ([why](../architecture/electronics.md#solder-mask)).
 - Every part sits flat on the board: solder one pin, check from the side that the part sits flat and square
   (press it down while you reheat that pin if not), then solder the rest. Same for the 28 keys: a tilted key
-  tilts its cap in the key hole. The leads need no trimming: they stand at most 2.7 mm under the board, which
-  sits 4.0 mm over the body floor (3.7 with the print tolerance), so they clear it by 1.0 mm.
+  tilts its cap in the key hole. The leads need no trimming: they stand at most 2.7 mm under the board and
+  clear the body floor by 1.0 mm.
 - Encoders: at most 0.05 mm proud: a 0.05 mm feeler blade must not slide under an encoder body. The mounting
   lugs go through their slots and get soldered too; they carry the push of the knobs.
 - RANGE control (RKJXT): no centring needed, just seat it flat, checked against its own reading: before

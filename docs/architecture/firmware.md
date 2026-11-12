@@ -29,16 +29,14 @@ the buttons, and `make_buttons.py` (PC only) writes [BUTTONS.md](../../firmware/
 ## State
 
 Every state lives in the firmware and is sent as fixed joystick buttons, so mappings never need variables or
-preconditions and can't get out of sync with the panel (except with a GNS or GTN together with an ADF,
+preconditions and cannot get out of sync with the panel (except with a GNS or GTN together with an ADF,
 [Mapping](../using/mapping.md#per-avionics)):
 
 - SHIFT: one-shot for keys, kept through a knob session ([Controls](../using/controls.md#shift)). Shifted
   functions are their own buttons.
-- UNIT: the firmware keeps the state and drives the white light. The unit 2 versions of the FMS keys, FMS
-  knob, CDI and OBS, flip-flops and FREQ knob are sent on the second joystick device. The cockpit
-  lighting behind SHIFT on the FMS knob stays on device 1 in either unit. Button numbers are frozen: new
-  buttons go at the end of a device, retired ones keep their slot. A snapshot test in `firmware/test_panel.py`
-  checks it.
+- UNIT: the firmware keeps the state and drives the white light; what moves to device 2 is in
+  [Mapping](../using/mapping.md#two-joysticks). Button numbers are frozen; a snapshot test in
+  `firmware/test_panel.py` checks it.
 - FREQ knob: the push cycles COM, NAV, ADF, and each mode sends its own turn buttons. The mode stays
   until the next push.
 - Knob acceleration ([table](../using/controls.md#knobs)), UP / DN auto-repeat and the pan tilt repeat rate
@@ -53,18 +51,27 @@ preconditions and can't get out of sync with the panel (except with a GNS or GTN
 ## Knob steps
 
 Knob detents are button pulses: 56 ms pressed, 56 ms released, so 112 ms per step (about 9 steps per second),
-up to 8 queued per button. MobiFlight polls joysticks from a 20 ms timer, which Windows' 15.6 ms clock
-stretches to about 31 ms, and only sees the state at each poll: press and gap both have to outlast a poll, or
-two detents merge into one. The PC fetches reports every 8 ms (the HID endpoint's interval), and both
-joysticks share that endpoint. With a report still waiting from the previous loop pass and both devices
-changing in the current one, an edge can arrive up to three frames (24 ms) late: a 50 ms gap can reach the PC
-as 26 ms, shorter than a poll. `check_timing` in [panel.py](../../firmware/panel.py) keeps press and gap at
-32 + 3 x 8 = 56 ms or more. A repeat of a held UP, DN or tilt waits until the last step of its button is through,
-so a step longer than the repeat interval (120 ms tilt, 125 ms UP / DN) slows the repeats down and nothing
-queues up. A fast spin of a one-step-per-detent knob (FMS, COM kHz) can lose steps beyond the 8 queued and
-runs on for up to 0.9 s. Turning the other way drops the steps still queued in the old direction, so the knob
-stops at once. The [first-board check](../building/bring-up.md#first-board) measures whether MobiFlight counts
-every detent.
+up to 8 queued per button. Press and gap both have to outlast a MobiFlight poll, or two detents merge into
+one:
+
+- MobiFlight polls joysticks from a 20 ms timer, which Windows' 15.6 ms clock stretches to about 31 ms, and
+  only sees the state at each poll.
+- The PC fetches reports every 8 ms (the HID endpoint's interval), and both joysticks share that endpoint.
+  With a report still waiting from the previous loop pass and both devices changing in the current one, an
+  edge can arrive up to three frames (24 ms) late.
+
+So `check_timing` in [panel.py](../../firmware/panel.py) keeps press and gap at 56 ms at least: a poll,
+rounded up to 32 ms, plus three frames.
+
+What the queue does:
+
+- A repeat of a held UP, DN or tilt waits until the last step of its button is through, so a step longer than
+  the repeat interval (120 ms tilt, 125 ms UP / DN) slows the repeats down and nothing queues up.
+- A fast spin of a one-step-per-detent knob (FMS, COM kHz) can lose steps beyond the 8 queued and runs on for
+  up to 0.9 s.
+- Turning the other way drops the steps still queued in the old direction, so the knob stops at once.
+
+The [first-board check](../building/bring-up.md#first-board) measures whether MobiFlight counts every detent.
 
 ## Keys and switch bounce
 
@@ -83,18 +90,16 @@ stays one press throughout: UP and a tilt keep repeating (a repeat due in those 
 after it keep their time), and a shifted push or tilt keeps SHIFT.
 
 - The 30 ms count from the scans that read the release and the press (`keypad.Event.timestamp`), not from the
-  loop pass that picks them up, so a pass that waits for the PC can't stretch a bounce past them.
+  loop pass that picks them up, so a pass that waits for the PC cannot stretch a bounce past them.
   CircuitPython 9.2 scans the keys from its 1/1024 s tick interrupt, so the two scans of such a bounce are
   about 20 ms apart, more when code that runs with interrupts off holds the second one up: `check_timing`
   keeps the 30 ms at least one and a half scans, half a scan to spare. A finger lifts and comes back in no
   less than about 60 ms, so a real double tap stays two presses.
-- The cost: every release reaches the PC 30 ms late, so a held key, UP / DN repeat or tilt stops 30 ms later
-  (no extra step), a shifted push or tilt keeps SHIFT for 3 s from 30 ms after it is let go, and the RANGE
-  centre push sends PTR 30 ms after its release. In those 30 ms the push or tilt still counts as held, so a
-  key pressed then doesn't end its SHIFT session and a second SHIFT tap then doesn't cancel it (the light
-  stays on and shows it). Only the other hand can do that within 30 ms of the release, and until then the
-  release may still turn out a bounce. Presses, the SHIFT one-shot and UNIT act on the press and are not
-  delayed.
+- The cost: every release reaches the PC 30 ms late. A held key, UP / DN repeat or tilt stops 30 ms later (no
+  extra step), the 3 s of a shifted push or tilt start 30 ms after it is let go, and the RANGE centre push
+  sends PTR 30 ms after its release. In those 30 ms the push or tilt still counts as held (the release may
+  still turn out a bounce), so a key or a second SHIFT tap does not end its SHIFT session; the light stays on
+  and shows it. Presses, the SHIFT one-shot and UNIT act on the press and are not delayed.
 - After a keypad overflow, `code.py` releases a key whose release was lost at once, without the wait. Raising
   the keypad's `debounce_threshold` instead would delay every press and release by a scan (20 ms) and the
   recovery after a lost event too.
@@ -137,17 +142,23 @@ definition would avoid it, and the spare GP14 cannot be routed in its place. The
 
 ## Code and tests
 
-Run `pytest` from the repository root for the host tests: `test_panel.py` covers `panel.py`, `test_code.py`
-runs `code.py` against stub hardware modules, `test_boot.py` runs `boot.py`, `tests/test_pins.py` checks every
-pin `code.py` uses against the nets in `pcb/board.py`, and `tests/test_micropython.py` compiles every board
-file with CircuitPython 9.2's own `mpy-cross`, the board's compiler (passed in `MPY_CROSS`), and with the
+Run `pytest` from the repository root for the host tests:
+
+| Test | Checks |
+| --- | --- |
+| `firmware/test_panel.py` | `panel.py` |
+| `firmware/test_code.py` | `code.py`, against stub hardware modules |
+| `firmware/test_boot.py` | `boot.py` |
+| `tests/test_pins.py` | every pin `code.py` uses, against the nets in `pcb/board.py` |
+| `tests/test_micropython.py` | every board file, compiled with two compilers |
+
+The compilers are CircuitPython 9.2's own `mpy-cross` (the board's compiler, passed in `MPY_CROSS`) and the
 MicroPython unix port from nixpkgs (`micropython` on the PATH). MicroPython alone is not enough: CircuitPython
-9.2 is built on an older MicroPython, so newer syntax could pass it and still fail on the board.
+9.2 is built on an older MicroPython, so newer syntax could pass it and still fail on the board. Both check
+syntax only: a module or argument the board's build lacks shows up on the bench.
 
 `mpy-cross` is not in nixpkgs: on Linux x86-64 and ARM64, `build.sh` builds
 [firmware/mpy-cross.nix](../../firmware/mpy-cross.nix), which fetches Adafruit's 9.2.9 build for those two,
-pinned by its hash, and points it at the glibc from nixpkgs (the binary expects the usual FHS loader in
-`/lib64` or `/lib`, which NixOS lacks); on other systems it prints a notice and that check skips. `build.sh`
-also provides MicroPython. Each check skips without its compiler; `build.sh` sets `REQUIRE_MICROPYTHON=1` and,
-where it provides `mpy-cross`, `REQUIRE_MPY_CROSS=1`, which turn the skips into failures. Both check syntax
-only: a module or argument the board's build lacks shows up on the bench.
+pinned by its hash; on other systems it prints a notice and that check skips. `build.sh` also provides
+MicroPython. Each check skips without its compiler; `build.sh` sets `REQUIRE_MICROPYTHON=1` and, where it
+provides `mpy-cross`, `REQUIRE_MPY_CROSS=1`, which turn the skips into failures.

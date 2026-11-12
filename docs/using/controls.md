@@ -6,7 +6,7 @@ What each key and knob does, and why it sits where it is. Button numbers for map
 ## Principles
 
 - Designed for one-handed use: the other hand is on the HOTAS. Every function works with one hand.
-- Each knob sits next to its key group: ALT · HDG beside the autopilot keys, the FREQ knob beside the radio
+- Each knob sits next to its key group: ALT/HDG beside the autopilot keys, the FREQ knob beside the radio
   keys, FMS beside the FMS keys.
 - The left side does the autopilot work and the right side does radios and navigation. Two exceptions
   keep the knob columns symmetric: the map's RANGE knob sits under ALT/HDG, and CRS and BARO share the
@@ -40,9 +40,9 @@ stateDiagram-v2
 - Tap SHIFT: the amber light next to it comes on. The next key press uses the amber function, then
   the panel returns to normal and the light goes off.
 - A knob turned or pushed after SHIFT stays shifted while you keep using it, including moving between
-  its outer and inner ring (for a whole squawk code), and returns to normal 3 s after the last detent:
-  time to move from one ring to the other or glance at the code. A push or RANGE tilt held
-  keeps it too, so a long shifted pan never outlasts the light: the 3 s start when it is let go.
+  its outer and inner ring (for a whole squawk code), and returns to normal 3 s after the last detent.
+  A push or RANGE tilt held keeps it too, so a long shifted pan never outlasts the light: the 3 s start
+  when it is let go.
 - Tapping SHIFT again cancels it. It also cancels itself after 3 s without input. During the last second the
   amber light pulses between bright and dim, so a knob never drops back to its plain function unannounced in
   the middle of a turn.
@@ -50,10 +50,11 @@ stateDiagram-v2
   for the next key after a tap or for the knob that keeps it. A key pressed while a knob keeps SHIFT is sent
   plain.
 - While a knob still keeps SHIFT (light on after a squawk entry, or a shifted push or tilt still held), a tap
-  arms SHIFT for the next key instead, so SHIFT, VFR gives IDENT with one tap; a second tap cancels SHIFT,
-  except for a shifted control still held. That one keeps its session and the light until it is let go,
-  whatever keys are pressed meanwhile (SHIFT taps, the key a tap armed, plain keys). Only another knob, turned
-  or pushed, ends it: SHIFT belongs to one knob at a time.
+  arms SHIFT for the next key instead, so SHIFT, VFR gives IDENT with one tap. A second tap cancels SHIFT,
+  except for a shifted control still held.
+- A shifted push or tilt that is still held keeps SHIFT and the light until it is let go, whatever is pressed
+  meanwhile (SHIFT taps, the key a tap armed, plain keys). Only another knob, turned or pushed, ends it: SHIFT
+  belongs to one knob at a time.
 - The VFR key alone sends VFR, even right after a squawk entry: VFR is the plain function because squawking
   VFR is the common case in VFR flying; to ident, tap SHIFT first.
 - The keys without an amber legend and the RANGE knob are free for your own shifted mappings
@@ -74,13 +75,15 @@ the autopilot.
 
 ## Workflows
 
-Takeoff: turn ALT (outer ring, left knob) to the cleared altitude, push the knob (HDG SYNC), press
-HDG and FLC, hold UP or DN to the climb speed. After takeoff: SHIFT, FD (YD, where installed), then AP.
-Descent: set the new altitude, press VS, hold DN to -500 to -1000 ft/min; ALT captures.
-Tuning: push the FREQ knob to choose COM, NAV or ADF, turn outer (MHz) and inner (kHz), then press
-COM ⇆ or NAV ⇆ (SHIFT, NAV ⇆ for the ADF). SHIFT, HOME (UNIT) first for COM 2 / NAV 2.
-Squawk: tap SHIFT, set the first digit with the inner ring of the FREQ knob, move to the next digit with one
-detent of the outer ring. Ident: SHIFT, VFR (IDENT).
+- Takeoff: turn ALT (outer ring, left knob) to the cleared altitude, push the knob (HDG SYNC), press HDG and
+  FLC, hold UP or DN to the climb speed.
+- After takeoff: SHIFT, FD (YD, where installed), then AP.
+- Descent: set the new altitude, press VS, hold DN to -500 to -1000 ft/min; ALT captures.
+- Tuning: push the FREQ knob to choose COM, NAV or ADF, turn outer (MHz) and inner (kHz), then press COM ⇆ or
+  NAV ⇆ (SHIFT, NAV ⇆ for the ADF). SHIFT, HOME (UNIT) first for COM 2 / NAV 2.
+- Squawk: tap SHIFT, set the first digit with the inner ring of the FREQ knob, move to the next digit with
+  one detent of the outer ring.
+- Ident: SHIFT, VFR (IDENT).
 
 ## Knobs
 
@@ -88,7 +91,7 @@ detent of the outer ring. Ident: SHIFT, VFR (IDENT).
 | --- | --- | --- | --- | --- |
 | Left top | dual encoder, Ø17 / Ø12 knobs | outer ALT, inner HDG | HDG SYNC | outer CRS, inner BARO, push STD |
 | Left bottom | multi-control: turn, tilt 4 ways, push | RANGE | map pointer | own buttons, free for your own mappings |
-| Right top | dual encoder, Ø17 / Ø12 knobs | frequency: outer MHz, inner kHz (ADF: outer 100s, inner 1s) | cycles the knob through COM, NAV and ADF standby frequency; the mode stays until the next push (ADF only in aircraft that have one; COM/NAV is C/V on the GNS 430) | squawk code: outer selects the digit, inner sets it; push XPDR mode |
+| Right top | dual encoder, Ø17 / Ø12 knobs | frequency: outer MHz, inner kHz (ADF: outer 100s, inner 1s) | cycles COM, NAV, ADF (ADF only in aircraft that have one; COM/NAV is C/V on the GNS 430) | squawk: outer selects the digit, inner sets it; push XPDR mode |
 | Right bottom | dual encoder, Ø17 / Ø12 knobs | outer page group, inner page | cursor | lighting: outer panel lights, inner glareshield flood, push cabin light |
 
 On the left knob the push sits on the inner HDG knob, so pushing the heading knob syncs the heading, as on the
@@ -110,9 +113,8 @@ on the side of each knob facing the keys, turned towards the user; the near side
 behind the front knob when seated. The pan arrow pointing away from you is hidden behind the RANGE knob when
 seated; the other three are enough.
 
-The cockpit lighting sits behind SHIFT on the FMS knob instead of on knobs of its own: it is set once or twice
-per flight, a knob keeps SHIFT while it turns, so dimming is one tap and then turning, and more knobs would
-break the symmetric layout.
+The cockpit lighting sits behind SHIFT on the FMS knob for the same reason as CRS and BARO: it is set once or
+twice per flight, and more knobs would break the symmetric layout.
 
 Frequency mode: the FREQ push cycles the knob through COM, NAV and ADF. The panel has no light for the mode;
 it starts at COM after plugging in and stays until the next push, so watch which standby frequency moves.
@@ -127,7 +129,7 @@ firmware's loop (a few ms) makes both coarse.
 
 | Function | Slow | Fast |
 | --- | --- | --- |
-| ALT | 100 ft | 1,000 ft |
+| ALT | 100 ft | 1000 ft |
 | HDG, CRS | 1° | 10° |
 | ADF, inner ring | 1 kHz | 10 kHz |
 
@@ -156,21 +158,20 @@ steps per second), so -1000 ft/min takes about 1.4 s.
 One laser-marked frame surrounds all keys and single lines split it into AUTOPILOT, AUDIO, RADIO and FMS
 (separate frames read as a double rule between AUTOPILOT and AUDIO).
 
-Audio and radio, split by a laser-marked line. AUDIO (left half) selects what you talk on (MIC) and
-listen to (COM; with SHIFT NAV 1, NAV 2, ADF, DME for station identifiers). It does not tune anything.
-RADIO (right half) holds the CDI key, the transponder key and the flip-flops next to the frequency
-knob:
+Audio and radio: AUDIO (left half) selects what you talk on (MIC) and listen to (COM; with SHIFT NAV 1,
+NAV 2, ADF, DME for station identifiers). It does not tune anything. RADIO (right half) holds the CDI key,
+the transponder key and the flip-flops next to the FREQ knob:
 
 | | | | |
 | --- | --- | --- | --- |
 | MIC 1 (ADF) | COM 1 (NAV 1) | CDI (OBS) | COM ⇆ (121.5) |
 | MIC 2 (DME) | COM 2 (NAV 2) | VFR (IDENT) | NAV ⇆ (ADF ⇆) |
 
-121.5 tunes the emergency frequency, like holding the COM flip-flop for two seconds on Garmin units.
-ADF ⇆ is the ADF flip-flop (FRQ on the KR 87). MIC 1 (ADF) is different: it only listens to the ADF.
-CRS CTR centres the course needle on the active VOR, like pushing the CRS knob on the G1000.
-DME listens to a separate DME such as the KN 62. A DME paired with a VOR
-or ILS already sends its ident on the NAV audio, and the marker lights show on the PFD without audio.
+- 121.5 tunes the emergency frequency, like holding the COM flip-flop for two seconds on Garmin units.
+- ADF ⇆ is the ADF flip-flop (FRQ on the KR 87). MIC 1 (ADF) is different: it only listens to the ADF.
+- CRS CTR centres the course needle on the active VOR, like pushing the CRS knob on the G1000.
+- DME listens to a separate DME such as the KN 62. A DME paired with a VOR or ILS already sends its ident on
+  the NAV audio, and the marker lights show on the PFD without audio.
 
 FMS, D→ / MENU / CLR / ENT next to the FMS knob as on the G1000:
 
@@ -183,10 +184,11 @@ MAP returns to the default map page, like holding CLR on the G1000 and GNS 530/4
 
 28 keys. UNIT (SHIFT, HOME) switches between unit 1 and unit 2 for the FMS keys and knob (GTN or GNS 530 /
 second unit), for CDI and OBS, and for the radio the FREQ knob and flip-flops tune (COM 1 / NAV 1 or COM
-2 / NAV 2). On the G1000 UNIT selects radio 2 only and the FMS keys always drive the MFD: the PFD and MFD
-share the radios, so coupling them would tune COM 2 while editing on the PFD. A white light next to the amber
-UNIT legend is on while unit 2 is selected. There is no automatic return to unit 1, because a timeout would
-interrupt long flight plan edits.
+2 / NAV 2). A white light next to the amber UNIT legend is on while unit 2 is selected. There is no automatic
+return to unit 1, because a timeout would interrupt long flight plan edits.
+
+On the G1000 UNIT selects radio 2 only and the FMS keys always drive the MFD: the PFD and MFD share the
+radios, so coupling them would tune COM 2 while editing on the PFD.
 
 ```mermaid
 stateDiagram-v2
