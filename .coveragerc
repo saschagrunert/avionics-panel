@@ -1,0 +1,8 @@
+# What pytest --cov measures (build.sh; CI sends the result to Codecov): the files that go on the board. The
+# tests themselves are left out, and so is make_buttons.py, which no test runs: build.sh runs it, and CI checks
+# the BUTTONS.md it writes.
+[run]
+source = firmware
+omit =
+    firmware/test_*.py
+    firmware/make_buttons.py

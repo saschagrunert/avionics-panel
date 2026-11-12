@@ -4,7 +4,8 @@ name: build
 # nixpkgs locked in flake.lock. Dependabot proposes each nixpkgs-unstable update as a pull request, whose
 # build is the check that the update leaves every output as it is (so no scheduled run). Dependabot's pull
 # requests get a read-only token, which is enough: the cache only restores there, and the cache step uses
-# its write access on main only. A push to main that passes also publishes the 3D view.
+# its write access on main only. A push to main that passes also publishes the 3D view, and every build
+# that passes sends the firmware tests' coverage to Codecov.
 on:
   push:
     branches:
@@ -60,6 +61,19 @@ jobs:
             echo "::error::build.sh changed, added or removed outputs: run it and commit the result"
             exit 1
           fi
+      # Sends the firmware tests' coverage (coverage.xml from build.sh, and nothing else) to Codecov, with the
+      # CODECOV_TOKEN secret (Dependabot's pull requests read the Dependabot secret of that name). A failed
+      # or stalled upload, as during an outage of Codecov, does not fail the build (continue-on-error), while
+      # fail_ci_if_error keeps the action from running an upload tool whose signature does not verify.
+      - uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
+        continue-on-error: true
+        timeout-minutes: 5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage.xml
+          disable_search: true
+          plugins: noop
+          fail_ci_if_error: true
   # Packs the viewer without write access; deploy only publishes the artifact. Only a push to main that
   # built and checked cleanly publishes; forks have no Pages of this repository to deploy to.
   pages-pack:

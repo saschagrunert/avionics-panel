@@ -10,5 +10,9 @@ pcb/routed_*.json
 mech/avionics-panel-rev1-*
 mech/fit-check.png
 
+# coverage of the firmware tests (build.sh)
+.coverage
+coverage.xml
+
 # browser logs from testing the viewer (Playwright)
 .playwright-mcp/

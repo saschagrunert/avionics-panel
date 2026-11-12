@@ -1,4 +1,4 @@
-# Avionics Panel
+# Avionics Panel [![Firmware test coverage](https://codecov.io/gh/saschagrunert/avionics-panel/graph/badge.svg)](https://codecov.io/gh/saschagrunert/avionics-panel)
 
 DIY desktop panel for GA avionics in flight sims (G1000, GTN 750, GNS 530/430, Bendix/King, GFC 500):
 autopilot, audio, radio and FMS keys, three dual concentric knobs and a RANGE knob that tilts to pan. It shows

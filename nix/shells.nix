@@ -31,11 +31,16 @@ in
       ))
     ];
   };
-  # The firmware tests. MicroPython (its own test suite fails to build in nixpkgs, so without it) checks the
-  # firmware compiles with MicroPython's parser, which CircuitPython uses.
+  # The firmware tests and their coverage. MicroPython (its own test suite fails to build in nixpkgs, so
+  # without it) checks the firmware compiles with MicroPython's parser, which CircuitPython uses.
   firmware = pkgs.mkShell {
     packages = [
-      (pkgs.python3.withPackages (ps: [ ps.pytest ]))
+      (pkgs.python3.withPackages (
+        ps: with ps; [
+          pytest
+          pytest-cov
+        ]
+      ))
       (pkgs.micropython.overrideAttrs (_: {
         doCheck = false;
       }))
