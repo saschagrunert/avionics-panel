@@ -177,7 +177,7 @@ Run `pytest` from the repository root for the host tests:
 | `tests/test_windows_zip.py` | The simulator's zip for Windows: layout, `._pth`, the simulator run from it |
 | `tests/test_pins.py` | Every pin `code.py` uses, against the nets in `pcb/board.py` |
 | `tests/test_mpy_cross.py` | Every board file, compiled with the board's compiler |
-| `tests/test_mobiflight.py` | The [MobiFlight profiles](../using/mapping.md#generated-profiles): tables, project format, workflows |
+| `tests/test_mobiflight.py` | The [MobiFlight profiles](../using/mapping.md#generated-profiles): tables and their codes, project format, workflows |
 
 The simulator in [sim/](../../sim/) runs the unchanged `boot.py` and `code.py` on stand-ins for the hardware
 modules, on virtual time: the keypads scan every 20 ms, a loop pass takes 3 ms, and the PC takes a report at

@@ -27,8 +27,9 @@ The simulator is one zip with everything it needs, Python included. The virtual 
    (`http://127.0.0.1:8000/?sim`). Keep the command window open while you fly: closing it ends the
    simulator, closing the browser tab does not. If something is wrong, the window says what and stays open.
 5. In MobiFlight, bind the buttons of the two "vJoy Device" joysticks as for the panel: the button numbers
-   are in [BUTTONS.md](../../firmware/BUTTONS.md), how to map them in [Mapping](mapping.md). If MobiFlight
-   lists no vJoy Device, turn on joystick support and tick both under Extras, Settings, Peripherals.
+   are in [BUTTONS.md](../../firmware/BUTTONS.md), how to map them in [Mapping](mapping.md); or generate the
+   profile of your family with `--from` ([Mapping](mapping.md#generated-profiles)). If MobiFlight lists no
+   vJoy Device, turn on joystick support and tick both under Extras, Settings, Peripherals.
 
 [The page](#the-page) says how to play the panel in the browser.
 

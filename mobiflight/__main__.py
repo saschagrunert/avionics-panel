@@ -1,13 +1,15 @@
-"""py -m mobiflight --family g1000 --from guids.mfproj   (python3 -m mobiflight ... on Linux and macOS)
+"""py -m mobiflight --family g1000 [--from guids.mfproj]   (python3 -m mobiflight ... on Linux and macOS)
 
-Writes the MobiFlight project of one avionics family for both joysticks, with the presets of HubHop's database
-(py -m mobiflight.hubhop downloads it). The joysticks are read from a project saved in MobiFlight with ENT
-bound in unit 1 and in unit 2 (docs/using/mapping.md), or given by their serials, JS- and the DirectInput
-instance GUID (named "Avionics Panel": MobiFlight rebinds a joystick of another name with the same serial)."""
+Writes the MobiFlight project of one avionics family for both joysticks. Without --from or --serials, MobiFlight
+asks for the two joysticks once when it opens the project (docs/using/mapping.md). With them, the project is
+bound to your joysticks: read, names and all, from a project saved in MobiFlight with ENT bound in unit 1 and in
+unit 2, or given by their serials, JS- and the DirectInput instance GUID, which names both "Avionics Panel". For
+joysticks of another name, as the simulator's vJoy devices, use --from: MobiFlight asks again for two joysticks of
+one name in a project that it does not find by name and serial (ControllerAutoBinder.cs)."""
 import argparse
 import sys
 
-from mobiflight import hubhop, profile
+from mobiflight import profile
 from mobiflight.families import FAMILIES
 
 
@@ -22,29 +24,29 @@ def unmapped(family, device):
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="mobiflight", description=__doc__.split("\n\n")[1])
     parser.add_argument("--family", required=True, choices=sorted(FAMILIES))
-    joysticks = parser.add_mutually_exclusive_group(required=True)
+    joysticks = parser.add_mutually_exclusive_group()
     joysticks.add_argument("--from", dest="saved", metavar="GUIDS.mfproj",
                            help="a project saved in MobiFlight with ENT bound in unit 1 and in unit 2")
     joysticks.add_argument("--serials", nargs=2, metavar=("DEVICE1", "DEVICE2"),
-                           help="the joysticks' serials, JS-<guid>: device 1 (128 buttons), device 2 (64)")
-    parser.add_argument("--hubhop", default=hubhop.FILE, metavar="PRESETS.json",
-                        help=f"HubHop's preset database (default {hubhop.FILE})")
+                           help="the serials of the panel's joysticks, JS-<guid>: device 1 (128 buttons), "
+                                "device 2 (64)")
     parser.add_argument("-o", "--output", metavar="OUT.mfproj", help="default: FAMILY.mfproj")
     args = parser.parse_args(argv)
     family = FAMILIES[args.family]
     try:
         if args.saved:
             controllers = profile.controllers_from(args.saved)
-        else:
+        elif args.serials:
             controllers = {d: (profile.NAME, profile.serial(s)) for d, s in zip((1, 2), args.serials, strict=True)}
             if controllers[1] == controllers[2]:
                 raise ValueError("device 1 and device 2 need different serials")
-        presets = hubhop.lookup(hubhop.load(args.hubhop), hubhop.names([family]))
+        else:
+            controllers = profile.UNBOUND
     except (OSError, ValueError) as e:
         parser.error(str(e))
     output = args.output or f"{args.family}.mfproj"
     with open(output, "w", encoding="utf-8", newline="\n") as f:
-        f.write(profile.dumps(profile.build(family, controllers, presets)))
+        f.write(profile.dumps(profile.build(family, controllers)))
     for device in (1, 2):
         name, serial = controllers[device]
         print(f"device {device} ({name}, {serial}): {len(family.DEVICE[device])} buttons mapped", file=sys.stderr)
