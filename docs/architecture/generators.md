@@ -9,6 +9,7 @@ the scripts one by one. Generated files are named `avionics-panel-rev1-*`.
 | [mech/](../../mech/) | Body, front plate, knobs, light pipes, key caps, plate artwork | [stack.py](../../mech/stack.py) (the heights and tolerances), [check_fit.py](../../mech/check_fit.py) |
 | [firmware/](../../firmware/) | CircuitPython for the panel's RP2040 | [code.py](../../firmware/code.py), [panel.py](../../firmware/panel.py), [buttonmap.py](../../firmware/buttonmap.py) |
 | [sim/](../../sim/) | The firmware on stand-in hardware, for the tests and live as a HID device ([Firmware](firmware.md#code-and-tests)) | [\_\_init\_\_.py](../../sim/__init__.py), [hardware.py](../../sim/hardware.py), [live.py](../../sim/live.py) |
+| [mobiflight/](../../mobiflight/) | MobiFlight profiles per avionics family, from HubHop presets ([Mapping](../using/mapping.md#generated-profiles)) | [profile.py](../../mobiflight/profile.py), [families/g1000.py](../../mobiflight/families/g1000.py) |
 | [viewer/](../../viewer/) | The 3D view (three.js), [live here](https://saschagrunert.de/avionics-panel/) | [index.html](../../viewer/index.html) |
 | [production/](../../production/) | The files to order | [Ordering](../building/ordering.md) |
 | [renders/](../../renders/) | Pictures | |

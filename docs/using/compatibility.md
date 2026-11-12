@@ -65,9 +65,10 @@ Navigators:
 
 On units without a HOME key (G1000, GNS) map HOME to whatever is used most there.
 
-The GTN 750Xi column assumes that the TDS GTN exposes its touchscreen functions (FPL, PROC, MENU, CLR,
-ENT, MSG, NRST, TERR, VNAV, MAP, CDI, OBS) as events or variables MobiFlight can send: check which ones it
-exposes before relying on them; the rest stay on the touchscreen.
+The TDS GTN 750Xi and 650Xi take only their bezel controls from outside: HOME, D→, the dual knob and its
+push, and the volume knob and its push. Their touchscreen functions (FPL, PROC, MENU, CLR, ENT, MSG, NRST,
+TERR, VNAV, MAP, CDI, OBS) have no event or variable, so these keys do nothing with a GTN: press HOME and
+touch the function on the screen.
 
 Radios, transponder, audio:
 
