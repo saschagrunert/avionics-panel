@@ -147,10 +147,19 @@ Run `pytest` from the repository root for the host tests:
 | Test | Checks |
 | --- | --- |
 | `firmware/test_panel.py` | `panel.py` |
-| `firmware/test_code.py` | `code.py`, against stub hardware modules |
-| `firmware/test_boot.py` | `boot.py` |
+| `firmware/test_code.py` | `code.py`, on the simulator's stand-in hardware |
+| `firmware/test_boot.py` | `boot.py`, on the simulator's stand-in hardware |
+| `tests/test_workflows.py` | The [workflows](../using/controls.md#workflows), keys and knobs, on the simulator |
 | `tests/test_pins.py` | Every pin `code.py` uses, against the nets in `pcb/board.py` |
 | `tests/test_micropython.py` | Every board file, compiled with two compilers |
+
+The simulator in [sim/](../../sim/) runs the unchanged `boot.py` and `code.py` on stand-ins for the hardware
+modules, on virtual time: the keypads scan every 20 ms, a loop pass takes 3 ms, and the PC takes a report at
+its poll of the shared endpoint every 8 ms; seconds of flying take milliseconds. It does not reproduce
+CircuitPython's speed, memory or USB stack. `tests/test_workflows.py` uses it as a pilot would (tap SHIFT,
+turn the FREQ inner ring) and checks the buttons MobiFlight sees at its 31.25 ms polls, by their names, and
+that none stays pressed. With the firmware's own tests, a firmware change that breaks a documented workflow
+fails the build.
 
 The compilers are CircuitPython 9.2's own `mpy-cross` (the board's compiler, passed in `MPY_CROSS`) and the
 MicroPython unix port from nixpkgs (`micropython` on the PATH). MicroPython alone is not enough: CircuitPython

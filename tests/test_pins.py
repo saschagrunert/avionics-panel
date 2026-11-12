@@ -1,14 +1,16 @@
 """Every GPIO the firmware uses against the board: code.py and boot.py (CircuitPython, no access to pcb/) name
-their pins themselves; these tests run them against stub hardware and compare with the nets in
-pcb/board.py."""
+their pins themselves; these tests run them on the simulator's stand-in hardware (sim/hardware.py) and compare
+with the nets in pcb/board.py."""
 import importlib.util
 import os
 
 import buttonmap as BM
 import test_boot
-import test_code
+
+from sim.hardware import RINGS, Board
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PICO = [("\nPICO_TEST = False\n", "\nPICO_TEST = True\n")]   # code.py edited for the Pico bench
 
 
 def load(name, path):
@@ -21,12 +23,11 @@ def load(name, path):
 
 B = load("_pins_board", "pcb/board.py")
 NET = {p.name: p.net for p in B.build()}
-RINGS = ("ALTHDG_OUTER", "ALTHDG_INNER", "FREQ_OUTER", "FREQ_INNER", "FMS_OUTER", "FMS_INNER", "RANGE")
 
 
 def firmware(pico_test=False):
     """the pins code.py hands to keypad, rotaryio and pwmio"""
-    hw = test_code.Hardware(5, pico_test=pico_test).run()
+    hw = Board().boot().run(5, PICO if pico_test else ())
     rings = dict(zip([r[0] for r in hw.code["RINGS"]], hw.encoders, strict=True))
     assert sorted(rings) == sorted(RINGS)
     return hw, rings
@@ -50,7 +51,7 @@ def all_pins(hw):
 def test_matrix_rows_and_columns():
     hw, _ = firmware()
     assert list(hw.matrix.rows) == B.ROW_GP and list(hw.matrix.cols) == B.COL_GP
-    assert hw.matrix.kwargs["columns_to_anodes"] is True
+    assert hw.matrix.columns_to_anodes is True
 
 
 def test_every_matrix_key_sits_on_its_row_and_column():
@@ -75,7 +76,7 @@ def test_every_matrix_key_sits_on_its_row_and_column():
 def test_freq_push_and_lights():
     hw, _ = firmware()
     assert hw.direct.pins == (NET["ENC_FREQ.E"],) and NET["ENC_FREQ.D"] == "GND"
-    assert hw.direct.kwargs["value_when_pressed"] is False and hw.direct.kwargs["pull"] is True
+    assert hw.direct.value_when_pressed is False and hw.direct.pull is True
     assert [led.pin for led in hw.leds] == [B.LEDS["SHIFT"][1], B.LEDS["UNIT"][1]]
 
 
@@ -118,11 +119,11 @@ def test_pico_test_pins():
 
 
 def test_boot_reads_the_board_shift_key():
-    # boot.py finds SHIFT only on the board's row and column of SHIFT: with the stub switch there it keeps
+    # boot.py finds SHIFT only on the board's row and column of SHIFT: with the switch closed there it keeps
     # the drive, with it anywhere else (a wrong pin in boot.py) it would hide it
     r, c = next((r, row.index("SHIFT")) for r, row in enumerate(BM.MATRIX) if "SHIFT" in row)
     pins = (B.ROW_GP[r], B.COL_GP[c])
     assert pins == test_boot.SHIFT_PINS
     assert NET[f"K{r}{c}.A"] == pins[0] and NET[f"DK{r}{c}.A"] == pins[1]
-    assert not test_boot.Boot(shift=True, pins=pins).run().hidden
-    assert test_boot.Boot(shift=False, pins=pins).run().hidden
+    assert not test_boot.hidden(test_boot.boot(shift=True, pins=pins))
+    assert test_boot.hidden(test_boot.boot(shift=False, pins=pins))
