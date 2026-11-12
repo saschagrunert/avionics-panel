@@ -688,11 +688,10 @@ def add_support(pads):
     # pad towards the (GND) tab: the VBUS_F pad 1.9 mm from the hand-soldered tab (0.8 mm before, a bridge to GND),
     # and the way north past U3 stays free for the lines over the top (C_IN sat in it, north of U3). 10 uF, the
     # part of C_OUT0. When VBUS is switched on hard (a live USB-A port), the cable's inductance rings with C_IN;
-    # R_IN (1 ohm, add_protection) in series with the cable and the fuse damps it, so the modelled input
-    # stays within 0.05 V of the 5.25 V step up to 1 uH of cable and under about 6.6 V on long ones, against the
-    # XC6206's 7.0 V absolute maximum (docs/architecture/electronics.md: C_IN's DC-bias loss, no clamp, cable 0.3
-    # to 3 uH and 0.05 to 0.4 ohm, fuse 0.15 to 0.7 ohm). 10 uF is USB 2.0's limit for a device at attach, and the
-    # regulator's output capacitors add to it.
+    # R_IN (1 ohm, add_protection) in series with the cable and the fuse damps it, so the modelled input stays
+    # under the XC6206's 7.0 V absolute maximum. The model's cable is 0.3 to 3 uH and 0.05 to 0.4 ohm, the fuse
+    # 0.15 to 0.7 ohm; its other assumptions and its peaks are in docs/architecture/electronics.md. 10 uF is
+    # USB 2.0's limit for a device at attach, and the regulator's output capacitors add to it.
     a, b = chip(pads, "C_IN", lx - 2.5, ly + 0.8, "GND", "VBUS_F", "10uF", "C19702", vertical=True)
     plane_via(a, "GND", -0.9, 0)
     vx = lx - px                        # U3's VIN pad centre

@@ -59,8 +59,8 @@ steps 1, 4 and 7, the encoders and the RANGE control last ([Ordering](ordering.m
 1. Before the first power-up (hand-soldering: first solder the four J1 shell tabs,
    [Hand-soldering](assembly.md#hand-soldering)):
    1. Look over the bottom side (RP2040, USB-C, regulator).
-   2. With the multimeter, measure VBUS to GND on both pads of the fuse F1 (J1's side and the regulator's) and
-      3V3 to GND (across C_OUT0). None may be a short.
+   2. With the multimeter, measure both pads of the fuse F1 to GND (VBUS_R on J1's side, VBUS_F on the
+      regulator's) and 3V3 to GND (across C_OUT0). None may be a short.
    3. Switch the multimeter to diode mode, red probe on F1's pad on the regulator's side (VBUS_F), black on
       R_DP's outer pad (D+ between U4 and R_DP). A good board reads open or climbs past about 1.5 V (any path
       runs through the regulator, a load and one of U4's diodes in series). A steady 0.5 to 0.8 V from the
