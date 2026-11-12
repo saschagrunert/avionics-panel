@@ -9,14 +9,17 @@ soldering, for the hand-soldering option and for rework. The tools are in the
 
 Five screws hold the plate, the board and the body together, and the light pipes are held by their shape.
 Work face down on two blocks at least 25 mm high with a cloth on top: the encoder shafts stick out about
-17.5 mm past the plate face. Put the blocks under the plate's long front and back edges, at most 8 mm in (the
-nearest caps and shafts are about 10 mm in).
+17.5 mm past the plate face. Put the blocks under the plate's long front edge and its back edge (the one with
+the tongue, which goes over J1, the USB-C socket), at most 8 mm in (the nearest caps and shafts are about
+10 mm in).
 
-1. Caps: push all caps of the [chosen set](bring-up.md#choosing-the-cap-set) onto their plungers, down until
-   each one sits on its plunger top. The tactile bars of SHIFT and DN go to the front edge, the bar of UP to
-   the back edge. Then square the caps: hold a steel rule against the front edges of each row and turn every
-   cap until its edge lies flat on the rule. A cap turned by more than about 1° can rub its hole; one turned
-   by more than about 5° lands on the plate back instead of in its hole.
+1. Caps: lay the board face up with J1 at the back; its front edge is the one away from J1. Push each cap of
+   the [chosen set](bring-up.md#choosing-the-cap-set) onto the key whose name is printed in front of it
+   (SHIFT: the key with the SHIFT light's cutout in front of it), legend upright, until it sits on the plunger
+   top. The tactile bars of SHIFT and DN are then at the front edge, the bar of UP at the back edge. Square
+   the caps: hold a steel rule against the front edges of each row and turn every cap until its edge lies flat
+   on the rule. A cap turned by more than about 1° can rub its hole; one turned by more than about 5° lands on
+   the plate back instead of in its hole.
 2. Light pipes (before or after step 1): break both off their bar and sand the two stubs flush with the base
    on fine sandpaper laid on the table, no further (the visible tops stay as printed). The two pipes are the
    same. Lay the plate face down on the blocks and the cloth. Drop a pipe, rod first, into each of the two
@@ -55,7 +58,12 @@ also with a bore 0.2 mm tighter and 0.2 mm looser: keep whichever grips.
   with their bore end on the shaft or lever tip, so a deeper bore lowers the knob, and the RANGE knob clears
   the plate by only about 0.2 mm at full tilt.
 - Hold a loose knob with a strip of tape on the shaft.
-- Reprint the rest with that fit (`FIT` in [mech/stack.py](../../mech/stack.py)) if needed.
+- If only the tight or loose variant grips, the order has too few of it for the outer rings and inner knobs.
+  Set `FIT` in [mech/stack.py](../../mech/stack.py) to -0.2 (tight) or 0.2 (loose) and run
+  [`./build.sh`](../architecture/generators.md#build): it rewrites all 12 knob files in `production/`. Order
+  the types that ran short again: `knob-outer.step` and `knob-inner.step` with their `-tight` and `-loose`
+  variants. `FIT` applies to every knob type, so an outer ring that needs tight and an inner knob that needs
+  loose take two builds.
 
 ## Disassembly
 
@@ -69,20 +77,20 @@ also with a bore 0.2 mm tighter and 0.2 mm looser: keep whichever grips.
 
 ## Hand-soldering
 
-Only with the hand-soldering option, and for rework. The board comes with every SMD part on the bottom, the
-two LEDs included; the keys, encoders and RANGE control are soldered by hand from the bottom side. The
-[bring-up](bring-up.md#flash-and-test) says when: the J1 shell tabs first, then flash and test the bare board,
-then the keys, and the encoders and RANGE control last, as they are the parts that are hard to remove again.
+Only with the hand-soldering option, and for rework. The board comes with every SMD (surface-mount) part on
+the bottom, the two LEDs included; the keys, encoders and RANGE control are soldered by hand from the bottom
+side. The [bring-up](bring-up.md#flash-and-test) says when: the J1 shell tabs first, then flash and test the
+bare board, then the keys, and the encoders and RANGE control last, as they are the parts that are hard to
+remove again.
 
 - J1 shell tabs: solder all four from the top before the first plug-in: flux, then feed solder into each slot
-  until it is filled and wets the tab all round (they are GND). The tabs take the load of the plug, and the
-  reflow leaves only a fillet under them ([why](../architecture/electronics.md#solder-mask)).
+  until it is filled and wets the tab all round. The tabs are on GND (ground) and take the load of the plug
+  ([why](../architecture/electronics.md#solder-mask)).
 - Every part sits flat on the board: solder one pin, check from the side that the part sits flat and square
   (press it down while you reheat that pin if not), then solder the rest. Same for the 28 keys: a tilted key
-  tilts its cap in the key hole. The leads need no trimming: they stand at most 2.7 mm under the board and
-  clear the body floor by 1.0 mm.
+  tilts its cap in the key hole. Leave the leads untrimmed.
 - Encoders: solder the mounting lugs in their slots too; they carry the push of the knobs.
 - RANGE control (RKJXT): it may sit off-centre on its pins; the plate leaves it room.
 - The RKJXT's COM and ECOM pins are the closest hand-soldered pair on the board (0.38 mm of copper between the
   pads, RANGE_COM and GND): check them for a bridge with a magnifier and a continuity tester. A bridge makes
-  the whole fifth column read pressed.
+  COM 1, COM 2, FPL and PROC read pressed all the time, and the RANGE push sends no PTR.

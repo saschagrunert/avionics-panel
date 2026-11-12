@@ -8,8 +8,8 @@ the firmware works is in [Firmware](../architecture/firmware.md).
 
 Full assembly (the default), in this order:
 
-1. Rail edge (the long edge away from J1): check that the rail is gone and both corners are round (R3). File
-   a square corner to R3 (it would stand 0.74 mm into the body) and sand off a burr.
+1. Rail edge (the long front edge, away from J1, the USB-C socket): check that the rail is gone and both
+   corners are round (R3). File a square corner to R3 and sand off a burr.
 2. Plate threads: turn one of the M3 screws into each of the five bosses by hand with the 2 mm hex key, about
    ten turns, and out again. It must run freely: an anodised thread that was neither masked nor cut again
    stops it early (take it up with JLCCNC). Do not drive it home: without the body it would go past the 6.0 mm
@@ -21,12 +21,12 @@ Full assembly (the default), in this order:
    one that does not while pressing it down, or use the second board for the panel.
 5. Cap set: [choose it](#choosing-the-cap-set) on one of the spare keys from the LCSC order.
 
-Nothing else needs checking: the leads stay untrimmed, and a solder bridge shows up in steps 6 and 7 of
-[Flash and test](#flash-and-test), where every key, ring, tilt and push is read.
+Solder bridges need no check now: steps 6 and 7 of [Flash and test](#flash-and-test) read every key, ring,
+tilt and push.
 
 Hand-soldering: steps 1, 2 and 5 only; the soldering follows in [Flash and test](#flash-and-test).
 
-A board that arrives with a rail anyway, or with a V-cut edge that does not fit the body:
+A board that arrives with a rail anyway, or with a V-cut (scored and snapped) edge that does not fit the body:
 
 1. If the rail is still on, break it off along its score with flat-nose pliers, without bending the board.
 2. Take that edge down with a flat file or coarse sandpaper on a block until the board drops into the body
@@ -45,46 +45,51 @@ pulling off a tight cap loads no soldered key.
 - If two sets fit, take the tighter one (from tight to loose: D, A, B, C).
 - Without a spare key, try them on a soldered key from loose to tight (C, B, A, D) and stop at the first set
   that holds, so no tight cap has to be pulled off.
-- If even C is too tight, or even D too loose, reprint with `CAP_SETS_MOVE` in
-  [mech/stack.py](../../mech/stack.py) raised (C too tight) or lowered (D too loose) by 0.1 mm for each set it
-  missed by (up to 0.3 mm either way; one round may not do).
+- If even C is too tight, raise `CAP_SETS_MOVE` in [mech/stack.py](../../mech/stack.py) by 0.1 mm for each
+  set it missed by; if even D is too loose, lower it the same way (up to 0.3 mm either way; one round may not
+  do). Run [`./build.sh`](../architecture/generators.md#build) and order the four `caps-*.zip`
+  again from `production/`: each round reprints all four sets.
 
 Keep the other three sets as spares.
 
 ## Flash and test
 
-Full assembly: the board arrives with everything on, so only the checks below apply; if it fails in step 1
-or 2, the second board takes over. Hand-soldering: the J1 shell tabs and the through-hole parts go on in
-steps 1, 4 and 7, the encoders and the RANGE control last ([Ordering](ordering.md#assembly-variants)).
+Full assembly: the board arrives with everything on, so only the checks below apply; if one board fails in
+step 1 or 2, the other takes over (a fault on both: [When bring-up fails](#when-bring-up-fails)).
+Hand-soldering: the J1 shell tabs and the through-hole parts go on in steps 1, 4 and 7, the encoders and the
+RANGE control last ([Ordering](ordering.md#assembly-variants)). On Linux, after every copy to RPI-RP2 or
+CIRCUITPY run `sync` and let it finish before you replug.
 
 1. Before the first power-up (hand-soldering: first solder the four J1 shell tabs,
    [Hand-soldering](assembly.md#hand-soldering)):
    1. Look over the bottom side (RP2040, USB-C, regulator).
-   2. With the multimeter, measure both pads of the fuse F1 to GND (VBUS_R on J1's side, VBUS_F on the
-      regulator's) and 3V3 to GND (across C_OUT0). None may be a short.
+   2. With the multimeter's continuity beeper, measure from GND (ground) to both pads of the fuse F1 (VBUS_R
+      on J1's side, VBUS_F on the regulator's) and to 3V3 (the 3.3 V supply) at C_OUT0. None may be a short:
+      a short beeps without stopping and reads a few ohms or less; a chirp that stops is the capacitors
+      charging.
    3. Switch the multimeter to diode mode, red probe on F1's pad on the regulator's side (VBUS_F), black on
       R_DP's outer pad (D+ between U4 and R_DP). A good board reads open or climbs past about 1.5 V (any path
       runs through the regulator, a load and one of U4's diodes in series). A steady 0.5 to 0.8 V from the
       start means U4 is turned by 180°: its GND pin then sits on VBUS_F and a steering diode conducts into D+,
-      which the resistance range does not show as a short. Have U4 replaced before the first power-up
-      ([why](../architecture/electronics.md#usb-protection)).
+      which the continuity check in step 2 does not show as a short. Have U4 replaced before the first
+      power-up ([why](../architecture/electronics.md#usb-protection)).
 
-   Where the parts are (the bottom silkscreen names only the bigger parts, and not F1):
+   Where the parts are, board bottom up with J1 at the top edge (the bottom silkscreen names only the bigger
+   parts, and not F1):
    - F1: the largest two-pad part on the board (3.2 x 1.6 mm, its pads 3 mm apart), along the long edge about
      4 mm below J1's pad row, between U4 and U3.
-   - U4, the ESD array (named): the six-pin part right below J1's contacts.
+   - U4 (named on the silkscreen), the electrostatic discharge (ESD) array: the six-pin part right below J1's
+     contacts.
    - U3, the regulator: the three-pin part beside J1.
-   - R_IN: a small resistor across the board between J1's pad row and F1's pad nearer U4.
    - R_DP: the lower of the two small resistors that lie one below the other along the long edge, about 5 mm
      below the RP2040's corner on U3's side (the upper one is R_DM). Probe its outer pad, the end away from
      the RP2040 and towards the nearer short edge.
    - C_OUT0: the small capacitor on U3's side towards the board edge.
    - GND: J1's metal shell, the easiest place for the black probe.
 2. Plug in USB. With empty flash the RP2040 starts its USB bootloader and shows a drive called RPI-RP2. Check
-   that 3V3 reads about 3.3 V across C_OUT0 (or from its 3V3 end to J1's shell).
-3. Copy the [CircuitPython 9.2.9 UF2 for the Raspberry Pi Pico][uf2] (same chip, 2 MB flash, 12 MHz crystal)
-   to RPI-RP2. The firmware is checked against 9.2.9; newer versions are untested, and the board page on
-   circuitpython.org does not offer 9.2. The board restarts with a CIRCUITPY drive.
+   that 3V3 reads 3.2 to 3.4 V across C_OUT0 (or from its 3V3 end to J1's shell).
+3. Copy the [CircuitPython 9.2.9 UF2 file for the Raspberry Pi Pico][uf2] (same chip, 2 MB flash, 12 MHz
+   crystal) to RPI-RP2; the firmware is tested on 9.2.9. The board restarts with a CIRCUITPY drive.
 4. Hand-soldering only: solder the 28 keys, seated flat ([Hand-soldering](assembly.md#hand-soldering)), but
    not yet the encoders and the RANGE control.
 5. Copy `boot.py`, `code.py`, `panel.py` and `buttonmap.py` from [firmware/](../../firmware/) to CIRCUITPY
@@ -93,21 +98,22 @@ steps 1, 4 and 7, the encoders and the RANGE control last ([Ordering](ordering.m
    1. Replug with SHIFT held until CIRCUITPY appears ([update mode](#normal-and-update-mode)): `boot.py` only
       runs at power-up.
    2. Open the serial console (Linux: for example `tio /dev/ttyACM0`; Windows: the serial console of Thonny or
-      Mu, or PuTTY on the panel's COM port, which Device Manager lists under Ports). CircuitPython only writes
-      to the serial port while a terminal has it open, so what `code.py` printed at start-up is already gone:
-      press Ctrl-C (`code.py` releases every button and stops) and then Ctrl-D, which runs it again. `code.py`
-      then prints "Avionics Panel rev 1 ready", or, if `boot.py` did not run, a traceback ending in
-      `RuntimeError: joysticks missing: copy boot.py and replug the panel`.
+      Mu, or PuTTY on the panel's COM port, which Device Manager lists under Ports). Press Ctrl-C, then
+      Ctrl-D: `code.py` runs again and prints "Avionics Panel rev 1 ready", or, if `boot.py` did not run, a
+      traceback ending in `RuntimeError: joysticks missing: copy boot.py and replug the panel`.
    3. Replug without SHIFT: CIRCUITPY and the serial port must not appear. If they still do, SHIFT reads as
       held (row GP2, column GP6).
-6. Check the joysticks on Windows:
-   - "Set up USB game controllers" (`joy.cpl`) must show two "Avionics Panel" devices (if it shows another
-     name, see [Mapping](../using/mapping.md#device-name)). It only shows 32 buttons per device.
+6. Check the joysticks:
+   - Windows: "Set up USB game controllers" (`joy.cpl`) must show two "Avionics Panel" devices (if it shows
+     another name, see [Mapping](../using/mapping.md#device-name)). It only shows 32 buttons per device, so
+     read the buttons in MobiFlight's input view or a DirectInput tester that shows all 128 (for example
+     Pointy's Joystick Test).
+   - Linux: `evtest` and `jstest` stop at 80 buttons. Run `pipx install hid-tools`, then
+     `sudo ~/.local/bin/hid-recorder`, and pick "Avionics Panel": each report shows `ReportID: 4` (device 1)
+     or `5` (device 2) and a `Button:` list of 0 and 1 in button order.
    - Check every key and both lights (before the plate goes on, the LEDs shine up through their cutouts in the
-     board) with MobiFlight's input view or a DirectInput tester that shows all 128 buttons (for example
-     Pointy's Joystick Test), against [BUTTONS.md](../../firmware/BUTTONS.md). Device 2 only responds while
-     unit 2 is selected (SHIFT, HOME); [Mapping](../using/mapping.md#two-joysticks) says how to tell the two
-     apart.
+     board) against [BUTTONS.md](../../firmware/BUTTONS.md). Device 2 only responds while unit 2 is selected
+     (SHIFT, HOME); [Mapping](../using/mapping.md#two-joysticks) says how to tell the two apart.
    - Column check: hold each key and check that the button of the matrix position right below it (same column
      of `MATRIX` in [buttonmap.py](../../firmware/buttonmap.py)) stays released. A column that recovers too
      slowly shows a phantom press there ([why](../architecture/electronics.md#gpio-map)), even where that part
@@ -124,7 +130,8 @@ steps 1, 4 and 7, the encoders and the RANGE control last ([Ordering](ordering.m
    2. Repeat the column check with the parts fitted: hold DN, no PAN button; hold ENT, no `FMS_CRSR`; hold
       PROC for a second and let go, no PTR during the hold or after it (the RANGE centre contact sits below
       PROC, and the firmware sends PTR only once that contact opens again).
-   3. Do the [first-board checks](#first-board).
+   3. Do the loop pass time and GP25 checks of [First board](#first-board); the knob timing and the lights
+      follow after assembly and mapping.
 
 Then the panel goes together: [Putting it together](assembly.md#putting-it-together).
 
@@ -132,26 +139,27 @@ Then the panel goes together: [Putting it together](assembly.md#putting-it-toget
 
 By the step of [Flash and test](#flash-and-test) that shows the fault:
 
+- Step 1, a short or the U4 reading: check the second board the same way. A fault on both is a placement
+  error: do not power either board; send JLCPCB photos of both and the readings, and ask for rework.
 - Step 2, no RPI-RP2 drive: try another cable (a charge-only cable shows nothing) and another USB port, then
   measure 3V3 again. With 3V3 right, look at J1's contacts and the crystal Y1 under the magnifier for bridges
-  or a lifted pin (solder wick for a bridge). Still nothing: put this board aside and use the second one. The
-  bench Pico can also serve as an SWD probe on the board's SWCLK and SWDIO pads (bottom, next to the RP2040;
-  GND on J1's shell) with Raspberry Pi's debugprobe firmware, to see whether the RP2040 answers at all.
+  or a lifted pin (solder wick for a bridge). Still nothing: put this board aside and use the second one.
 - Step 6, a key that never registers: check its diode, the SOD-123 next to it on the bottom, under the
   magnifier: its cathode band must be on the pad with the silkscreen bar. Turn a reversed one round with the
   iron. Then check the key's four solder joints (hand-soldering).
 - Step 6, a key that registers as another one, or several keys at once: a solder bridge, or the phantom press
-  of a slow column.
-- Step 7, a ring that counts the wrong way or rings swapped: `RINGS` in `code.py`.
+  of a slow column. Under the magnifier, clear a bridge with solder wick; for a phantom, check that the
+  column's 10 k pull-up (R_PU0 to R_PU6, bottom side) is soldered.
 
 ## First board
 
-On the first board, after step 7 of [Flash and test](#flash-and-test):
+On the first board; step 7.3 of [Flash and test](#flash-and-test) says which checks come before assembly:
 
 - Knob timing: MobiFlight must count every detent of a quick turn
   ([why](../architecture/firmware.md#knob-steps)). It needs a MobiFlight mapping and a running sim, so it can
   wait until [mapping](../using/mapping.md).
-  1. Map `FMS_INNER_CW` to a counter you can read in the sim (for example heading bug +1 in MobiFlight).
+  1. Map `FMS_INNER_CW` of both devices to a counter you can read in the sim (for example heading bug +1 in
+     MobiFlight).
   2. Spin the FMS inner ring 8 detents quickly: the bug must move by 8°.
   3. Repeat in unit 2 while UP is held (FMS on device 2, UP repeating on device 1).
   4. Repeat in unit 2 with the FMS inner ring and the ALT/HDG knob turning at the same time (ALT/HDG on
@@ -199,10 +207,10 @@ joysticks only after a plain replug ([why](../using/mapping.md#update-mode-and-g
 
 ## Updates and recovery
 
-Plug in with SHIFT held until CIRCUITPY appears, copy the changed files to CIRCUITPY, then replug without
-SHIFT before using MobiFlight. To reach the bootloader without the BOOT pads (for a new CircuitPython
-version), plug in the same way, open the serial console, press Ctrl-C, then Enter at "Press any key to enter
-the REPL", and run this:
+Plug in with SHIFT held until CIRCUITPY appears, copy the changed files to CIRCUITPY (on Linux, run `sync`),
+then replug without SHIFT before using MobiFlight. To reach the bootloader without the BOOT pads (for a new
+CircuitPython version), plug in the same way, open the serial console, press Ctrl-C, then Enter at "Press
+any key to enter the REPL" (CircuitPython's interactive prompt), and run this:
 
 ```python
 import microcontroller
@@ -213,8 +221,8 @@ microcontroller.reset()
 If CircuitPython ever stops booting: bridge the two BOOT pads, under the 5 mm hole in the body floor, with the
 tip of the 2 mm hex key or a small screwdriver while plugging in USB, and start again at step 3 of [Flash and
 test](#flash-and-test). A new UF2 keeps the files on CIRCUITPY, `boot.py` too; if SHIFT no longer brings the
-drive back, copy Raspberry Pi's [`flash_nuke.uf2`](https://datasheets.raspberrypi.com/soft/flash_nuke.uf2) to
-RPI-RP2 first, which erases the whole flash.
+drive back, copy Raspberry Pi's [`flash_nuke.uf2`](https://datasheets.raspberrypi.com/soft/flash_nuke.uf2)
+(it downloads as `nuke_universal.uf2`) to RPI-RP2 first, which erases the whole flash.
 
 ## Pico bench
 
@@ -232,8 +240,8 @@ Parts:
   PEC11D).
 
 Set `PICO_TEST = True` in [code.py](../../firmware/code.py): a plain Pico lacks GP23, GP24, GP25 and GP29 on
-its header, so the FREQ knob moves to GP12 to GP15 and its push to GP22; the RANGE encoder still runs on
-GP28/GP29 but cannot be turned there. Wire it up (pins are the GPn numbers, not the header pin numbers; the
+its header, so the FREQ knob moves to GP12 to GP15 and its push to GP22; the RANGE turn stays on
+GP28/GP29 and goes untested there. Wire it up (pins are the GPn numbers, not the header pin numbers; the
 keys are matrix positions, row and column in `MATRIX` in [buttonmap.py](../../firmware/buttonmap.py)):
 
 - SHIFT as on the board, a button from GP6 to GP2 through the diode (anode at GP6), or bridge GP6 to GP2 with
@@ -257,8 +265,9 @@ Run steps 3, 5 and 6 of [Flash and test](#flash-and-test) as on the board and ch
   1 means unit 1).
 - Encoder directions, ring order (outer / inner) and the RANGE tilt directions (`PAN_DIRS` in
   [panel.py](../../firmware/panel.py)), as far as one bench encoder and the buttons show them.
-- Whether the GUIDs differ: do MobiFlight and `joy.cpl` list the joysticks as new controllers after a plug-in
-  with SHIFT held ([Mapping](../using/mapping.md#update-mode-and-guids))?
+- Whether the GUIDs (the IDs Windows gives game controllers) differ: do MobiFlight and `joy.cpl` list the
+  joysticks as new controllers after a plug-in with SHIFT held
+  ([Mapping](../using/mapping.md#update-mode-and-guids))?
 
 `PICO_TEST` puts the SHIFT light on the Pico's own LED and prints the unit instead, so the bench says
 nothing about the real lights. Mappings made on the bench do not carry over to the board

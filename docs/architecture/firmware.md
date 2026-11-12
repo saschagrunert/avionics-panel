@@ -22,9 +22,10 @@ flowchart LR
 ```
 
 `code.py` reads the hardware and feeds key events, encoder detents and the time to `panel.py`, which holds all
-the logic, has no hardware access and runs on the PC in the tests. `boot.py` sets up the two joysticks (one
-USB HID interface with two report IDs) and hides the drive and console in normal use. `buttonmap.py` numbers
-the buttons, and `make_buttons.py` (PC only) writes [BUTTONS.md](../../firmware/BUTTONS.md).
+the logic, has no hardware access and runs on the PC in the tests. `boot.py` sets up the two joysticks, which
+share one USB HID (human interface device) interface with two report IDs, and hides the drive and console in
+normal use. `buttonmap.py` numbers the buttons, and `make_buttons.py` (PC only) writes
+[BUTTONS.md](../../firmware/BUTTONS.md).
 
 ## State
 
@@ -109,8 +110,8 @@ after it keep their time), and a shifted push or tilt keeps SHIFT.
 If the main loop raises, `code.py` releases every button (the PC keeps the last report otherwise, so a key
 could stay held), prints the traceback, waits 2 s and restarts itself, also when printing fails (a
 `MemoryError` may leave no room to format it). The pause lets Ctrl-C on the serial console stop even a crash
-loop at the REPL. There is no watchdog: every wait in the loop is bounded, and a watchdog reset would drop the
-joysticks off USB and run `boot.py` again.
+loop at the REPL (CircuitPython's interactive prompt). There is no watchdog: every wait in the loop is
+bounded, and a watchdog reset would drop the joysticks off USB and run `boot.py` again.
 
 ## USB
 
