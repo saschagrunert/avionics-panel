@@ -170,6 +170,15 @@ def test_alt_hdg_knob_with_shift_sets_baro_and_crs():
     assert s.take() == [(1, "ALT_100_UP"), (1, "HDG_1_UP")]
 
 
+def test_a_turn_of_no_detents_does_nothing():
+    # code.py only passes on a ring that moved, so turn() never gets 0 on the board. If it does, that is no
+    # detent: nothing is sent, and an armed SHIFT stays for the next key
+    s = Sim()
+    s.key("SHIFT"); s.p.turn("FREQ_INNER", 0, s.t); s.run(200)
+    assert s.take() == []
+    s.key("AP"); assert s.take() == [(1, "TEST")]
+
+
 def test_fms_knob_with_shift_dims_the_lights():
     s = Sim()
     s.turn("FMS_OUTER", 1); assert s.take() == [(1, "FMS_OUTER_CW")]
@@ -603,6 +612,23 @@ def test_key_state_is_forgotten_after_the_gap():
     s = Sim()
     key_trace(s, [(0, 10), (50, 60)], "AP")
     assert s.p.shown == {}
+
+
+def test_two_keys_tapped_together_are_released_together():
+    # VS and AP down and up in the same passes: both stay pressed for PRESS_MS and go in the same tick. Both are
+    # still known in the last tick of the gap and forgotten in the next, so a new press of each goes down at once
+    s = Sim()
+    s.p.key("VS", True, s.t); s.p.key("AP", True, s.t); s.run(10)
+    s.p.key("VS", False, s.t); s.p.key("AP", False, s.t)
+    trace = pressed_trace(s, P.PRESS_MS + P.GAP_MS - 10)
+    both = [t for t in sorted(trace) if trace[t]]
+    assert all(trace[t] == {"VS", "AP"} for t in both) and len(both) == P.PRESS_MS - 10
+    assert len(s.p.shown) == 2
+    s.run(1)
+    assert s.p.shown == {}
+    s.take()
+    s.p.key("VS", True, s.t); s.p.key("AP", True, s.t); s.run(1)
+    assert sorted(s.take()) == [(1, "AP"), (1, "VS")]
 
 
 # A switch that bounces for longer than a keypad scan: code.py passes on every change it scans

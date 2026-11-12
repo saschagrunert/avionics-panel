@@ -403,6 +403,21 @@ def test_lights_work_without_memorymap():
     assert hw.regs == {} and hw.leds[0].duty_cycle > 0 and not hw.printed
 
 
+def test_lights_work_when_the_pad_registers_cannot_be_written(capsys):
+    # a build whose memorymap refuses the pad registers: code.py says so on the console for each pad and runs on,
+    # and the lights still follow SHIFT and UNIT, at the pads' default drive
+    def refuse(start, length):
+        raise ValueError("Address range not allowed")
+    script = {50: [press("SHIFT", True)], 60: [press("SHIFT", False)],
+              150: [press("HOME", True)], 160: [press("HOME", False)]}
+    hw = Hardware(300, script)
+    hw.modules["memorymap"].AddressRange = refuse
+    hw.run()
+    out = capsys.readouterr().out
+    assert all(f"LED drive strength not set on GP {gp} " in out for gp in (12, 15))
+    assert hw.duty[100] > 0 and hw.leds[1].duty_cycle > 0 and not hw.printed
+
+
 def test_shift_light_is_written_only_on_a_change():
     # code.py asks for the level every pass (1 ms) but writes the PWM duty only when it changes
     hw = Hardware(3200, {10: [press("SHIFT", True)], 60: [press("SHIFT", False)]}).run()
