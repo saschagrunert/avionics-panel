@@ -216,7 +216,8 @@ class Hardware:
 
 def press(name, pressed, lost=False, late=0):
     """a matrix key goes down or up; lost: the keypad queue overflows and drops the event; late: the keypad
-    scanned it this many ms before code.py gets it (a pass that waited for the host)"""
+    scanned it this many ms before code.py gets it (a pass that waited for the host). A release with no press
+    before it is that of a key held when the keypad started, which reports no press for it"""
     def act(hw):
         keys, number = (hw.direct, 0) if name == "FREQ_PUSH" else (hw.matrix, NAMES.index(name))
         (keys.held.add if pressed else keys.held.discard)(number)
@@ -573,6 +574,16 @@ def test_release_read_late_keeps_its_scan_time():
     assert presses_sent(hw, 1, "AP") == 2 and not times_pressed(hw, 1, "AP")[-1][1]
 
 
+def test_release_without_a_press_is_ignored():
+    # a key held while the keypad starts (power-up, reload) is only reported when it is let go. For the RANGE
+    # centre that lone release would send PTR; for a key, a press within BOUNCE_MS of it would count as a
+    # bounce and be lost
+    hw = Hardware(400, {100: [press("RANGE_COM", False)]}).run()
+    assert not sent_names(hw, 1, BM.DEVICE[1]) and hw.code["panel"].pending == {}
+    hw = Hardware(400, {100: [press("AP", False)], 110: [press("AP", True)], 300: [press("AP", False)]}).run()
+    assert presses_sent(hw, 1, "AP") == 1 and not times_pressed(hw, 1, "AP")[-1][1]
+
+
 def test_held_key_is_resent_after_usb_comes_back():
     # the PC reboots while AP is held: the new host assumes everything released, so the panel sends AP again
     sent = {}
@@ -596,13 +607,3 @@ def test_key_scan_outlasts_switch_bounce():
     for keys in (hw.matrix, hw.direct):
         assert keys.kwargs["interval"] * 1000 == P.KEY_SCAN_MS and keys.kwargs.get("debounce_threshold", 1) == 1
         assert keys.kwargs["interval"] * 1000 >= SWITCH_BOUNCE_MS
-
-
-def test_loop_pass_keeps_the_step_within_the_repeats():
-    # tick() runs once per pass, so a press and a gap each last up to one pass longer than set, and the next
-    # press starts one pass after the gap ends: three passes per step. A step must still fit in the UP / DN
-    # and tilt repeats (panel.check_timing), or they pile up and run on. Only the loop's own sleep is
-    # measured here; the work in a pass (send_report waits for the endpoint) comes on top
-    hw = Hardware(50).run()
-    pass_ms = 1000 * max(hw.sleeps)
-    assert P.PRESS_MS + P.GAP_MS + 3 * pass_ms <= min(P.REPEAT_MS, P.PAN_MS)

@@ -11,7 +11,6 @@ SHIFT_MS = 3000          # SHIFT cancels itself, and a shifted knob returns to n
 SHIFT_WARN_MS = 1000     # the amber light pulses for this long before SHIFT drops out ...
 SHIFT_PULSE_MS = 125     # ... dim and bright this long each (4 Hz): starts dim, ends bright
 LIGHT_OFF, LIGHT_DIM, LIGHT_FULL = 0, 1, 2   # levels of the amber light; code.py maps them to PWM duties
-FREQ_RESET_MS = 10000    # frequency knob back to COM after this long without a turn or push
 FAST_MS = 60             # detents closer than this (same ring, same direction) take the coarse step
 # MobiFlight polls the joysticks from a 20 ms timer that Windows' 15.6 ms clock stretches to about 31 ms, and
 # reads snapshots (nothing buffered): a press and a gap must both outlast one poll, or detents merge or vanish.
@@ -38,8 +37,8 @@ MAX_QUEUE = 8            # queued detents per button (fast spins): runs on for a
 REPEAT_DELAY_MS = 400    # UP / DN: first repeat ...
 REPEAT_MS = 125          # ... then about 8 per second
 PAN_DELAY_MS = 300       # RANGE tilt: first repeat ...
-PAN_MS = 120             # ... then this often
-# RANGE tilt switches -> pan direction. Check on the first board and swap here if a direction is off.
+PAN_MS = 120             # ... then this often (both: no faster than the steps go through, see tick())
+# RANGE tilt switches -> pan direction: a tilt away closes A, left B, towards the user C, right D (Alps drawing)
 PAN_DIRS = {"RANGE_A": "UP", "RANGE_B": "LEFT", "RANGE_C": "DN", "RANGE_D": "RIGHT"}
 FREQ_MODES = ("COM", "NAV", "ADF")
 
@@ -52,8 +51,7 @@ def pulse_timing_ok(warn_ms, pulse_ms, shift_ms):
 
 def check_timing():
     """Raises on timing that breaks the rules above (a plain raise: asserts vanish under -O). Press and gap, of a
-    detent and of a key tap alike, must outlast a poll after losing three HID frames. A held UP / DN or tilt must
-    not queue repeats faster than the pulses send them, or they run on after the release. The bounce window must
+    detent and of a key tap alike, must outlast a poll after losing three HID frames. The bounce window must
     take a bounce one scan long, with half a scan to spare: CircuitPython 9.2 scans the keys from its 1/1024 s
     tick interrupt, so the scans of a bounce are 20 ticks (19.5 ms) apart, read in whole ms, plus however long
     the second scan's tick was held off (code that runs with interrupts off). The scan times come with the
@@ -62,8 +60,6 @@ def check_timing():
         raise ValueError("SHIFT_WARN_MS must be below SHIFT_MS and a multiple of 2 * SHIFT_PULSE_MS")
     if min(PRESS_MS, GAP_MS) < POLL_MS + 3 * HID_FRAME_MS:
         raise ValueError("PRESS_MS and GAP_MS must each be at least POLL_MS + 3 * HID_FRAME_MS")
-    if min(REPEAT_MS, PAN_MS) < PRESS_MS + GAP_MS:
-        raise ValueError("PRESS_MS + GAP_MS must not exceed REPEAT_MS and PAN_MS")
     if BOUNCE_MS < KEY_SCAN_MS * 3 // 2:
         raise ValueError("BOUNCE_MS must be at least 1.5 * KEY_SCAN_MS")
 
@@ -77,13 +73,13 @@ class Panel:
         self.under = None            # with "any": the knob whose held push or tilt keeps its session under it
         self.shift_until = 0
         self.unit = 1
-        self.freq_mode = 0
-        self.freq_last = 0
+        self.freq_mode = 0           # index into FREQ_MODES: kept until the FREQ push changes it
+        self.digit = 1               # squawk digit (1 to 4) the shifted FREQ inner ring steps
         self.held = {}               # source -> (device, button) held while the source is held
         self.pending = {}            # key or push -> scan ms of its release, not applied for BOUNCE_MS
         self.shown = {}              # (device, button) of a key or push -> [down?, ms of its last edge, presses
                                      # still to show]: what the PC sees, kept to PRESS_MS and GAP_MS
-        self.repeat = {}             # source -> [device, button, next_ms]
+        self.repeat = {}             # source -> [device, button, next_ms, every_ms]
         self.queue = {}              # (device, button) -> queued detents
         self.pulse = {}              # (device, button) -> (down?, until_ms)
         self.last_detent = {}        # ring -> (ms, direction)
@@ -97,9 +93,6 @@ class Panel:
     # ---------------- helpers ----------------
     def _btn(self, dev, name):
         return dev, BM.BUTTON[dev][name]
-
-    def _unit_dev(self):
-        return self.unit
 
     def _hold(self, src, k):
         """A key or push goes down: holds k while src is held, and owes the PC one more press of k."""
@@ -150,6 +143,8 @@ class Panel:
 
     def _knob_shift(self, knob, t):
         """SHIFT for a knob action: armed SHIFT or this knob's own shifted session. Starts/extends it."""
+        if self.shift == "any" and self.under != knob:     # not the session a held push of this knob keeps:
+            self.digit = 1                                 # a new one, the squawk entry starts at digit 1
         if self.shift == "any" or self.shift == knob:
             self.shift, self.under = knob, None
             self.shift_until = t + SHIFT_MS
@@ -223,7 +218,7 @@ class Panel:
         if name == "HOME" and shifted:                    # UNIT: firmware state, white light
             self.unit = 2 if self.unit == 1 else 1
             return
-        dev = self._unit_dev() if name in BM.UNIT_KEYS else 1
+        dev = self.unit if name in BM.UNIT_KEYS else 1
         button = BM.shifted(name) if shifted else name
         if name in BM.REPEAT_KEYS:
             self._queue(dev, button)
@@ -243,13 +238,12 @@ class Panel:
         if name == "ALTHDG_PUSH":
             k = self._btn(1, "BARO_STD" if shifted else "HDG_SYNC")
         elif name == "FMS_PUSH":
-            k = self._btn(1, "CABIN_LT") if shifted else self._btn(self._unit_dev(), "FMS_CRSR")
+            k = self._btn(1, "CABIN_LT") if shifted else self._btn(self.unit, "FMS_CRSR")
         elif shifted:
             k = self._btn(1, "XPDR_MODE")
         else:                                              # FREQ push: next mode, and C/V for GNS / GTN
             self.freq_mode = (self.freq_mode + 1) % len(FREQ_MODES)
-            self.freq_last = t
-            k = self._btn(self._unit_dev(), "FREQ_PUSH")
+            k = self._btn(self.unit, "FREQ_PUSH")
         self._hold(name, k)
 
     def turn(self, ring, steps, t):
@@ -274,13 +268,20 @@ class Panel:
             slow, quick = ("CRS_1", "CRS_10") if shifted else ("ALT_100", "ALT_1000")
         elif ring == "ALTHDG_INNER":
             slow, quick = ("BARO", None) if shifted else ("HDG_1", "HDG_10")
-        elif knob == "FREQ" and shifted:
-            slow, quick = ("SQK_D2", "SQK_D1") if ring == "FREQ_OUTER" else ("SQK_D4", "SQK_D3")
+        elif knob == "FREQ" and shifted:                    # squawk: one digit, one step per detent
+            if ring == "FREQ_OUTER":                        # selects the digit, stops at 1 and 4, sends nothing
+                digit = min(max(self.digit + steps, 1), 4)
+                if digit != self.digit:
+                    self.digit = digit
+                    # The inner ring's queued steps stay with their digit: its next reversal lets them finish
+                    # there, also after the selection has come back to that digit before they are sent.
+                    self.ring_keys.pop("FREQ_INNER", None)
+                return
+            slow = "SQK_D" + str(self.digit)
         elif knob == "FMS" and shifted:                     # lighting: device 1 in every unit, one step per detent
             slow = "PANEL_LT" if ring == "FMS_OUTER" else "FLOOD_LT"
         elif knob == "FREQ":
-            dev = self._unit_dev()
-            self.freq_last = t
+            dev = self.unit
             mode = FREQ_MODES[self.freq_mode]
             if ring == "FREQ_OUTER":
                 slow = {"COM": "COM_MHZ", "NAV": "NAV_MHZ", "ADF": "ADF_100"}[mode]
@@ -288,7 +289,7 @@ class Panel:
                 slow = {"COM": "COM_KHZ", "NAV": "NAV_KHZ", "ADF": "ADF_1"}[mode]
                 quick = "ADF_10" if mode == "ADF" else None
         else:                                               # FMS, RANGE: exactly one step per detent
-            dev = self._unit_dev() if knob == "FMS" else 1
+            dev = self.unit if knob == "FMS" else 1
             name = ("S_" if shifted else "") + ring + ("_CW" if up else "_CCW")   # shifted: only RANGE gets here
         if slow:
             name = (quick if (fast and quick) else slow) + ("_UP" if up else "_DN")
@@ -330,8 +331,6 @@ class Panel:
                 if t - self.pending[name] >= BOUNCE_MS:
                     del self.pending[name]
                     self._apply(name, False, t)
-        if self.freq_mode and t - self.freq_last >= FREQ_RESET_MS:
-            self.freq_mode = 0
         for src in list(self.repeat):
             r = self.repeat[src]
             dev, button, nxt, every = r
@@ -340,8 +339,11 @@ class Panel:
                 continue
             if src in self.pending:                        # released, maybe: a repeat due now waits for a bounce
                 continue
-            if t >= nxt:                                   # held back by a bounce or a slow pass: keep the cadence,
-                self._queue(dev, button)                   # but send a missed repeat once, not in a burst
+            # A repeat waits until the last step of its button is through (press and gap), so at any pass time a
+            # hold sends nothing after its release but the pulse on the way. Held back by that, a bounce or a
+            # slow pass: keep the cadence, but send a missed repeat once, not in a burst
+            if t >= nxt and self._btn(dev, button) not in self.queue:
+                self._queue(dev, button)
                 r[2] = nxt + every if t - nxt < every else t + every
         for k in list(self.queue):
             st = self.pulse.get(k)

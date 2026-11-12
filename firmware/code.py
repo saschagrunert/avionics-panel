@@ -135,8 +135,9 @@ class Source:
             k = ev.key_number
             at = t + ticks_diff(ev.timestamp, ticks)
             if not ev.pressed:
-                self.down.discard(k)
-                panel.key(self.names[k], False, t, at)
+                if k in self.down:                   # a key held when the keypad started sends a release only
+                    self.down.discard(k)
+                    panel.key(self.names[k], False, t, at)
             elif self.resync and k in self.down:
                 self.resync[1].add(k)
             else:

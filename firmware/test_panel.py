@@ -42,7 +42,7 @@ def test_shift_one_shot():
     s.key("SHIFT"); s.key("VS"); assert s.take() == [(1, "S_VS")]      # no amber legend: own shifted button
     s.key("SHIFT"); s.key("SHIFT"); s.key("AP"); assert s.take() == [(1, "AP")]   # second tap cancels
     s.key("SHIFT"); s.run(3100); assert not s.p.shift_active(s.t); s.key("AP"); assert s.take() == [(1, "AP")]
-    s.key("SHIFT"); s.turn("FREQ_OUTER", 1); s.take()                   # squawk set, light still on
+    s.key("SHIFT"); s.turn("FREQ_INNER", 1); s.take()                   # squawk set, light still on
     s.key("SHIFT"); s.key("VFR"); assert s.take() == [(1, "IDENT")]       # one tap arms SHIFT for the key
 
 
@@ -59,8 +59,9 @@ def test_vfr_key_after_a_squawk_entry():
 def test_knob_keeps_shift():
     s = Sim()
     s.key("SHIFT")
-    s.turn("FREQ_OUTER", 2, every=500); s.turn("FREQ_INNER", 1, every=500)   # whole squawk code
-    assert [n for _, n in s.take()] == ["SQK_D2_UP", "SQK_D2_UP", "SQK_D4_UP"]
+    s.turn("FREQ_INNER", 2, every=500); s.turn("FREQ_OUTER", 1, every=500)   # both rings, for a whole squawk code
+    s.turn("FREQ_INNER", 1, every=500)
+    assert [n for _, n in s.take()] == ["SQK_D1_UP", "SQK_D1_UP", "SQK_D2_UP"]
     assert s.p.shift_active(s.t)
     s.run(3000); assert not s.p.shift_active(s.t)
     s.turn("FREQ_OUTER", 1); assert s.take() == [(1, "COM_MHZ_UP")]
@@ -180,31 +181,109 @@ def test_unit_and_freq_modes():
     s.key("FREQ_PUSH"); assert s.p.freq_mode_name == "NAV" and s.take() == [(2, "FREQ_PUSH")]
     s.turn("FREQ_INNER", 1); assert s.take() == [(2, "NAV_KHZ_UP")]
     s.key("FREQ_PUSH"); s.turn("FREQ_INNER", -1); assert s.take() == [(2, "FREQ_PUSH"), (2, "ADF_1_DN")]
-    s.run(10100); assert s.p.freq_mode_name == "COM"                    # back to COM after 10 s
     s.key("SHIFT"); s.key("HOME"); assert not s.p.unit_light
-    s.key("SHIFT"); s.key("FREQ_PUSH"); assert s.take() == [(1, "XPDR_MODE")] and s.p.freq_mode_name == "COM"
+    s.key("SHIFT"); s.key("FREQ_PUSH"); assert s.take() == [(1, "XPDR_MODE")] and s.p.freq_mode_name == "ADF"
 
 
-def test_freq_push_restarts_the_mode_timeout():
-    # a turn, then the push long after it: the 10 s count from the push, not from the turn
-    p = P.Panel()
-    p.turn("FREQ_INNER", 1, 0); p.tick(0)
-    p.key("FREQ_PUSH", True, 20000); p.tick(20001)
-    assert p.freq_mode_name == "NAV"
-    p.key("FREQ_PUSH", False, 20050)
-    p.tick(20000 + P.FREQ_RESET_MS - 1); assert p.freq_mode_name == "NAV"
-    p.tick(20000 + P.FREQ_RESET_MS); assert p.freq_mode_name == "COM"
-
-
-def test_freq_turns_keep_the_mode():
-    # turns keep NAV well past 10 s from the push; COM comes back 10 s after the last turn
+def test_freq_mode_survives_a_long_pause():
+    # the mode is sticky: only the push changes it, however long the knob is left alone
     s = Sim()
     s.key("FREQ_PUSH"); s.take()
-    s.turn("FREQ_INNER", 4, every=4000)
-    assert [n for _, n in s.take()] == ["NAV_KHZ_UP"] * 4
-    last = s.t - 4000
-    s.run(last + P.FREQ_RESET_MS - 1 - s.t); assert s.p.freq_mode_name == "NAV"
-    s.run(1); assert s.p.freq_mode_name == "COM"
+    s.run(20000)                                         # long after the push
+    s.turn("FREQ_INNER", 1)
+    assert s.p.freq_mode_name == "NAV" and s.take() == [(1, "NAV_KHZ_UP")]
+
+
+def squawk(s):
+    """SHIFT, then one detent of the FREQ inner ring: a new squawk entry, on digit 1"""
+    s.key("SHIFT"); s.turn("FREQ_INNER", 1)
+
+
+def test_squawk_entry_of_a_whole_code():
+    # 4521 from 0000: the outer ring moves on to the next digit and sends nothing, the inner ring steps the
+    # selected digit once per detent
+    s = Sim()
+    s.key("SHIFT")
+    for n in (4, 5, 2, 1):
+        s.turn("FREQ_INNER", n); s.turn("FREQ_OUTER", 1)
+    assert [n for _, n in s.take()] == ["SQK_D1_UP"] * 4 + ["SQK_D2_UP"] * 5 + ["SQK_D3_UP"] * 2 + ["SQK_D4_UP"]
+    s.turn("FREQ_OUTER", -2); s.turn("FREQ_INNER", -1)   # back to digit 2, and down
+    assert s.take() == [(1, "SQK_D2_DN")] and s.p.shift_active(s.t)
+
+
+def test_squawk_digit_stops_at_both_ends():
+    s = Sim()
+    s.key("SHIFT")
+    s.turn("FREQ_OUTER", -3); s.turn("FREQ_INNER", 1)    # already on digit 1: no wrap to digit 4
+    s.turn("FREQ_OUTER", 6); s.turn("FREQ_INNER", 1)     # past digit 4: stays there
+    s.p.turn("FREQ_OUTER", -9, s.t); s.turn("FREQ_INNER", 1)   # several detents in one read stop at the end too
+    s.p.turn("FREQ_OUTER", 2, s.t); s.turn("FREQ_INNER", 1)
+    assert [n for _, n in s.take()] == ["SQK_D1_UP", "SQK_D4_UP", "SQK_D1_UP", "SQK_D3_UP"]
+
+
+def test_squawk_starts_at_digit_1_in_a_new_session():
+    # a session that ran out, one ended by a key, and SHIFT armed again while the knob still keeps it
+    s = Sim()
+    squawk(s); s.turn("FREQ_OUTER", 2); s.turn("FREQ_INNER", 1)
+    s.run(P.SHIFT_MS); assert not s.p.shift_active(s.t)
+    squawk(s); s.turn("FREQ_OUTER", 1); s.turn("FREQ_INNER", 1)
+    s.key("AP")
+    squawk(s); s.turn("FREQ_OUTER", 3); s.turn("FREQ_INNER", 1)
+    s.key("SHIFT"); assert s.p.shift_active(s.t)
+    s.turn("FREQ_INNER", 1)
+    assert [n for _, n in s.take()] == ["SQK_D1_UP", "SQK_D3_UP", "SQK_D1_UP", "SQK_D2_UP", "AP",
+                                        "SQK_D1_UP", "SQK_D4_UP", "SQK_D1_UP"]
+
+
+def test_squawk_digit_stays_when_shift_is_tapped_under_a_held_push():
+    # digit 3 selected, the FREQ push held, SHIFT tapped: the held push keeps the session under the armed
+    # SHIFT, so the next inner detent is still in it, on digit 3
+    s = Sim()
+    s.p.key("SHIFT", True, s.t); s.run(60); s.p.key("SHIFT", False, s.t); s.run(140)
+    s.turn("FREQ_OUTER", 2, every=10); s.run(280)
+    s.p.key("FREQ_PUSH", True, s.t); s.run(200)
+    s.p.key("SHIFT", True, s.t); s.run(60); s.p.key("SHIFT", False, s.t); s.run(240)
+    s.turn("FREQ_INNER", 1, every=500)
+    s.p.key("FREQ_PUSH", False, s.t); s.run(200)
+    assert [n for _, n in s.take()] == ["XPDR_MODE", "SQK_D3_UP"]
+
+
+def test_squawk_push_keeps_the_selected_digit():
+    s = Sim()
+    s.key("SHIFT"); s.turn("FREQ_OUTER", 1); s.key("FREQ_PUSH"); s.turn("FREQ_INNER", 1)
+    s.p.key("FREQ_PUSH", True, s.t); s.run(100); s.turn("FREQ_OUTER", 1); s.turn("FREQ_INNER", 1)   # push held
+    s.p.key("FREQ_PUSH", False, s.t); s.turn("FREQ_INNER", -1)
+    assert [n for _, n in s.take()] == ["XPDR_MODE", "SQK_D2_UP", "XPDR_MODE", "SQK_D3_UP", "SQK_D3_DN"]
+    assert s.p.freq_mode_name == "COM"
+
+
+def test_squawk_fast_spin_only_steps_the_selected_digit():
+    # however fast the inner ring turns, also with several detents in one read: one step per detent, and at
+    # most MAX_QUEUE of them
+    s = Sim()
+    s.key("SHIFT"); s.turn("FREQ_OUTER", 1)
+    s.turn("FREQ_INNER", 4, every=10); s.p.turn("FREQ_INNER", 3, s.t); s.run(1500)
+    assert [n for _, n in s.take()] == ["SQK_D2_UP"] * 7
+    s.turn("FREQ_INNER", -12, every=10); s.run(1500)
+    assert [n for _, n in s.take()] == ["SQK_D2_DN"] * P.MAX_QUEUE
+
+
+def test_squawk_steps_queued_for_a_digit_are_kept_when_the_next_one_is_selected():
+    # the inner ring spun, the next digit selected while steps are still queued: they finish on their digit,
+    # also when the inner ring then turns the other way (a reversal on one digit still stops at once), and
+    # the new digit has a queue of its own
+    s = Sim()
+    s.key("SHIFT")
+    s.turn("FREQ_INNER", 5, every=10); s.turn("FREQ_OUTER", 1, every=10)
+    s.turn("FREQ_INNER", -1, every=10); s.run(1500)
+    names = [n for _, n in s.take()]
+    assert sorted(names) == ["SQK_D1_UP"] * 5 + ["SQK_D2_DN"] and names[1] == "SQK_D2_DN"
+    s.turn("FREQ_INNER", 5, every=10); s.turn("FREQ_INNER", -1, every=10); s.run(1500)
+    assert [n for _, n in s.take()] == ["SQK_D2_UP", "SQK_D2_DN"]
+    s.turn("FREQ_INNER", 12, every=10); s.turn("FREQ_OUTER", 1, every=10)
+    s.turn("FREQ_INNER", 12, every=10); s.run(1500)
+    names = [n for _, n in s.take()]
+    assert names.count("SQK_D2_UP") == names.count("SQK_D3_UP") == P.MAX_QUEUE and len(names) == 2 * P.MAX_QUEUE
 
 
 def test_adf_inner_ring_accelerates():
@@ -242,9 +321,82 @@ def test_range():
         assert [n for _, n in s.take()] == ["PAN_RIGHT"], lead
     s.p.key("RANGE_COM", True, s.t); s.run(800); s.p.key("RANGE_COM", False, s.t); s.run(100)
     assert s.take() == [(1, "PTR")]                                      # long centre push: one PTR on release
+    for key, way in (("RANGE_B", "LEFT"), ("RANGE_C", "DN")):
+        s.p.key("RANGE_COM", True, s.t); s.p.key(key, True, s.t); s.run(100)
+        s.p.key(key, False, s.t); s.p.key("RANGE_COM", False, s.t); s.run(100)
+        s.key("SHIFT")
+        s.p.key("RANGE_COM", True, s.t); s.p.key(key, True, s.t); s.run(100)
+        s.p.key(key, False, s.t); s.p.key("RANGE_COM", False, s.t); s.run(P.SHIFT_MS + 100)
+        assert [n for _, n in s.take()] == ["PAN_" + way, "S_PAN_" + way], key
     s.turn("RANGE", -2); assert [n for _, n in s.take()] == ["RANGE_CCW", "RANGE_CCW"]
     s.key("SHIFT"); s.turn("RANGE", 1); assert s.take() == [(1, "S_RANGE_CW")]
     s.key("SHIFT"); s.turn("RANGE", -1); assert s.take() == [(1, "S_RANGE_CCW")]
+
+
+def test_centre_press_without_a_direction_sends_ptr_on_release():
+    # nothing while the centre is held (a direction may still close); PTR once the release is no bounce
+    s = Sim()
+    s.p.key("RANGE_COM", True, s.t); s.run(500); assert s.take() == []
+    s.p.key("RANGE_COM", False, s.t); s.run(P.BOUNCE_MS - 1); assert s.take() == []
+    s.run(1); assert s.take() == [(1, "PTR")]
+    s.run(500); assert s.take() == []
+
+
+def test_unit_toggled_while_a_unit_key_is_held():
+    # CDI goes down in unit 1, UNIT changes under it: it stays on device 1 until its release, and the next
+    # press is on device 2
+    s = Sim()
+    s.p.key("CDI", True, s.t); s.run(100)
+    tap(s, "SHIFT"); tap(s, "HOME"); assert s.p.unit == 2
+    s.run(500)
+    assert s.p.buttons(1) == {BM.BUTTON[1]["CDI"]} and s.p.buttons(2) == set()
+    s.p.key("CDI", False, s.t); s.run(100)
+    assert s.p.buttons(1) == set() and s.take() == [(1, "CDI")]
+    s.key("CDI"); assert s.take() == [(2, "CDI")]
+
+
+def test_unit_toggled_while_detents_are_queued():
+    # six quick FMS detents in unit 1, UNIT changed while most are still queued: all six go to device 1,
+    # the next ones to device 2
+    s = Sim()
+    s.turn("FMS_INNER", 6, every=10)
+    tap(s, "SHIFT"); tap(s, "HOME"); assert s.p.unit == 2
+    assert s.take() == [(1, "FMS_INNER_CW")] * 2 and (1, BM.BUTTON[1]["FMS_INNER_CW"]) in s.p.queue   # more to go
+    s.turn("FMS_INNER", 2, every=10); s.run(1000)
+    assert sorted(s.take()) == [(1, "FMS_INNER_CW")] * 4 + [(2, "FMS_INNER_CW")] * 2
+
+
+def held_presses(keys, button, pass_ms, ms=15000):
+    """keys held for ms and then let go, with one tick() every pass_ms: the ms each press of button started at,
+    and the ms of the release"""
+    p, t, starts, was, let_go = P.Panel(), 0, [], False, None
+    for k in keys:
+        p.key(k, True, t)
+    while t < ms + 3000:
+        t += pass_ms
+        if let_go is None and t >= ms:
+            let_go = t
+            for k in reversed(keys):
+                p.key(k, False, t)
+        p.tick(t)
+        now = BM.BUTTON[1][button] in p.buttons(1)
+        if now and not was:
+            starts.append(t)
+        was = now
+    return starts, let_go
+
+
+def test_a_hold_stops_with_its_release_at_any_pass_time():
+    # a loop pass of 5, 8 or 12 ms stretches every press and gap to whole passes, so a step can take longer
+    # than a repeat: the hold steps as fast as the steps go through, and no press starts after the release
+    for pass_ms in (1, 5, 8, 12):
+        for keys, button, every in ((("RANGE_COM", "RANGE_A"), "PAN_UP", P.PAN_MS), (("UP",), "UP", P.REPEAT_MS)):
+            starts, let_go = held_presses(keys, button, pass_ms)
+            # a step: press and gap, each rounded up to whole passes, and one pass until the next press
+            step = (-(-P.PRESS_MS // pass_ms) - (-P.GAP_MS // pass_ms) + 1) * pass_ms
+            period = max(every, step) + pass_ms            # a repeat due between two passes waits for the next
+            assert starts[-1] < let_go, (pass_ms, button, [t - let_go for t in starts if t >= let_go])
+            assert all(b - a < period for a, b in zip(starts[1:], starts[2:] + [let_go])), (pass_ms, button)
 
 
 def test_fast_tilt_closes_direction_and_com_in_one_scan():
@@ -495,14 +647,18 @@ def test_chatter_keeps_an_up_hold():
 
 def test_chatter_delays_a_repeat_but_does_not_lose_it():
     # the dropout comes as a repeat is due: the repeat waits for the bounce to end, and the count stays. The
-    # repeats after it keep their cadence, so a hold let go just after one of them was due sends it too, as a
-    # clean hold of the same length does
+    # repeats after it keep their cadence, so a hold let go after one of them was due sends it too, as a clean
+    # hold of the same length does. Only the first of them waits for the delayed step (press and gap) to go
+    # through, which started `late` after its time: the holds here are let go after that
     clean = [(0, "UP", True), (2000, "UP", False)]
     due = P.REPEAT_DELAY_MS + 2 * P.REPEAT_MS
-    late = hold_trace(dropout("UP", due - 5, clean), 2600)
-    assert presses(late, 1, "UP") == presses(hold_trace(clean, 2600), 1, "UP")
+    trace = hold_trace(dropout("UP", due - 5, clean), 2600)
+    assert presses(trace, 1, "UP") == presses(hold_trace(clean, 2600), 1, "UP")
+    late = P.KEY_SCAN_MS - 5 + 1                           # the dropout ends, and the next pass sends the repeat
+    # the pass that sends the next repeat, in ms after its time: the one after the delayed step is through
+    through = late + P.PRESS_MS + P.GAP_MS + 1 - P.REPEAT_MS
     for n in (1, 2):                                       # let go n repeats after the delayed one, and later
-        for after in range(1, 3 * P.REPEAT_MS, 5):
+        for after in range(through, 3 * P.REPEAT_MS, 5):
             clean = [(0, "UP", True), (due + n * P.REPEAT_MS + after, "UP", False)]
             ms = clean[-1][0] + 400
             assert presses(hold_trace(dropout("UP", due - 5, clean), ms), 1, "UP") == \
@@ -511,9 +667,10 @@ def test_chatter_delays_a_repeat_but_does_not_lose_it():
 
 def test_a_stalled_pass_sends_one_late_repeat():
     # a loop pass stalls while UP is held, past two or more repeats: one repeat for the time missed, then the
-    # usual cadence from there, not a burst of the missed ones that would run on after the release. Past one
-    # repeat only, the next one keeps its time, due right after the late one
-    for late, n in ((P.REPEAT_MS - 1, 2), (P.REPEAT_MS, 1), (2000, 1)):
+    # usual cadence from there, not a burst of the missed ones. The late one goes out a pass after the stall,
+    # once the step the stall cut into is through. Past one repeat only, the next one keeps its time and
+    # follows as soon as the late step is through
+    for late, n in ((P.REPEAT_MS - 2, 2), (P.REPEAT_MS, 1), (2000, 1)):
         s = Sim()
         s.p.key("UP", True, s.t); s.run(1000); s.take()
         s.t = s.p.repeat["UP"][2] + late - 1               # stalled: time passed, no tick() ran
@@ -522,13 +679,14 @@ def test_a_stalled_pass_sends_one_late_repeat():
 
 
 def test_the_cadence_restarts_at_a_long_stall():
-    # after a stall past several repeats, the next repeat is due exactly REPEAT_MS after the late one: held a
-    # millisecond less sends only the late one, held to that tick sends the next one too
+    # after a stall past several repeats, the next repeat is due exactly REPEAT_MS after the late one (sent in
+    # the second pass after the stall): held a millisecond less sends only the late one, held to that tick
+    # sends the next one too
     for held, n in ((P.REPEAT_MS - 1, 1), (P.REPEAT_MS, 2)):
         s = Sim()
         s.p.key("UP", True, s.t); s.run(1000); s.take()
         s.t = s.p.repeat["UP"][2] + 2049                  # stalled, not a whole number of repeats: no tick() ran
-        s.run(1 + held); s.p.key("UP", False, s.t); s.run(1000)
+        s.run(2 + held); s.p.key("UP", False, s.t); s.run(1000)
         assert s.take() == [(1, "UP")] * n, held
 
 
@@ -646,20 +804,6 @@ def test_bounce_window_boundary():
         s.p.key("RANGE_COM", False, s.t, s.t - 60); s.p.key("RANGE_COM", True, s.t, s.t - 60 + gap)
         s.run(100); s.p.key("RANGE_COM", False, s.t); s.run(300)
         assert [name for _, name in s.take()] == ["CLR"] * n + ["PTR"] * n
-
-
-def test_timing_rules_keep_repeats_from_piling_up(monkeypatch):
-    # a step (press and gap) may be as long as the UP / DN repeat and the tilt repeat, each, but not longer
-    import pytest
-    P.check_timing()
-    step = P.PRESS_MS + P.GAP_MS
-    for name in ("REPEAT_MS", "PAN_MS"):
-        with monkeypatch.context() as m:
-            m.setattr(P, name, step)
-            P.check_timing()
-            m.setattr(P, name, step - 1)
-            with pytest.raises(ValueError):
-                P.check_timing()
 
 
 def test_timing_rules_keep_the_bounce_window_above_a_scan(monkeypatch):
@@ -908,10 +1052,10 @@ def test_second_tap_cancels_shift_unless_a_control_is_held():
     tap(s, "SHIFT"); assert s.p.shift_level(s.t) == P.LIGHT_OFF
     s.turn("ALTHDG_INNER", 1)
     assert s.take() == [(1, "BARO_STD"), (1, "HDG_1_UP")]
-    s.key("SHIFT"); s.turn("FREQ_OUTER", 1)
+    s.key("SHIFT"); s.turn("FREQ_INNER", 1)
     tap(s, "SHIFT"); tap(s, "SHIFT"); assert s.p.shift_level(s.t) == P.LIGHT_OFF
-    s.turn("FREQ_OUTER", 1)
-    assert s.take() == [(1, "SQK_D2_UP"), (1, "COM_MHZ_UP")]
+    s.turn("FREQ_INNER", 1)
+    assert s.take() == [(1, "SQK_D1_UP"), (1, "COM_KHZ_UP")]
 
 
 def test_a_plain_push_held_does_not_keep_shift():

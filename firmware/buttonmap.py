@@ -57,9 +57,9 @@ DEVICE1_ONLY = (
     # RANGE: turn, tilt (pan), push (pointer); shifted copies are free for own mappings
     + ["RANGE_CW", "RANGE_CCW", "PAN_UP", "PAN_DN", "PAN_LEFT", "PAN_RIGHT", "PTR",
        "S_RANGE_CW", "S_RANGE_CCW", "S_PAN_UP", "S_PAN_DN", "S_PAN_LEFT", "S_PAN_RIGHT", "S_PTR"]
-    # frequency knob with SHIFT: squawk (octal). Outer ring: digits 1-2, inner ring: digits 3-4.
-    # Slow turn = the second digit of the pair, fast turn = the first.
-    + _turn("SQK_D2", "SQK_D1") + _turn("SQK_D4", "SQK_D3") + ["XPDR_MODE"]
+    # frequency knob with SHIFT: squawk (octal). The outer ring selects the digit (1 to 4) and sends no
+    # button, the inner ring steps the selected digit. The digits' order here is frozen with the numbers.
+    + _turn("SQK_D2") + _turn("SQK_D1") + _turn("SQK_D4") + _turn("SQK_D3") + ["XPDR_MODE"]
 )
 # FMS knob with SHIFT: cockpit lighting, the same in every unit, so on device 1 only. Outer ring: panel /
 # instrument lights, inner ring: glareshield flood, push: cabin (dome) light. One step per detent; the
@@ -83,6 +83,6 @@ BUTTON = {dev: {n: i for i, n in enumerate(names)} for dev, names in DEVICE.item
 SIZE = {1: 128, 2: 64}                     # buttons per device (report: SIZE / 8 bytes)
 assert len(DEVICE[1]) <= SIZE[1] and len(DEVICE[2]) <= SIZE[2]
 assert all(len(set(n)) == len(n) for n in DEVICE.values()), "duplicate button name"
-# every function a plain key, its SHIFT and the device-1 knobs send has a button
+# every plain key and its SHIFT function has a button
 assert all(n in DEVICE1_ONLY for k in PLAIN_KEYS for n in (k, shifted(k))), "plain key without a button"
 
