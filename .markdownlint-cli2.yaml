@@ -4,5 +4,8 @@ config:
     line_length: 110
     tables: false
     code_blocks: false
+  # the README centres the two lines under its picture, which Markdown cannot do
+  MD033:
+    allowed_elements: [p, a, br]
 globs:
   - "**/*.md"

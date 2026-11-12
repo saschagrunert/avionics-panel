@@ -1,105 +1,16 @@
-# Arrival and assembly
+# Assembly
 
-What to do with the parts at home: check the boards on arrival, solder (only with the hand-soldering option),
-put the panel together and take it apart. The tools are in the [shopping list](building.md#shopping-list); why
-the parts are shaped as they are is in [Mechanics](../architecture/mechanics.md).
+Put the panel together after the [bring-up](bring-up.md), and take it apart again. The last section covers
+soldering, for the hand-soldering option and for rework. The tools are in the
+[shopping list](ordering.md#shopping-list); why the parts are shaped as they are is in
+[Mechanics](../architecture/mechanics.md).
 
-## On arrival
+## Putting it together
 
-Full assembly (the default), in this order:
-
-1. Rail: break the V-scored rail off the long edge away from J1 (pliers along the score, without bending the
-   board), then file or sand that edge flush (outdoors or wet: glass-fibre dust). The V-cut edge (±0.4 mm)
-   fits the cavity as it is, so there is nothing to measure. A corner at that edge that came back square is
-   filed to R3: it would stand about 0.74 mm into the body's R3.5 cavity corner.
-2. Plate threads: turn one of the M3 screws into each boss by hand with the 2 mm hex key, about ten turns, and
-   out again. It must run freely: an anodised thread that was neither masked nor cut again stops it early
-   (take it up with JLCCNC). Don't drive it home: without the body it would go past the 6.0 mm of full thread.
-3. Seating: the plate pockets leave the encoders and the RANGE control little room
-   ([why](../architecture/mechanics.md#seating)), so check what JLCPCB soldered:
-   - Encoders: a 0.05 mm feeler blade must not slide under an encoder body anywhere round it, and the lugs are
-     soldered.
-   - RANGE control (RKJXT): press the loose one from the LCSC order fully down into the footprint of a bare
-     board and note at each of its four [gauge spots](#gauge-spots) the thickest blade (or stack) that slides
-     under its base frame: that is the reference, about 0.40 mm. On each assembled board that blade must slide
-     in at every spot and that blade plus 0.03 mm must not. If both boards read outside the same way, read the
-     loose part again in another bare board first.
-   - The keys sit flat.
-
-   A part that stands proud: reheat its pins while pressing it down, or use the second board for the panel.
-4. J1 shell tabs: all four slots filled from the top and wetting the tabs; if not, solder them as in
-   [hand-soldering](#hand-soldering).
-5. Cap set: [choose it](#choosing-the-cap-set) on one of the spare loose keys from the LCSC order.
-
-Nothing else needs a tool: the leads stay untrimmed, and a solder bridge shows up in [bring-up](bring-up.md)
-steps 6 and 7, where every key, ring, tilt and push is read.
-
-Hand-soldering option: the board comes without rails, milled all round, and fits the body as delivered. Do
-steps 2 and 5 (the two spare keys come with the LCSC set); the rest follows in the bring-up.
-
-Either variant: should JLCPCB have added rails the order did not ask for, break them off as in step 1; short
-edges with rails are then sanded, both about equally, until the board drops into the body (160.2 mm or shorter
-fits any body within the print tolerance).
-
-Then [bring-up](bring-up.md), before the plate goes on.
-
-## Hand-soldering
-
-Only with the hand-soldering option, and for rework. The board comes with every SMD part on the bottom, the
-two LEDs included; the keys, encoders and RANGE control are soldered by hand from the bottom side. The
-[bring-up](bring-up.md) says when: the J1 tabs first, then flash and test the bare board, then the keys, and
-the encoders and RANGE control last, as they are the parts that are hard to remove again.
-
-- USB-C shell tabs: solder all four J1 shell tabs from the top before the first plug-in: flux, then feed
-  solder into each slot until it is filled and wets the tab all round (they are GND). The tabs, not the 0.3 mm
-  contacts, take the load of the plug; the reflow leaves only a fillet under them.
-- Every part sits flat on the board: solder one pin, check from the side that the part sits flat and square
-  (press it down while you reheat that pin if not), then solder the rest. Same for the 28 keys: a tilted key
-  tilts its cap in the key hole. The leads need no trimming: they stand at most 2.7 mm under the board, which
-  sits 4.0 mm over the body floor (3.7 with the print tolerance), so they clear it by 1.0 mm.
-- Encoders: at most 0.05 mm proud: a 0.05 mm feeler blade must not slide under an encoder body. The mounting
-  lugs go through their slots and get soldered too; they carry the push of the knobs.
-- RANGE control (RKJXT): no centring needed, just seat it flat, checked against its own reading: before
-  soldering, press it fully down (a finger on the hub) and note at each [gauge spot](#gauge-spots) the
-  thickest blade or stack that slides in. After soldering, at every spot that blade must still slide in and
-  that blade plus 0.03 mm must not. If a spot reads outside, reheat the pins while pressing the part down, and
-  read again.
-- The RKJXT's COM and ECOM pins are the closest hand-soldered pair on the board (0.38 mm of copper between the
-  pads, RANGE_COM and GND): check them for a bridge with a magnifier and a continuity tester. A bridge makes
-  the whole fifth column read pressed.
-
-### Gauge spots
-
-The RKJXT's base frame stands on moulded flanges that reach the frame edge only on a strip of each side, from
-about 0.5 to 3 mm left of its middle, seen from outside (the same on all four sides). At the middle of a side
-the flange is set back and a terminal 0.8 mm in stops the blade. These four strips are the gauge spots: slide
-the blade in square to the side, about 0.5 mm, on the strip only (with the corner of the blade or a narrow
-one).
-
-## Choosing the cap set
-
-The order has four sets of 28 caps (A to D, one to four dimples on the underside) that differ only in their
-grip ([why](../architecture/mechanics.md#caps-light-pipes-knobs)). Try one cap of each set on a spare loose
-key (no tools), so pulling off a tight cap loads no soldered switch.
-
-- The right set pushes down by hand until the cap sits on the plunger top (it stops hard there; on the board
-  its top is then level with its neighbours), holds when the key is turned over and does not wobble.
-- Too tight: the cap stops short of the plunger top or needs more than a firm thumb. Too loose: it falls off
-  or rocks.
-- If two sets fit, take the tighter one (from tight to loose: D, A, B, C).
-- Without a spare key, try them on a soldered key from loose to tight (C, B, A, D) and stop at the first set
-  that holds, so no tight cap has to be pulled off.
-- If even C is too tight, or even D too loose, reprint with `CAP_SETS` in [mech/stack.py](../../mech/stack.py)
-  moved by 0.1 mm for each set it missed by (up to 0.3 mm; one round may not do).
-
-Keep the other three sets as spares.
-
-## Assembly
-
-Nothing is glued: the screws hold the board between the plate's bosses and the body, and the light pipes are
-held by their shape. The encoder shafts stick out 18 mm past the plate face, so the plate rests face down on
-two blocks at least 25 mm high under its long front and back edges, at most 8 mm in from the edge (the nearest
-caps and shafts are about 10 mm in), with a cloth on top.
+Four screws hold the plate, the board and the body together, and the light pipes are held by their shape.
+Work face down: the encoder shafts stick out 18 mm past the plate face, so the plate rests on two blocks at
+least 25 mm high under its long front and back edges, at most 8 mm in from the edge (the nearest caps and
+shafts are about 10 mm in), with a cloth on top.
 
 ```mermaid
 flowchart TD
@@ -115,10 +26,11 @@ flowchart TD
   board --> body --> filler --> knobs --> feet
 ```
 
-1. Caps: push all caps of the chosen set onto their plungers, tactile bars as in the 3D view, down until each
-   one sits on its plunger top. Then square them: hold a steel rule against the front edges of each row of
-   caps and turn every cap until its edge lies flat on the rule. A cap turned by more than about 1° can rub
-   its hole; one turned by more than about 5° lands on the plate back instead of in its hole.
+1. Caps: push all caps of the [chosen set](bring-up.md#choosing-the-cap-set) onto their plungers, tactile bars
+   as in the 3D view, down until each one sits on its plunger top. Then square them: hold a steel rule against
+   the front edges of each row of caps and turn every cap until its edge lies flat on the rule. A cap turned
+   by more than about 1° can rub its hole; one turned by more than about 5° lands on the plate back instead of
+   in its hole.
 2. Light pipes: break both off their bar and sand the two stubs flush with the base on fine sandpaper laid on
    the table, no further (the visible tops stay as printed). The two pipes are the same. Lay the plate face
    down on the blocks and the cloth and drop each pipe into a light hole from the back, rod first: the SHIFT
@@ -178,3 +90,36 @@ also with a bore 0.2 mm tighter and 0.2 mm looser: keep whichever grips.
 To take the filler out with the body on, press a ball of the same putty onto its outer face and pull it
 straight out (tape grips the MJF surface poorly). Do it with the panel face up: face down the filler can slide
 off its ledges towards the plate back.
+
+## Hand-soldering
+
+Only with the hand-soldering option, and for rework. The board comes with every SMD part on the bottom, the
+two LEDs included; the keys, encoders and RANGE control are soldered by hand from the bottom side. The
+[bring-up](bring-up.md#flash-and-test) says when: the J1 tabs first, then flash and test the bare board, then
+the keys, and the encoders and RANGE control last, as they are the parts that are hard to remove again.
+
+- USB-C shell tabs: solder all four J1 shell tabs from the top before the first plug-in: flux, then feed
+  solder into each slot until it is filled and wets the tab all round (they are GND). The tabs, not the 0.3 mm
+  contacts, take the load of the plug; the reflow leaves only a fillet under them.
+- Every part sits flat on the board: solder one pin, check from the side that the part sits flat and square
+  (press it down while you reheat that pin if not), then solder the rest. Same for the 28 keys: a tilted key
+  tilts its cap in the key hole. The leads need no trimming: they stand at most 2.7 mm under the board, which
+  sits 4.0 mm over the body floor (3.7 with the print tolerance), so they clear it by 1.0 mm.
+- Encoders: at most 0.05 mm proud: a 0.05 mm feeler blade must not slide under an encoder body. The mounting
+  lugs go through their slots and get soldered too; they carry the push of the knobs.
+- RANGE control (RKJXT): no centring needed, just seat it flat, checked against its own reading: before
+  soldering, press it fully down (a finger on the hub) and note at each [gauge spot](#gauge-spots) the
+  thickest blade or stack that slides in. After soldering, at every spot that blade must still slide in and
+  that blade plus 0.03 mm must not. If a spot reads outside, reheat the pins while pressing the part down, and
+  read again.
+- The RKJXT's COM and ECOM pins are the closest hand-soldered pair on the board (0.38 mm of copper between the
+  pads, RANGE_COM and GND): check them for a bridge with a magnifier and a continuity tester. A bridge makes
+  the whole fifth column read pressed.
+
+### Gauge spots
+
+The RKJXT's base frame stands on moulded flanges that reach the frame edge only on a strip of each side, from
+about 0.5 to 3 mm left of its middle, seen from outside (the same on all four sides). At the middle of a side
+the flange is set back and a terminal 0.8 mm in stops the blade. These four strips are the gauge spots: slide
+the blade in square to the side, about 0.5 mm, on the strip only (with the corner of the blade or a narrow
+one).

@@ -1,8 +1,11 @@
 # Compatibility
 
-The firmware sends a separate joystick button for every key, knob step and push, plain and shifted
-(two joystick devices, see [Mapping](mapping.md)). MobiFlight maps them per aircraft, so one panel
-drives every avionics family below. Keys without a counterpart in an aircraft simply stay unused.
+What each control maps to on each avionics family, by aircraft. The firmware sends a separate joystick button
+for every key, knob step and push, plain and shifted (two joystick devices, see [Mapping](mapping.md)); only
+SHIFT itself, UNIT (SHIFT, HOME) and the outer ring of the squawk entry send none. MobiFlight maps them per
+aircraft, so one panel drives every avionics family below. Keys without a counterpart in an aircraft stay
+unused.
+
 Covered families: G1000 and G1000 NXi, TDS GTN 750Xi, GNS 530/430, Bendix/King (KAP 140, KFC 150 with
 KAS 297B, KFC 225, KX 155/165, KR 87, KT 76, KMA 28), GTX 327, newer Garmin (GFC 500, G3X, G500 TXi).
 Checked against these reference aircraft: the COWS DA40 (Working Title G1000 with its own autopilot,
@@ -17,7 +20,7 @@ Autopilots:
 | --- | --- | --- | --- | --- | --- |
 | AP, HDG, NAV, APR, ALT | yes | yes | yes | yes (AP = AP ENG) | yes |
 | TEST (SHIFT, AP) | none (self-test at power-up) | none | none (self-test at power-up) | TEST, preflight check | verify |
-| BC (SHIFT, APR) | BC | verify | REV | BC | REV |
+| BC (SHIFT, APR) | BC | none (back course is automatic) | REV | BC | REV |
 | VS | yes | yes | none (VS via UP/DN) | VS on the KAS 297B | yes |
 | FLC | yes | IAS | none | none | none |
 | VNV | yes | yes | none | none | none |
@@ -57,6 +60,8 @@ Navigators:
 | RANGE, pan, push PTR | RANGE knob + joystick | map zoom | RNG keys |
 | UNIT (SHIFT, HOME) | radio 2 only; the FMS keys stay on the MFD | GTN / second unit | 530 / 430 |
 
+On units without a HOME key (G1000, GNS) map HOME to whatever is used most there.
+
 The GTN 750Xi column assumes that the TDS GTN exposes its touchscreen functions (FPL, PROC, MENU, CLR,
 ENT, MSG, NRST, TERR, VNAV, MAP, CDI, OBS) as events or variables MobiFlight can send: check which ones it
 exposes before relying on them; the rest stay on the touchscreen.
@@ -65,7 +70,7 @@ Radios, transponder, audio:
 
 | Panel | G1000 | GTN / GNS | Bendix/King |
 | --- | --- | --- | --- |
-| Frequency knob, push COM/NAV/ADF | COM and NAV knobs, ADF window | dual knob, C/V push | KX 155/165 knobs, KR 87 |
+| FREQ knob, push COM/NAV/ADF | COM and NAV knobs, ADF window | dual knob, C/V push | KX 155/165 knobs, KR 87 |
 | COM ⇆, NAV ⇆, ADF ⇆ | flip-flops | flip-flops | flip-flops, KR 87 FRQ |
 | 121.5 (SHIFT, COM ⇆) | hold COM ⇆ | hold COM ⇆ | sets COM standby to 121.5 |
 | UNIT for radio 2 | COM 2 / NAV 2 tuning box | second unit | second radio |
