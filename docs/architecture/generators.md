@@ -5,7 +5,7 @@ scripts one by one. Generated files are named `avionics-panel-rev1-*`.
 
 | Directory | Contents | Start with |
 | --- | --- | --- |
-| [pcb/](../../pcb/) | board generator: RP2040 on the underside, 4 layers, routed and checked | [board.py](../../pcb/board.py), [check.py](../../pcb/check.py) |
+| [pcb/](../../pcb/) | board generator: RP2040 on the bottom, 4 layers, routed and checked | [board.py](../../pcb/board.py), [check.py](../../pcb/check.py) |
 | [mech/](../../mech/) | body, front plate, knobs, light pipes, key caps, plate artwork | [stack.py](../../mech/stack.py) (every height and fit), [check_fit.py](../../mech/check_fit.py) |
 | [firmware/](../../firmware/) | CircuitPython for the panel's RP2040 | [code.py](../../firmware/code.py), [panel.py](../../firmware/panel.py), [buttonmap.py](../../firmware/buttonmap.py) |
 | [viewer/](../../viewer/) | three.js 3D view, [live here](https://saschagrunert.de/avionics-panel/) | [index.html](../../viewer/index.html) |
@@ -23,8 +23,8 @@ the build then exits 1; Ctrl-C stops everything. Renders 1 to 4 are screenshots 
 ## Scripts
 
 The steps one by one, with Nix from the repository root: `nix-shell nix/shells.nix -A <shell>`, then the
-script inside its directory. The shells: `gen` (numpy, scipy, matplotlib, pillow, librsvg), `occ` (OpenCascade,
-for the exact solids) and `firmware` (pytest, pytest-cov, MicroPython).
+script inside its directory. The shells: `gen` (numpy, scipy, matplotlib, pillow, librsvg), `occ`
+(OpenCascade, for the exact solids) and `firmware` (pytest, pytest-cov, MicroPython).
 
 | Shell | Directory | Script | Does |
 | --- | --- | --- | --- |
@@ -33,7 +33,7 @@ for the exact solids) and `firmware` (pytest, pytest-cov, MicroPython).
 | `gen` | `pcb/` | `python3 make.py` | Gerbers |
 | `gen` | `pcb/` | `python3 check.py` | the electrical and manufacturing checks ([Electronics](electronics.md)) |
 | `gen` | `pcb/` | `python3 render.py` | board renders |
-| `gen` | `pcb/` | `python3 make_bom.py` | BOM and CPL |
+| `gen` | `pcb/` | `python3 make_bom.py` | BOM (parts list) and CPL (placement file) |
 | `gen` | `pcb/` | `python3 make_schematic.py` | schematic |
 | `gen` | `mech/` | `python3 make_plate_art.py` | plate artwork |
 | `occ` | `mech/` | `python3 make_caps.py` | key caps |

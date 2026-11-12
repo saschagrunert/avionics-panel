@@ -3,7 +3,7 @@
 The panel is two USB joysticks, mapped in MobiFlight, which reads every button; a sim's own control settings
 may stop short of a joystick's 128 buttons. Every state (SHIFT, UNIT, the FREQ knob's mode) lives in the
 firmware and comes out as fixed joystick buttons, so a mapping never needs variables or preconditions and
-can't get out of sync with the panel, with [one exception](#per-avionics). What each control is meant to do
+cannot get out of sync with the panel, with [one exception](#per-avionics). What each control is meant to do
 is in [Controls](controls.md), and what it maps to per aircraft in [Compatibility](compatibility.md).
 
 ## Two joysticks
@@ -23,7 +23,7 @@ MobiFlight show them.
   tilt and the RANGE push (PTR): map them "on press".
 - Shifted functions are buttons of their own. The keys without an amber legend (VS, UP, FLC, DN, VNV, ENT)
   and the RANGE knob (turn, tilt, push) still send a shifted button of their own: these are free for your own
-  mappings. Map the ones you don't use to the same function as the plain control, so a stray SHIFT before DN
+  mappings. Map the ones you do not use to the same function as the plain control, so a stray SHIFT before DN
   or ENT does no harm.
 - The cockpit lighting (SHIFT, FMS knob) stays on device 1 whatever unit is selected.
 - The button numbers stay fixed: new buttons only go at the end of a device, and retired ones keep their slot,
@@ -50,20 +50,19 @@ interface number, so Windows may list them as two more game controllers with Dir
 
 - Test the joysticks and create mappings only after a plain replug (without SHIFT), and ignore any extra
   "Avionics Panel" controllers that show up while SHIFT kept the drive.
-- Don't add them to MobiFlight's excluded joysticks: that setting matches by name, so it would exclude both
+- Do not add them to MobiFlight's excluded joysticks: that setting matches by name, so it would exclude both
   real devices too.
-- Mappings made on the [Pico bench](../building/bring-up.md#pico-bench) don't carry over to the board: the
+- Mappings made on the [Pico bench](../building/bring-up.md#pico-bench) do not carry over to the board: the
   board reports another USB serial number, so Windows gives its joysticks new GUIDs. Map the board's joysticks
   again.
 
 ## Device name
 
-`boot.py` gives the joysticks' HID interface the name "Avionics Panel" as well as the USB product. In update
-mode the panel is a composite device (drive, console and joysticks), and there Windows names a joystick after
-its interface, which CircuitPython otherwise calls "CircuitPython HID". Windows also keeps the first name it
-saw for a USB ID, and every Pico running CircuitPython shares one (VID 239A, PID 80F4), the Pico bench
-included. If joy.cpl or MobiFlight shows "CircuitPython HID" or another old name, unplug the panel, delete
-this registry key (regedit) and plug it in again:
+`boot.py` names both the USB product and the joysticks' HID interface "Avionics Panel" (in update mode
+Windows names a joystick after its interface). Windows keeps the first name it saw for a USB ID, and every
+Pico running CircuitPython shares one (VID 239A, PID 80F4), the Pico bench included. If `joy.cpl` or
+MobiFlight shows "CircuitPython HID" or another old name, unplug the panel, delete this registry key
+(`regedit`) and plug it in again:
 
 ```text
 HKEY_CURRENT_USER\System\CurrentControlSet\Control\MediaProperties\PrivateProperties\Joystick\OEM\VID_239A&PID_80F4

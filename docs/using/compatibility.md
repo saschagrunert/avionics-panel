@@ -1,27 +1,30 @@
 # Compatibility
 
 What each control maps to on each avionics family, by aircraft. The firmware sends a separate joystick button
-for every key, knob step and push, plain and shifted (two joystick devices, see [Mapping](mapping.md)); only
+for every key, knob step and push, plain and shifted (two joysticks, see [Mapping](mapping.md)); only
 SHIFT itself, UNIT (SHIFT, HOME) and the outer ring of the squawk entry send none. MobiFlight maps them per
 aircraft, so one panel drives every avionics family below. Keys without a counterpart in an aircraft stay
 unused.
 
-Covered families: G1000 and G1000 NXi, TDS GTN 750Xi, GNS 530/430, Bendix/King (KAP 140, KFC 150 with
-KAS 297B, KFC 225, KX 155/165, KR 87, KT 76, KMA 28), GTX 327, newer Garmin (GFC 500, G3X, G500 TXi).
-Checked against these reference aircraft: the COWS DA40 (Working Title G1000 with its own autopilot,
-G1000 profile), the Black Square Bonanza (KFC 150 + KAS 297B, KX 155B, KR 87, GTX 327, GNS 530/430 or
-GTN 750/650), the Black Square TBM 850 (KFC 325, KAS 297B), Caravan, Duke and King Air, and the A2A
-Comanche 250 (S-TEC 30, Narco radios, NSD-360A HSI) and Aerostar 600 (Century IV, Collins Microline
-radios: VHF-251, VIR-351, ADF-650, TDR-950, AMR-350).
+Covered families: G1000 and G1000 NXi, TDS GTN 750Xi, GNS 530/430, Bendix/King (KAP 140, KFC 150 + KAS 297B,
+KFC 225, KX 155/165, KR 87, KT 76, KMA 28), GTX 327, newer Garmin (GFC 500, G3X, G500 TXi).
+
+Checked against these reference aircraft:
+
+- COWS DA40 (Working Title G1000 with its own autopilot, G1000 profile)
+- Black Square Bonanza (KFC 150 + KAS 297B, KX 155B, KR 87, GTX 327, GNS 530/430 or GTN 750/650)
+- Black Square TBM 850 (KFC 325, KAS 297B), Caravan, Duke and King Air
+- A2A Comanche 250 (S-TEC 30, Narco radios, NSD-360A HSI)
+- A2A Aerostar 600 (Century IV, Collins Microline radios: VHF-251, VIR-351, ADF-650, TDR-950, AMR-350)
 
 Autopilots:
 
 | Panel | GFC 700 (G1000) | GFC 500 | KAP 140 | KFC 150 + KAS 297B | KFC 225 |
 | --- | --- | --- | --- | --- | --- |
 | AP, HDG, NAV, APR, ALT | yes | yes | yes | yes (AP = AP ENG) | yes |
-| TEST (SHIFT, AP) | none (self-test at power-up) | none | none (self-test at power-up) | TEST, preflight check | verify |
+| TEST (SHIFT, AP) | none (self-test at power-up) | none | none (self-test at power-up) | TEST, preflight check | depends on the aircraft |
 | BC (SHIFT, APR) | BC | none (back course is automatic) | REV | BC | REV |
-| VS | yes | yes | none (VS via UP/DN) | VS on the KAS 297B | yes |
+| VS | yes | yes | none (VS via UP / DN) | VS on the KAS 297B | yes |
 | FLC | yes | IAS | none | none | none |
 | VNV | yes | yes | none | none | none |
 | LVL | some NXi installs | yes | none | none | none |
@@ -34,7 +37,7 @@ Autopilots:
 
 More autopilots in Black Square and A2A aircraft:
 
-| Panel | KFC 325 + KMC 321 (Black Square TBM 850) | King Air (Black Square, verify model) | S-TEC 30 + ST-901 (A2A Comanche) | Century IV (A2A Aerostar) |
+| Panel | KFC 325 + KMC 321 (Black Square TBM 850) | King Air (Black Square) | S-TEC 30 + ST-901 (A2A Comanche) | Century IV (A2A Aerostar) |
 | --- | --- | --- | --- | --- |
 | AP, HDG, NAV, APR, ALT | yes | yes | HDG, NAV, ALT (no APR key) | yes |
 | BC (SHIFT, APR) | BC | BC | none | REV |
