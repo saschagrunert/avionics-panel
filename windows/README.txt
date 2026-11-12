@@ -19,4 +19,7 @@ Unblock, OK, and extract it again.
 A profile bound to the vJoy devices has to be bound to the real panel again later: MobiFlight tells
 joysticks apart by an ID Windows gives each one.
 
+The panel's keyboard mode, for MSFS without MobiFlight, runs too, without vJoy: see Keyboard mode on the
+page linked below.
+
 More: https://github.com/saschagrunert/avionics-panel/blob/main/docs/using/simulator.md

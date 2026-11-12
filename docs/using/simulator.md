@@ -100,6 +100,25 @@ and USB IDs, so programs that read joysticks see the panel's two joysticks. It n
 [The simulator in real time](../architecture/firmware.md#the-simulator-in-real-time) has the details, and
 [Mapping](mapping.md#linux) what Linux makes of the two joysticks.
 
+## Keyboard mode
+
+`--keyboard` runs the panel in its [keyboard mode](keyboard.md), for example to bind and try its shortcuts in
+the sim before the panel exists: the lights take turns at the start, and the lines at the bottom left show the
+function whose shortcut is down, with the shortcut. Its keystrokes reach the sim this way:
+
+- Windows: `--sendinput` types them into the window in front, as a keyboard would. Clicking the page brings
+  the browser to the front instead, so play the page from a tablet beside the PC ([The page](#the-page)):
+  close the `start.bat` window, open a command prompt in the folder and run
+  `python\python.exe -m sim.page --keyboard --sendinput --host 0.0.0.0`, open the address it prints on the
+  tablet, and bring the sim to the front. When the command prompt's window closes, the keystrokes stop and the
+  keys held are let go. Bindings made this way are the keyboard's, so they should work with the panel later,
+  unlike vJoy's.
+- Linux: `sudo python3 -m sim.page --keyboard --uhid` makes a keyboard with the panel's descriptor, name and
+  USB IDs, which the desktop takes like any keyboard, in the window in front. The desktop can act on some of
+  the shortcuts itself, window shortcuts with Alt and an F-key for example.
+
+vJoy takes only the joysticks: `--vjoy` refuses the keyboard mode, and `--sendinput` the joysticks.
+
 ## Limits
 
 - On Windows the joysticks are vJoy's, not the panel's: their name is "vJoy Device", their USB IDs and GUIDs

@@ -8,7 +8,8 @@ boot.py runs before code.py's 0 ms: its sleep settles the pins and does not move
 
 The matrix switches close a row pin to a column pin through a diode (anode on the column), the FREQ push closes
 its pin to GND. The host polls the joysticks' shared endpoint every FRAME_MS: send_report waits until the host
-has taken the last report, and the host takes the new one at its next poll.
+has taken the last report, and the host takes the new one at its next poll. microcontroller.nvm is a blank flash
+of NVM_SIZE bytes, with the keyboard mode stored in it for Board(keyboard=True).
 """
 import builtins
 import os
@@ -22,6 +23,8 @@ if FIRMWARE not in sys.path:       # behind the standard library: firmware/code.
     sys.path.append(FIRMWARE)
 
 import buttonmap as BM  # noqa: E402
+import keys  # noqa: E402
+import make_keys  # noqa: E402, F401 (the shortcuts' names, for the panel page)
 
 MATRIX_NAMES = [n for row in BM.MATRIX for n in row]   # key numbers of the matrix keypad
 SWITCHES = MATRIX_NAMES + ["FREQ_PUSH"]                 # every key, push and RANGE switch, by its firmware name
@@ -30,6 +33,7 @@ EDGES_PER_DETENT = 2       # both encoder types: 30 detents per 15 pulses of 4 e
 SETTLE_S = 0.001           # a pulled-up column reads high after a sleep this long (boot.py waits 5 ms)
 PAD_RESET = 0x56           # an RP2040 PADS_BANK0 GPIO register after reset: IE, 4 mA, PDE, SCHMITT
 FRAME_MS = 8               # the host's report interval (panel.HID_FRAME_MS)
+NVM_SIZE = 4096            # microcontroller.nvm of CircuitPython's RP2040 builds (CIRCUITPY_INTERNAL_NVM_SIZE)
 
 
 class Stop(BaseException):
@@ -216,8 +220,12 @@ class Device:
 
 
 class Board:
-    def __init__(self, script=None, work_ms=0, wrap=65536, log=list):
+    def __init__(self, script=None, work_ms=0, wrap=65536, log=list, keyboard=False):
         self.log = log                         # makes the records below that grow with the run
+        self.nvm = bytearray(b"\xff" * NVM_SIZE)
+        if keyboard:                           # the mode a plug-in with HOME (UNIT) held stored before
+            self.nvm[keys.MODE_BYTE] = keys.KEYBOARD
+        self.boot_device = None                # usb_hid.enable's boot_device
         self.t, self.until = 0, None
         self.script = {} if script is None else script     # ms -> [action(board)]
         self.work_ms = work_ms
@@ -240,7 +248,7 @@ class Board:
             "digitalio": SimpleNamespace(DigitalInOut=partial(DigitalInOut, self), Pull=Pull),
             "keypad": SimpleNamespace(KeyMatrix=partial(KeyMatrix, self), Keys=partial(Keys, self)),
             "memorymap": SimpleNamespace(AddressRange=partial(AddressRange, self)),
-            "microcontroller": SimpleNamespace(pin=pins),
+            "microcontroller": SimpleNamespace(pin=pins, nvm=self.nvm),
             "pwmio": SimpleNamespace(PWMOut=partial(PWMOut, self)),
             "rotaryio": SimpleNamespace(IncrementalEncoder=partial(IncrementalEncoder, self)),
             "storage": SimpleNamespace(disable_usb_drive=self.call("disable_usb_drive")),
@@ -283,9 +291,9 @@ class Board:
         for _ in range(ms):
             self.t += 1
             self.hand()
-            for keys in self.keypads:
-                if self.t >= keys.next_scan:
-                    keys.scan()
+            for pad in self.keypads:
+                if self.t >= pad.next_scan:
+                    pad.scan()
 
     def hand(self):
         """What the hand does at this ms: the script's actions for it"""
@@ -315,8 +323,14 @@ class Board:
         """The host takes a report from a device at ms"""
         self.received.append((ms, device, report))
 
-    def enable(self, devices):
+    def enable(self, devices, boot_device=0):
         self.devices[:] = devices
+        self.boot_device = boot_device
+
+    @property
+    def keyboard(self):
+        """Whether boot.py made the keyboard (keyboard mode) instead of the joysticks"""
+        return bool(self.devices) and self.devices[0].usage == 0x06
 
     def call(self, name):
         return lambda *args: self.calls.append((name,) + args)

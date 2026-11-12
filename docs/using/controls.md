@@ -1,8 +1,9 @@
 # Controls
 
 What each key and knob does, and why it sits where it is. Button numbers for mapping are in
-[BUTTONS.md](../../firmware/BUTTONS.md), how to map them in [Mapping](mapping.md). To try them without a
-panel, the firmware runs on the PC and the browser shows the panel: [Simulator](simulator.md).
+[BUTTONS.md](../../firmware/BUTTONS.md), how to map them in [Mapping](mapping.md); in the
+[keyboard mode](keyboard.md) the same functions send shortcuts instead. To try them without a panel, the
+firmware runs on the PC and the browser shows the panel: [Simulator](simulator.md).
 
 ## Principles
 
@@ -200,7 +201,9 @@ MAP returns to the default map page, like holding CLR on the G1000 and GNS 530/4
 28 keys. UNIT (SHIFT, HOME) switches between unit 1 and unit 2 for the FMS keys and knob (GTN or GNS 530 /
 second unit), for CDI and OBS, and for the radio the FREQ knob and flip-flops tune (COM 1 / NAV 1 or
 COM 2 / NAV 2). A white light beside the amber UNIT legend is on while unit 2 is selected. There is no
-automatic return to unit 1, because a timeout would interrupt long flight plan edits.
+automatic return to unit 1, because a timeout would interrupt long flight plan edits. Held alone while
+plugging in, the HOME key (amber legend UNIT) switches the panel between its joysticks and its
+[keyboard mode](keyboard.md).
 
 On the G1000 UNIT selects radio 2 only and the FMS keys always drive the MFD: the PFD and MFD share the
 radios, so coupling them would tune COM 2 while editing on the PFD.

@@ -6,7 +6,8 @@ import threading
 
 import pytest
 
-from sim import BM
+from sim import BM, typed
+from sim.hardware import keys
 from sim.live import PRESS_MIN_MS, TURN_MAX, Live, parse
 
 SPEED = 25           # a tap with its pause (400 ms) takes about 16 ms
@@ -40,6 +41,22 @@ def test_actions_reach_the_output_in_order():
     # both devices once at the start (nothing sent yet), then device 1 only: COM ⇆ is unit 1's
     assert out == [(1, []), (2, []), (1, ["AP"]), (1, []), (1, ["ALT_100_UP"]), (1, []), (1, ["ALT_100_UP"]),
                    (1, []), (1, ["PAN_UP"]), (1, []), (1, ["COM_SWAP"]), (1, [])]
+
+
+def test_keyboard_mode_sends_the_keyboards_reports():
+    # Live(keyboard=True): device 1 is the keyboard, its reports 8 bytes without a report ID; the start pattern
+    # comes first, then the shortcut of the tap with its modifiers around it
+    live = Live(speed=SPEED, keyboard=True)
+    live.act("wait", 1000)
+    live.act("tap", "SHIFT")
+    live.act("tap", "HOME")
+    live.act("turn", "FREQ_INNER", 1)
+    out = []
+    live.start(lambda device, report: out.append((device, report)))
+    finish(live)
+    assert {device for device, _ in out} == {1} and {len(report) for _, report in out} == {keys.REPORT}
+    assert [(d, n) for _, d, n in typed(enumerate(r for _, r in out))] == [(2, "COM_KHZ_UP")]
+    assert out[-1] == (1, bytes(keys.REPORT))
 
 
 def test_the_lights_can_be_read_at_any_time():

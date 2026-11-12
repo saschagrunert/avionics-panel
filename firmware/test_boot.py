@@ -1,18 +1,23 @@
 """Host tests for boot.py: runs it on the stand-in hardware of sim/hardware.py. SHIFT held is its switch closed
-between its row and column pin: the column then reads low while the row pin drives low.
+between its row and column pin: the column then reads low while the row pin drives low. UNIT (HOME) the same.
 """
 import buttonmap as BM
+import keys
 
 from sim.hardware import SETTLE_S, Board
 
 SHIFT_PINS = ("GP2", "GP6")        # row, column of SHIFT; tests/test_pins.py checks them against the board
+UNIT_PINS = ("GP5", "GP6")         # row, column of HOME (UNIT), as well
 
 
-def boot(shift=False, pins=SHIFT_PINS):
-    """boot.py on a board with SHIFT held (its switch between pins closed) or not"""
-    board = Board()
+def boot(shift=False, pins=SHIFT_PINS, unit=False, keyboard=False):
+    """boot.py on a board with SHIFT held (its switch between pins closed) or not, UNIT held or not, and the
+    keyboard mode stored or not"""
+    board = Board(keyboard=keyboard)
     if shift:
         board.closed.add(pins)
+    if unit:
+        board.closed.add(UNIT_PINS)
     return board.boot()
 
 
@@ -56,14 +61,61 @@ def test_shift_is_read_after_the_column_settles():
     assert hidden(board) and max(board.boot_sleeps) >= SETTLE_S
 
 
-def test_shift_pins_are_released_for_code_py():
+def test_shift_and_unit_pins_are_released_for_code_py():
     for shift in (False, True):
         board = boot(shift=shift)
-        assert set(board.ios) == set(SHIFT_PINS) and all(io.released for io in board.ios.values())
+        assert set(board.ios) == set(SHIFT_PINS + UNIT_PINS) and all(io.released for io in board.ios.values())
 
 
-def test_shift_is_matrix_row_3_column_3():
-    assert BM.MATRIX[3][3] == "SHIFT"
+def test_shift_is_matrix_row_3_column_3_and_unit_above_it():
+    assert BM.MATRIX[3][3] == "SHIFT" and BM.MATRIX[2][3] == "HOME"
+
+
+# ---------------- keyboard mode ----------------
+def keyboard(board):
+    """The keyboard boot.py enabled, after checking it is the only HID device"""
+    [device] = board.devices
+    assert (device.usage_page, device.usage, device.report_descriptor) == (0x01, 0x06, keys.DESCRIPTOR)
+    assert (device.report_ids, device.in_report_lengths, device.out_report_lengths) == ((0,), (keys.REPORT,), (1,))
+    return device
+
+
+def test_the_joysticks_are_the_default_and_unit_alone_leaves_the_mode_stored():
+    # a blank flash (0xFF), or any byte but KEYBOARD: the two joysticks, and nothing is written without UNIT
+    for byte in (0xFF, 0x00, keys.KEYBOARD ^ 1):
+        board = Board()
+        board.nvm[keys.MODE_BYTE] = byte
+        board.boot()
+        assert [d.usage for d in board.devices] == [0x04, 0x04] and board.nvm[keys.MODE_BYTE] == byte
+    board = boot(keyboard=True)
+    assert keyboard(board) and board.nvm[keys.MODE_BYTE] == keys.KEYBOARD
+
+
+def test_unit_held_at_plug_in_switches_the_mode_and_keeps_it():
+    board = boot(unit=True)                                       # to keyboard mode
+    assert keyboard(board) and board.boot_device == 1 and board.nvm[keys.MODE_BYTE] == keys.KEYBOARD
+    again = Board()
+    again.nvm[:] = board.nvm                                      # unplugged and plugged in again, without UNIT
+    assert keyboard(again.boot())
+    back = Board()
+    back.nvm[:] = board.nvm
+    back.closed.add(UNIT_PINS)
+    back.boot()                                                   # UNIT held again: back to the joysticks
+    assert [d.usage for d in back.devices] == [0x04, 0x04] and back.nvm[keys.MODE_BYTE] == keys.JOYSTICK
+    assert all(b == 0xFF for b in back.nvm[1:])                   # nothing else written
+
+
+def test_keyboard_mode_keeps_the_usb_name_and_the_drive_rules():
+    # the same names as with the joysticks; the drive and console only with SHIFT held, and the boot protocol
+    # only without them: CircuitPython allows it on USB interface 0 only (safe mode otherwise)
+    for shift in (False, True):
+        board = boot(shift=shift, keyboard=True)
+        assert keyboard(board) and board.boot_device == (0 if shift else 1)
+        assert bool(hidden(board)) is not shift
+        assert board.calls.count(("set_usb_identification", "DIY", "Avionics Panel")) == 1
+        assert board.calls.count(("usb_hid.set_interface_name", "Avionics Panel")) == 1
+    board = boot(shift=True, unit=True)                           # both held: the update, in keyboard mode
+    assert keyboard(board) and board.boot_device == 0 and not hidden(board)
 
 
 # ---------------- HID descriptors ----------------
@@ -108,7 +160,7 @@ def test_hid_descriptors_match_buttonmap():
     # two joysticks, each one application collection with one array of 1-bit buttons: as many buttons as
     # buttonmap.SIZE says, a report as long as the device says, report IDs as the device says
     board = boot()
-    assert board.devices == board.created and len(board.created) == 2
+    assert board.devices == board.created and len(board.created) == 2 and board.boot_device == 0
     ids = []
     for n, dev in zip((1, 2), board.created):
         d = parse(dev.report_descriptor)

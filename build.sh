@@ -74,7 +74,7 @@ trap stop INT TERM HUP QUIT
 # reads; no other generator reads another one's files.
 # the tests, with their coverage of what .coveragerc names, as a table and as coverage.xml (CI sends it to Codecov)
 section "firmware" nix-shell "$SHELLS" -A firmware \
-  --run "pytest -v --cov --cov-report=term-missing --cov-report=xml && cd firmware && python3 make_buttons.py >BUTTONS.md"
+  --run "pytest -v --cov --cov-report=term-missing --cov-report=xml && cd firmware && python3 make_buttons.py >BUTTONS.md && python3 make_keys.py >KEYS.md"
 section "board" gen pcb "$BOARD"
 section "plate artwork" gen mech "python3 make_plate_art.py && rsvg-convert -w 2400 avionics-panel-rev1-plate-preview.svg -o avionics-panel-rev1-plate-preview.png"
 section "knobs, light pipes, caps, body, fits" occ mech \

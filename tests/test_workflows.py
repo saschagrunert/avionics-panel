@@ -1,16 +1,43 @@
 """The workflows and controls of docs/using/controls.md as a pilot uses them, on the simulated panel (sim/). Each
 test asserts the buttons MobiFlight sees (polling the joysticks every 31.25 ms), by their BUTTONS.md names, and
-that nothing is left pressed at the end."""
+that nothing is left pressed at the end. Each runs in keyboard mode too: there the sim must see the shortcuts
+(keys.py) of the same functions typed, in the same order, and no key left down."""
 import os
 import re
+import sys
+from functools import partial
 
-from sim import Sim
+import pytest
+
+from sim import PATTERN_MS, Sim, canonical
 
 CONTROLS = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "docs/using/controls.md")
+JOYSTICKS = Sim                        # the joystick mode's Sim, also while a test runs in keyboard mode
 
 
-def seen(sim):
-    """What MobiFlight saw go down on device 1 and device 2, once it sees nothing held any more"""
+@pytest.fixture(autouse=True, params=["joysticks", "keyboard"])
+def mode(request, monkeypatch):
+    if request.param == "keyboard":
+        monkeypatch.setattr(sys.modules[__name__], "Sim", partial(JOYSTICKS, keyboard=True))
+
+
+def seen(sim, same=True):
+    """What MobiFlight saw go down on device 1 and device 2, once it sees nothing held any more. In keyboard mode
+    the same scenario also runs with the joysticks, whose presses it returns, after checking that the keyboard
+    typed their shortcuts in the same order (a shared shortcut by the function it stands for) and let go. Not
+    same: the keyboard's own functions instead (where the loop pass times, which the keyboard's extra report per
+    step shifts, decide between a fine and a coarse step)."""
+    if sim.keyboard and not same:
+        assert sim.reports(1)[-1][1] == bytes(8)
+        return tuple([n for _, d, n in sim.typed() if d == device] for device in (1, 2))
+    if sim.keyboard:
+        joysticks = JOYSTICKS()
+        joysticks.script = {ms - PATTERN_MS: actions for ms, actions in sim.script.items()}
+        joysticks.now = sim.now - PATTERN_MS
+        order = sorted((ms, d, n) for d in (1, 2) for ms, n in joysticks.polled(d))
+        assert [(d, n) for _, d, n in sim.typed()] == [canonical(d, n) for _, d, n in order]
+        assert sim.reports(1)[-1][1] == bytes(8)
+        return seen(joysticks)
     assert sim.held(1) == [] and sim.held(2) == []
     return sim.presses(1), sim.presses(2)
 
@@ -355,7 +382,7 @@ def test_a_medium_speed_turn_stops_with_the_hand():
     sim.turn("ALTHDG_INNER", 30, every=75)
     last = sim.now - 75
     sim.wait(1500)
-    names = seen(sim)[0]
+    names = seen(sim, same=False)[0]
     assert len(names) == 30 and names[0] == "HDG_1_UP" and set(names) == {"HDG_1_UP", "HDG_10_UP"}
     assert max(t for t, names in sim.buttons(1) if not names) <= last + 180
 

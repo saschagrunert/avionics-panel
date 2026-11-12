@@ -1,20 +1,21 @@
 """The live panel (sim/live.py) in the browser: serves the 3D view (viewer/) with the panel playable in it, and an
 API for it. Python's standard library only.
 
-    python3 -m sim.page [--uhid | --vjoy] [--port N] [--host ADDR] [--open]
+    python3 -m sim.page [--keyboard] [--uhid | --vjoy | --sendinput] [--port N] [--host ADDR] [--open]
 
 prints the page's URL (http://127.0.0.1:8000/?sim): the ?sim makes the viewer play the panel (viewer/sim.js).
 With --uhid the reports also go to a Linux HID device, as with `python3 -m sim.uhid`; with --vjoy to vJoy's
-devices 1 and 2 on Windows, as with `python -m sim.vjoy`. --open opens the page in the default browser once it
-is served.
+devices 1 and 2 on Windows, as with `python -m sim.vjoy`. --keyboard runs the keyboard mode (keys.py), whose
+keystrokes --sendinput gives to the window in front on Windows (sim/sendinput.py). --open opens the page in the
+default browser once it is served.
 
 The API, under /sim/:
 
 - GET events: one Server-Sent Events stream per page. `hello` first, with the page's client ID (a secret: only
   the page can read it) and the firmware names of the caps and knobs geometry.js draws (inputs()), then `state`
   whenever the lights or the buttons change (the lights are read every POLL_S, so the SHIFT light's 125 ms pulse
-  keeps its rhythm), and `fault` for an error in code.py's loop, which then reloads (not `error`: EventSource has
-  an event of that name).
+  keeps its rhythm; in keyboard mode the buttons are the keyboard's, with the shortcut), and `fault` for an error
+  in code.py's loop, which then reloads (not `error`: EventSource has an event of that name).
 - POST act?client=ID: actions, one per line, run at once and in order: `press NAME`, `release NAME` (a key, push
   or RANGE switch) and `turn RING DETENTS` (all in the same ms, sim.live.TURN_MAX at most). Nothing paces them: a
   fast wheel is a fast turn. An empty one only says that the page is still there. 204, or 400 with the reason
@@ -46,8 +47,10 @@ from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 
-from sim import BM, LIGHTS, TILT, key_name
+from sim import BM, FUNCTIONS, LIGHTS, TILT, key_name
+from sim.hardware import make_keys
 from sim.live import USAGE, Live, parse
+from sim.sendinput import SendInput
 from sim.uhid import Uhid
 from sim.vjoy import VJoy
 
@@ -136,13 +139,21 @@ class Page(ThreadingHTTPServer):
 
     def state(self):
         """The lights (their duty as a share of full on: 1, or 0.25 for SHIFT's dim pulse) and each device's
-        buttons by name"""
+        buttons by name; in keyboard mode the keyboard's ("keyboard") function with its shortcut and unit"""
         live, lights = self.live, {}
         for i, name in enumerate(LIGHTS):
             duty = live.light(name)
             lights[name] = round(duty / live.code["LED_DUTY"][i], 3) if duty else 0
-        buttons = {device: [n for b, n in enumerate(BM.DEVICE[device]) if report[1 + b // 8] >> b % 8 & 1]
-                   for device, report in sorted(self.reports.items())}
+        if live.keyboard:
+            buttons = {}
+            if 1 in self.reports:
+                mods, key = self.reports[1][0], self.reports[1][2]
+                dev, name = FUNCTIONS.get((mods, key), (None, None))
+                unit = " (unit 2)" if dev == 2 else ""
+                buttons["keyboard"] = [f"{name}{unit} {make_keys.shortcut_name(mods, key)}"] if dev else []
+        else:
+            buttons = {device: [n for b, n in enumerate(BM.DEVICE[device]) if report[1 + b // 8] >> b % 8 & 1]
+                       for device, report in sorted(self.reports.items())}
         return {"lights": lights, "buttons": buttons}
 
     def connect(self):
@@ -283,15 +294,18 @@ def main(argv=None):
     parser.add_argument("--port", type=int, default=8000, help="the port to serve on (default 8000)")
     parser.add_argument("--host", default="127.0.0.1",
                         help="the address to serve on (default 127.0.0.1; 0.0.0.0 for a tablet on the network)")
+    parser.add_argument("--keyboard", action="store_true", help="the keyboard mode: a keyboard, no joysticks")
     outputs = parser.add_mutually_exclusive_group()
     outputs.add_argument("--uhid", action="store_true", help="also feed a Linux HID device (sim.uhid)")
     outputs.add_argument("--vjoy", action="store_true", help="also feed vJoy devices 1 and 2 on Windows (sim.vjoy)")
+    outputs.add_argument("--sendinput", action="store_true",
+                         help="with --keyboard: also type the keys into the window in front on Windows")
     parser.add_argument("--open", action="store_true", help="open the page in the default browser")
     args = parser.parse_args(argv)
-    live, out = Live(), None
+    live, out = Live(keyboard=args.keyboard), None
     try:
-        if args.uhid or args.vjoy:
-            out = Uhid(live) if args.uhid else VJoy(live)
+        if args.uhid or args.vjoy or args.sendinput:
+            out = Uhid(live) if args.uhid else VJoy(live) if args.vjoy else SendInput(live)
         page = Page(live, (args.host, args.port), out.send if out else None)
     except OSError as e:
         if out:
@@ -300,7 +314,7 @@ def main(argv=None):
     live.start(page.output)
     threading.Thread(target=page.serve_forever, name="page", daemon=True).start()
     on = f" ({out.name}{' on uhid' if args.uhid else ''})" if out else ""
-    print(f"The panel{on}: {page.url} (Ctrl-C ends it)", flush=True)
+    print(f"The panel{' in keyboard mode' if args.keyboard else ''}{on}: {page.url} (Ctrl-C ends it)", flush=True)
     if args.open:
         webbrowser.open(page.url)
     try:

@@ -40,8 +40,9 @@ def test_the_layout(built):
     with zipfile.ZipFile(built) as z:
         names = set(z.namelist())
         assert {f"{TOP}/{n}" for n in ("start.bat", "vjoy-setup.bat", "README.txt", "LICENSE", "python/python.exe",
-                                       "firmware/boot.py", "firmware/code.py", "firmware/BUTTONS.md",
-                                       "sim/vjoy.py", "sim/page.py", "viewer/index.html")} <= names
+                                       "firmware/boot.py", "firmware/code.py", "firmware/keys.py",
+                                       "firmware/BUTTONS.md", "firmware/KEYS.md", "sim/vjoy.py", "sim/sendinput.py",
+                                       "sim/page.py", "viewer/index.html")} <= names
         assert all(n.startswith(f"{TOP}/") for n in names)
         assert not [n for n in names if "/test_" in n or "__pycache__" in n]
         assert z.read(f"{TOP}/python/python314._pth").split(b"\r\n")[:3] == [b"python314.zip", b".", b".."]

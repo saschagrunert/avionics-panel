@@ -1,7 +1,7 @@
 """The panel in real time, for the uhid output (sim/uhid.py) and the panel page (sim/page.py): the same Board as
 the tests, with code.py in a thread of its own, paced to the wall clock.
 
-    live = Live()                        # plugged in: boot.py has run
+    live = Live()                        # plugged in: boot.py has run (Live(keyboard=True): in keyboard mode)
     live.act("tap", "AP")                # from any thread, before start() or after
     live.start(output)                   # code.py starts; output(device, report) gets every report the host takes
     live.light("SHIFT")                  # the light's duty now, 0 to 0xFFFF
@@ -15,7 +15,8 @@ spacing take theirs. parse() reads an action from a line of text, as the page se
 them for sim.uhid and sim.vjoy. A switch changes no sooner than PRESS_MIN_MS after its last change, on the
 panel's clock, as a finger does: a click shorter than a key scan would be lost, and clicks that reach a panel
 running late all at once would be one press (code.py takes a gap that short for a bounce). A report goes to
-output as device 1 or 2 and its bytes, the report ID first, at the ms the host takes it.
+output as device 1 or 2 and its bytes as on the wire, at the ms the host takes it: a joystick's report ID first,
+and in keyboard mode device 1, the keyboard, with its 8 bytes and no report ID.
 
 An error in code.py's loop goes as on the board: its handler releases every button, prints the error (to stderr,
 and kept in printed), waits 2 s and reloads, and code.py starts again on the same board. boot.py does not run
@@ -110,9 +111,10 @@ def from_stdin(live, output, prog):
 
 
 class Live(Board):
-    def __init__(self, speed=1):
-        """Plugs the panel in: boot.py runs. speed: ms of the panel per ms of the wall clock."""
-        super().__init__(work_ms=PASS_MS - 1, log=partial(deque, maxlen=KEEP))
+    def __init__(self, speed=1, keyboard=False):
+        """Plugs the panel in: boot.py runs. speed: ms of the panel per ms of the wall clock. keyboard: the
+        keyboard mode is stored, as after a plug-in with HOME (UNIT) held."""
+        super().__init__(work_ms=PASS_MS - 1, log=partial(deque, maxlen=KEEP), keyboard=keyboard)
         self.speed, self.output, self.error, self.thread = speed, None, None, None
         self.actions, self.free, self.stopping = queue.SimpleQueue(), 0, threading.Event()
         self.changes = {}                      # the ms of each switch's last change
@@ -231,5 +233,5 @@ class Live(Board):
             super().hold(name, down)
 
     def take(self, ms, device, report):
-        n, data = self.devices.index(device) + 1, bytes(device.report_ids[:1]) + report
+        n, data = self.devices.index(device) + 1, bytes(i for i in device.report_ids[:1] if i) + report
         self.script.setdefault(ms, []).append(lambda b: self.output(n, data))

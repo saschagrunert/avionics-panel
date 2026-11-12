@@ -92,9 +92,9 @@ CIRCUITPY run `sync` and let it finish before you replug.
    crystal) to RPI-RP2; the firmware is tested on 9.2.9. The board restarts with a CIRCUITPY drive.
 4. Hand-soldering only: solder the 28 keys, seated flat ([Hand-soldering](assembly.md#hand-soldering)), but
    not yet the encoders and the RANGE control.
-5. Copy `boot.py`, `code.py`, `panel.py` and `buttonmap.py` from [firmware/](../../firmware/) to CIRCUITPY
-   (the repository's `code.py`, with `PICO_TEST = False` and `divisor=2`, not the copy edited for the Pico
-   bench). Then:
+5. Copy `boot.py`, `code.py`, `panel.py`, `buttonmap.py` and `keys.py` from [firmware/](../../firmware/) to
+   CIRCUITPY (the repository's `code.py`, with `PICO_TEST = False` and `divisor=2`, not the copy edited for the
+   Pico bench). Then:
    1. Replug with SHIFT held until CIRCUITPY appears ([update mode](#normal-and-update-mode)): `boot.py` only
       runs at power-up.
    2. Open the serial console (Linux: for example `tio /dev/ttyACM0`; Windows: the serial console of Thonny or
@@ -205,6 +205,10 @@ console, so nothing on the PC can write to the firmware. To keep both for an upd
 in until CIRCUITPY appears (about 2 s; `boot.py` reads SHIFT up to 1 s after power-up, so a short press is
 missed). A board without `boot.py` (a fresh CircuitPython install) always shows them. Test and map the
 joysticks only after a plain replug ([why](../using/mapping.md#update-mode-and-guids)).
+
+The HOME key (amber legend UNIT) held alone while plugging in switches between the joysticks and the
+[keyboard mode](../using/keyboard.md), which the panel keeps until it is switched back. Bring-up uses the
+joysticks: if the SHIFT and UNIT lights take turns after plugging in, the panel is in keyboard mode.
 
 ## Updates and recovery
 

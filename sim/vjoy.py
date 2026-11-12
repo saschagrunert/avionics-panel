@@ -107,6 +107,8 @@ class VJoy:
     name = "vJoy devices 1 and 2"
 
     def __init__(self, board, dll=None, kernel32=None):
+        if board.keyboard:
+            raise VJoyError("vJoy takes the joysticks: the keyboard mode goes to Windows through --sendinput")
         self.dll, self.acquired, self.lock = load() if dll is None else dll, [], threading.Lock()
         # report ID -> (vJoy device, buttons): device n for the board's joystick n
         self.devices = {d.report_ids[0]: (n, 8 * d.in_report_lengths[0]) for n, d in enumerate(board.devices, 1)}
