@@ -1,4 +1,4 @@
-# Python lint for the generators (pcb/, mech/) and the firmware. `ruff check` in CI.
+# Python lint for the generators (pcb/, mech/), the firmware and the simulator (sim/). `ruff check` in CI.
 line-length = 120
 target-version = "py312"
 

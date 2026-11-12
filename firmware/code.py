@@ -71,9 +71,9 @@ if len(devices) < 2:
 
 # Both keypads scan every KEY_SCAN s (panel.KEY_SCAN_MS: the panel's bounce window follows it), and RESYNC_MS
 # below follows it too. debounce_threshold stays at its default (1), so a press reaches the PC on the first scan
-# that reads it, and a reset keypad reports the keys still held within one scan; a higher threshold delays both
-# by one scan per step (RESYNC_MS would have to grow with it). A bounce longer than a scan is caught in panel.py,
-# by the scan times of the events (Event.timestamp, on the supervisor.ticks_ms clock).
+# that reads it, and reset() reports the keys still held at once, from a scan of its own; a higher threshold
+# delays both by one scan per step (RESYNC_MS would have to grow with it). A bounce longer than a scan is caught in
+# panel.py, by the scan times of the events (Event.timestamp, on the supervisor.ticks_ms clock).
 KEY_SCAN = KEY_SCAN_MS / 1000
 matrix = keypad.KeyMatrix(ROW_PINS, COL_PINS, columns_to_anodes=True, interval=KEY_SCAN)   # anodes on columns
 direct = keypad.Keys((FREQ_PUSH,), value_when_pressed=False, pull=True, interval=KEY_SCAN)
@@ -105,7 +105,7 @@ if not PICO_TEST:                  # the Pico's onboard LED has a resistor of it
 unit_shown = None
 shift_shown = None
 panel = Panel()
-RESYNC_MS = 3 * KEY_SCAN_MS              # three scans: the keys still held are reported within one
+RESYNC_MS = 3 * KEY_SCAN_MS              # three scans, to spare: reset() reports the keys still held at once
 RETRY_MS, RETRY_MAX_MS = 1000, 8000      # after a failed send: wait before the next try, doubling up to this
 TICKS_PERIOD = 1 << 29                   # supervisor.ticks_ms and Event.timestamp wrap after this many ms
 

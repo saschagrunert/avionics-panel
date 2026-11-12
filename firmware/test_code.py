@@ -1,226 +1,53 @@
-"""Host smoke tests for code.py: runs its main loop against stub CircuitPython modules.
+"""Host smoke tests for code.py: runs its main loop on the stand-in hardware of sim/hardware.py.
 
-code.py itself needs the hardware (keypad, rotaryio, pwmio, usb_hid, memorymap), so these stubs stand in for it:
-the tests script key presses and encoder steps per millisecond and record the HID reports it sends.
+The tests script key events and encoder steps per millisecond and look at the HID reports code.py sends.
 """
-import os
-import sys
-import types
+from types import SimpleNamespace
 
 import buttonmap as BM
 import panel as P
 import pytest
 
-NAMES = [n for row in BM.MATRIX for n in row]
-HERE = os.path.dirname(os.path.abspath(__file__))
+from sim.hardware import MATRIX_NAMES, PAD_RESET, Board, Event
+
+PICO =[("\nPICO_TEST = False\n", "\nPICO_TEST = True\n")]   # code.py edited for the Pico bench
 
 
-class Stop(BaseException):
-    """ends code.py's endless loop (not an Exception: code.py's error handler must not catch it)"""
+def hardware(script=None, busy=0, usb_from=0, usb_gap=(0, 0), wrap=65536, memorymap=True):
+    """the stand-in board after boot.py, with a script {ms: [action(hw)]}: hw.run(ms) runs code.py. A loop pass
+    takes only its 1 ms sleep (no run time of its own)."""
+    hw = Board(script, wrap=wrap).boot()
+    hw.busy, hw.usb_from, hw.usb_gap = busy, usb_from, usb_gap
+    if not memorymap:                         # a CircuitPython build without memorymap: the import fails
+        hw.modules["memorymap"] = None
+    return hw
 
 
-class Event:
-    def __init__(self, key_number, pressed, timestamp):
-        self.key_number, self.pressed, self.timestamp = key_number, pressed, timestamp
+def received(hw, device):
+    """the reports that went through to device 1 or 2"""
+    return [data for _, d, data in hw.received if d is hw.devices[device - 1]]
 
 
-class Queue:
-    def __init__(self):
-        self.items, self.overflowed = [], False
-
-    def get(self):
-        return self.items.pop(0) if self.items else None
-
-    def clear(self):
-        self.items, self.overflowed = [], False
-
-
-class Keys:
-    """a keypad: the keys physically held, and its event queue. reset() assumes every key released, so the
-    next scan reports the keys still held as fresh presses, as CircuitPython's keypad does."""
-
-    def __init__(self, hw, interval=0.020):
-        self.hw, self.events, self.held, self.resets, self.rescan = hw, Queue(), set(), 0, None
-        self.scan_ms = round(interval * 1000)
-
-    def reset(self):
-        self.resets += 1
-        self.rescan = self.hw.t + self.scan_ms
-
-    def scan(self):
-        if self.rescan == self.hw.t:
-            self.events.items += [Event(k, True, self.hw.ticks_ms()) for k in sorted(self.held)]
-            self.rescan = None
-
-
-class Encoder:
-    def __init__(self, a, b, divisor=4):
-        self.pins, self.divisor, self.position = (a, b), divisor, 0
-
-
-class PWM:
-    def __init__(self, pin, frequency=0):
-        self.pin, self.frequency, self._duty, self.writes = pin, frequency, 0, 0
-
-    @property
-    def duty_cycle(self):
-        return self._duty
-
-    @duty_cycle.setter
-    def duty_cycle(self, value):
-        self._duty, self.writes = value, self.writes + 1
-
-
-PAD_RESET = 0x56                     # an RP2040 PADS_BANK0 GPIO register after reset: IE, 4 mA, PDE, SCHMITT
-
-
-class Registers:
-    """memorymap.AddressRange over the RP2040's pad registers: 32-bit words, read as reset until written"""
-
-    def __init__(self, hw):
-        self.hw = hw
-
-    def range(self, start, length):
-        hw = self.hw
-
-        class AddressRange:
-            def __getitem__(self, key):
-                assert (key.start, key.stop, start % 4, length) == (0, 4, 0, 4)   # whole aligned words only
-                return hw.regs.get(start, PAD_RESET).to_bytes(4, "little")
-
-            def __setitem__(self, key, value):
-                assert (key.start, key.stop, len(value)) == (0, 4, 4)
-                hw.regs[start] = int.from_bytes(value, "little")
-        return AddressRange()
-
-
-class Joystick:
-    """one of the two devices. Both share one USB HID interface, as on the board: send_report waits for that
-    interface, so the host's polling (hw.busy, hw.block) is the same for both"""
-    usage_page, usage = 0x01, 0x04
-
-    def __init__(self, hw):
-        self.hw, self.reports, self.tries = hw, [], []
-
-    def send_report(self, report):
-        hw = self.hw
-        self.tries.append(hw.t)
-        if hw.busy:
-            hw.busy -= 1
-            hw.t += hw.block
-            raise OSError("USB busy")
-        self.reports.append(bytes(report))
-        hw.t += hw.waits.pop(hw.t, 0)
-
-
-class Hardware:
-    """the stub modules, plus the clock that drives the script"""
-
-    def __init__(self, ms, script=None, busy=0, usb_from=0, usb_gap=(0, 0), pico_test=False, edits=(), wrap=65536,
-                 memorymap=True):
-        self.t, self.ms, self.script, self.usb_from, self.usb_gap = 0, ms, script or {}, usb_from, usb_gap
-        self.wrap = wrap                      # ms at which supervisor.ticks_ms wraps (CircuitPython: 65.536 s)
-        self.pico_test, self.edits = pico_test, edits      # edits: (old, new) source lines, as on a first board
-        self.busy = busy                      # sends that fail next, whichever device sends
-        self.block = 0                        # ms a failing send blocks (2000 on the board); skips scripts
-        self.waits = {}                       # ms: how long a good send in that pass waits for the host
-        self.joysticks = [Joystick(self), Joystick(self)]
-        self.matrix = self.direct = None
-        self.encoders, self.leds, self.duty, self.regs = [], [], {}, {}
-        self.sleeps, self.reloads, self.printed = [], [], []
-        hw = self
-
-        class Matrix(Keys):
-            def __init__(self, rows, cols, **kwargs):
-                super().__init__(hw, kwargs.get("interval", 0.020)); hw.matrix = self
-                self.rows, self.cols, self.kwargs = rows, cols, kwargs
-
-        class Direct(Keys):
-            def __init__(self, pins, **kwargs):
-                super().__init__(hw, kwargs.get("interval", 0.020)); hw.direct = self
-                self.pins, self.kwargs = pins, kwargs
-
-        class Enc(Encoder):
-            def __init__(self, *args, **kwargs):
-                super().__init__(*args, **kwargs); hw.encoders.append(self)
-
-        class Pwm(PWM):
-            def __init__(self, *args, **kwargs):
-                super().__init__(*args, **kwargs); hw.leds.append(self)
-
-        pins = types.SimpleNamespace(**{f"GPIO{i}": f"GP{i}" for i in range(30)})
-        self.modules = {
-            "keypad": types.SimpleNamespace(KeyMatrix=Matrix, Keys=Direct),
-            "memorymap": types.SimpleNamespace(AddressRange=Registers(self).range),
-            "microcontroller": types.SimpleNamespace(pin=pins),
-            "pwmio": types.SimpleNamespace(PWMOut=Pwm),
-            "rotaryio": types.SimpleNamespace(IncrementalEncoder=Enc),
-            "usb_hid": types.SimpleNamespace(devices=self.joysticks),
-            "supervisor": types.SimpleNamespace(runtime=self, reload=self.reload,    # runtime.usb_connected, below
-                                                ticks_ms=self.ticks_ms),
-            "time": types.SimpleNamespace(monotonic_ns=lambda: hw.t * 1_000_000, sleep=self.sleep),
-            "traceback": types.SimpleNamespace(print_exception=self.printed.append),
-        }
-        if not memorymap:                    # a CircuitPython build without memorymap: the import fails
-            self.modules["memorymap"] = None
-
-    def ticks_ms(self, t=None):
-        """supervisor.ticks_ms at ms t (default now): wraps at 2**29, first at self.wrap"""
-        return ((self.t if t is None else t) - self.wrap) % (1 << 29)
-
-    @property
-    def usb_connected(self):
-        return self.t >= self.usb_from and not self.usb_gap[0] <= self.t < self.usb_gap[1]
-
-    def reload(self):
-        self.reloads.append(self.t)
-        raise Stop                            # the VM restarts code.py: this run ends
-
-    def sleep(self, seconds):
-        self.sleeps.append(seconds)
-        if self.leds:                         # the LED as code.py left it in the pass for time self.t
-            self.duty[self.t] = self.leds[0].duty_cycle
-        self.t += 1
-        if self.t >= self.ms:
-            raise Stop
-        for action in self.script.get(self.t, ()):
-            action(self)
-        for keys in (self.matrix, self.direct):
-            keys.scan()
-
-    def run(self):
-        saved = {n: sys.modules.get(n) for n in self.modules}
-        sys.modules.update(self.modules)
-        path = os.path.join(HERE, "code.py")
-        with open(path) as f:
-            source = f.read()
-        if self.pico_test:
-            assert source.count("\nPICO_TEST = False\n") == 1
-            source = source.replace("\nPICO_TEST = False\n", "\nPICO_TEST = True\n")
-        for old, new in self.edits:
-            assert source.count(old) == 1, old
-            source = source.replace(old, new)
-        try:
-            self.code = {"__name__": "__main__", "__file__": path}   # code.py's globals, for the scripts
-            exec(compile(source, path, "exec"), self.code)
-        except Stop:
-            pass
-        finally:
-            for n, m in saved.items():
-                if m is None:
-                    sys.modules.pop(n, None)
-                else:
-                    sys.modules[n] = m
-        return self
+def duties(hw):
+    """the SHIFT light's duty as code.py left it in each pass, by the ms of the pass's sleep"""
+    out, writes, k, d = {}, hw.leds[0].history, 0, 0
+    for t, _ in hw.sleeps:
+        while k < len(writes) and writes[k][0] <= t:
+            d = writes[k][1]
+            k += 1
+        out[t] = d
+    return out
 
 
 def press(name, pressed, lost=False, late=0):
-    """a matrix key goes down or up; lost: the keypad queue overflows and drops the event; late: the keypad
-    scanned it this many ms before code.py gets it (a pass that waited for the host). A release with no press
-    before it is that of a key held when the keypad started, which reports no press for it"""
+    """a key or push goes down or up and its keypad reports it at once, not at its next scan; lost: the keypad
+    queue overflows and drops the event; late: the keypad scanned it this many ms before code.py gets it (a pass
+    that waited for the host). A release with no press before it is that of a key held when the keypad started,
+    which reports no press for it"""
     def act(hw):
-        keys, number = (hw.direct, 0) if name == "FREQ_PUSH" else (hw.matrix, NAMES.index(name))
-        (keys.held.add if pressed else keys.held.discard)(number)
+        keys, number = (hw.direct, 0) if name == "FREQ_PUSH" else (hw.matrix, MATRIX_NAMES.index(name))
+        hw.hold(name, pressed)
+        keys.state = keys.read()              # as scanned: the keypad's own scans find no change
         if lost:
             keys.events.overflowed = True
         else:
@@ -230,7 +57,7 @@ def press(name, pressed, lost=False, late=0):
 
 def step(ring_index, by):
     def act(hw):
-        hw.encoders[ring_index].position += by
+        hw.turn(hw.code["RINGS"][ring_index][0], by)
     return act
 
 
@@ -240,8 +67,8 @@ def pressed(report, device, name):
 
 
 def test_key_press_is_reported():
-    hw = Hardware(400, {10: [press("AP", True)], 200: [press("AP", False)]}).run()
-    reports = hw.joysticks[0].reports
+    hw = hardware({10: [press("AP", True)], 200: [press("AP", False)]}).run(400)
+    reports = received(hw, 1)
     assert any(pressed(r, 1, "AP") for r in reports)
     assert not pressed(reports[-1], 1, "AP")
 
@@ -249,15 +76,15 @@ def test_key_press_is_reported():
 def test_usb_busy_does_not_stop_the_loop():
     # the first reports fail as if the PC were not reading yet; the loop runs on and the key press still
     # gets through on a later try
-    hw = Hardware(4000, {10: [press("HDG", True)], 3500: [press("HDG", False)]}, busy=2).run()
-    assert any(pressed(r, 1, "HDG") for r in hw.joysticks[0].reports)
+    hw = hardware({10: [press("HDG", True)], 3500: [press("HDG", False)]}, busy=2).run(4000)
+    assert any(pressed(r, 1, "HDG") for r in received(hw, 1))
 
 
 def never_polled(ms):
     """a host that enumerates the panel but never reads it: every try blocks for 2 s and fails"""
-    hw = Hardware(ms)
+    hw = hardware()
     hw.busy, hw.block = 10**6, 2000
-    return hw.run()
+    return hw.run(ms)
 
 
 def test_failed_sends_back_off():
@@ -265,10 +92,10 @@ def test_failed_sends_back_off():
     # trying in every loop pass. One back-off for both devices (they share the USB interface): the other
     # device waits too, so the loop stalls for 2 s of every 10 in the end, not 4
     hw = never_polled(40000)
-    tries = sorted(t for j in hw.joysticks for t in j.tries)
+    tries = sorted(t for j in hw.devices for t in j.tries)
     gaps = [b - a for a, b in zip(tries, tries[1:])]
     assert gaps == [2000 + wait for wait in (1000, 2000, 4000, 8000, 8000)]
-    stalled = hw.ms - len(hw.sleeps)                  # ms not spent in 1 ms loop passes
+    stalled = hw.until - len(hw.sleeps)                  # ms not spent in 1 ms loop passes
     assert len(tries) == 6 and stalled == 6 * 2000      # 12 s of 40 (22 s with a back-off per device)
 
 
@@ -278,20 +105,20 @@ def test_backoff_ends_with_a_good_send():
     def fail_once(hw):
         hw.busy = 1
     script = {8000: [press("AP", True)], 8500 - P.BOUNCE_MS: [fail_once, press("AP", False)]}
-    hw = Hardware(9600, script, busy=3).run()
-    tries = hw.joysticks[0].tries
+    hw = hardware(script, busy=3).run(9600)
+    tries = hw.devices[0].tries
     assert tries[:4] == [0, 1000, 3000, 7000]                # 3 failed, the fourth went through
     first = next(t for t in tries if t >= 8000)
-    assert first <= 8001 and pressed(hw.joysticks[0].reports[1], 1, "AP")
+    assert first <= 8001 and pressed(received(hw, 1)[1], 1, "AP")
     assert [t for t in tries if t >= 8500] == [8500, 9500]   # failed, then 1 s later, not 8 s
 
 
 def test_backoff_ends_when_usb_drops():
     # a host that comes back (a new boot) gets the current state at once, not after the old back-off
-    hw = Hardware(4000, busy=3, usb_gap=(3500, 3600)).run()
-    tries = hw.joysticks[0].tries
+    hw = hardware(busy=3, usb_gap=(3500, 3600)).run(4000)
+    tries = hw.devices[0].tries
     assert tries[:3] == [0, 1000, 3000]                      # failed; the next try would be at 7000
-    assert tries[3] == 3600 and len(hw.joysticks[0].reports) == 1
+    assert tries[3] == 3600 and len(received(hw, 1)) == 1
 
 
 def test_a_failed_send_skips_the_other_device():
@@ -299,9 +126,9 @@ def test_a_failed_send_skips_the_other_device():
     # back-off, so a pass never takes more than 2 s (a longer one would outlast SHIFT_MS, drop detents and
     # freeze the light)
     hw = never_polled(20000)
-    passes = sorted(hw.duty)
+    passes = sorted(duties(hw))
     assert max(b - a for a, b in zip(passes, passes[1:])) == 2000 + 1
-    one, two = hw.joysticks
+    one, two = hw.devices
     assert one.tries[0] == 0 and two.tries == []
 
 
@@ -319,19 +146,19 @@ def test_error_releases_every_button_and_reloads():
     # the loop raises while AP is held: the traceback is printed, both devices get an all-zero report (the
     # PC would keep AP held otherwise), and after a 2 s pause (time for Ctrl-C) code.py restarts
     error = ValueError("bug")
-    hw = Hardware(400, crash(error)).run()
+    hw = hardware(crash(error)).run(400)
     assert hw.printed == [error] and len(hw.reloads) == 1
-    one, two = hw.joysticks
-    assert any(pressed(r, 1, "AP") for r in one.reports)
-    assert one.reports[-1] == bytes(BM.SIZE[1] // 8) and two.reports[-1] == bytes(BM.SIZE[2] // 8)
-    assert hw.sleeps[-1] == 2
+    one, two = received(hw, 1), received(hw, 2)
+    assert any(pressed(r, 1, "AP") for r in one)
+    assert one[-1] == bytes(BM.SIZE[1] // 8) and two[-1] == bytes(BM.SIZE[2] // 8)
+    assert hw.sleeps[-1][1] == 2
 
 
 def test_error_while_usb_is_down_sends_nothing():
     # with USB down a send would only block for 2 s: the release is skipped (the host resets on its return)
-    hw = Hardware(400, crash(ValueError("bug")), usb_gap=(50, 10**6)).run()
+    hw = hardware(crash(ValueError("bug")), usb_gap=(50, 10**6)).run(400)
     assert len(hw.reloads) == 1
-    assert all(t < 50 for j in hw.joysticks for t in j.tries)
+    assert all(t < 50 for j in hw.devices for t in j.tries)
 
 
 def test_error_with_usb_busy_still_reloads():
@@ -340,7 +167,7 @@ def test_error_with_usb_busy_still_reloads():
         hw.busy = 10
     script = crash(ValueError("bug"))
     script[99] = [busy]
-    hw = Hardware(400, script).run()
+    hw = hardware(script).run(400)
     assert len(hw.reloads) == 1
 
 
@@ -350,13 +177,13 @@ def test_error_releases_and_reloads_when_printing_fails():
     def no_memory(e):
         hw.printed.append(e)
         raise MemoryError
-    hw = Hardware(400, crash(MemoryError()))
-    hw.modules["traceback"] = types.SimpleNamespace(print_exception=no_memory)
-    hw.run()
+    hw = hardware(crash(MemoryError()))
+    hw.modules["traceback"] = SimpleNamespace(print_exception=no_memory)
+    hw.run(400)
     assert len(hw.printed) == 1 and len(hw.reloads) == 1
-    one, two = hw.joysticks
-    assert any(pressed(r, 1, "AP") for r in one.reports)
-    assert one.reports[-1] == bytes(BM.SIZE[1] // 8) and two.reports[-1] == bytes(BM.SIZE[2] // 8)
+    one, two = received(hw, 1), received(hw, 2)
+    assert any(pressed(r, 1, "AP") for r in one)
+    assert one[-1] == bytes(BM.SIZE[1] // 8) and two[-1] == bytes(BM.SIZE[2] // 8)
 
 
 def test_error_reloads_when_releasing_fails():
@@ -364,42 +191,42 @@ def test_error_reloads_when_releasing_fails():
     def fail(hw):
         def no_memory(report):
             raise MemoryError
-        for j in hw.joysticks:
+        for j in hw.devices:
             j.send_report = no_memory
     script = crash(ValueError("bug"))
     script[99] = [fail]
-    hw = Hardware(400, script).run()
+    hw = hardware(script).run(400)
     assert len(hw.printed) == 1 and len(hw.reloads) == 1
 
 
 def test_ctrl_c_releases_every_button():
     # Ctrl-C on the console ends code.py for the REPL: nothing stays held, and no reload
-    hw = Hardware(400, crash(KeyboardInterrupt()))
+    hw = hardware(crash(KeyboardInterrupt()))
     with pytest.raises(KeyboardInterrupt):
-        hw.run()
-    assert hw.reloads == [] and hw.joysticks[0].reports[-1] == bytes(BM.SIZE[1] // 8)
+        hw.run(400)
+    assert hw.reloads == [] and received(hw, 1)[-1] == bytes(BM.SIZE[1] // 8)
 
 
 def test_unit_light_is_written_only_on_a_change():
-    hw = Hardware(600, {10: [press("SHIFT", True)], 60: [press("SHIFT", False)],
-                        110: [press("HOME", True)], 160: [press("HOME", False)]}).run()
+    hw = hardware({10: [press("SHIFT", True)], 60: [press("SHIFT", False)],
+                  110: [press("HOME", True)], 160: [press("HOME", False)]}).run(600)
     unit = hw.leds[1]
-    assert unit.duty_cycle > 0 and unit.writes == 2         # off at the start, on after SHIFT, HOME
+    assert unit.duty_cycle > 0 and len(unit.history) == 2         # off at the start, on after SHIFT, HOME
 
 
 def test_both_light_pads_drive_12_ma():
     # the LEDs' series resistors assume the 12 mA pad drive: DRIVE (bits 5:4) set on GP12 and GP15 only, the rest
     # of each register as it was; the Pico bench leaves its onboard LED's pad alone
-    regs = Hardware(50).run().regs
+    regs = hardware().run(50).regs
     pads = {0x4001C004 + 4 * gp: PAD_RESET | 0x30 for gp in (12, 15)}
     assert regs == pads and all(v & 0x30 == 0x30 and v & ~0x30 == PAD_RESET & ~0x30 for v in regs.values())
-    assert Hardware(50, pico_test=True).run().regs == {}
+    assert hardware().run(50, PICO).regs == {}
 
 
 def test_lights_work_without_memorymap():
     # a build without memorymap: code.py runs on and the lights still follow SHIFT, at the pads' default drive
     tap = {50: [press("SHIFT", True)], 60: [press("SHIFT", False)]}
-    hw = Hardware(100, tap, memorymap=False).run()
+    hw = hardware(tap, memorymap=False).run(100)
     assert hw.regs == {} and hw.leds[0].duty_cycle > 0 and not hw.printed
 
 
@@ -410,74 +237,75 @@ def test_lights_work_when_the_pad_registers_cannot_be_written(capsys):
         raise ValueError("Address range not allowed")
     script = {50: [press("SHIFT", True)], 60: [press("SHIFT", False)],
               150: [press("HOME", True)], 160: [press("HOME", False)]}
-    hw = Hardware(300, script)
+    hw = hardware(script)
     hw.modules["memorymap"].AddressRange = refuse
-    hw.run()
+    hw.run(300)
     out = capsys.readouterr().out
     assert all(f"LED drive strength not set on GP {gp} " in out for gp in (12, 15))
-    assert hw.duty[100] > 0 and hw.leds[1].duty_cycle > 0 and not hw.printed
+    assert duties(hw)[100] > 0 and hw.leds[1].duty_cycle > 0 and not hw.printed
 
 
 def test_shift_light_is_written_only_on_a_change():
     # code.py asks for the level every pass (1 ms) but writes the PWM duty only when it changes
-    hw = Hardware(3200, {10: [press("SHIFT", True)], 60: [press("SHIFT", False)]}).run()
-    duty = [hw.duty[t] for t in sorted(hw.duty)]
+    hw = hardware({10: [press("SHIFT", True)], 60: [press("SHIFT", False)]}).run(3200)
+    d = duties(hw)
+    duty = [d[t] for t in sorted(d)]
     changes = sum(a != b for a, b in zip(duty, duty[1:]))
-    assert changes >= 3 and hw.leds[0].writes == 1 + changes    # off at the start, on, pulses, off
+    assert changes >= 3 and len(hw.leds[0].history) == 1 + changes    # off at the start, on, pulses, off
 
 
 @pytest.mark.parametrize("count", [0, 1])
 def test_missing_joysticks_stop_code_py(count):
     # without boot.py's two joysticks (a fresh install) code.py stops with a hint instead of running half
-    hw = Hardware(100)
-    hw.modules["usb_hid"] = types.SimpleNamespace(devices=hw.joysticks[:count])
+    hw = hardware()
+    hw.modules["usb_hid"] = SimpleNamespace(devices=hw.devices[:count])
     with pytest.raises(RuntimeError, match="joysticks missing"):
-        hw.run()
+        hw.run(100)
     assert hw.reloads == []
 
 
 def test_pico_test_keeps_all_seven_encoders():
     # the bench must allocate the same 7 PIO encoders as the board, RANGE included
-    board, pico = Hardware(5).run(), Hardware(5, pico_test=True).run()
+    board, pico = hardware().run(5), hardware().run(5, PICO)
     assert len(board.encoders) == len(pico.encoders) == 7
 
 
 def test_encoder_step_is_reported():
-    hw = Hardware(400, {10: [step(0, 1)]}).run()       # ALT/HDG outer ring, one slow detent
-    assert any(pressed(r, 1, "ALT_100_UP") for r in hw.joysticks[0].reports)
+    hw = hardware({10: [step(0, 1)]}).run(400)       # ALT/HDG outer ring, one slow detent
+    assert any(pressed(r, 1, "ALT_100_UP") for r in received(hw, 1))
 
 
 def test_reversed_ring_counts_the_other_way():
     # the reverse flag in RINGS (for a ring that turns the wrong way on the first board): a clockwise count
     # of the ALT/HDG outer ring sends the counter-clockwise button, the other rings stay as they are
     reverse = ('("ALTHDG_OUTER", P.GPIO18, P.GPIO19, False)', '("ALTHDG_OUTER", P.GPIO18, P.GPIO19, True)')
-    hw = Hardware(400, {10: [step(0, 1), step(1, 1)]}, edits=[reverse]).run()
+    hw = hardware({10: [step(0, 1), step(1, 1)]}).run(400, [reverse])
     assert sent_names(hw, 1, ("ALT_100_UP", "ALT_100_DN", "HDG_1_UP", "HDG_1_DN")) == {"ALT_100_DN", "HDG_1_UP"}
 
 
 def sent_names(hw, device, names):
-    return {n for r in hw.joysticks[device - 1].reports for n in names if pressed(r, device, n)}
+    return {n for r in received(hw, device) for n in names if pressed(r, device, n)}
 
 
 def test_two_detents_in_one_read_are_fast_unless_the_loop_stalled():
     alt = ("ALT_100_UP", "ALT_1000_UP")
-    hw = Hardware(400, {10: [step(0, 2)]}).run()       # read in a normal pass: a fast turn
+    hw = hardware({10: [step(0, 2)]}).run(400)       # read in a normal pass: a fast turn
     assert sent_names(hw, 1, alt) == {"ALT_1000_UP"}
     pressed_then = []
 
     def look(hw):                                       # the back-off holds the report: ask the panel
         pressed_then.extend(BM.DEVICE[1][b] for b in hw.code["panel"].buttons(1))
-    hw = Hardware(2100, {2001: [step(0, 2)], 2002: [look]}, busy=1)   # read in the pass after a failed 2 s send
+    hw = hardware({2001: [step(0, 2)], 2002: [look]}, busy=1)   # read in the pass after a failed 2 s send
     hw.block = 2000
-    hw.run()
-    assert hw.joysticks[0].tries == [0] and pressed_then == ["ALT_100_UP"]
+    hw.run(2100)
+    assert hw.devices[0].tries == [0] and pressed_then == ["ALT_100_UP"]
 
 
 def test_shift_light_pulses_on_the_led():
     # one run of code.py, the LED duty of every pass by its time: steady full, then dim and full phases in
     # the last second, never 0 before the drop, 0 after it
-    hw = Hardware(3200, {10: [press("SHIFT", True)], 60: [press("SHIFT", False)]}).run()
-    duty = hw.duty
+    hw = hardware({10: [press("SHIFT", True)], 60: [press("SHIFT", False)]}).run(3200)
+    duty = duties(hw)
     lit = [t for t in sorted(duty) if duty[t]]
     on, end = lit[0], lit[-1] + 1                        # SHIFT armed ... dropped
     assert on == 10 and end == on + 3000                 # armed in the pass of the press, 3 s exactly
@@ -491,9 +319,9 @@ def test_shift_light_pulses_on_the_led():
 
 def test_shift_light_follows_shift():
     tap = {10: [press("SHIFT", True)], 60: [press("SHIFT", False)]}
-    assert Hardware(100, tap).run().leds[0].duty_cycle > 0          # armed: amber on
+    assert hardware(tap).run(100).leds[0].duty_cycle > 0          # armed: amber on
     tap.update({150: [press("SHIFT", True)], 200: [press("SHIFT", False)]})
-    assert Hardware(250, tap).run().leds[0].duty_cycle == 0         # tapped again: cancelled
+    assert hardware(tap).run(250).leds[0].duty_cycle == 0         # tapped again: cancelled
 
 
 def test_no_reports_before_usb_connects():
@@ -501,10 +329,10 @@ def test_no_reports_before_usb_connects():
     sent = {}
 
     def count(hw):
-        sent[hw.t] = len(hw.joysticks[0].reports)
-    hw = Hardware(400, {10: [press("SHIFT", True)], 60: [press("SHIFT", False)], 150: [count], 300: [count]},
-                  usb_from=200).run()
-    assert hw.duty[100] > 0                              # the light came on while USB was down
+        sent[hw.t] = len(received(hw, 1))
+    hw = hardware({10: [press("SHIFT", True)], 60: [press("SHIFT", False)], 150: [count], 300: [count]},
+                  usb_from=200).run(400)
+    assert duties(hw)[100] > 0                           # the light came on while USB was down
     assert sent[150] == 0 and sent[300] >= 1             # nothing sent before USB, then the current state
 
 
@@ -515,32 +343,32 @@ def overflow(hw):
 def test_keypad_overflow_keeps_held_keys_pressed():
     # events were lost while AP is held: the keypad is reset and re-reports AP, and the PC sees AP held
     # throughout, not released and pressed again (which would toggle the autopilot off)
-    hw = Hardware(400, {10: [press("AP", True)], 100: [overflow]}).run()
-    reports = hw.joysticks[0].reports
+    hw = hardware({10: [press("AP", True)], 100: [overflow]}).run(400)
+    reports = received(hw, 1)
     first = next(i for i, r in enumerate(reports) if pressed(r, 1, "AP"))
     assert hw.matrix.resets == 1 and all(pressed(r, 1, "AP") for r in reports[first:])
 
 
 def test_keypad_overflow_releases_a_lost_release():
     # AP's release was among the lost events: once the keypad has rescanned, AP is released
-    hw = Hardware(400, {10: [press("AP", True)], 100: [press("AP", False, lost=True)]}).run()
-    reports = hw.joysticks[0].reports
+    hw = hardware({10: [press("AP", True)], 100: [press("AP", False, lost=True)]}).run(400)
+    reports = received(hw, 1)
     assert any(pressed(r, 1, "AP") for r in reports) and not pressed(reports[-1], 1, "AP")
 
 
 def test_keypad_overflow_leaves_the_other_keypad_alone():
     # the matrix overflows while the FREQ knob (its own keypad) is pushed: the push stays held
-    hw = Hardware(400, {10: [press("FREQ_PUSH", True)], 100: [overflow]}).run()
-    reports = hw.joysticks[0].reports
+    hw = hardware({10: [press("FREQ_PUSH", True)], 100: [overflow]}).run(400)
+    reports = received(hw, 1)
     first = next(i for i, r in enumerate(reports) if pressed(r, 1, "FREQ_PUSH"))
     assert all(pressed(r, 1, "FREQ_PUSH") for r in reports[first:]) and hw.direct.resets == 0
 
 
 def times_pressed(hw, device, name):
     """(ms, pressed?) of every report sent to device (no failed sends: tries are the send times)"""
-    j = hw.joysticks[device - 1]
-    assert len(j.tries) == len(j.reports)
-    return [(t, pressed(r, device, name)) for t, r in zip(j.tries, j.reports)]
+    tries, sent = hw.devices[device - 1].tries, received(hw, device)
+    assert len(tries) == len(sent)
+    return [(t, pressed(r, device, name)) for t, r in zip(tries, sent)]
 
 
 def presses_sent(hw, device, name):
@@ -549,9 +377,9 @@ def presses_sent(hw, device, name):
 
 
 def test_keypad_overflow_releases_a_lost_release_after_three_scans():
-    # the reset keypad reports the keys still held within one scan: a key not reported again in three scans
+    # the reset keypad reports the keys still held at once: a key not reported again in three scans
     # (RESYNC_MS) is released then, not before
-    hw = Hardware(400, {10: [press("AP", True)], 100: [press("AP", False, lost=True)]}).run()
+    hw = hardware({10: [press("AP", True)], 100: [press("AP", False, lost=True)]}).run(400)
     sent = times_pressed(hw, 1, "AP")
     assert [t for t, p in sent if not p][-1] == 100 + 3 * P.KEY_SCAN_MS
     assert all(p for t, p in sent if 10 <= t < 100 + 3 * P.KEY_SCAN_MS)
@@ -561,8 +389,8 @@ def test_press_right_after_a_resync_release_is_a_new_press():
     # AP's release was lost, and AP is pressed again 10 ms after the resync released it: that is a new press
     # for the PC (the resync release is no switch bounce), released again later
     end = 100 + 3 * P.KEY_SCAN_MS
-    hw = Hardware(600, {10: [press("AP", True)], 100: [press("AP", False, lost=True)],
-                        end + 10: [press("AP", True)], 400: [press("AP", False)]}).run()
+    hw = hardware({10: [press("AP", True)], 100: [press("AP", False, lost=True)],
+                  end + 10: [press("AP", True)], 400: [press("AP", False)]}).run(600)
     assert presses_sent(hw, 1, "AP") == 2 and not times_pressed(hw, 1, "AP")[-1][1]
 
 
@@ -573,9 +401,9 @@ def test_bounce_is_judged_by_the_scan_times():
     def wait(hw):
         hw.waits[100] = 37
     scan = 100 + P.KEY_SCAN_MS
-    hw = Hardware(600, {10: [press("AP", True)], 100: [press("AP", False), step(0, 1), wait],
-                        138: [press("AP", True, late=138 - scan)], 400: [press("AP", False)]}, wrap=130).run()
-    assert 100 in hw.joysticks[0].tries and not [t for t in hw.duty if 100 < t < 137]   # no pass in the wait
+    hw = hardware({10: [press("AP", True)], 100: [press("AP", False), step(0, 1), wait],
+                  138: [press("AP", True, late=138 - scan)], 400: [press("AP", False)]}, wrap=130).run(600)
+    assert 100 in hw.devices[0].tries and not [t for t in duties(hw) if 100 < t < 137]   # no pass in the wait
     assert presses_sent(hw, 1, "AP") == 1 and not times_pressed(hw, 1, "AP")[-1][1]
 
 
@@ -584,8 +412,8 @@ def test_release_read_late_keeps_its_scan_time():
     # after the release, more than BOUNCE_MS by the scans: a new press, and a second AP for the PC
     def wait(hw):
         hw.waits[100] = 37
-    hw = Hardware(700, {10: [press("AP", True)], 100: [step(0, 1), wait], 138: [press("AP", False, late=28)],
-                        145: [press("AP", True)], 400: [press("AP", False)]}).run()
+    hw = hardware({10: [press("AP", True)], 100: [step(0, 1), wait], 138: [press("AP", False, late=28)],
+                        145: [press("AP", True)], 400: [press("AP", False)]}).run(700)
     assert presses_sent(hw, 1, "AP") == 2 and not times_pressed(hw, 1, "AP")[-1][1]
 
 
@@ -593,9 +421,9 @@ def test_release_without_a_press_is_ignored():
     # a key held while the keypad starts (power-up, reload) is only reported when it is let go. For the RANGE
     # centre that lone release would send PTR; for a key, a press within BOUNCE_MS of it would count as a
     # bounce and be lost
-    hw = Hardware(400, {100: [press("RANGE_COM", False)]}).run()
+    hw = hardware({100: [press("RANGE_COM", False)]}).run(400)
     assert not sent_names(hw, 1, BM.DEVICE[1]) and hw.code["panel"].pending == {}
-    hw = Hardware(400, {100: [press("AP", False)], 110: [press("AP", True)], 300: [press("AP", False)]}).run()
+    hw = hardware({100: [press("AP", False)], 110: [press("AP", True)], 300: [press("AP", False)]}).run(400)
     assert presses_sent(hw, 1, "AP") == 1 and not times_pressed(hw, 1, "AP")[-1][1]
 
 
@@ -604,9 +432,9 @@ def test_held_key_is_resent_after_usb_comes_back():
     sent = {}
 
     def count(hw):
-        sent[hw.t] = len(hw.joysticks[0].reports)
-    hw = Hardware(400, {10: [press("AP", True)], 190: [count]}, usb_gap=(100, 200)).run()
-    reports = hw.joysticks[0].reports
+        sent[hw.t] = len(received(hw, 1))
+    hw = hardware({10: [press("AP", True)], 190: [count]}, usb_gap=(100, 200)).run(400)
+    reports = received(hw, 1)
     assert len(reports) > sent[190] and pressed(reports[-1], 1, "AP")
 
 
@@ -618,7 +446,7 @@ SWITCH_BOUNCE_MS = 10
 def test_key_scan_outlasts_switch_bounce():
     # debounce_threshold 1: a key's state changes on the first scan that reads it differently. A scan interval
     # longer than the bounce means the next scan reads it settled, so one press is one event
-    hw = Hardware(5).run()
+    hw = hardware().run(5)
     for keys in (hw.matrix, hw.direct):
-        assert keys.kwargs["interval"] * 1000 == P.KEY_SCAN_MS and keys.kwargs.get("debounce_threshold", 1) == 1
-        assert keys.kwargs["interval"] * 1000 >= SWITCH_BOUNCE_MS
+        assert keys.interval * 1000 == P.KEY_SCAN_MS and keys.debounce_threshold == 1
+        assert keys.interval * 1000 >= SWITCH_BOUNCE_MS
