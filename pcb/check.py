@@ -823,7 +823,7 @@ def closest_pair(sa, sb):
 def copper_graph(net, pads, segments, vias, planes=True):
     """Nodes (pad centres, segment ends, vias, plane points) and edges (copper length) of one net; with
     planes=False the outer-layer copper and the vias alone."""
-    planed = planes and net in B.PLANES.values()
+    on_plane = planes and net in B.PLANES.values()
     adj = {}
 
     def edge(a, b, d):
@@ -838,7 +838,7 @@ def copper_graph(net, pads, segments, vias, planes=True):
             items[ly].append((pad_geom(p), [(("pad", p.name, ly), (p.x, p.y))]))
         if p.drill:                            # plated hole: both layers and the plane
             edge(("pad", p.name, "F"), ("pad", p.name, "B"), 0.0)
-            if planed:
+            if on_plane:
                 edge(("pad", p.name, "B"), ("plane", p.x, p.y), 0.0)
     for x1, y1, x2, y2, ly, n, w in segments:
         if n == net:
@@ -848,7 +848,7 @@ def copper_graph(net, pads, segments, vias, planes=True):
     for x, y, n, d, _dr in vias:
         if n == net:
             edge(("via", x, y, "F"), ("via", x, y, "B"), 0.0)
-            if planed:
+            if on_plane:
                 edge(("via", x, y, "B"), ("plane", x, y), 0.0)
             for ly in "FB":
                 items[ly].append((("cap", x, y, x, y, d / 2), [(("via", x, y, ly), (x, y))]))

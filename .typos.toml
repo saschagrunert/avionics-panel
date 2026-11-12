@@ -1,0 +1,25 @@
+# Spell check for the code and the docs; run as `typos . .github` in CI (typos skips hidden directories unless
+# they are named). It only flags known misspellings, so the list below holds the terms and names it takes for
+# one. An entry allows that exact spelling everywhere, prose included: "THR" passes, "thr" is still flagged.
+# To allow another, add `name = "name"` with a comment on where it comes from.
+[files]
+extend-exclude = [
+    "viewer/vendor/", # three.js, vendored
+    "/production/",   # generated from the code checked here
+]
+
+[default.extend-identifiers]
+THT = "THT"                       # through-hole technology: the parts soldered by hand, THT-LCSC.csv
+tht = "tht"                       # the same as a name in check.py
+tht_footprints = "tht_footprints"
+HSI = "HSI"                       # horizontal situation indicator
+VOR = "VOR"                       # VHF omnidirectional range
+tio = "tio"                       # the serial terminal
+metalness = "metalness"           # a three.js material property
+iy = "iy"                         # the y beside ix: a grid row in route.py, a point in board.py
+iy0 = "iy0"
+iy1 = "iy1"
+THR = "THR"                       # the router's clearance threshold in cells
+THR_VIA = "THR_VIA"
+rin = "rin"                       # R_IN's node in the USB protection diagram
+GPn = "GPn"                       # a GPIO by its number

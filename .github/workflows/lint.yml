@@ -1,6 +1,7 @@
 name: lint
 # Python (ruff.toml), shell (shellcheck, shfmt with .editorconfig), Markdown (.markdownlint-cli2.yaml), dead
-# relative links and anchors (lychee), the workflows (actionlint) and their security (zizmor). Every tool comes from the locked nixpkgs, like locally.
+# relative links and anchors (lychee), spelling (.typos.toml), the workflows (actionlint) and their security
+# (zizmor). Every tool comes from the locked nixpkgs, like locally.
 on:
   push:
     branches:
@@ -41,7 +42,7 @@ jobs:
       # directories go on the PATH of the steps below, one per tool; each runs whatever the others found.
       - id: tools
         run: |
-          tools="ruff shellcheck shfmt markdownlint-cli2 lychee actionlint zizmor"
+          tools="ruff shellcheck shfmt markdownlint-cli2 lychee typos actionlint zizmor"
           # shellcheck disable=SC2086 # one package per word
           nix-shell -I "nixpkgs=$(nix-instantiate --eval nix/nixpkgs.nix | tr -d '"')" -p $tools \
             --run "command -v $tools" | xargs -n 1 dirname >>"$GITHUB_PATH"
@@ -60,6 +61,10 @@ jobs:
       - name: lychee
         if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
         run: lychee --offline --include-fragments --no-progress .
+      # .github by name: typos skips hidden directories
+      - name: typos
+        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
+        run: typos . .github
       - name: actionlint
         if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
         run: actionlint
