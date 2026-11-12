@@ -44,7 +44,7 @@ Using the panel:
 - [Mapping](docs/using/mapping.md): the two joysticks,
   [generated profiles](docs/using/mapping.md#generated-profiles), update mode and GUIDs, the device name
 - [Simulator](docs/using/simulator.md): the panel on the PC before the hardware exists, in the browser and as
-  two virtual joysticks (vJoy) for MobiFlight
+  two virtual joysticks (vJoy) for MobiFlight, [download for Windows][sim-zip]
 
 Building one, in build order:
 
@@ -75,3 +75,4 @@ Working on the design:
 [bendixking]: https://en.wikipedia.org/wiki/Bendix/King
 [kap140]: https://www.honeywellaerospace.com/content/dam/bendixking/en/documents/document-lists/downloads-and-manuals/006-18034-0000-KAP-140-Pilots-Guide.pdf
 [mobiflight]: https://mobiflight.com/
+[sim-zip]: https://github.com/saschagrunert/avionics-panel/releases/download/rolling/avionics-panel-sim-windows.zip

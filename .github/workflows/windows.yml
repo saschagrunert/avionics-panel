@@ -1,7 +1,8 @@
 name: windows
 # Builds the simulator for Windows (windows/make_zip.py: Python's embeddable package, pinned by its hash, with the
-# firmware, the simulator and the viewer) on Linux, keeps it as an artifact of the run, and attaches it to every
-# release that is published. Its tests run with the others in build.yml.
+# firmware, the simulator and the viewer) on Linux and keeps it as an artifact of the run. A push to main also
+# puts it on the rolling pre-release, at the link the docs give, and every release that is published gets it
+# attached. Its tests run with the others in build.yml.
 on:
   push:
     branches:
@@ -36,7 +37,7 @@ jobs:
           if-no-files-found: error
           # the release keeps its own copy; a run's zip is only for trying a change
           retention-days: 7
-  # Only this job may write, and only to the release that started the run.
+  # Only this job and rolling may write, this one only to the release that started the run.
   release:
     name: attach to the release
     needs: zip
@@ -53,3 +54,45 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.event.release.tag_name }}
         run: gh release upload "$TAG" avionics-panel-sim-windows.zip --repo "$GITHUB_REPOSITORY" --clobber
+  # Keeps the files of a recent commit on main at releases/download/rolling/<file>. The first run makes the
+  # rolling pre-release and its tag, which stays at that commit; each run replaces the files and names the
+  # commit in their labels and the notes. The tag is neither main, which git would confuse with the branch, nor
+  # latest, whose link would look like GitHub's releases/latest, which skips pre-releases. Needs immutable
+  # releases off. Updates run one at a time, a newer one waiting for the one in progress. A re-run repairs a
+  # failed update.
+  rolling:
+    name: update the rolling pre-release
+    needs: zip
+    if: github.repository == 'saschagrunert/avionics-panel' && github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    concurrency:
+      group: rolling-release
+      cancel-in-progress: false
+    permissions:
+      contents: write # replace the files, edit the notes
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: avionics-panel-sim-windows
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          tip=$(gh api "repos/$GH_REPO/git/ref/heads/main" --jq .object.sha)
+          if [ "$tip" != "$GITHUB_SHA" ]; then
+            echo "::notice::main moved on to $tip: leaving the rolling pre-release as it is"
+            exit 0
+          fi
+          short=${GITHUB_SHA:0:7}
+          url=$GITHUB_SERVER_URL/$GH_REPO
+          docs=$url/blob/main/docs/using/simulator.md
+          notes="Built from [$short]($url/commit/$GITHUB_SHA) on main; each push to main replaces the files."
+          notes+=" The tag and its source code stay at the first build's commit."
+          notes+=" [Simulator]($docs) has the steps."
+          gh release view rolling >/dev/null 2>&1 ||
+            gh release create rolling --prerelease --target "$GITHUB_SHA" --title "Rolling build" --notes "$notes"
+          # every file to download, built in this workflow, goes up in this one call
+          gh release upload rolling --clobber \
+            "avionics-panel-sim-windows.zip#avionics-panel-sim-windows.zip ($short)"
+          gh release edit rolling --notes "$notes" >/dev/null
