@@ -237,7 +237,7 @@ def zip_add(z, name, data):
 if __name__ == "__main__":                       # make_viewer_data.py imports LEGEND_EM
     for k, label in enumerate(caps):
         draw_label(k, label)
-    pitch = 16.0
+    pitch, per_row = S.CAP_LAYOUT["pitch"], S.CAP_LAYOUT["per_row"]
     black_uv = ((TEX - 8) / TEX, 8 / TEX)       # a black pixel near the corner (outside all label areas)
     png_all = io.BytesIO()
     tex.save(png_all, "PNG")
@@ -263,7 +263,7 @@ if __name__ == "__main__":                       # make_viewer_data.py imports L
             open_edges += sum(1 for a in e if (a[1], a[0]) not in fwd)
             tri = V[T]
             vol += np.sum(np.einsum("ij,ij->i", tri[:, 0], np.cross(tri[:, 1], tri[:, 2]))) / 6
-            col, row = k % 8, k // 8              # print layout: a grid of caps
+            col, row = k % per_row, k // per_row  # print layout: a grid of caps (stack.CAP_LAYOUT)
             parts.append((V + np.array([col * pitch, -row * pitch, 0]), T, top, uv, black_uv))
         if open_edges:
             raise RuntimeError(f"set {name}: {open_edges} open edges")

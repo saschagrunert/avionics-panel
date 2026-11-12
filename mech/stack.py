@@ -112,6 +112,7 @@ CAP_GRIP = (0.02, 0.15)                    # diametral interference: holds from,
 # Dimples 1.0 across (WJP holes 1.0 min.) and 0.9 deep (engraved detail 0.8 min.), one in each corner region
 # between the socket and the outline, where the cap is thickest: set A uses the first, D all four.
 CAP_MARK = dict(d=1.0, depth=0.9, pos=((-3.19, -1.59), (-3.19, 1.59), (3.19, 1.59), (3.19, -1.59)))
+CAP_LAYOUT = dict(pitch=16.0, per_row=8)   # each set's caps on a print grid, in the order of KEY_LEGENDS
 
 
 def cap_rib_d(name, dz):
