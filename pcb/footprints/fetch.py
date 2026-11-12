@@ -3,7 +3,7 @@
 The bottom-side parts are placed by JLCPCB by these footprints (its placement preview draws them), so check.py
 fits each one onto our pads, offline, from the files written here; the through-hole parts on the top are
 soldered by hand or, in the full variant, placed by JLCPCB from the top-side CPL, and check.py fits their hole
-patterns both ways. Run it (needs the network) after adding a part type:
+patterns at that CPL position and rotation. Run it (needs the network) after adding a part type:
     cd pcb && python3 footprints/fetch.py
 Each file keeps the pads only: number, centre x / y, size x / y in mm, top view, y down, from the
 footprint's origin (the point JLCPCB puts on the CPL position). Through-hole parts also keep their holes:
@@ -18,7 +18,7 @@ import urllib.request
 from datetime import date
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
-import board as B  # noqa: E402
+import board as B
 
 URL = "https://easyeda.com/api/products/{}/components?version=6.4.19.5"
 MIL10 = 0.254                       # EasyEDA units: 10 mil
@@ -84,21 +84,16 @@ def download(url):
 
 
 def main():
-    """With a directory argument, reads the API answers saved there as <LCSC>.json instead of downloading."""
     B.build()
     here = os.path.dirname(os.path.abspath(__file__))
     top = {p[2] for p in B.PARTS if p[6] == "top"}
     for lcsc in sorted({p[2] for p in B.PARTS}):
         url, answer = URL.format(lcsc), "no footprint in the answer"
-        if len(sys.argv) > 1:
-            with open(os.path.join(sys.argv[1], f"{lcsc}.json")) as f:
-                data = json.load(f)["result"]
-        else:
-            try:
-                data = download(url)["result"]
-            except urllib.error.HTTPError as e:
-                data, answer = None, f"HTTP {e.code}"
-            time.sleep(1)
+        try:
+            data = download(url)["result"]
+        except urllib.error.HTTPError as e:
+            data, answer = None, f"HTTP {e.code}"
+        time.sleep(1)
         if not data or not data.get("packageDetail"):
             sys.exit(f"{lcsc}: EasyEDA returned no footprint for this part ({url.split('?')[0]}, {answer}); check "
                      "the LCSC number in board.py (check.py needs JLC's footprint of every part)")
@@ -109,13 +104,12 @@ def main():
             "source": f"JLCPCB / EasyEDA library footprint, {url.split('?')[0]}, fetched {date.today()}",
             "frame": "top view, mm, x right, y down, from the footprint origin; pads: number, x, y, size x, size y",
         }
-        head = ",\n".join(f" {json.dumps(k)}: {json.dumps(v)}" for k, v in ref.items())
         found = pads_of(data)
         lists = {"pads": found}
         if lcsc in top:                             # through-hole part: its holes too
             lists["holes"], lists["npth"] = holes_of(data)
             ref["frame"] += "; holes: number, x, y, drill, slot length (0: round); npth: x, y, diameter"
-            head = ",\n".join(f" {json.dumps(k)}: {json.dumps(v)}" for k, v in ref.items())
+        head = ",\n".join(f" {json.dumps(k)}: {json.dumps(v)}" for k, v in ref.items())
         body = ",\n".join(f' "{k}": [\n' + ",\n".join(f"  {json.dumps(list(p))}" for p in v) + "\n ]" if v
                            else f' "{k}": []' for k, v in lists.items())
         with open(os.path.join(here, f"{lcsc}.json"), "w") as f:

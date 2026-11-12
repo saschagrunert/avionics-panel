@@ -3,8 +3,10 @@
 # Usage: ./build.sh [--route]    --route also re-runs the board routing (seed 5, a few minutes) first.
 # Needs Nix (nix-shell) for the Python environments, all from the nixpkgs revision locked in flake.lock
 # (read through nix/nixpkgs.nix, so without the flakes feature).
-# The independent sections run in parallel. Each one stops at its first failed step and prints its output in
-# one piece when it ends; the build fails if any section failed, after all of them have finished.
+# The independent sections run in parallel. Each one stops at its first failed step. Their outputs are printed
+# in the order the sections are listed below, each in one piece once it and the ones before it have ended. The
+# build fails (exit 1) if any section failed, after all of them have finished. Ctrl-C stops the sections and
+# exits 1.
 set -euo pipefail
 cd "$(dirname "$0")"
 case "${1:-}" in
@@ -37,7 +39,7 @@ firmware() {
     *) echo "no pinned CircuitPython mpy-cross for $(uname -sm): the firmware is only checked with MicroPython" >&2 ;;
   esac
   REQUIRE_MICROPYTHON=1 nix-shell "$SHELLS" -A firmware \
-    --run "pytest -v && cd firmware && python3 make_buttons.py >BUTTONS.md && rm -rf __pycache__"
+    --run "pytest -v && cd firmware && python3 make_buttons.py >BUTTONS.md"
 }
 
 # Routing goes first and shows its progress: it takes minutes, and the board section reads its routed.json.
@@ -50,97 +52,55 @@ else
   BOARD="python3 precheck.py && $BOARD"
 fi
 
-# section NAME COMMAND...: runs the command in the background with its output in a log of its own; the loop
-# below prints each log when its section ends
+# section NAME COMMAND...: runs the command in the background, its output in a log of its own. Job control gives
+# each section a process group of its own, which stop() below ends as a whole.
 LOGS=$(mktemp -d)
+trap 'rm -rf "$LOGS"' EXIT
 NAMES=()
 PIDS=()
 section() {
   local i=${#NAMES[@]}
   NAMES+=("$1")
   shift
-  set -m # job control: the section gets a process group of its own, which stop() ends as a whole
+  set -m
   (
-    set +m # and everything in it stays in that group
-    # the command runs as a job of its own, so set -e still holds inside it (an `if` around it would turn
-    # set -e off for everything it runs)
-    "$@" </dev/null >"$LOGS/$i.log" 2>&1 &
-    start=$SECONDS
-    if wait $!; then status=0; else status=$?; fi
-    echo "$status $((SECONDS - start))" >"$LOGS/$i.tmp"
-    mv "$LOGS/$i.tmp" "$LOGS/$i.status"
-  ) &
+    set +m # and everything the section starts stays in its group
+    "$@"
+  ) </dev/null >"$LOGS/$i.log" 2>&1 &
   PIDS+=("$!")
   set +m
 }
-# The sections do not get the terminal's signals (Ctrl-C, Ctrl-\, a hangup): their process groups are not
-# the terminal's, and bash starts background jobs with Ctrl-C ignored. So whenever this shell ends, it ends
-# every section's process group first and waits until the groups are empty (at most 5 s, then KILL).
-# (Ctrl-Z suspends only this shell; the sections run on.)
-running() {
-  local pid
-  for pid in "${PIDS[@]}"; do if kill -0 -- "-$pid" 2>/dev/null; then return 0; fi; done
-  return 1
-}
-kill_sections() {
-  local pid n=0
-  for pid in "${PIDS[@]}"; do kill -TERM -- "-$pid" 2>/dev/null || true; done
-  wait || true # the sections' own shells; their children (nix-shell, Python workers) end a moment later
-  while [ $n -lt 50 ] && running; do
-    sleep 0.1
-    n=$((n + 1))
-  done
-  for pid in "${PIDS[@]}"; do kill -KILL -- "-$pid" 2>/dev/null || true; done
-  PIDS=()
-}
-trap 'kill_sections; rm -rf "$LOGS"' EXIT
-# stop SIGNAL: end the sections, name the ones that did not finish, then die of the signal, so that a
-# calling shell sees it
+# The sections are not in the terminal's process group, so Ctrl-C reaches only this shell: it ends every
+# section's group and waits for them. Nothing outside the build is signalled, so a calling script goes on.
 stop() {
   trap '' INT TERM HUP QUIT
-  trap - EXIT
-  kill_sections
-  for i in "${!NAMES[@]}"; do
-    if [ ! -e "$LOGS/$i.status" ]; then echo "stopped: ${NAMES[$i]}" >&2 || true; fi
-  done
-  rm -rf "$LOGS"
-  trap - "$1"
-  kill -s "$1" $$
-  exit 1 # (not reached)
+  local pid
+  for pid in "${PIDS[@]}"; do kill -- "-$pid" 2>/dev/null || true; done
+  wait
+  echo "stopped" >&2
+  exit 1
 }
-for sig in INT TERM HUP QUIT; do
-  # shellcheck disable=SC2064 # the signal's name goes in now
-  trap "stop $sig" "$sig"
-done
+trap stop INT TERM HUP QUIT
 # Which generator reads which output: check_fit.py reads the caps (make_caps.py) and the body STL
 # (make_mech.py), and builds the knobs itself; no other generator reads another one's files.
+section "firmware" firmware
 section "board" gen pcb "$BOARD"
 section "plate artwork" gen mech "python3 make_plate_art.py && rsvg-convert -w 2400 avionics-panel-rev1-plate-preview.svg -o avionics-panel-rev1-plate-preview.png"
 section "knobs, light pipes" occ mech "python3 make_knobs.py"
 section "caps, body, fits" occ mech "python3 make_caps.py && python3 make_mech.py && python3 check_fit.py"
 section "plate, viewer data" occ mech "python3 make_plate_step.py && python3 make_viewer_data.py"
-section "firmware" firmware
 
 # A failed section does not stop the others: they take seconds, and a run then reports every failed check.
 FAILED=()
-left=${#NAMES[@]}
-while [ "$left" -gt 0 ]; do
-  for i in "${!NAMES[@]}"; do
-    if [ ! -e "$LOGS/$i.status" ] || [ -e "$LOGS/$i.shown" ]; then continue; fi
-    read -r status secs <"$LOGS/$i.status"
-    echo "== ${NAMES[$i]} (${secs} s)"
-    cat "$LOGS/$i.log"
-    if [ "$status" != 0 ]; then
-      echo "== ${NAMES[$i]}: FAILED (exit $status)"
-      FAILED+=("${NAMES[$i]}")
-    fi
-    touch "$LOGS/$i.shown"
-    left=$((left - 1))
-  done
-  if [ "$left" -gt 0 ]; then sleep 0.2; fi
+for i in "${!NAMES[@]}"; do
+  if wait "${PIDS[$i]}"; then status=0; else status=$?; fi
+  echo "== ${NAMES[$i]}"
+  cat "$LOGS/$i.log"
+  if [ "$status" != 0 ]; then
+    echo "== ${NAMES[$i]}: FAILED (exit $status)"
+    FAILED+=("${NAMES[$i]}")
+  fi
 done
-wait
-PIDS=() # all ended: nothing for the EXIT trap to stop
 if [ ${#FAILED[@]} -gt 0 ]; then
   printf 'failed: %s\n' "${FAILED[@]}" >&2
   exit 1
@@ -150,14 +110,12 @@ echo "== copy"
 rm -f production/avionics-panel-rev1-* # a removed output then shows up as a deleted file
 cp pcb/avionics-panel-rev1-{BOM,CPL,BOM-full,CPL-full,THT-LCSC}.csv pcb/avionics-panel-rev1-gerbers.zip production/
 cp pcb/avionics-panel-rev1-schematic.pdf docs/architecture/
-cp mech/avionics-panel-rev1-{body,plate,usb-filler}.step mech/avionics-panel-rev1-{body,usb-filler}.stl \
-  mech/avionics-panel-rev1-knob-* mech/avionics-panel-rev1-lightpipes.* \
-  mech/avionics-panel-rev1-caps-{A,B,C,D}.zip mech/avionics-panel-rev1-caps-single-{A,B,C,D}.zip \
+cp mech/avionics-panel-rev1-{body,plate,usb-filler,lightpipes}.step mech/avionics-panel-rev1-knob-*.step \
+  mech/avionics-panel-rev1-{body,usb-filler}.stl mech/avionics-panel-rev1-caps-{A,B,C,D}.zip \
   mech/avionics-panel-rev1-{plate,steel}.dxf \
   mech/avionics-panel-rev1-plate-drawing.pdf production/
 cp pcb/render-front.png renders/5-pcb-top.png
 cp pcb/render-back.png renders/6-pcb-bottom.png
 cp mech/avionics-panel-rev1-plate-preview.png renders/7-plate-artwork.png
 cp mech/fit-check.png renders/8-fit-check.png
-rm -rf pcb/__pycache__ mech/__pycache__
 echo "done: production/ and renders/ are up to date (renders 1-4 come from the 3D viewer)"

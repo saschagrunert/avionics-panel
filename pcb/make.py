@@ -2,12 +2,12 @@
 import json
 import math
 import os
-import pickle
 import shutil
 import zipfile
 
 import board as B
 import numpy as np
+from geom import bbox, boxes_near, item_dist, pad_geom, pt_seg, rounded_rect
 from matplotlib.font_manager import FontProperties
 from matplotlib.path import Path
 from matplotlib.textpath import TextPath
@@ -23,43 +23,15 @@ pads = B.build()
 segments = [tuple(s) for s in d["segments"]]          # x1,y1,x2,y2,layer,net,width
 vias = [tuple(v) for v in d["vias"]]                  # x,y,net,diameter,drill (fixed vias merged by run_route.py)
 
-# ---------------- geometry items for the DRC ----------------
-from geom import bbox, boxes_near, item_dist, pad_geom, pt_seg, rounded_rect  # noqa: E402
-
-
-def copper_items():
-    """All copper on the outer layers: (layer, geom, net, kind)."""
-    items = []
-    for p in pads:
-        net = p.net or ("NC:" + p.name)
-        g = pad_geom(p)
-        for ly in p.layers:
-            items.append((ly, g, net, "pad:" + p.name))
-    for (x1, y1, x2, y2, ly, net, w) in segments:
-        items.append((ly, ("cap", x1, y1, x2, y2, w / 2), net, "trace"))
-    for (x, y, net, dd, _dr) in vias:
-        for ly in "FB":
-            items.append((ly, ("cap", x, y, x, y, dd / 2), net, "via"))
-    return items
-
-
-ITEMS = copper_items()
-
 # ---------------- text -> polygons ----------------
-def text_polys(s, x, y, size, mirror=False, align="center", angle=0.0):
+def text_polys(s, size, mirror=False):
+    """The text's outlines centred on the origin as (depth, polygon): an odd depth is a counter inside a letter."""
     tp = TextPath((0, 0), s, size=size, prop=FONT)
     ext = tp.get_extents()
     polys = [np.array(p) for p in tp.to_polygons(closed_only=True)]
-    if align == "center":
-        ox = (ext.x0 + ext.x1) / 2
-    elif align == "right":
-        ox = ext.x1
-    else:
-        ox = ext.x0
-    oy = (ext.y0 + ext.y1) / 2
+    ox, oy = (ext.x0 + ext.x1) / 2, (ext.y0 + ext.y1) / 2
     paths = [Path(p) for p in polys]
     out = []
-    ca, sa = math.cos(math.radians(angle)), math.sin(math.radians(angle))
     for i, p in enumerate(polys):
         depth = sum(1 for j, q in enumerate(paths) if j != i and q.contains_point(p[0]))
         q = p.copy()
@@ -67,11 +39,7 @@ def text_polys(s, x, y, size, mirror=False, align="center", angle=0.0):
         q[:, 1] -= oy
         if mirror:
             q[:, 0] = -q[:, 0]
-        # text path is y-up; board is y-down
-        qx, qy = q[:, 0], -q[:, 1]
-        rx = qx * ca - qy * sa
-        ry = qx * sa + qy * ca
-        out.append((depth, np.stack([rx + x, ry + y], axis=1)))
+        out.append((depth, np.stack([q[:, 0], -q[:, 1]], axis=1)))    # the text path is y up, the board y down
     out.sort(key=lambda t: t[0])
     return out
 
@@ -125,7 +93,7 @@ def edge_dist(x, y):
 def T(layer, s, x, y, size=SILK):
     if size * CAP_H < SILK_MIN_H - 1e-6 or size * STEM < SILK_MIN_LINE:     # a plain raise: asserts vanish under -O
         raise ValueError(f"silkscreen text {s!r} too small")
-    polys = text_polys(s, 0.0, 0.0, size, mirror=(layer == "B"))
+    polys = text_polys(s, size, mirror=(layer == "B"))
     pts = np.concatenate([p for _d, p in polys])
     (x0, y0), (x1, y1) = pts.min(axis=0), pts.max(axis=0)
     for dx, dy in NUDGE:
@@ -413,10 +381,7 @@ def paste(fname):
     g = Gerber(fname, "Paste,Bot")
     for p in pads:                   # SMD pads on the bottom, and the pin-in-paste holes of SMD parts
         if p.paste and ((p.layers == "B" and not p.drill) or p.pip):
-            if p.shape == "rect":
-                g.flash(g.ap("R", p.w, p.h), p.x, p.y)
-            else:
-                pad_flash(g, p)
+            pad_flash(g, p)
         if p.name == "U1.EP":
             for (dx, dy, s) in EP_WINDOWS:
                 g.flash(g.ap("R", s, s), p.x + dx, p.y + dy)
@@ -498,8 +463,3 @@ with zipfile.ZipFile(zpath, "w", zipfile.ZIP_DEFLATED) as z:
         with open(os.path.join(OUT, f), "rb") as src:
             z.writestr(zi, src.read())
 print("gerbers written:", sorted(os.listdir(OUT)))
-
-with open("design.json", "w") as f:
-    json.dump({"items": ITEMS}, f)
-with open("silk.pkl", "wb") as f:
-    pickle.dump(silk, f)

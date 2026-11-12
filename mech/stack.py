@@ -116,7 +116,7 @@ KEY_BACK_BREAK = 0.1                       # edge break on the key holes' back e
 PLATE_GEN_TOL = 0.2
 SHAFT_HOLE = 9.3                           # encoder bushing dia 7 +0.3: clears the board offset, hidden by the knob
 RANGE_HOLE = 11.1                          # RKJXT hub (7.2) at full tilt, hidden under the knob skirt (check_fit)
-LIGHT_HOLES = {"SHIFT": 2.3, "UNIT": 2.3}  # light pipes; webs to the neighbouring key holes in check_fit.py
+LIGHT_HOLE = 2.3                           # light pipes; webs to the neighbouring key holes in check_fit.py
 LIGHT_HOLE_TOL = (0.1, 0.0)                # +0.1/-0 on the drawing: never smaller, so a pipe cannot jam
 # Black anodising grows every anodised surface by up to half of this: it takes about this much off a hole's
 # diameter or a pocket's width. The key holes are toleranced after anodising on the drawing; check_fit.py takes
@@ -139,6 +139,21 @@ POCKET_FLOOR_R = 0.3                       # most floor corner radius of the enc
 RKJXT_ACROSS, RKJXT_FLATS, RKJXT_TOL = 16.4, 15.73, 0.3
 POCKET_TOL = 0.1
 
+# ---- process tolerances and limits of the vendors, for check_fit.py ----
+# JLC3DP SLA resin (knobs, light pipes), +-: sizes (outside diameters, the width of the outer knob's key), holes
+# (on the diameter), bore depths and the height of the outer knob's key.
+RESIN_TOL = dict(size=0.2, hole=0.3, depth=0.1)
+# JLC3DP WJP full-colour resin (caps), +-: outline and holes, on the size.
+WJP_TOL = dict(size=0.2, hole=0.3)
+# JLC3DP MJF PA12 (body), +-: MJF_TOL on a length up to 100 mm, MJF_SCALE of it above.
+MJF_TOL, MJF_SCALE = 0.3, 0.004
+# JLCPCB, +-: the routed board outline, a V-cut edge (the full variant's rail edge), a routed cutout per side
+# (assumed: the outline's +-0.2 on its size).
+PCB_OUTLINE_TOL, PCB_VCUT_TOL, PCB_CUTOUT_TOL = 0.2, 0.4, 0.1
+# Should JLCPCB add rails on the short edges too, those V-cut edges can be too long for the body's cavity at worst:
+# they are then sanded until the board is at most this long (docs/building/building.md).
+PCB_SANDED_LEN = 160.2
+
 # ---- fasteners: bosses milled with the plate, M3 flanged button heads from below, no washers ----
 # Bosses: dia 5.5 +-0.1 (ISO 2768-m), h +-h_tol high from the back face (drawing). The stack keeps PLATE_Z0 = 6.0 as
 # its reference; the bosses stand 0.05 higher, 6.0 to 6.1, which centres the plate between the rows that want it low
@@ -153,7 +168,6 @@ BOSS = dict(d=5.5, d_tol=0.1, h=6.05, h_tol=0.05, root_r=0.3)   # root_r: inside
 # drill point (118 deg), a `cham` x 90 deg countersink at the mouth. JLCCNC's rules: at most 3 D of thread, at least
 # half the diameter unthreaded at the bottom of a blind hole (7.5 - 6.0 = 1.5). Anodised threads must be masked or
 # cut again after anodising: the coating would take about 0.1 mm off the pitch diameter, more than the 6H band.
-PITCH = 0.5
 TAP = dict(thread="M3-6H", full=6.0, drill=2.5, depth=7.5, cham=0.3)
 TAP["point"] = TAP["drill"] / 2 / 1.664                   # 118 deg point: r / tan 59 deg, 0.75
 # Gap tolerance (+, -) on PLATE_Z0, the back face over the PCB top: the boss height alone. check_fit.py adds the
@@ -162,14 +176,13 @@ GAP_TOL = (round(BOSS["h"] + BOSS["h_tol"] - PLATE_Z0, 6), round(PLATE_Z0 - BOSS
 # PCB mounting hole (pcb/board.py MOUNT_HOLE): the plate's bosses locate the screws, and the caps centre the board
 # in the key holes during the face-down drop, so the board must find its place round the screws: 3.8 (3.6 to 4.0
 # with JLCPCB's +-0.2 on NPTH) passes the M3 wherever the caps put the board, and the boss end still covers the
-# hole all round inside the 3.6 mm copper keep-out. check_fit.py checks the board's value.
-PCB_HOLE = 3.8
+# hole all round inside the 3.6 mm copper keep-out (check_fit.py).
 # Screw: M3 x 8 flanged button head, ISO 7380-2 (JLCMC EDDH-C16E1-M3-L8, 10B21 blackened, 8.8; or EDDH-S1W, A2-70):
 # ISO 7380-2 gives the flange dc 6.32 to 6.9 and its rim c 0.55 to 0.7, head k 1.4 to 1.65, button dk 5.2, 2 mm
 # hex; JLCMC's table gives the flange as 7 and k 1.65, so the flange is taken 6.32 to 7.0. Length js15 (+-0.29,
-# ISO 4759-1 grade A), thread 6g (d 2.86 to 3.0). The end has up to 2P of incomplete thread (ISO 4753), which
+# ISO 4759-1 grade A), thread 6g (d 2.86 to 3.0). The end has up to 2P (1.0) of incomplete thread (ISO 4753), which
 # carries no load. The flange bears on the counterbore floor round the body hole: no washer.
-SCREW = dict(d=3.0, d_min=2.86, L=8.0, L_tol=0.29, tip=2 * PITCH, head_d=5.2, flange_d=7.0, flange_d_min=6.32,
+SCREW = dict(d=3.0, d_min=2.86, L=8.0, L_tol=0.29, tip=1.0, head_d=5.2, flange_d=7.0, flange_d_min=6.32,
              flange_c=0.55, head_k=1.65, hex=2.0)
 SCREW_D, SCREW_L = SCREW["d"], SCREW["L"]
 # MJF rounds the counterbore's floor corner a little (JLC3DP gives no figure; assumed at most this): where the flange
@@ -178,7 +191,7 @@ SCREW_D, SCREW_L = SCREW["d"], SCREW["L"]
 CB_FLOOR_R = 0.2
 # Stack from the counterbore seat to the PCB top (each +-): seat to boss top (JLC3DP MJF +-0.3 within 100
 # mm), PCB 1.6 +-10 %.
-STACK_TOL = dict(counterbore=0.3, pcb=0.16)
+STACK_TOL = dict(counterbore=MJF_TOL, pcb=0.16)
 SEAT_Z = -3.2                              # counterbore seat: 1.6 of PA12 up to the PCB (1.3 at MJF -0.3)
 ENGAGE_MIN = 2.0                           # full thread engaged in the plate boss, mm (4 turns)
 SCREW_HEAD_Z = SEAT_Z                      # the flange bears on the counterbore seat (for the 3D view)
@@ -208,10 +221,10 @@ ENC_ON_PINS = 0.15                         # encoder (bushing) on its pins and l
 # model RKJXT_FRAME_GAP over the board, but Alps gives no tolerance on that, so the check is relative: the gap
 # under the frame at four spots, against a reference read on a part pressed fully down. Economic variant: the
 # same part, before it is soldered. Full variant (soldered by JLCPCB): a loose RKJXT pressed into the footprint of
-# a bare board; two parts' flanges may differ by up to RKJXT_REF_SPREAD (assumed: Alps gives nothing). After
-# soldering, at every spot the blade (or stack) that slid in on the reference still slides in and that blade
-# plus RKJXT_STEP does not: no spot stands more than RKJXT_SEAT proud of where it is on a seated part, in either
-# variant (and none lower, which check_fit.py does not need).
+# a bare board; two parts' flanges may differ by up to 0.02 (assumed: Alps gives nothing). After soldering, at
+# every spot the blade (or stack) that slid in on the reference still slides in and that blade plus 0.03 does not:
+# no spot stands more than RKJXT_SEAT proud of where it is on a seated part, in either variant (and none lower,
+# which check_fit.py does not need).
 # Spots: the flanges reach the frame edge (RKJXT_FRAME / 2 off the axis) only over a strip on each side, from
 # RKJXT_SPOT["lat"][0] to [1] left of the side's middle seen from outside, the same on all four sides; at the
 # middle the flange is set back and a terminal about 0.8 in stops the blade. The blade goes in RKJXT_SPOT["depth"]
@@ -222,8 +235,7 @@ SEAT_GAP = 0.05
 EC11_BASE = 11.7                           # PEC11D body across the lug sides
 RKJXT_FOOT, RKJXT_FRAME, RKJXT_FRAME_GAP = 13.5, 17.2, 0.40
 RKJXT_SPOT = dict(lat=(0.5, 3.0), depth=0.5)
-RKJXT_STEP, RKJXT_REF_SPREAD = 0.03, 0.02
-RKJXT_SEAT = RKJXT_STEP + RKJXT_REF_SPREAD   # 0.05 with a loose reference part, 0.03 with the part itself
+RKJXT_SEAT = 0.05                          # 0.03 + 0.02 with a loose reference part; 0.03 with the part itself
 # The RKJXT floats more (radial, worst direction): Alps' STEP model has 0.7 x 0.2 blade terminals and a 0.6 x
 # 0.4 frame terminal, the holes are drilled 1.1 and JLCPCB's plating finishes them 1.02 to 1.23, which lets
 # the part move 0.26 at most. Its locating lug (dia 1 -0.1, 3.8 and 1.5 +-0.05 off the axis) sits in the
@@ -248,6 +260,9 @@ PUSH_TRAVEL = 0.5
 # each other and against the bushing top (13). From the PCB the slot floor is body 8 (+-0.3) + shaft 10 (+-0.5)
 # - slot 2.5 (+-0.3).
 ENC_TOL = dict(lt10=0.3, ge10=0.5)
+# Both shafts are +0/-SHAFT_TOL at most across; the inner one off the outer one by SHAFT_ECC (assumed: the
+# datasheet gives no concentricity).
+SHAFT_TOL, SHAFT_ECC = 0.1, 0.05
 ENC_SPREAD = dict(
     inner_outer=(ENC_TOL["ge10"] ** 2 * 2 + ENC_TOL["lt10"] ** 2) ** 0.5,        # 28 vs 18 - 2.5: 0.77
     inner_shaft=(ENC_TOL["ge10"] ** 2 * 2) ** 0.5,                               # 28 vs 18: 0.71
@@ -281,6 +296,10 @@ OUTER_KNOB = dict(d=17.0, z0=1.09, z1=8.0)
 # 1.0 over the outer knob when pushed, so the PEC11D's shaft spread (ENC_SPREAD) never makes them touch. The
 # recess clears the outer shaft top when the shafts' spread lifts it into the inner knob.
 INNER_KNOB = dict(d=12.0, z0=9.5, z1=19.9, recess_d=8.0, recess_top=10.8)
+# Its D bore ends INNER_BORE_SHORT short of the shaft's 7.0 mm D flat (+-0.3), so the bore end, not the round
+# shaft under a short flat, sets the knob height (check_fit.py); below it a round bore INNER_BORE_RELIEF over the
+# shaft radius.
+INNER_BORE_SHORT, INNER_BORE_RELIEF = 0.7, 0.1
 # Flutes (count, depth, taper of the radius to the top, top chamfer), for make_knobs.py and the 3D view. The FMS
 # ring has fewer, twice as deep flutes than the other two, so FREQ and FMS (one above the other, same size)
 # are told apart by feel.
@@ -338,6 +357,7 @@ KNOB_LEGENDS = {
 # RANGE knob on the RKJXT lever; the skirt rim is 1.1 thick (no feather edge in resin: 1.0 left at -0.1)
 LEVER_Z0, LEVER_Z1, LEVER_D, LEVER_FLAT = 12.4, 17.4, 2.5, 1.8
 RANGE_KNOB = dict(d=13.6, skirt_d=16.6, z0=2.3, z1=11.0, rim=1.1)   # skirt clearance at full tilt: check_fit.py
+RANGE_RELIEF = (4.0, 0.3)                  # round bore under its D bore, clear of the lever: dia, least depth
 # RANGE artwork on the plate (make_plate_art.py and the 3D view): legend arc radius (glyph centres) and the
 # four pan arrows (triangle in mm, tip along the pan direction), outside the skirt with the lever off its hole
 # (check_fit.py); the arrow tips stay 0.8 off the legend.
@@ -369,7 +389,7 @@ LED_LENS = dict(l=1.5, w=1.6, h=0.82, tol=0.1, place=0.1, solder=0.05, die=0.3) 
 # 2.2 x 2.0 bar under their bases (JLC3DP's resin parts start at 10 x 2 x 2 mm), on 1.0 necks (the resin minimum), so
 # the visible tops are as printed.
 PIPE = dict(base_d=2.8, base_len=5.35, top_len=3.65, len_tol=0.2, stub=0.1, clear=0.3, neck_d=1.0, neck_len=0.6,
-            bar=(2.2, 2.0), resin=0.2, anodise=ANODISE, z0=0.0)
+            bar=(2.2, 2.0), resin=RESIN_TOL["size"], anodise=ANODISE, z0=0.0)
 LIGHT_HOLE_BACK_BREAK = 0.05
 PIPE["len"] = PIPE["base_len"] + PIPE["top_len"]
 # Through-hole leads below the PCB, untrimmed: the keys' 3.51 +-0.30 (TE drawing) stand 2.37 under a board 0.16 thin
@@ -394,7 +414,7 @@ PLATE_FLAT = 0.1
 # MJF +-0.3 (post height against the bosses) they lift the board by at most SUPPORT_LIFT; a firm press bends it
 # onto them.
 SUPPORT_SHORT = 0.25
-SUPPORT_LIFT = max(0.0, 0.3 - SUPPORT_SHORT)
+SUPPORT_LIFT = max(0.0, MJF_TOL - SUPPORT_SHORT)
 # A firm key press (PRESS_FIRM, about six times the switch's 1.6 N) on the bare board, from a Kirchhoff plate model
 # of it (1.6 mm FR4 at 20 GPa, no stiffening by the parts, clamped at the four mounts between plate and body boss
 # (with pinned mounts a normal press would sag it about 0.3), the posts up to SUPPORT_SHORT

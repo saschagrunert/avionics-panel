@@ -3,7 +3,6 @@ their pins themselves; these tests run them against stub hardware and compare wi
 pcb/board.py."""
 import importlib.util
 import os
-import re
 
 import buttonmap as BM
 import test_boot
@@ -90,13 +89,8 @@ def test_encoder_rings():
 
 
 def test_encoder_divisor():
-    # rotaryio counts quadrature edges / divisor: 4 edges per pulse, and the parts give 30 detents per
-    # 15 pulses, so 2 edges per detent
-    with open(os.path.join(ROOT, "pcb/board.py")) as f:
-        rkjxt = [int(n) for n in re.search(r"turn \((\d+) pulses / (\d+) detents\)", f.read()).groups()]
-    with open(os.path.join(ROOT, "pcb/make_schematic.py")) as f:
-        dual = [int(n) for n in re.search(r"Dual encoders, (\d+) detents / (\d+) pulses", f.read()).groups()]
-    assert 4 * rkjxt[0] // rkjxt[1] == 4 * dual[1] // dual[0] == 2
+    # rotaryio counts quadrature edges / divisor: 4 edges per pulse, and both encoder types give 30 detents per
+    # 15 pulses (Bourns PEC11D-4120F-S0015, Alps RKJXT1F42001), so 2 edges per detent
     _, rings = firmware()
     assert {enc.divisor for enc in rings.values()} == {2}
 

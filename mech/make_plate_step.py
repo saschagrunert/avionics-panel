@@ -9,28 +9,17 @@ back in one setup; the front may be faced in a second one.
 Coordinates: origin at the bottom-left corner of the plate seen from the front, X right, Y up, mm.
 Needs pythonocc-core (nix-shell nix/shells.nix -A occ, from the repository root).
 """
-import math
 import sys
 import textwrap
 
-from OCC.Core.BRepAlgoAPI import BRepAlgoAPI_Cut
-from OCC.Core.BRepBuilderAPI import BRepBuilderAPI_MakeEdge, BRepBuilderAPI_MakeFace, BRepBuilderAPI_MakeWire
 from OCC.Core.BRepCheck import BRepCheck_Analyzer
-from OCC.Core.BRepGProp import brepgprop
-from OCC.Core.BRepMesh import BRepMesh_IncrementalMesh
-from OCC.Core.BRepPrimAPI import BRepPrimAPI_MakeCylinder, BRepPrimAPI_MakePrism
-from OCC.Core.GC import GC_MakeArcOfCircle
-from OCC.Core.gp import gp_Ax2, gp_Dir, gp_Pnt, gp_Vec
-from OCC.Core.GProp import GProp_GProps
-from OCC.Core.StlAPI import StlAPI_Writer
 from OCC.Core.TopAbs import TopAbs_FACE
 from OCC.Core.TopExp import TopExp_Explorer
-from OCC.Core.TopTools import TopTools_ListOfShape
 
 sys.path.insert(0, "../pcb")
-import board as B  # noqa: E402
-import stack as S  # noqa: E402
-from occ_util import fuse, move, revolve, write_step  # noqa: E402
+import board as B
+import stack as S
+from occ_util import cut, cyl, fuse, move, revolve, rrect_prism, volume, write_step
 
 OVH, T = S.OVH, S.PLATE_T
 AMBER_HEX, AMBER_RGB, AMBER_REF = S.AMBER["hex"], ", ".join(map(str, S.AMBER["rgb"])), S.AMBER["ref"]
@@ -49,32 +38,6 @@ def P(x, y):
     return x + OVH, B.H + OVH - y
 
 
-def rrect_prism(cx, cy, w, h, r, z0, z1):
-    hw, hh = w / 2, h / 2
-    def pts(x, y, z=z0):
-        return gp_Pnt(cx + x, cy + y, z)
-    mw = BRepBuilderAPI_MakeWire()
-    corners = [((hw - r, hh - r), 0), ((-hw + r, hh - r), 90), ((-hw + r, -hh + r), 180), ((hw - r, -hh + r), 270)]
-    edges = []
-    for (ox, oy), a in corners:
-        a0, am, a1 = math.radians(a), math.radians(a + 45), math.radians(a + 90)
-        arc = GC_MakeArcOfCircle(pts(ox + r * math.cos(a0), oy + r * math.sin(a0)),
-                                 pts(ox + r * math.cos(am), oy + r * math.sin(am)),
-                                 pts(ox + r * math.cos(a1), oy + r * math.sin(a1))).Value()
-        edges.append(("arc", arc, (ox + r * math.cos(a0), oy + r * math.sin(a0)),
-                      (ox + r * math.cos(a1), oy + r * math.sin(a1))))
-    for i, (_, arc, _s, e) in enumerate(edges):
-        mw.Add(BRepBuilderAPI_MakeEdge(arc).Edge())
-        ns = edges[(i + 1) % 4][2]
-        mw.Add(BRepBuilderAPI_MakeEdge(pts(*e), pts(*ns)).Edge())
-    face = BRepBuilderAPI_MakeFace(mw.Wire()).Face()
-    return BRepPrimAPI_MakePrism(face, gp_Vec(0, 0, z1 - z0)).Shape()
-
-
-def cyl(cx, cy, d, z0, z1):
-    return BRepPrimAPI_MakeCylinder(gp_Ax2(gp_Pnt(cx, cy, z0), gp_Dir(0, 0, 1)), d / 2, z1 - z0).Shape()
-
-
 def tap_hole():
     """the tapped hole of a boss as the cutter, its mouth at z = 0 going up: the countersink, the tap drill and its
     118 degree point (the thread itself is the drawing's callout)."""
@@ -86,7 +49,7 @@ def build():
     plate = rrect_prism(PW / 2, PH / 2, PW, PH, B.CORNER_R + OVH, 0.0, T)
     h = BOSS["h"]
     for (mx, my) in B.MOUNTS:                                       # bosses down to the PCB top
-        plate = fuse(plate, cyl(*P(mx, my), BOSS["d"], -h, 0.01))
+        plate = fuse(plate, cyl(BOSS["d"] / 2, -h, 0.01, *P(mx, my)))
     tools, features = [], []
     e = 0.5                                                 # through tools overshoot both faces
     for y in B.ROWS:
@@ -96,54 +59,42 @@ def build():
                      len(B.ROWS) * len(B.COLS)))
     for name in ("ALTHDG", "FREQ", "FMS"):
         cx, cy = P(*getattr(B, name))
-        tools.append(cyl(cx, cy, S.SHAFT_HOLE, -e, T + e))
+        tools.append(cyl(S.SHAFT_HOLE / 2, -e, T + e, cx, cy))
         w, hh, r, dpt = S.EC11_POCKET
         tools.append(rrect_prism(cx, cy, w, hh, r, -e, dpt))
     features.append(("encoder hole", f"dia {S.SHAFT_HOLE}", "through", 3))
     features.append(("encoder pocket", f"{S.EC11_POCKET[0]} x {S.EC11_POCKET[1]} R{S.EC11_POCKET[2]}",
                      f"{S.EC11_POCKET[3]} +0/-{S.POCKET_TOL} deep from back, floor corner R{S.POCKET_FLOOR_R} max", 3))
     cx, cy = P(*B.RANGE)
-    tools.append(cyl(cx, cy, S.RANGE_HOLE, -e, T + e))
-    tools.append(cyl(cx, cy, S.RANGE_POCKET[0], -e, S.RANGE_POCKET[1]))
+    tools.append(cyl(S.RANGE_HOLE / 2, -e, T + e, cx, cy))
+    tools.append(cyl(S.RANGE_POCKET[0] / 2, -e, S.RANGE_POCKET[1], cx, cy))
     features.append(("RANGE hole", f"dia {S.RANGE_HOLE}", "through", 1))
     features.append(("RANGE pocket", f"dia {S.RANGE_POCKET[0]}",
                      f"{S.RANGE_POCKET[1]} +0/-{S.POCKET_TOL} deep from back, floor corner R{S.POCKET_FLOOR_R} max", 1))
-    for name, d in S.LIGHT_HOLES.items():
-        (lx, ly), _, _ = B.LEDS[name]
-        tools.append(cyl(*P(lx, ly), d, -e, T + e))
-        features.append((f"{name} light hole", f"dia {d} {LIGHT_TOL}", "through", 1))
+    for name, ((lx, ly), _, _) in B.LEDS.items():
+        tools.append(cyl(S.LIGHT_HOLE / 2, -e, T + e, *P(lx, ly)))
+        features.append((f"{name} light hole", f"dia {S.LIGHT_HOLE} {LIGHT_TOL}", "through", 1))
     for (mx, my) in B.MOUNTS:
         tools.append(move(tap_hole(), *P(mx, my), -h))
     features.append(("boss", f"dia {BOSS['d']}, root R{BOSS['root_r']} max",
                      f"{BOSS['h']} +-{BOSS['h_tol']} high from back, end face flat", 4))
     features.append(("tapped hole", f"{TAP['thread']} in each boss",
                      f"full thread {TAP['full']} min, drill {TAP['drill']} x {TAP['depth']} deep", 4))
-    args, tl = TopTools_ListOfShape(), TopTools_ListOfShape()
-    args.Append(plate)
-    for t in tools:
-        tl.Append(t)
-    cut = BRepAlgoAPI_Cut()
-    cut.SetArguments(args); cut.SetTools(tl); cut.SetRunParallel(True); cut.Build()
-    if not cut.IsDone():                                    # a plain raise: asserts vanish under -O
-        raise RuntimeError("boolean cut failed")
-    return cut.Shape(), features
+    return cut(plate, *tools), features
 
 
 def main():
     shape, features = build()
     if not BRepCheck_Analyzer(shape).IsValid():
         raise RuntimeError("invalid solid")
-    props = GProp_GProps(); brepgprop.VolumeProperties(shape, props)
     nf = 0; ex = TopExp_Explorer(shape, TopAbs_FACE)
     while ex.More():
         nf += 1; ex.Next()
-    vol = props.Mass()
+    vol = volume(shape)
     print(f"plate {PW:.1f} x {PH:.1f} x {T:.1f} mm web, bosses {BOSS['h']} high, {vol / 1000:.1f} cm3, "
           f"{vol * 2.70e-3:.0f} g (6061), {nf} faces; from {STOCK:.0f} mm stock, "
           f"{(PW * PH * STOCK - vol) / 1000:.0f} cm3 milled off")
     write_step(shape, "avionics-panel-rev1-plate")
-    BRepMesh_IncrementalMesh(shape, 0.02, False, 0.2, True)
-    StlAPI_Writer().Write(shape, "avionics-panel-rev1-plate-ref.stl")
     drawing(features, vol)
 
 
@@ -237,9 +188,8 @@ def drawing(features, vol):
     ax.annotate(f"pocket dia {S.RANGE_POCKET[0]}\n{S.RANGE_POCKET[1]} +0/-{S.POCKET_TOL} deep",
                 M(cx, cy + S.RANGE_POCKET[0] / 2 + 0.5),
                 ha="center", va="bottom", fontsize=6.5)
-    for name, d in S.LIGHT_HOLES.items():
-        (lx, ly), _, _ = B.LEDS[name]
-        ax.add_patch(Circle(M(*P(lx, ly)), d / 2, fc="white", ec="k", lw=0.6))
+    for (lx, ly), _, _ in B.LEDS.values():
+        ax.add_patch(Circle(M(*P(lx, ly)), S.LIGHT_HOLE / 2, fc="white", ec="k", lw=0.6))
     for (mx, my) in B.MOUNTS:                                        # bosses (raised) with their tapped holes
         px, py = M(*P(mx, my))
         ax.add_patch(Circle((px, py), BOSS["d"] / 2, fc="#9aa3ad", ec="k", lw=0.8))
@@ -263,7 +213,6 @@ def drawing(features, vol):
         y -= fs * lh
     check_layout(fig, ax, texts)
     fig.savefig("avionics-panel-rev1-plate-drawing.pdf", metadata={"CreationDate": None})   # reproducible
-    fig.savefig("avionics-panel-rev1-plate-drawing.png", dpi=110)
     print(f"drawing written: {len(notes)} notes in {len(block)} lines, drawing {ax.get_position().height:.2f} of the "
           f"page (min {DRAWING_MIN})")
 

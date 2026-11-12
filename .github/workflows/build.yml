@@ -1,5 +1,5 @@
 name: build
-# Regenerates every output with ./build.sh, which runs all checks (electrical, DRC, pin order, fit
+# Regenerates every output with ./build.sh, which runs all checks (electrical, DRC, footprints, fit
 # clearances, firmware tests), then makes sure the committed outputs are current. Every build uses the
 # nixpkgs locked in flake.lock. Dependabot proposes each nixpkgs-unstable update as a pull request, whose
 # build is the check that the update leaves every output as it is (so no scheduled run). Dependabot's pull

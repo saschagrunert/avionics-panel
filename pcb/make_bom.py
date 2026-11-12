@@ -6,7 +6,6 @@ full: BOM-full.csv / CPL-full.csv, both sides (Standard assembly): the SMD botto
 """
 import csv
 import json
-from collections import OrderedDict
 
 import board as B
 
@@ -21,10 +20,16 @@ def package(ref, lcsc):
         return json.load(f)["package"]
 
 
-def write_bom(fname, parts):
-    groups = OrderedDict()
+def grouped(parts):
+    """{(value, LCSC number): [ref, ...]}, in the order of the parts."""
+    groups = {}
     for ref, value, lcsc, *_ in parts:
         groups.setdefault((value, lcsc), []).append(ref)
+    return groups
+
+
+def write_bom(fname, parts):
+    groups = grouped(parts)
     with open(fname, "w", newline="") as f:
         w = csv.writer(f)
         w.writerow(["Comment", "Designator", "Footprint", "LCSC Part #", "Quantity"])
@@ -54,19 +59,14 @@ write_cpl("avionics-panel-rev1-CPL.csv", SMD)
 full = write_bom("avionics-panel-rev1-BOM-full.csv", SMD + TOP)
 write_cpl("avionics-panel-rev1-CPL-full.csv", SMD + TOP)
 # Through-hole parts on the top side, for hand soldering (economic variant only). One panel, plus spares where
-# a part is cheap or easy to damage, raised to LCSC's minimum order where it has one. Quantity is what to order,
-# Needed what one board takes. Upload to LCSC's BOM tool.
+# a part is cheap or easy to damage. Quantity is what to order, Needed what one board takes. Upload to LCSC's BOM
+# tool.
 SPARE = {"1-1825910-4": 2}
-MOQ = {}
-tht = OrderedDict()
-for ref, value, lcsc, *_ in TOP:
-    tht.setdefault((value, lcsc), []).append(ref)
 with open("avionics-panel-rev1-THT-LCSC.csv", "w", newline="") as f:
     w = csv.writer(f)
     w.writerow(["LCSC Part Number", "Quantity", "Manufacturer Part", "Designator", "Needed"])
-    for (value, lcsc), refs in tht.items():
-        qty = max(len(refs) + SPARE.get(value, 0), MOQ.get(lcsc, 0))
-        w.writerow([lcsc, qty, value, ",".join(refs), len(refs)])
+    for (value, lcsc), refs in grouped(TOP).items():
+        w.writerow([lcsc, len(refs) + SPARE.get(value, 0), value, ",".join(refs), len(refs)])
 print(len(SMD), "SMD parts,", len(groups), "BOM lines;", len(TOP), "through-hole parts for hand soldering;",
       f"full variant {len(SMD) + len(TOP)} parts, {len(full)} BOM lines")
 for (value, lcsc), refs in full.items():

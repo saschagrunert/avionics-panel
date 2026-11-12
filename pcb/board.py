@@ -21,7 +21,6 @@ Footprint sources:
   6x6 key switches (TE 1-1825910-4): pins 6.5 x 4.5, the 6.5 mm pairs connected inside
 
 Bottom-side parts: seen from the top, a part on the bottom is mirrored, so its pins number clockwise.
-check.py asserts that for every bottom part with three or more numbered pins.
 CPL rotations follow JLCPCB's convention for the bottom side (the one KiBot's JLCPCB rotation filter and
 the kicad-jlcpcb-tools plugin write: 180 minus KiCad's bottom-side angle): seen from the bottom, a part is
 JLC's library footprint (its top view) turned counter-clockwise by the CPL rotation, just like a top-side
@@ -56,7 +55,6 @@ CORNER_R = 3.0
 TRACE_W = 0.25
 FAN_W = 0.16            # QFN / USB fan-out traces
 CLEAR = 0.15
-POUR_CLEAR = 0.30
 EDGE_CLEAR = 0.50
 VIA_D, VIA_DRILL = 0.60, 0.30
 SVIA_D, SVIA_DRILL = 0.50, 0.30     # small vias (USB-C, fan-out ends): JLC standard 0.3 mm drill, 0.45 mm pad min.
@@ -168,6 +166,13 @@ BUS_NETS = set(ROW_GP) | set(COL_GP)          # pre-routed copper: (x1,y1,x2,y2,
 
 def seg(x1, y1, x2, y2, net, layer="B", w=FAN_W):
     FIXED_SEGS.append((x1, y1, x2, y2, layer, net, w))
+
+
+def path(net, pts, layer="B", w=FAN_W):
+    """Pre-routed copper from point to point; a point repeated adds nothing."""
+    for (x1, y1), (x2, y2) in pairwise(pts):
+        if (x1, y1) != (x2, y2):
+            seg(x1, y1, x2, y2, net, layer, w)
 
 
 def via(x, y, net, d=VIA_D, drill=VIA_DRILL):
@@ -398,7 +403,7 @@ def add_rp2040(pads):
             p.mask = p.layers                               # exposed: the probe wires solder here
     # west and east fan-out ends get a via (matrix: the last mile comes in on F)
     for p in list(pads):
-        if re.match(r"U1\.F\d+$", p.name) and (abs(p.x - mx) > FAN_END or False):
+        if re.match(r"U1\.F\d+$", p.name) and abs(p.x - mx) > FAN_END:
             via(p.x, p.y, p.net, SVIA_D, SVIA_DRILL)
             if p.net in BUS_NETS:
                 BUS_COPPER.append(("via",) + FIXED_VIAS[-1])
@@ -445,13 +450,8 @@ def add_usb(pads):
     # The tie turns between the shell pegs, as close to the pad row as it can: the top layer over J1 is the only
     # way west for the lines that cross it (the bottom under the shell is kept free)
     yt = 5.6
-    tie = [(cx - 2.4, yv), (cx - 2.0, yv - 0.4), (cx - 2.0, yt), (cx + 2.0, yt), (cx + 2.0, yv - 0.4), (cx + 2.4, yv)]
-    for (x1, y1), (x2, y2) in pairwise(tie):
-        seg(x1, y1, x2, y2, "VBUS", "F", 0.3)
-
-    def path(net, pts, layer="B", w=FAN_W):
-        for (x1, y1), (x2, y2) in pairwise(pts):
-            seg(x1, y1, x2, y2, net, layer, w)
+    path("VBUS", [(cx - 2.4, yv), (cx - 2.0, yv - 0.4), (cx - 2.0, yt), (cx + 2.0, yt), (cx + 2.0, yv - 0.4),
+                  (cx + 2.4, yv)], "F", 0.3)
     # CC: one 5.1k each, all on fixed copper. CC1 (A5) turns west under the VBUS via to R_CC1, CC2 (B5) runs
     # straight down between the ESD array and the fuse to R_CC2.
     a, b = chip(pads, "R_CC1", cx - 3.4, 10.4, "CC1", "GND", "5.1k", "C23186", vertical=True)
@@ -491,10 +491,6 @@ def add_protection(pads):
     for n, (dx, dy, net) in pins.items():           # on the bottom, seen from the top: pin 1 south-east
         pads.append(smd(f"U4.{n}", net, ex + dx, ey + dy, 0.55, 1.2))
     part("U4", "SRV05-4", "C7420376", ex, ey, 0, foot="SOT-23-6")
-
-    def path(net, pts, layer="B", w=FAN_W):
-        for (x1, y1), (x2, y2) in pairwise(pts):
-            seg(x1, y1, x2, y2, net, layer, w)
     xn, xp, yi, yx = ex - ESD_PX, ex + ESD_PX, ey - ESD_PY, ey + ESD_PY
     # D-: B7 straight down into pin 4, A7 joins it below the D+ via; D+: B6 down to a via over pin 6's column, and
     # A6, boxed in by the D- contacts, joins it there over the top layer. Both cross under the body to the exits.
@@ -644,17 +640,13 @@ def add_flash(pads):
     plane_via(fp[8], "3V3", 0, (fb - ft) / 2)   # vias inside the body
     plane_via(fp[4], "GND", 0, -(fb - ft) / 2)
 
-    def path(net, pts, w=0.2):
-        for (x1, y1), (x2, y2) in pairwise(pts):
-            if (x1, y1) != (x2, y2):
-                seg(x1, y1, x2, y2, net, "B", w)
-    path("QSPI_SD0", [fp[5], fan["QSPI_SD0"]])
+    path("QSPI_SD0", [fp[5], fan["QSPI_SD0"]], w=0.2)
     for p in (6, 7):
         net = fl[p]; x, _ = fp[p]; ex, ey = fan[net]
-        path(net, [fp[p], (x, ft - 1.2), (ex, ft - 1.2 - (x - ex)), (ex, ey)])
+        path(net, [fp[p], (x, ft - 1.2), (ex, ft - 1.2 - (x - ex)), (ex, ey)], w=0.2)
     for p, ydrop in ((3, 1.5), (2, 2.1), (1, 2.7)):
         net = fl[p]; x, _ = fp[p]; ex, ey = fan[net]
-        path(net, [fp[p], (x, fb + ydrop), (ex, fb + ydrop), (ex, ey)])
+        path(net, [fp[p], (x, fb + ydrop), (ex, fb + ydrop), (ex, ey)], w=0.2)
     # BOOTSEL: QSPI_SS -> 1k (right here, so the long wire to the button is no stub on the chip select)
     chip(pads, "R_BOOT", fan["QSPI_SS"][0] - 1.7, fb + 0.6, "QSPI_SS", "BOOT_SW", "1k", "C21190", vertical=True)
     a, b = chip(pads, "C_FL", 125.6 + SHIFT_X, ft + 3.0, "3V3", "GND", "100nF", "C14663", vertical=True)
@@ -687,8 +679,7 @@ def add_support(pads):
     plane_via(a, "GND", -0.9, 0)
     vx = lx - px                        # U3's VIN pad centre
     fx = FUSE[0] + FUSE_PX              # the fuse's VBUS_F pad
-    for (x1, y1), (x2, y2) in pairwise([b, (fx, b[1]), (vx, b[1] - (vx - fx)), (vx, ly)]):
-        seg(x1, y1, x2, y2, "VBUS_F", "B", 0.4)
+    path("VBUS_F", [b, (fx, b[1]), (vx, b[1] - (vx - fx)), (vx, ly)], w=0.4)
     seg(fx, FUSE[1], fx, b[1], "VBUS_F", "B", 0.4)
     JOINED.update(("U3.3", "C_IN.2"))   # both on the fixed VBUS_F line from the fuse: no router terminals
     a, b = chip(pads, "C_OUT0", lx + px, ly - 3.1, "3V3", "GND", "10uF", "C19702", vertical=True)
@@ -706,10 +697,9 @@ def add_support(pads):
                           for ref, dy, net, net_c in (("R_DM", 0.475, "USB_DM", "USB_DN_C"),
                                                       ("R_DP", 1.875, "USB_DP", "USB_DP_C"))]
     yv = dp2[1] + 1.225
-    for ref, net_c, (vx, vy), path in (("R_DM", "USB_DN_C", (xr, yv), [(xr, dm2[1]), dm2]),
-                                       ("R_DP", "USB_DP_C", (dp2[0] + 0.1, yv), [dp2])):
-        for (x1, y1), (x2, y2) in pairwise([(vx, vy)] + path):
-            seg(x1, y1, x2, y2, net_c, "B", TRACE_W)
+    for ref, net_c, (vx, vy), pts in (("R_DM", "USB_DN_C", (xr, yv), [(xr, dm2[1]), dm2]),
+                                      ("R_DP", "USB_DP_C", (dp2[0] + 0.1, yv), [dp2])):
+        path(net_c, [(vx, vy)] + pts, w=TRACE_W)
         via(vx, vy, net_c)
         pads.append(Pad(f"{ref}.E", net_c, vx, vy, "circle", 0.3, 0.3, "F", paste=False, mask=False))
         JOINED.add(f"{ref}.2")
@@ -738,7 +728,8 @@ def add_crystal(pads):
     the plane: the top-right one through its own via, the bottom-left one through C_X1's GND pad and via."""
     yx, yy = XTAL
     ends = {p.net: (p.x, p.y) for p in pads if re.match(r"U1\.F2[01]$", p.name)}
-    assert abs(ends["XIN"][0] - yx) < 1e-6, "the crystal sits centred over the XIN fan-out end"
+    if abs(ends["XIN"][0] - yx) > 1e-6:
+        raise ValueError("the crystal must sit centred over the XIN fan-out end")
     pads.append(smd("Y1.1", "XO_R", yx + 1.1, yy + 0.8, 1.4, 1.2))
     pads.append(smd("Y1.2", "GND", yx - 1.1, yy + 0.8, 1.4, 1.2))
     pads.append(smd("Y1.3", "XIN", yx - 1.1, yy - 0.8, 1.4, 1.2))
@@ -753,15 +744,11 @@ def add_crystal(pads):
     a, _ = chip(pads, "C_X2", rx, yy - 2.6, "GND", "XO_R", "15pF", "C1644", vertical=True)
     plane_via(a, "GND", 1.0, 0)
     (_, r1), (_, r2) = chip(pads, "R_X", rx, yy, "XO_R", "XOUT", "1k", "C21190", vertical=True)
-
-    def path(net, pts):
-        for (x1, y1), (x2, y2) in pairwise(pts):
-            seg(x1, y1, x2, y2, net, "B", TRACE_W)
     ex, ey = ends["XIN"]
-    path("XIN", [(ex, ey), (ex, yy), (yx - 1.1, yy - 0.8)])
+    path("XIN", [(ex, ey), (ex, yy), (yx - 1.1, yy - 0.8)], w=TRACE_W)
     ex, ey = ends["XOUT"]
-    path("XOUT", [(ex, ey), (ex, yy + 1.8), (rx - 1.0, yy + 1.8), (rx, r2)])
-    path("XO_R", [(yx + 1.1, yy + 0.8), (rx - 0.9, yy + 0.8), (rx - 0.9, r1), (rx, r1), (rx, yy - 1.8)])
+    path("XOUT", [(ex, ey), (ex, yy + 1.8), (rx - 1.0, yy + 1.8), (rx, r2)], w=TRACE_W)
+    path("XO_R", [(yx + 1.1, yy + 0.8), (rx - 0.9, yy + 0.8), (rx - 0.9, r1), (rx, r1), (rx, yy - 1.8)], w=TRACE_W)
 
 
 def add_core_caps(pads):
@@ -781,15 +768,14 @@ def add_core_caps(pads):
     c1, c2 = x45 + 1.125, x45 + 1.925                   # 0402 columns, 0.25 mm apart (0.18 mm mask dam)
     for name, x, val, lc in (("C_1V0", c1, "1uF", "C52923"), ("C_1V2", c2, "100nF", "C1525")):
         chip(pads, name, x, yf + 0.65, "1V1", "GND", val, lc, vertical=True, size="0402")
-    for (x1, y1_), (x2, y2_) in pairwise([(x45, yo), (x45, yf - 0.25), (x45 + 0.25, yf), (c2, yf)]):
-        seg(x1, y1_, x2, y2_, "1V1", "B", TRACE_W)      # down, then clear of pin 46's fan-out
+    # down, then clear of pin 46's fan-out
+    path("1V1", [(x45, yo), (x45, yf - 0.25), (x45 + 0.25, yf), (c2, yf)], w=TRACE_W)
     for x in (c1, c2):                                  # GND vias right below the 0402 GND pads
         plane_via((x, yf + 1.15), "GND", 0, 0.75)
     d2 = (x45 + 2.9, my + 4.9)                          # C_D2: 3V3 pad at y 29.1, GND pad at 30.7
     # pin 42's outer end straight to C_D2's 3V3 pad, below pin 41's fan-out (pins 43 / 44 join through their via)
     x42, y42 = mx + 3.875, my + qfn_pad_xy(42)[0][1]
-    for (x1, y1_), (x2, y2_) in pairwise([(x42, y42), (x42 + 0.325, y42 + 0.325), (d2[0], d2[1] - 0.8)]):
-        seg(x1, y1_, x2, y2_, "3V3", "B", TRACE_W)
+    path("3V3", [(x42, y42), (x42 + 0.325, y42 + 0.325), (d2[0], d2[1] - 0.8)], w=TRACE_W)
     # below pins 50 and 49, between the fan-outs of pins 51 and 47: two 0402 0.25 mm apart, C_1V1 (DVDD, pin 50)
     # straight below its pin and C_IO49 (IOVDD pin 49, with USB_VDD pin 48 beside it) east of it
     x49, x48 = (mx + qfn_pad_xy(n)[0][0] for n in (49, 48))
@@ -798,15 +784,13 @@ def add_core_caps(pads):
     seg(x50, yo, *a, "1V1", "B", TRACE_W)
     plane_via(b, "GND", 0, 1.0)
     a, b = chip(pads, "C_IO49", x50 + 0.8, yc, "3V3", "GND", "100nF", "C1525", vertical=True, size="0402")
-    for (x1, y1_), (x2, y2_) in pairwise([(x49, yo), (x49, yo + 0.475), (x48, yo + 0.875)]):
-        seg(x1, y1_, x2, y2_, "3V3", "B", 0.2)
+    path("3V3", [(x49, yo), (x49, yo + 0.475), (x48, yo + 0.875)], w=0.2)
     seg(x48, yo, *a, "3V3", "B", 0.2)
     plane_via(b, "GND", 0, 1.0)
     # the three 1V1 vias joined on the top layer, round the 3V3 via of pins 48/49 and the exposed pad's vias
     v23, v45, v50 = [next((p.x, p.y) for p in pads if p.name == f"U1.V{n}") for n in (23, 45, 50)]
     yl = v45[1] - 0.75
-    for (x1, y1_), (x2, y2_) in pairwise([v23, (v23[0] + 0.5, v23[1] + 0.5), (v23[0] + 0.5, yl), (v50[0], yl), v50]):
-        seg(x1, y1_, x2, y2_, "1V1", "F", TRACE_W)
+    path("1V1", [v23, (v23[0] + 0.5, v23[1] + 0.5), (v23[0] + 0.5, yl), (v50[0], yl), v50], "F", TRACE_W)
     seg(v45[0], v45[1], v45[0], yl, "1V1", "F", TRACE_W)
     return d2, yf + 1.9 + 0.3 + 0.15                     # below the 0402 GND vias
 
@@ -825,29 +809,25 @@ def add_io_caps(pads):
     14. Pin 33 drops into the 3V3 plane through its via under the chip, as before (check.py: PLANE_SHARED)."""
     mx, my = MCU
 
-    def path(pts, w=FAN_W):
-        for (x1, y1), (x2, y2) in pairwise(pts):
-            seg(x1, y1, x2, y2, "3V3", "B", w)
-
     def outer(pin):
         (px, py), (nx, ny), lat = qfn_pad_xy(pin)
         return mx + px + nx * 0.4375, my + py + ny * 0.4375, nx, ny, lat
     # pin 1: straight from the pad's outer end, 45 degrees down to the capacitor
     ox, oy, *_ = outer(1)
     a, b = chip(pads, "C_IO1", ox - 0.725, oy + 1.2, "3V3", "GND", "100nF", "C1525", vertical=True, size="0402")
-    path([(ox, oy), a], 0.2)
+    path("3V3", [(ox, oy), a], w=0.2)
     plane_via(b, "GND", 0, 1.0)
     # pin 10: the fan-out line the pin would have, then on into the capacitor's 3V3 pad 0.45 mm past the via
     # column; the GND pad beyond it, its via 1 mm further west
     ox, oy, nx, _ny, lat = outer(10)
     ex, ey = mx + nx * FAN_END_W, my + lat * FAN_SPREAD_W
     a, b = chip(pads, "C_IO10", ex - 0.95, ey, "GND", "3V3", "100nF", "C1525", size="0402")
-    path([(ox, oy), (ox + nx * 0.4, oy), (ex, ey), b])
+    path("3V3", [(ox, oy), (ox + nx * 0.4, oy), (ex, ey), b])
     plane_via(a, "GND", -1.0, 0)
     # pin 22: up from the pad's outer end, the capacitor 0.2 mm east of the pin, its GND via above it
     ox, oy, *_ = outer(22)
     a, b = chip(pads, "C_IO22", ox + 0.2, oy - 1.225, "GND", "3V3", "100nF", "C1525", vertical=True, size="0402")
-    path([(ox, oy), (ox, oy - 0.525), b], 0.2)
+    path("3V3", [(ox, oy), (ox, oy - 0.525), b], w=0.2)
     plane_via(a, "GND", 0, -1.0)
 
 
@@ -867,11 +847,10 @@ def add_matrix_lanes(pads):
     bands = {6: ROWS[0] + 3.95, 5: ROWS[0] + 4.7, 4: ROWS[1] + 3.95, 3: ROWS[1] + 4.7,
              2: ROWS[2] + 3.6, 1: ROWS[3] - 3.55, 0: ROWS[3] + 3.6}   # rows 2/3: either side of the UNIT cutout
 
-    def path(net, pts):
-        for (x1, y1), (x2, y2) in pairwise(pts):
-            if (x1, y1) != (x2, y2):
-                seg(x1, y1, x2, y2, net, "F", TRACE_W)
-                BUS_COPPER.append(FIXED_SEGS[-1])
+    def lane_path(net, pts):
+        n = len(FIXED_SEGS)
+        path(net, pts, "F", TRACE_W)
+        BUS_COPPER.extend(FIXED_SEGS[n:])
     arr = [(ROW_GP[0], rowy[0]), (COL_GP[6], bands[6]), (COL_GP[5], bands[5]), (ROW_GP[1], rowy[1]),
            (COL_GP[4], bands[4]), (COL_GP[3], bands[3]), (ROW_GP[2], rowy[2]), (COL_GP[2], bands[2]),
            (COL_GP[1], bands[1]), (ROW_GP[3], rowy[3]), (COL_GP[0], bands[0])]
@@ -880,10 +859,7 @@ def add_matrix_lanes(pads):
     for group in (down, up):
         for k, (net, y0) in enumerate(group):
             x0 = xr if net in ROW_GP else COLS[COL_GP.index(net)] - DIO_DX
-            pts = [(x0, y0)]
-            pts += [(lane(k), y0)]
-            pts += [(lane(k), end[net][1]), end[net]]
-            path(net, pts)
+            lane_path(net, [(x0, y0), (lane(k), y0), (lane(k), end[net][1]), end[net]])
     for c in range(7):                          # column bus -> band via
         x, y = COLS[c] - DIO_DX, bands[c]
         via(x, y, COL_GP[c]); BUS_COPPER.append(("via",) + FIXED_VIAS[-1])
@@ -891,7 +867,7 @@ def add_matrix_lanes(pads):
     BUS_COPPER.append(FIXED_SEGS[-1])
     # row 4 (knob / joystick pushes): a short lane below the bottom-most fan-out end, the router does the rest
     r4 = ROW_GP[4]
-    path(r4, [end[r4], (lane(-1) + 0.3, end[r4][1]), (lane(-1) + 0.3, 31.0)])
+    lane_path(r4, [end[r4], (lane(-1) + 0.3, end[r4][1]), (lane(-1) + 0.3, 31.0)])
 
 
 def route_bias():

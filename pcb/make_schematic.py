@@ -2,7 +2,7 @@
 
 The board has no hand-drawn schematic: board.py places the pads and gives every pad its net, and the
 router and the checks work from that. This script draws the same netlist as four A3 sheets. Every net on
-the drawing is looked up from a pad, nothing is typed in twice, and the script asserts at the end that
+the drawing is looked up from a pad, nothing is typed in twice, and the script checks at the end that
 every pad of the netlist shows up exactly with its net (pins without a net get a no-connect cross).
 Skipped as duplicates: the RP2040's fan-out and via pads (U1.F*, U1.V*; the two SWD
 pads U1.F24 / U1.F25 are drawn as test points) and the vias the USB lines land on (R_DP.E, R_DM.E).
@@ -14,10 +14,10 @@ import re
 import matplotlib
 
 matplotlib.use("Agg")
-import board as B  # noqa: E402
-import matplotlib.pyplot as plt  # noqa: E402
-from matplotlib.backends.backend_pdf import PdfPages  # noqa: E402
-from matplotlib.patches import Circle, Polygon, Rectangle, Wedge  # noqa: E402
+import board as B
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_pdf import PdfPages
+from matplotlib.patches import Circle, Polygon, Rectangle, Wedge
 
 
 def netlist(pads):
@@ -113,7 +113,8 @@ class Sheet:
     def wire(self, pts, pins=(), check=None):
         """a drawn connection; all pins on it (and `check`, a pin standing for the net) share one net"""
         nets = {net(*p) for p in pins} | ({net(*check)} if check else set())
-        assert len(nets) == 1, (pins, nets)
+        if len(nets) != 1:
+            raise ValueError(f"a wire joins pins of several nets: {pins} {nets}")
         for p in pins:
             SHOWN.add((*p, net(*p)))
         self.line(*pts)
@@ -151,7 +152,8 @@ class Sheet:
         """terminates a pin: net label, power symbol or no-connect cross; records the pin(s)"""
         group = pads or [pin]
         nets = {net(ref, p) for p in group}
-        assert len(nets) == 1, (ref, group, nets)
+        if len(nets) != 1:
+            raise ValueError(f"{ref}: pins {group} drawn as one are on several nets {nets}")
         n = nets.pop()
         for p in group:
             SHOWN.add((ref, p, n))
@@ -278,7 +280,8 @@ class Sheet:
 def sheet_power(s):
     order = ["A4B9", "B4A9", "A6", "B6", "A7", "B7", "A5", "B5", "A8", "B8", "A1B12", "B1A12"]
     shell = sorted(p for p in pins_of("J1") if p.startswith("SH"))
-    assert set(order) | set(shell) == set(pins_of("J1")), pins_of("J1")
+    if set(order) | set(shell) != set(pins_of("J1")):
+        raise ValueError(f"J1's pins are not the ones drawn: {pins_of('J1')}")
     right = [(p, USBC_PINS[p]) for p in order] + [(shell, "SHIELD", "SH")]
     s.heading(20, 200, "USB-C (device): 5.1k pull-downs on CC1 and CC2, the D+ and D- pairs joined on the board,"
               " so either plug orientation works")
@@ -350,7 +353,8 @@ def sheet_power(s):
 # ---------------- sheet 2: RP2040, flash, crystal ----------------
 def sheet_mcu(s):
     u1 = {p for p in pins_of("U1") if p.isdigit()}
-    assert u1 == {str(i) for i in range(1, 57)}, u1
+    if u1 != {str(i) for i in range(1, 57)}:
+        raise ValueError(f"U1's pins are not 1 to 56: {sorted(u1)}")
     by_name = {}
     for n, name in RP2040_PINS.items():
         by_name.setdefault(name, []).append(n)
@@ -362,7 +366,8 @@ def sheet_mcu(s):
         left += [(str(n), name) for n in sorted(by_name[name])] if name else [None]
     left += [None, ("EP", "GND (pad)", "57")]
     right = [(str(GPIO_PIN[g]), RP2040_PINS[GPIO_PIN[g]]) for g in range(30)]
-    assert {e[0] for e in left + right if e} == u1 | {"EP"}
+    if {e[0] for e in left + right if e} != u1 | {"EP"}:
+        raise ValueError("the RP2040 symbol does not show every pin once")
     s.heading(20, 200, "RP2040, chip-down minimal design (Raspberry Pi, Hardware design with RP2040)")
     s.ic("U1", 62, 192, 34, left=left, right=right, pitch=3.6)
 
@@ -439,10 +444,12 @@ def sheet_matrix(s):
         (sref, kpin), = [(r, p) for (r, p), nn in NET.items() if nn == kn and r != d and not skipped(r, p)]
         rpins = [p for p in pins_of(sref) if net(sref, p) in rows]
         rnets = {net(sref, p) for p in rpins}
-        assert len(rnets) == 1, (sref, rpins)
+        if len(rnets) != 1:
+            raise ValueError(f"{sref}: row pins {rpins} are on several nets {rnets}")
         nc = [p for p in pins_of(sref) if net(sref, p) is None] if sref.startswith("K") else []
         cells.append((rows.index(rnets.pop()), cols.index(net(d, "A")), sref, rpins, kpin, nc, d))
-    assert len({(r, c) for r, c, *_ in cells}) == len(cells), "two switches on one crosspoint"
+    if len({(r, c) for r, c, *_ in cells}) != len(cells):
+        raise ValueError("two switches on one crosspoint")
     x0, pitch_x, y0, pitch_y = 68, 34, 180, 30
     xl, xr = 24, x0 + pitch_x * (len(cols) - 1) + 6
     yb = y0 - pitch_y * (len(rows) - 1) - 20
@@ -502,7 +509,8 @@ def sheet_knobs(s):
                        "ring 2 as the inner knob")
     encs = sorted((r for r in REFS if r.startswith("ENC_")), key=lambda r: next(p[3:5] for p in B.PARTS if p[0] == r))
     for i, ref in enumerate(encs):
-        assert set(pins_of(ref)) == {"A", "B", "C", "A2", "B2", "C2", "D", "E", "MP-1", "MP1"}, pins_of(ref)
+        if set(pins_of(ref)) != {"A", "B", "C", "A2", "B2", "C2", "D", "E", "MP-1", "MP1"}:
+            raise ValueError(f"{ref}'s pins are not the ones drawn: {pins_of(ref)}")
         left = [("A", "A"), ("C", "C"), ("B", "B"), None, ("A2", "A'"), ("C2", "C'"), ("B2", "B'")]
         x0 = 36 + i * 92
         s.ic(ref, x0, 186, 30, left=left, right=[("D", "push"), ("E", "push"), None, (["MP-1", "MP1"], "lugs", "MP")],
@@ -544,8 +552,8 @@ def main():
             s.save()
     want = {(r, p, n) for (r, p), n in NET.items() if not skipped(r, p)}
     missing, extra = want - SHOWN, SHOWN - want
-    assert not missing and not extra, f"schematic differs from the netlist: missing {sorted(missing)}, " \
-                                      f"extra {sorted(extra)}"
+    if missing or extra:
+        raise SystemExit(f"schematic differs from the netlist: missing {sorted(missing)}, extra {sorted(extra)}")
     print(f"schematic: {len(SHEETS)} sheets, {len(want)} pins of {len({r for r, _, _ in want})} parts, "
           "all with their netlist nets")
 

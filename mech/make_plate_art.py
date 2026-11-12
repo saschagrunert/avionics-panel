@@ -13,19 +13,18 @@ from matplotlib.font_manager import FontProperties
 from matplotlib.textpath import TextPath, TextToPath
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "pcb"))
-import board as B  # noqa: E402
-import stack as S  # noqa: E402
-from dxf import write_dxf  # noqa: E402
+import board as B
+import stack as S
+from dxf import write_dxf
 
-FONTS = Path(__file__).resolve().parent / "fonts"
+FONTS = Path(__file__).resolve().parent.parent / "viewer" / "fonts"
 SEMI = FontProperties(fname=str(FONTS / "BarlowSemiCondensed-SemiBold.ttf"))
 TTP = TextToPath()
 
 OVH = S.OVH                               # plate overhangs the PCB by clearance + wall
-CAP = (9.6, 6.4)
+CAP = (S.CAP["w"], S.CAP["h"])
 HOLE = S.KEY_HOLE
 SHAFT_HOLE, RANGE_HOLE = S.SHAFT_HOLE, S.RANGE_HOLE
-LIGHT_HOLES = S.LIGHT_HOLES
 
 SHIFT_LEGENDS = [[shift for _, shift in row] for row in S.KEY_LEGENDS]   # stack.py holds the legends
 # knob legends on the side facing the keys: (position, white text, amber text or None), one type size
@@ -126,9 +125,8 @@ for y in B.ROWS:
 for name in ("ALTHDG", "FREQ", "FMS"):
     layers["CUT"].append(circle(*getattr(B, name), SHAFT_HOLE / 2))
 layers["CUT"].append(circle(*B.RANGE, RANGE_HOLE / 2))
-for name, d in LIGHT_HOLES.items():
-    (lx, ly), _, _ = B.LEDS[name]
-    layers["CUT"].append(circle(lx, ly, d / 2, 36))
+for (lx, ly), _, _ in B.LEDS.values():
+    layers["CUT"].append(circle(lx, ly, S.LIGHT_HOLE / 2, 36))
 
 # ---------------- LASER: frame, titles, white knob legends, pan arrows ----------------
 def em(mm):

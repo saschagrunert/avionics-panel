@@ -14,50 +14,55 @@ concurrency:
 permissions: {}
 jobs:
   lint:
-    name: ${{ matrix.tool }}
+    name: all tools
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
       contents: read # checkout
       actions: write # the cache step deletes superseded caches
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - tool: ruff
-            run: ruff check .
-          - tool: shellcheck
-            run: shellcheck build.sh
-          - tool: shfmt
-            run: shfmt -d .
-          - tool: markdownlint-cli2
-            run: markdownlint-cli2
-          # relative links and their anchors in the Markdown and HTML files, offline: web links are not checked
-          - tool: lychee
-            run: lychee --offline --include-fragments --no-progress .
-          - tool: actionlint
-            run: actionlint
-          - tool: zizmor
-            run: zizmor --offline .
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # v31.11.3
-      # Keyed on flake.lock and nix/nixpkgs.nix, which the step below evaluates. Only main saves; pull
-      # requests (Dependabot's too) restore.
+      # Keyed on flake.lock and nix/nixpkgs.nix, which the tools step evaluates, and on this file, which lists
+      # the tools. Only main saves; pull requests (Dependabot's too) restore.
       - uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569 # v7
         with:
-          primary-key: nix-${{ matrix.tool }}-${{ hashFiles('flake.lock', 'nix/nixpkgs.nix') }}
-          restore-prefixes-first-match: nix-${{ matrix.tool }}-
+          primary-key: nix-lint-${{ hashFiles('flake.lock', 'nix/nixpkgs.nix', '.github/workflows/lint.yml') }}
+          restore-prefixes-first-match: nix-lint-
           save: ${{ github.ref == 'refs/heads/main' }}
-          gc-max-store-size-linux: 1G
+          gc-max-store-size-linux: 2G
           purge: ${{ github.ref == 'refs/heads/main' }}
-          purge-prefixes: nix-${{ matrix.tool }}-
+          purge-prefixes: nix-lint-
           purge-created: 0
           purge-primary-key: never
-      # the tool from the nixpkgs locked in flake.lock, as build.sh uses it
-      - run: nix-shell -I "nixpkgs=$(nix-instantiate --eval nix/nixpkgs.nix | tr -d '"')" -p "$TOOL" --run "$RUN"
-        env:
-          TOOL: ${{ matrix.tool }}
-          RUN: ${{ matrix.run }}
+      # One shell with every tool, from the nixpkgs locked in flake.lock, as build.sh uses it. The tools'
+      # directories go on the PATH of the steps below, one per tool; each runs whatever the others found.
+      - id: tools
+        run: |
+          tools="ruff shellcheck shfmt markdownlint-cli2 lychee actionlint zizmor"
+          # shellcheck disable=SC2086 # one package per word
+          nix-shell -I "nixpkgs=$(nix-instantiate --eval nix/nixpkgs.nix | tr -d '"')" -p $tools \
+            --run "command -v $tools" | xargs -n 1 dirname >>"$GITHUB_PATH"
+      - name: ruff
+        run: ruff check .
+      - name: shellcheck
+        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
+        run: shellcheck build.sh
+      - name: shfmt
+        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
+        run: shfmt -d .
+      - name: markdownlint-cli2
+        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
+        run: markdownlint-cli2
+      # relative links and their anchors in the Markdown and HTML files, offline: web links are not checked
+      - name: lychee
+        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
+        run: lychee --offline --include-fragments --no-progress .
+      - name: actionlint
+        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
+        run: actionlint
+      - name: zizmor
+        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
+        run: zizmor --offline .
