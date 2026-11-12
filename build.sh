@@ -120,4 +120,4 @@ cp pcb/render-front.png renders/5-pcb-top.png
 cp pcb/render-back.png renders/6-pcb-bottom.png
 cp mech/avionics-panel-rev1-plate-preview.png renders/7-plate-artwork.png
 cp mech/fit-check.png renders/8-fit-check.png
-echo "done: production/ and renders/ are up to date (renders 1-4 come from the 3D viewer)"
+echo "done: production/ and renders/ are up to date (renders 1-4 and 9 come from the 3D viewer)"

@@ -14,6 +14,7 @@ knobs and a RANGE knob that tilts to pan. It shows up on the PC as two USB joyst
   <a href="renders/2-top.png">top</a>,
   <a href="renders/3-exploded.png">exploded</a>,
   <a href="renders/4-seated.png">seated view</a>,
+  <a href="renders/9-bottom.png">bottom</a>,
   <a href="renders/5-pcb-top.png">PCB top</a>,
   <a href="renders/6-pcb-bottom.png">PCB bottom</a><br>
   Resources:

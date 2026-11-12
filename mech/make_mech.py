@@ -192,8 +192,8 @@ def usb_cutter():
     sh = rrect_prism(B.USB_X, u["z"], u["w"], u["h"], u["r"], 0, o + 3)   # built in XY with the depth along Z
     t = gp_Trsf(); t.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Dir(1, 0, 0)), math.pi / 2)   # (x, y, z) -> (x, -z, y)
     sh = BRepBuilderAPI_Transform(sh, t, True).Shape()
-    slot = box(B.USB_X - u["w"] / 2, -o - 2, u["z"], B.USB_X + u["w"] / 2, 1.0, S.PLATE_Z0)
-    return fuse(move(sh, dy=1.0), slot)                      # from y = 1 (inside the PCB edge) out through the wall
+    slot = box(B.USB_X - u["w"] / 2, -o - 2, u["z"], B.USB_X + u["w"] / 2, S.USB_OPEN_IN, S.PLATE_Z0)
+    return fuse(move(sh, dy=S.USB_OPEN_IN), slot)            # from inside the PCB edge out through the wall
 
 
 def body():

@@ -143,24 +143,24 @@ def mesh(shape, top_z, deflection=0.004):
 tex = Image.new("RGB", (TEX, TEX), BLACK)
 
 
-ARROW_EM = 0.55                                  # the D-> arrow (em), as in the 3D view
+DTO = S.DIRECT_TO                                # the D-> arrow (em), as in the 3D view
 
 
 def _width_em(label, font100):
     """Legend width in em; the flip-flop icon and the direct-to arrow are drawn, not taken from the font."""
     if label == "D→":
-        return font100.getlength("D") / 100 + ARROW_EM
+        return font100.getlength("D") / 100 + DTO["w"]
     if label.endswith("⇆"):
         return font100.getlength(label[:-1].rstrip()) / 100 + S.FLIP_GAP + S.FLIP_W
     return font100.getlength(label) / 100
 
 
 def _legend_em():
-    """One legend size for every cap: the widest legend, grown by LEGEND_GROW, fills 84 % of the cap top (about
-    2.0 mm cap height)."""
+    """The one legend size (em in mm): stack.LEGEND_FILL, LEGEND_EM_MAX."""
     probe = ImageFont.truetype(FONT, 100)
     top_w = KEY["w"] - 2 * KEY["cham"]
-    return min(3.1, min((top_w * 0.84 - 2 * S.LEGEND_GROW) / _width_em(t, probe) for t in caps))   # em in mm
+    return min(S.LEGEND_EM_MAX,                                                        # em in mm
+               min((top_w * S.LEGEND_FILL - 2 * S.LEGEND_GROW) / _width_em(t, probe) for t in caps))
 
 
 def draw_label(cell, text, p):
@@ -195,11 +195,12 @@ def draw_label(cell, text, p):
         shape([(xa, y - w / 2), (xb, y - w / 2), (xb, y + w / 2), (xa, y + w / 2)])
     if text == "D→":                                 # Garmin direct-to: a D with an arrow through it
         dw = font.getlength("D")
-        xl = cx - (dw + ARROW_EM * em) / 2
+        xl = cx - (dw + DTO["w"] * em) / 2
         write((xl, cy), "D", "lm")
-        y, xe = cy - 0.02 * em, xl + dw + ARROW_EM * em
-        line(xl - 0.12 * em, xe - 0.2 * em, y, S.LEGEND_LINE * em)
-        shape([(xe, y), (xe - 0.26 * em, y - 0.17 * em), (xe - 0.26 * em, y + 0.17 * em)])
+        y, xe = cy - DTO["dy"] * em, xl + dw + DTO["w"] * em
+        line(xl - DTO["tail"] * em, xe - DTO["neck"] * em, y, S.LEGEND_LINE * em)
+        xh, dh = xe - DTO["head"] * em, DTO["head_h"] * em
+        shape([(xe, y), (xh, y - dh), (xh, y + dh)])
     elif text.endswith("⇆"):                         # flip-flop: text + two opposed arrows
         t = text[:-1].rstrip()
         tw, gap = font.getlength(t), S.FLIP_GAP * em
