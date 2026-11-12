@@ -61,6 +61,17 @@ def test_tune_com1():
     assert seen(sim) == (["COM_MHZ_UP"] * 2 + ["COM_KHZ_DN"] * 3 + ["COM_SWAP"], [])
 
 
+def test_com_swap_waits_for_the_khz_steps():
+    # COM kHz spun six detents in 240 ms, COM ⇆ 100 ms later while steps are still on their way: the swap comes
+    # after the last of them, so the frequency it makes active is the one dialled
+    sim = Sim()
+    sim.turn("FREQ_INNER", 6, every=40)
+    sim.wait(100)
+    sim.tap("COM_SWAP")
+    sim.wait(500)
+    assert seen(sim) == (["COM_KHZ_UP"] * 6 + ["COM_SWAP"], [])
+
+
 def test_tune_nav1():
     # push the FREQ knob for NAV, turn, NAV ⇆
     sim = Sim()
@@ -313,6 +324,40 @@ def test_fms_knob():
     sim.turn("FMS_INNER", 1)
     sim.tap("FMS_PUSH")
     assert seen(sim) == (["FMS_OUTER_CW", "FMS_INNER_CCW", "FMS_CRSR"], ["FMS_OUTER_CCW", "FMS_INNER_CW", "FMS_CRSR"])
+
+
+def test_ent_waits_for_the_fms_steps():
+    # a character dialled with five quick detents of the inner ring, ENT 150 ms later, then the next character:
+    # ENT confirms the finished entry, and the next steps follow it
+    sim = Sim()
+    sim.turn("FMS_INNER", 5, every=30)
+    sim.wait(150)
+    sim.tap("ENT")
+    sim.turn("FMS_INNER", 2, every=30)
+    sim.wait(500)
+    assert seen(sim) == (["FMS_INNER_CW"] * 5 + ["ENT"] + ["FMS_INNER_CW"] * 2, [])
+
+
+def test_the_outer_ring_waits_for_the_inner_one():
+    # four quick detents of the inner ring finish the character before one of the outer ring moves the cursor
+    sim = Sim()
+    sim.turn("FMS_INNER", 4, every=30)
+    sim.turn("FMS_OUTER", 1, every=30)
+    sim.wait(1000)
+    assert seen(sim) == (["FMS_INNER_CW"] * 4 + ["FMS_OUTER_CW"], [])
+
+
+def test_a_medium_speed_turn_stops_with_the_hand():
+    # HDG turned 30 detents at 75 ms each: too slow for the coarse step by time, faster than fine steps go out
+    # (112 ms each). Every detent arrives as one step, fine or coarse, and the last one is released within
+    # 180 ms of the last detent: nothing is lost and the knob does not run on
+    sim = Sim()
+    sim.turn("ALTHDG_INNER", 30, every=75)
+    last = sim.now - 75
+    sim.wait(1500)
+    names = seen(sim)[0]
+    assert len(names) == 30 and names[0] == "HDG_1_UP" and set(names) == {"HDG_1_UP", "HDG_10_UP"}
+    assert max(t for t, names in sim.buttons(1) if not names) <= last + 180
 
 
 def test_fast_fms_spin_keeps_every_detent():

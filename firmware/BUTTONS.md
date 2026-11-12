@@ -15,17 +15,17 @@ presses too, however long the control is held (UP, DN and PAN repeat). Map all o
 | HDG | key HDG | 3 | |
 | FD | key FD | 4 | |
 | VS | key VS | 5 | |
-| NAV | key NAV | 6 | |
+| NAV | key NAV (autopilot NAV mode) | 6 | |
 | UP | key UP | 7 | |
 | FLC | key FLC | 8 | |
 | APR | key APR | 9 | |
 | DN | key DN | 10 | |
-| VNV | key VNV | 11 | |
+| VNV | key VNV (autopilot vertical navigation) | 11 | |
 | LVL | key LVL | 12 | |
-| MIC1 | key MIC 1 | 13 | |
-| COM1 | key COM 1 | 14 | |
-| MIC2 | key MIC 2 | 15 | |
-| COM2 | key COM 2 | 16 | |
+| MIC1 | key MIC 1 (audio, talk on COM 1) | 13 | |
+| COM1 | key COM 1 (audio, listen to COM 1) | 14 | |
+| MIC2 | key MIC 2 (audio, talk on COM 2) | 15 | |
+| COM2 | key COM 2 (audio, listen to COM 2) | 16 | |
 | VFR | key VFR | 17 | |
 | TEST | SHIFT, key AP | 18 | |
 | ARM | SHIFT, key ALT | 19 | |
@@ -62,26 +62,26 @@ presses too, however long the control is held (UP, DN and PAN repeat). Map all o
 | BARO_STD | SHIFT, ALT/HDG push | 50 | |
 | RANGE_CW | RANGE turn, clockwise | 51 | |
 | RANGE_CCW | RANGE turn, counter-clockwise | 52 | |
-| PAN_UP | RANGE tilt up | 53 | |
-| PAN_DN | RANGE tilt down | 54 | |
+| PAN_UP | RANGE tilt up (away from you) | 53 | |
+| PAN_DN | RANGE tilt down (towards you) | 54 | |
 | PAN_LEFT | RANGE tilt left | 55 | |
 | PAN_RIGHT | RANGE tilt right | 56 | |
 | PTR | RANGE push | 57 | |
 | S_RANGE_CW | SHIFT, RANGE turn, clockwise | 58 | |
 | S_RANGE_CCW | SHIFT, RANGE turn, counter-clockwise | 59 | |
-| S_PAN_UP | SHIFT, RANGE tilt up | 60 | |
-| S_PAN_DN | SHIFT, RANGE tilt down | 61 | |
+| S_PAN_UP | SHIFT, RANGE tilt up (away from you) | 60 | |
+| S_PAN_DN | SHIFT, RANGE tilt down (towards you) | 61 | |
 | S_PAN_LEFT | SHIFT, RANGE tilt left | 62 | |
 | S_PAN_RIGHT | SHIFT, RANGE tilt right | 63 | |
 | S_PTR | SHIFT, RANGE push | 64 | |
-| SQK_D2_UP | SHIFT, FREQ inner, digit 2 selected, clockwise | 65 | |
-| SQK_D2_DN | SHIFT, FREQ inner, digit 2 selected, counter-clockwise | 66 | |
-| SQK_D1_UP | SHIFT, FREQ inner, digit 1 selected, clockwise | 67 | |
-| SQK_D1_DN | SHIFT, FREQ inner, digit 1 selected, counter-clockwise | 68 | |
-| SQK_D4_UP | SHIFT, FREQ inner, digit 4 selected, clockwise | 69 | |
-| SQK_D4_DN | SHIFT, FREQ inner, digit 4 selected, counter-clockwise | 70 | |
-| SQK_D3_UP | SHIFT, FREQ inner, digit 3 selected, clockwise | 71 | |
-| SQK_D3_DN | SHIFT, FREQ inner, digit 3 selected, counter-clockwise | 72 | |
+| SQK_D2_UP | SHIFT, FREQ inner, digit 2 (hundreds) selected, clockwise | 65 | |
+| SQK_D2_DN | SHIFT, FREQ inner, digit 2 (hundreds) selected, counter-clockwise | 66 | |
+| SQK_D1_UP | SHIFT, FREQ inner, digit 1 (thousands) selected, clockwise | 67 | |
+| SQK_D1_DN | SHIFT, FREQ inner, digit 1 (thousands) selected, counter-clockwise | 68 | |
+| SQK_D4_UP | SHIFT, FREQ inner, digit 4 (ones) selected, clockwise | 69 | |
+| SQK_D4_DN | SHIFT, FREQ inner, digit 4 (ones) selected, counter-clockwise | 70 | |
+| SQK_D3_UP | SHIFT, FREQ inner, digit 3 (tens) selected, clockwise | 71 | |
+| SQK_D3_DN | SHIFT, FREQ inner, digit 3 (tens) selected, counter-clockwise | 72 | |
 | XPDR_MODE | SHIFT, FREQ push | 73 | |
 | CDI | key CDI | 74 | 1 |
 | COM_SWAP | key COM ⇆ | 75 | 2 |
@@ -96,7 +96,7 @@ presses too, however long the control is held (UP, DN and PAN repeat). Map all o
 | OBS | SHIFT, key CDI | 84 | 11 |
 | COM_121_5 | SHIFT, key COM ⇆ | 85 | 12 |
 | ADF_SWAP | SHIFT, key NAV ⇆ | 86 | 13 |
-| VNAV | SHIFT, key FPL | 87 | 14 |
+| VNAV | SHIFT, key FPL (navigator VNAV key, not the autopilot's VNV) | 87 | 14 |
 | MSG | SHIFT, key D→ | 88 | 15 |
 | NRST | SHIFT, key MENU | 89 | 16 |
 | TERR | SHIFT, key PROC | 90 | 17 |

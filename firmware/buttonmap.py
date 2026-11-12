@@ -25,6 +25,7 @@ SHIFTED = {
 }
 UNIT_KEYS = ("CDI", "COM_SWAP", "NAV_SWAP", "HOME", "FPL", "DIRECT", "MENU", "PROC", "CLR", "ENT")
 REPEAT_KEYS = ("UP", "DN")
+# keys on device 1 only; their order is the order of their button numbers (DEVICE1_ONLY), frozen with them
 PLAIN_KEYS = ("AP", "ALT", "HDG", "FD", "VS", "NAV", "UP", "FLC", "APR", "DN", "VNV", "LVL",
               "MIC1", "COM1", "MIC2", "COM2", "VFR")
 
@@ -46,11 +47,8 @@ def _turn(base, fast=None):
 # slot, and a key whose plain and shifted functions trade places keeps the numbers of its functions.
 # Joined with +, not *-unpacking: MicroPython (and so CircuitPython) has no * inside a list literal.
 DEVICE1_ONLY = (
-    # plain keys (PLAIN_KEYS), then their shifted functions in the same order: the numbers' order, not MATRIX's
-    ["AP", "ALT", "HDG", "FD", "VS", "NAV", "UP", "FLC", "APR", "DN", "VNV", "LVL", "MIC1", "COM1", "MIC2", "COM2",
-     "VFR",
-     "TEST", "ARM", "CRS_CTR", "YD", "S_VS", "GPSS", "S_UP", "S_FLC", "BC", "S_DN", "S_VNV", "HALF_BANK",
-     "ADF_AUDIO", "NAV1_AUDIO", "DME_AUDIO", "NAV2_AUDIO", "IDENT"]
+    # plain keys, then their shifted functions in the same order: PLAIN_KEYS' order, not MATRIX's
+    list(PLAIN_KEYS) + [shifted(k) for k in PLAIN_KEYS]
     # ALT / HDG knob (outer / inner ring); with SHIFT: BARO / CRS, push STD. CRS comes before BARO here: the
     # order is frozen with the numbers.
     + _turn("ALT_100", "ALT_1000") + _turn("HDG_1", "HDG_10") + ["HDG_SYNC"]
@@ -84,6 +82,4 @@ BUTTON = {dev: {n: i for i, n in enumerate(names)} for dev, names in DEVICE.item
 SIZE = {1: 128, 2: 64}                     # buttons per device (report: SIZE / 8 bytes)
 assert len(DEVICE[1]) <= SIZE[1] and len(DEVICE[2]) <= SIZE[2]
 assert all(len(set(n)) == len(n) for n in DEVICE.values()), "duplicate button name"
-# every plain key and its SHIFT function has a button
-assert all(n in DEVICE1_ONLY for k in PLAIN_KEYS for n in (k, shifted(k))), "plain key without a button"
 

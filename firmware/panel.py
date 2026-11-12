@@ -32,8 +32,9 @@ HID_FRAME_MS = 8         # the host's report interval
 KEY_SCAN_MS = 20         # code.py's keypad scan interval
 BOUNCE_MS = 30           # a press this soon after its own release (scan times) is a bounce: 1.5 scans
 PRESS_MS = 56            # one knob detent = a button held this long, and a key or push at least this long ...
-GAP_MS = 56              # ... then released this long before the next one: 112 ms, about 9 steps per second
-MAX_QUEUE = 8            # queued detents per button (fast spins): runs on for at most 8 x 112 = 896 ms
+GAP_MS = 56              # ... then released this long before its next one: 112 ms, about 9 steps per second
+MAX_QUEUE = 8            # detents waiting, all rings together, and presses owed per button: a fast spin runs
+                         # on, and a key waits behind it, for at most about 8 x 112 = 896 ms
 REPEAT_DELAY_MS = 400    # UP / DN: first repeat ...
 REPEAT_MS = 125          # ... then about 8 per second
 PAN_DELAY_MS = 300       # RANGE tilt: first repeat ...
@@ -77,45 +78,52 @@ class Panel:
         self.digit = 1               # squawk digit (1 to 4) the shifted FREQ inner ring steps
         self.held = {}               # source -> (device, button) held while the source is held
         self.pending = {}            # key or push -> scan ms of its release, not applied for BOUNCE_MS
-        self.shown = {}              # (device, button) of a key or push -> [down?, ms of its last edge, presses
-                                     # still to show]: what the PC sees, kept to PRESS_MS and GAP_MS
+        self.shown = {}              # (device, button) -> [down?, ms of its last edge, presses owed]: every
+                                     # button the PC sees down, in its gap or still owed a press
+        self.order = []              # the owed presses (shown keys), in the order they came: steps and keys
+        self.order_ms = 0            # the head of order waits until then: PRESS_MS after the last press sent
         self.repeat = {}             # source -> [device, button, next_ms, every_ms]
-        self.queue = {}              # (device, button) -> queued detents
-        self.pulse = {}              # (device, button) -> (down?, until_ms)
         self.last_detent = {}        # ring -> (ms, direction)
-        self.ring_keys = {}          # ring -> queue keys its detents went to since its last reversal
+        self.ring_keys = {}          # ring -> shown keys its detents went to since its last reversal
         self.holds = {}              # source -> knob: a push or tilt held in that knob's shifted session
         self.last_tick = None        # ms of the last tick(): the previous loop pass
         self.range_dirs = set()
-        self.range_com = False       # RANGE "com" closed (any operation closes it)
-        self.range_tilted = False    # a direction closed during this "com" press
+        self.range_tilted = False    # a direction closed during this RANGE "com" press
 
     # ---------------- helpers ----------------
     def _btn(self, dev, name):
         return dev, BM.BUTTON[dev][name]
 
-    def _hold(self, src, k):
-        """A key or push goes down: holds k while src is held, and owes the PC one more press of k."""
-        self.held[src] = k
+    def _owe(self, k, n=1):
+        """n more presses of button k, behind everything already in order; at most MAX_QUEUE with the one on
+        its way"""
         e = self.shown.get(k)
         if e is None:
-            self.shown[k] = [False, None, 1]
-        else:
-            e[2] = min(e[2] + 1, MAX_QUEUE)
+            e = self.shown[k] = [False, None, 0]
+        while n > 0 and e[2] + (e[1] is not None) < MAX_QUEUE:
+            e[2] += 1
+            self.order.append(k)
+            n -= 1
+        return k
+
+    def _hold(self, src, k):
+        """A key or push goes down: holds k while src is held, and owes the PC one more press of k"""
+        self.held[src] = k
+        self._owe(k)
 
     def _queue(self, dev, name, n=1):
-        k = self._btn(dev, name)
-        self.queue[k] = min(self.queue.get(k, 0) + n, MAX_QUEUE)
-        return k
+        """n detents or repeats of a button, while fewer than MAX_QUEUE presses wait in order, so nothing waits
+        behind them for long. Keys, pushes and the first step of a hold are never dropped (_owe)."""
+        return self._owe(self._btn(dev, name), min(n, MAX_QUEUE - len(self.order)))
 
     def _reverse(self, ring):
         """The ring turned the other way: drop the detents it still has queued in the old direction, so the knob
-        stops at once. A pulse already on the way finishes, the PC has seen its press."""
-        for k in self.ring_keys.pop(ring, ()):
-            if k in self.pulse:
-                self.queue[k] = 1
-            else:
-                self.queue.pop(k, None)
+        stops at once. Only those at the end of order: a key or another ring queued after them came later, and
+        the PC must see them first (ENT confirms the character dialled before it). A pulse already on the way
+        finishes, the PC has seen its press."""
+        keys = self.ring_keys.pop(ring, ())
+        while self.order and self.order[-1] in keys:
+            self.shown[self.order.pop()][2] -= 1
 
     def shift_active(self, t):
         """Whether SHIFT applies at time t, the one place that decides it: inputs, tick() and the light agree,
@@ -221,7 +229,7 @@ class Panel:
         dev = self.unit if name in BM.UNIT_KEYS else 1
         button = BM.shifted(name) if shifted else name
         if name in BM.REPEAT_KEYS:
-            self._queue(dev, button)
+            self._owe(self._btn(dev, button))
             self.repeat[name] = [dev, button, t + REPEAT_DELAY_MS, REPEAT_MS]
         else:
             self._hold(name, self._btn(dev, button))
@@ -259,7 +267,8 @@ class Panel:
         # fast: 2+ detents in one read, or the previous detent on this ring and direction was recent. After a
         # stalled loop pass 2+ detents in one read say nothing about the speed: only the previous detent counts.
         stalled = self.last_tick is not None and t - self.last_tick > FAST_MS
-        fast = (abs(steps) > 1 and not stalled) or (last is not None and last[1] == up and t - last[0] < FAST_MS)
+        since = t - last[0] if last is not None and last[1] == up else None    # ms since this turn's last detent
+        fast = (abs(steps) > 1 and not stalled) or (since is not None and since < FAST_MS)
         self.last_detent[ring] = (t, up)
         knob = ring.split("_")[0]
         shifted = self._knob_shift(knob, t)
@@ -292,8 +301,18 @@ class Panel:
             dev = self.unit if knob == "FMS" else 1
             name = ("S_" if shifted else "") + ring + ("_CW" if up else "_CCW")   # shifted: only RANGE gets here
         if slow:
-            name = (quick if (fast and quick) else slow) + ("_UP" if up else "_DN")
-        self.ring_keys.setdefault(ring, set()).add(self._queue(dev, name, abs(steps)))
+            way = "_UP" if up else "_DN"
+            # Turned faster than its steps go out, a knob with a coarse step takes it while a fine step still
+            # waits: the two buttons share the turn, so the knob stops with the hand. Fine steps that only wait
+            # behind other buttons don't count: a slow turn stays fine.
+            lagging = since is not None and since < PRESS_MS + GAP_MS
+            if quick and (fast or (lagging and self.shown.get(self._btn(dev, slow + way), (0, 0, 0))[2])):
+                slow = quick
+            name = slow + way
+        keys = self.ring_keys.get(ring)
+        if keys is None:
+            keys = self.ring_keys[ring] = set()
+        keys.add(self._queue(dev, name, abs(steps)))
 
     def _range_key(self, name, pressed, t):
         """A tilt closes its direction and "com"; the centre push closes "com" alone. "com" can close well
@@ -306,17 +325,17 @@ class Panel:
             self.holds[name] = "RANGE"
         if name == "RANGE_COM":
             if pressed:
-                self.range_com, self.range_tilted = True, bool(self.range_dirs)
+                self.range_tilted = bool(self.range_dirs)
             else:
                 if not self.range_tilted:                  # set while a direction is closed, too
-                    self._queue(1, "S_PTR" if shifted else "PTR")
-                self.range_com, self.range_tilted = False, False
+                    self._owe(self._btn(1, "S_PTR" if shifted else "PTR"))
+                self.range_tilted = False
             return
         if pressed:
             self.range_dirs.add(name)
             self.range_tilted = True
             button = ("S_PAN_" if name in self.holds else "PAN_") + PAN_DIRS[name]
-            self._queue(1, button)
+            self._owe(self._btn(1, button))
             self.repeat[name] = [1, button, t + PAN_DELAY_MS, PAN_MS]
         else:
             self.range_dirs.discard(name)
@@ -331,7 +350,14 @@ class Panel:
                 if t - self.pending[name] >= BOUNCE_MS:
                     del self.pending[name]
                     self._apply(name, False, t)
-        for src in list(self.repeat):
+        if self.repeat:
+            self._repeat(t)
+        self._show(t)
+        if self.order and t >= self.order_ms:
+            self._next(t)
+
+    def _repeat(self, t):
+        for src in list(self.repeat):                      # a copy: a session that ended drops its entry
             r = self.repeat[src]
             dev, button, nxt, every = r
             if src in self.holds and self._kept() != self.holds[src]:
@@ -340,29 +366,26 @@ class Panel:
             if src in self.pending:                        # released, maybe: a repeat due now waits for a bounce
                 continue
             # A repeat waits until the last step of its button is through (press and gap), so at any pass time a
-            # hold sends nothing after its release but the pulse on the way. Held back by that, a bounce or a
-            # slow pass: keep the cadence, but send a missed repeat once, not in a burst
-            if t >= nxt and self._btn(dev, button) not in self.queue:
+            # hold sends nothing after its release but its step in order or on the way. Held back by that, a
+            # bounce or a slow pass: keep the cadence, but send a missed repeat once, not in a burst
+            if t >= nxt and self._btn(dev, button) not in self.shown:
                 self._queue(dev, button)
                 r[2] = nxt + every if t - nxt < every else t + every
-        for k in list(self.queue):
-            st = self.pulse.get(k)
-            if st is None:
-                self.pulse[k] = (True, t + PRESS_MS)
-            elif t >= st[1]:
-                if st[0]:
-                    self.pulse[k] = (False, t + GAP_MS)
-                else:
-                    del self.pulse[k]
-                    self.queue[k] -= 1
-                    if self.queue[k] <= 0:
-                        del self.queue[k]
-        self._show(t)
+
+    def _next(self, t):
+        """Presses the head of order PRESS_MS after the last press it sent, so MobiFlight has seen that one first
+        (another button may go down in its gap), and once the head's own last press and gap are over."""
+        k = self.order[0]
+        e = self.shown[k]
+        if e[0] or (e[1] is not None and t - e[1] < GAP_MS):
+            return
+        self.order.pop(0)
+        e[0], e[1], e[2] = True, t, e[2] - 1
+        self.order_ms = t + PRESS_MS
 
     def _show(self, t):
-        """Keys and pushes as the PC sees them: a press at once, held as long as the source, but at least
-        PRESS_MS; a new press waits until the last release is GAP_MS old. A release and a new press that both
-        came during PRESS_MS (a fast double tap) end the first press there, and the second follows the gap."""
+        """Releases a press once it was down PRESS_MS and its source let go (at once with another press owed:
+        a fast double tap), and forgets a button once its gap is over and nothing is owed"""
         if not self.shown:                                 # nothing pressed lately: skip the work below
             return
         done = None                                        # a list only when an entry goes (no copy per tick)
@@ -372,11 +395,9 @@ class Panel:
             if down:
                 if t - since >= PRESS_MS and (owed or not self._is_held(k)):
                     e[0], e[1] = False, t
-            elif since is None or t - since >= GAP_MS:
-                if owed:
-                    e[0], e[1], e[2] = True, t, owed - 1
-                elif done is None:
-                    done = [k]                             # released long enough, nothing owed: forget it
+            elif not owed and (since is None or t - since >= GAP_MS):
+                if done is None:
+                    done = [k]
                 else:
                     done.append(k)
         if done:
@@ -392,6 +413,4 @@ class Panel:
 
     def buttons(self, dev):
         """Button numbers currently pressed on one device."""
-        out = {b for (d, b), e in self.shown.items() if d == dev and e[0]}
-        out |= {b for (d, b), (down, _) in self.pulse.items() if d == dev and down}
-        return out
+        return {b for (d, b), e in self.shown.items() if d == dev and e[0]}

@@ -111,29 +111,33 @@ class Sim:
                 for ms, r in self.reports(device)]
 
     def _polls(self, device):
-        """The buttons pressed at each of MobiFlight's polls before now"""
+        """(ms, buttons pressed) at each of MobiFlight's polls before now"""
         reports, out, names, k, t = self.buttons(device), [], [], 0, POLL_OFFSET_MS
         while t < self.now:
             while k < len(reports) and reports[k][0] <= t:
                 names = reports[k][1]
                 k += 1
-            out.append(names)
+            out.append((t, names))
             t += POLL_MS
         return out
 
-    def presses(self, device):
-        """The buttons of device 1 or 2 MobiFlight saw go down, in order: a press that falls between two of its
-        polls is not among them"""
+    def polled(self, device):
+        """(ms of the poll, name) of every button of device 1 or 2 MobiFlight saw go down, in order: a press that
+        falls between two of its polls is not among them"""
         out, before = [], []
-        for names in self._polls(device):
-            out += [n for n in names if n not in before]
+        for t, names in self._polls(device):
+            out += [(t, n) for n in names if n not in before]
             before = names
         return out
+
+    def presses(self, device):
+        """The buttons of device 1 or 2 MobiFlight saw go down, in order"""
+        return [n for _, n in self.polled(device)]
 
     def held(self, device):
         """The buttons of device 1 or 2 down at MobiFlight's last poll before now"""
         polls = self._polls(device)
-        return polls[-1] if polls else []
+        return polls[-1][1] if polls else []
 
     def light(self, name):
         """(ms, duty) of every duty written to the "SHIFT" or "UNIT" light before now"""

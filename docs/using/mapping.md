@@ -41,6 +41,9 @@ MobiFlight show them.
 - G1000: UNIT selects radio 2 only, so map the FMS keys and knob of both devices to the MFD
   ([why](controls.md#keys-label-shift-legend-in-parentheses)).
 - GNS 430 as unit 2 has its own CDI and OBS, so they are on device 2 too.
+- In unit 2, CDI, OBS, HOME, ADF ⇆ and the ADF mode's turns come from device 2. Where the aircraft has only
+  one of them (the G1000's CDI and OBS softkeys, a single ADF), map device 2's buttons the same as device 1's,
+  or they do nothing in unit 2.
 
 ## Update mode and GUIDs
 

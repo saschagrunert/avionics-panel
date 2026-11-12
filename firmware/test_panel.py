@@ -5,12 +5,13 @@ import panel as P
 
 class Sim:
     def __init__(self):
-        self.p, self.t, self.seen = P.Panel(), 0, []
+        self.p, self.t, self.seen, self.log = P.Panel(), 0, [], []
         self.prev = {1: set(), 2: set()}
         self.names = {d: {v: k for k, v in BM.BUTTON[d].items()} for d in (1, 2)}
 
     def run(self, ms):
-        """advance time, record every button press edge as (device, name)"""
+        """advance time, record every button press edge as (device, name) in seen, and as (ms, device, name) in
+        log"""
         names = self.names
         for _ in range(ms):
             self.t += 1
@@ -19,6 +20,7 @@ class Sim:
                 now = self.p.buttons(d)
                 for b in sorted(now - self.prev[d]):
                     self.seen.append((d, names[d][b]))
+                    self.log.append((self.t, d, names[d][b]))
                 self.prev[d] = now
 
     def key(self, name, ms=60):
@@ -296,19 +298,19 @@ def test_squawk_fast_spin_only_steps_the_selected_digit():
 def test_squawk_steps_queued_for_a_digit_are_kept_when_the_next_one_is_selected():
     # the inner ring spun, the next digit selected while steps are still queued: they finish on their digit,
     # also when the inner ring then turns the other way (a reversal on one digit still stops at once), and
-    # the new digit has a queue of its own
+    # the new digit's steps follow them, as far as the MAX_QUEUE waiting leave room
     s = Sim()
     s.key("SHIFT")
     s.turn("FREQ_INNER", 5, every=10); s.turn("FREQ_OUTER", 1, every=10)
     s.turn("FREQ_INNER", -1, every=10); s.run(1500)
-    names = [n for _, n in s.take()]
-    assert sorted(names) == ["SQK_D1_UP"] * 5 + ["SQK_D2_DN"] and names[1] == "SQK_D2_DN"
+    assert [n for _, n in s.take()] == ["SQK_D1_UP"] * 5 + ["SQK_D2_DN"]
     s.turn("FREQ_INNER", 5, every=10); s.turn("FREQ_INNER", -1, every=10); s.run(1500)
     assert [n for _, n in s.take()] == ["SQK_D2_UP", "SQK_D2_DN"]
     s.turn("FREQ_INNER", 12, every=10); s.turn("FREQ_OUTER", 1, every=10)
     s.turn("FREQ_INNER", 12, every=10); s.run(1500)
     names = [n for _, n in s.take()]
-    assert names.count("SQK_D2_UP") == names.count("SQK_D3_UP") == P.MAX_QUEUE and len(names) == 2 * P.MAX_QUEUE
+    d3 = names.count("SQK_D3_UP")
+    assert names == ["SQK_D2_UP"] * P.MAX_QUEUE + ["SQK_D3_UP"] * d3 and 0 < d3 < P.MAX_QUEUE
 
 
 def test_adf_inner_ring_accelerates():
@@ -386,9 +388,189 @@ def test_unit_toggled_while_detents_are_queued():
     s = Sim()
     s.turn("FMS_INNER", 6, every=10)
     tap(s, "SHIFT"); tap(s, "HOME"); assert s.p.unit == 2
-    assert s.take() == [(1, "FMS_INNER_CW")] * 2 and (1, BM.BUTTON[1]["FMS_INNER_CW"]) in s.p.queue   # more to go
+    assert s.take() == [(1, "FMS_INNER_CW")] * 2 and (1, BM.BUTTON[1]["FMS_INNER_CW"]) in s.p.order   # more to go
     s.turn("FMS_INNER", 2, every=10); s.run(1000)
     assert sorted(s.take()) == [(1, "FMS_INNER_CW")] * 4 + [(2, "FMS_INNER_CW")] * 2
+
+
+STEP_MS = P.PRESS_MS + P.GAP_MS
+
+
+def spaced(log):
+    """Whether each press in log starts PRESS_MS or more after the one before it, and STEP_MS or more after the
+    last press of its own button"""
+    prev, last = None, {}
+    for t, d, n in log:
+        if (prev is not None and t - prev < P.PRESS_MS) or ((d, n) in last and t - last[(d, n)] < STEP_MS):
+            return False
+        prev = last[(d, n)] = t
+    return True
+
+
+def test_everything_goes_out_in_the_order_it_came():
+    # three quick FMS inner detents, ENT, an outer detent and the push, all faster than they go out
+    s = Sim()
+    s.turn("FMS_INNER", 3, every=10); tap(s, "ENT"); s.turn("FMS_OUTER", 1, every=10); tap(s, "FMS_PUSH")
+    s.run(1000)
+    assert [n for _, _, n in s.log] == ["FMS_INNER_CW"] * 3 + ["ENT", "FMS_OUTER_CW", "FMS_CRSR"]
+    assert spaced(s.log)
+
+
+def test_a_key_with_nothing_ahead_goes_out_at_once():
+    s = Sim()
+    s.p.key("AP", True, s.t); s.run(1)
+    assert s.take() == [(1, "AP")]
+
+
+def test_a_key_waits_for_a_step_still_shown():
+    # a detent 19 ms before the key: the key goes down once the step was shown for PRESS_MS
+    s = Sim()
+    s.p.turn("FMS_INNER", 1, s.t); s.run(20)
+    s.p.key("AP", True, s.t); s.run(100)
+    assert [n for _, _, n in s.log] == ["FMS_INNER_CW", "AP"] and spaced(s.log)
+
+
+def test_a_step_waits_for_a_key_before_it():
+    # COM ⇆ and a kHz detent 25 ms later; ENT twice, the second waiting for its own gap, and a detent 30 ms
+    # after it: the detent goes out last both times
+    s = Sim()
+    s.p.key("COM_SWAP", True, s.t); s.run(25); s.p.turn("FREQ_INNER", 1, s.t); s.run(300)
+    assert [n for _, _, n in s.log] == ["COM_SWAP", "COM_KHZ_UP"] and spaced(s.log)
+    s = Sim()
+    tap(s, "ENT"); s.p.key("ENT", True, s.t); s.run(30); s.p.turn("FMS_INNER", 1, s.t); s.run(300)
+    assert [n for _, _, n in s.log] == ["ENT", "ENT", "FMS_INNER_CW"] and spaced(s.log)
+
+
+def test_a_held_key_or_tilt_repeats_in_turn_with_the_steps():
+    # UP or a tilt pressed and held while FMS steps are queued: its first step follows them, and a detent
+    # turned during the hold goes out between two of its steps, in the order they came, and nothing follows
+    # its release
+    for keys, button in ((("UP",), "UP"), (("RANGE_COM", "RANGE_A"), "PAN_UP")):
+        s = Sim()
+        s.turn("FMS_INNER", 4, every=10)
+        for k in keys:
+            s.p.key(k, True, s.t)
+        s.run(800); s.turn("FMS_OUTER", 1, every=10); s.run(800)
+        let_go = s.t
+        for k in keys:
+            s.p.key(k, False, s.t)
+        s.run(1000)
+        names = [n for _, _, n in s.log]
+        assert names[:5] == ["FMS_INNER_CW"] * 4 + [button] and names.count("FMS_OUTER_CW") == 1, keys
+        outer = names.index("FMS_OUTER_CW")
+        assert 5 < outer < len(names) - 1 and set(names[5:outer] + names[outer + 1:]) == {button}, keys
+        starts = [t for t, _, n in s.log if n == button]
+        assert spaced(s.log), keys
+        assert starts[-1] < let_go + P.BOUNCE_MS, keys
+
+
+def test_a_key_held_behind_steps_keeps_its_unit_and_is_shown_from_its_turn():
+    # CDI pressed in unit 1 behind queued steps and held while UNIT changes: it goes out after the steps, on
+    # device 1, and stays down from its turn until it is let go
+    s = Sim()
+    s.turn("FMS_INNER", 4, every=10)
+    s.p.key("CDI", True, s.t); s.run(100)
+    tap(s, "SHIFT"); tap(s, "HOME"); assert s.p.unit == 2
+    s.run(500); assert s.p.buttons(1) == {BM.BUTTON[1]["CDI"]}
+    s.p.key("CDI", False, s.t); s.run(P.BOUNCE_MS - 1); assert s.p.buttons(1) == {BM.BUTTON[1]["CDI"]}
+    s.run(1); assert s.p.buttons(1) == set()
+    s.key("CDI")
+    assert s.take() == [(1, "FMS_INNER_CW")] * 4 + [(1, "CDI"), (2, "CDI")]
+
+
+def test_shift_tapped_behind_steps_arms_the_next_key_at_once():
+    # the light comes on at the tap, the key goes out shifted after the steps, and the light is off at its press
+    s = Sim()
+    s.turn("FMS_INNER", 4, every=10); tap(s, "SHIFT")
+    assert s.p.shift_level(s.t) == P.LIGHT_FULL
+    tap(s, "VFR"); assert s.p.shift_level(s.t) == P.LIGHT_OFF
+    s.run(1000)
+    assert s.take() == [(1, "FMS_INNER_CW")] * 4 + [(1, "IDENT")]
+
+
+def test_a_key_ends_a_session_at_its_press_while_its_steps_still_go_out():
+    # AP pressed while squawk steps are still queued: the session and the light end at the press, the queued
+    # steps still go out as squawk steps, and AP, plain, follows them
+    s = Sim()
+    s.key("SHIFT"); s.turn("FREQ_INNER", 6, every=10)
+    tap(s, "AP"); assert s.p.shift_level(s.t) == P.LIGHT_OFF and not s.p.shift_active(s.t)
+    s.turn("FREQ_INNER", 1, every=10); s.run(1000)
+    assert [n for _, n in s.take()] == ["SQK_D1_UP"] * 6 + ["AP", "COM_KHZ_UP"]
+
+
+def test_at_most_max_queue_steps_wait():
+    # 12 detents in one read keep MAX_QUEUE; once the first is on its way, a detent of the other ring fits in
+    s = Sim()
+    s.p.turn("FMS_INNER", 12, s.t); s.run(5); s.turn("FMS_OUTER", 1, every=5); s.run(2000)
+    assert [n for _, n in s.take()] == ["FMS_INNER_CW"] * P.MAX_QUEUE + ["FMS_OUTER_CW"]
+    assert s.p.order == [] and s.p.shown == {}
+
+
+def test_a_key_behind_a_full_queue_is_kept_and_waits_less_than_a_second():
+    # three rings flicked, then AP; and CLR tapped 12 times behind them: MAX_QUEUE of those, in their turn
+    s = Sim()
+    for ring in ("FMS_INNER", "FMS_OUTER", "FREQ_INNER"):
+        s.turn(ring, 15, every=20)
+    pressed = s.t
+    tap(s, "AP")
+    for _ in range(12):
+        s.p.key("CLR", True, s.t); s.run(P.BOUNCE_MS + 1); s.p.key("CLR", False, s.t); s.run(P.BOUNCE_MS + 1)
+    s.run(2000)
+    names = [n for _, _, n in s.log]
+    assert names[-1 - P.MAX_QUEUE:] == ["AP"] + ["CLR"] * P.MAX_QUEUE and spaced(s.log)
+    assert [t for t, _, n in s.log if n == "AP"][0] - pressed < P.MAX_QUEUE * STEP_MS
+
+
+def test_reversing_keeps_the_steps_a_key_or_another_ring_followed():
+    # FMS inner spun, ENT (or the outer ring), then the inner ring back: the steps before ENT are the
+    # character it confirms, so they stay and the step back follows ENT. Turned back right away, the knob
+    # still stops at once
+    for between in ("ENT", "FMS_OUTER"):
+        s = Sim()
+        s.turn("FMS_INNER", 6, every=10)
+        if between == "ENT":
+            tap(s, "ENT")
+        else:
+            s.turn("FMS_OUTER", 1, every=10)
+        s.turn("FMS_INNER", -1, every=10); s.run(1500)
+        sent = "ENT" if between == "ENT" else "FMS_OUTER_CW"
+        assert [n for _, n in s.take()] == ["FMS_INNER_CW"] * 6 + [sent, "FMS_INNER_CCW"], between
+    s = Sim()
+    s.turn("FMS_INNER", 6, every=10); tap(s, "ENT"); s.turn("FMS_INNER", 3, every=10)
+    s.turn("FMS_INNER", -1, every=10); s.run(1500)
+    assert [n for _, n in s.take()] == ["FMS_INNER_CW"] * 6 + ["ENT", "FMS_INNER_CCW"]
+
+
+def test_reversing_forgets_steps_that_never_went_out():
+    # ALT spun behind FMS steps and turned back before any of its steps went out: only the step back is sent
+    s = Sim()
+    s.turn("FMS_INNER", 4, every=10); s.turn("ALTHDG_OUTER", 3, every=10); s.turn("ALTHDG_OUTER", -1, every=10)
+    s.run(1000)
+    assert [n for _, n in s.take()] == ["FMS_INNER_CW"] * 4 + ["ALT_100_DN"] and s.p.shown == {}
+
+
+def test_a_medium_speed_turn_mixes_in_coarse_steps():
+    # HDG detents 61 to 112 ms apart: the first ones fine; while a fine step still waits, a detent takes the
+    # coarse step, so each detent is one step and the last one goes out with the hand. Slower than the fine
+    # steps go out, every detent stays fine
+    for every in (61, 70, 100):
+        s = Sim()
+        s.turn("ALTHDG_INNER", 30, every=every); last = s.t - every; s.run(1000)
+        names = [n for _, n in s.take()]
+        assert len(names) == 30 and names[:2] == ["HDG_1_UP"] * 2 and "HDG_10_UP" in names, every
+        assert set(names) == {"HDG_1_UP", "HDG_10_UP"} and s.log[-1][0] - last < STEP_MS, every
+    s = Sim()
+    s.turn("ALTHDG_INNER", 30, every=STEP_MS + 1); s.run(1000)
+    assert [n for _, n in s.take()] == ["HDG_1_UP"] * 30
+
+
+def test_a_slow_turn_behind_another_rings_steps_stays_fine():
+    # ALT and HDG turned slowly right after a quick FMS scroll: their fine steps wait behind the FMS steps,
+    # but the hand turns slower than steps go out, so every detent stays fine and none is lost
+    for ring, detents, fine in (("ALTHDG_OUTER", 8, "ALT_100_UP"), ("ALTHDG_INNER", 4, "HDG_1_UP")):
+        s = Sim()
+        s.turn("FMS_INNER", 15, every=20); s.turn(ring, detents, every=150); s.run(2000)
+        assert [n for _, n in s.take() if n != "FMS_INNER_CW"] == [fine] * detents, ring
 
 
 def held_presses(keys, button, pass_ms, ms=15000):
@@ -572,13 +754,13 @@ def test_quick_tap_then_a_held_press_stays_two_presses():
 
 def test_presses_still_to_show_are_capped():
     # 20 presses, each just past BOUNCE_MS after the last (faster than a finger, and than the PC is shown them):
-    # once MAX_QUEUE are owed the rest are dropped, as for knob detents, so the run-on stays bounded
+    # once MAX_QUEUE are owed, counting the one on its way, the rest are dropped, so the run-on stays bounded
     s = Sim()
     every = P.BOUNCE_MS + 1
     t0 = s.t
     on = key_trace(s, [(every * i, every * i + 1) for i in range(20)], "AP", after=2000)
     started = [a for a, _ in runs(on) if a <= t0 + every * 19]       # shown by the last press
-    assert len(runs(on)) == len(started) + P.MAX_QUEUE < 20
+    assert len(runs(on)) == len(started) + P.MAX_QUEUE - 1 < 20
 
 
 def test_second_press_held_waits_for_the_gap_then_stays_held():
@@ -600,12 +782,12 @@ def test_fast_double_push_stays_two_presses():
     assert len(runs(on)) == 2 and mobiflight_counts(on) == {2}
 
 
-def test_quick_taps_of_different_keys_do_not_wait():
-    # the gap is per button: AP right after VS goes down at once
+def test_a_quick_tap_of_another_key_waits_for_the_press_only():
+    # the gap is per button: AP right after VS goes down once VS was shown for PRESS_MS, in VS's gap
     s = Sim()
     s.p.key("VS", True, s.t); s.run(10); s.p.key("VS", False, s.t)
-    s.p.key("AP", True, s.t); s.run(1)
-    assert {s.names[1][b] for b in s.p.buttons(1)} == {"VS", "AP"}
+    s.p.key("AP", True, s.t); s.run(P.PRESS_MS)
+    assert [n for _, n in s.take()] == ["VS", "AP"] and s.log[1][0] - s.log[0][0] == P.PRESS_MS
 
 
 def test_key_state_is_forgotten_after_the_gap():
@@ -614,21 +796,20 @@ def test_key_state_is_forgotten_after_the_gap():
     assert s.p.shown == {}
 
 
-def test_two_keys_tapped_together_are_released_together():
-    # VS and AP down and up in the same passes: both stay pressed for PRESS_MS and go in the same tick. Both are
-    # still known in the last tick of the gap and forgotten in the next, so a new press of each goes down at once
+def test_two_keys_tapped_together_go_out_one_after_the_other():
+    # VS and AP down and up in the same passes: VS first, AP once VS was shown for PRESS_MS (in VS's gap), each
+    # pressed for PRESS_MS. Once both gaps are over both are forgotten, so a new press goes down at once
     s = Sim()
-    s.p.key("VS", True, s.t); s.p.key("AP", True, s.t); s.run(10)
+    s.p.key("VS", True, s.t); s.p.key("AP", True, s.t)
+    trace = pressed_trace(s, 10)
     s.p.key("VS", False, s.t); s.p.key("AP", False, s.t)
-    trace = pressed_trace(s, P.PRESS_MS + P.GAP_MS - 10)
-    both = [t for t in sorted(trace) if trace[t]]
-    assert all(trace[t] == {"VS", "AP"} for t in both) and len(both) == P.PRESS_MS - 10
-    assert len(s.p.shown) == 2
+    trace.update(pressed_trace(s, 2 * P.PRESS_MS + P.GAP_MS - 10))
+    assert [n for t in sorted(trace) for n in trace[t]] == ["VS"] * P.PRESS_MS + ["AP"] * P.PRESS_MS
     s.run(1)
     assert s.p.shown == {}
     s.take()
-    s.p.key("VS", True, s.t); s.p.key("AP", True, s.t); s.run(1)
-    assert sorted(s.take()) == [(1, "AP"), (1, "VS")]
+    s.p.key("VS", True, s.t); s.run(1)
+    assert s.take() == [(1, "VS")]
 
 
 # A switch that bounces for longer than a keypad scan: code.py passes on every change it scans
@@ -895,8 +1076,8 @@ def test_reversing_drops_slow_and_coarse_steps_of_one_turn():
     s = Sim()
     for gap in (P.FAST_MS + 5, 5, 5, 5):
         s.p.turn("ALTHDG_OUTER", 1, s.t); s.run(gap)
-    assert s.take() == [(1, "ALT_100_UP"), (1, "ALT_1000_UP")]
-    assert s.p.queue[s.p._btn(1, "ALT_100_UP")] == 2 and s.p.queue[s.p._btn(1, "ALT_1000_UP")] == 2
+    assert s.take() == [(1, "ALT_100_UP")]
+    assert s.p.order == [s.p._btn(1, "ALT_100_UP")] + [s.p._btn(1, "ALT_1000_UP")] * 2
     s.p.turn("ALTHDG_OUTER", -1, s.t); s.run(1000)
     assert s.take() == [(1, "ALT_100_DN")]
 
@@ -1117,7 +1298,7 @@ def test_shifted_repeat_stops_when_another_knob_takes_shift():
     s = Sim()
     hold_shifted_tilt(s)
     tap(s, "SHIFT")
-    s.turn("FMS_OUTER", 1, every=1)
+    s.turn("FMS_OUTER", 1, every=P.PRESS_MS)              # the step follows the pan step on its way
     assert s.take()[-1] == (1, "PANEL_LT_UP")
     rest = light_and_edges(s, 4000)
     assert all(level != P.LIGHT_OFF for level, _ in rest[:2500])

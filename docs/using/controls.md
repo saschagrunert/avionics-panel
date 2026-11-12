@@ -124,15 +124,18 @@ The cockpit lighting sits behind SHIFT on the FMS knob for the same reason as BA
 twice per flight, and more knobs would break the symmetric layout.
 
 Frequency mode: the FREQ push cycles the knob through COM, NAV and ADF. The panel has no light for the mode;
-it starts at COM after plugging in and stays until the next push, so watch which standby frequency moves.
+it starts at COM after plugging in or a firmware restart and stays until the next push, and both units share
+it, so watch which standby frequency moves.
 
 Squawk (SHIFT, FREQ knob): the outer ring selects the digit and the inner ring sets it, one step per detent.
 Every shifted session starts at the first digit. Turning the outer ring clockwise moves on to the next digit,
-counter-clockwise back; it stops at the first and the fourth.
+counter-clockwise back; it stops at the first and the fourth. A SHIFT tap during an entry, also to keep the
+pulsing light on, starts a new session: the next detent is on the first digit again.
 
 Acceleration (firmware): the first detent of a turn makes the fine step, and detents that follow within 60 ms
-in the same direction make the coarse step. Only a flick so fast that two detents fall into one pass of the
-firmware's loop (a few ms) makes both coarse.
+in the same direction make the coarse step. Turned faster than about 9 detents a second, the knob mixes in
+coarse steps, so it stops within about 0.2 s of your hand. A spin faster than about 16 detents a second can
+lose steps and runs on for up to about 0.9 s ([details](../architecture/firmware.md#knob-steps)).
 
 | Function | Slow | Fast |
 | --- | --- | --- |
@@ -175,7 +178,8 @@ transponder key and the flip-flops next to the FREQ knob:
 | MIC 1 (ADF) | COM 1 (NAV 1) | CDI (OBS) | COM ⇆ (121.5) |
 | MIC 2 (DME) | COM 2 (NAV 2) | VFR (IDENT) | NAV ⇆ (ADF ⇆) |
 
-- 121.5 tunes the emergency frequency, like holding the COM flip-flop for two seconds on Garmin units.
+- 121.5 tunes the emergency frequency, like holding the COM flip-flop for two seconds on the G1000 and GNS, or
+  the volume knob on the GTN.
 - ADF ⇆ is the ADF flip-flop (FRQ on the KR 87). MIC 1 (ADF) is different: it only listens to the ADF.
 - CRS CTR centres the course needle on the active VOR, like pushing the CRS knob on the G1000.
 - DME listens to a separate DME such as the KN 62. A DME paired with a VOR or ILS already sends its ident on

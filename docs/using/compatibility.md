@@ -59,7 +59,7 @@ Navigators:
 | HOME | None | HOME key | None |
 | MSG, NRST, VNAV, TERR, MAP (with SHIFT) | Softkeys / pages; hold CLR | Touchscreen | MSG key; NRST page; VNAV key (530); hold CLR |
 | CDI, OBS | Softkeys | Touchscreen | Bezel keys |
-| FMS knob, push CRSR | FMS knob | The GTN knob | Right knob, push CRSR |
+| FMS knob, push CRSR | FMS knob | The GTN's dual knob (no cursor, see below) | Right knob, push CRSR |
 | RANGE, pan, push PTR | RANGE knob + joystick | Map zoom | RNG keys |
 | UNIT (SHIFT, HOME) | Radio 2 only; the FMS keys stay on the MFD | GTN / second unit | 530 / 430 |
 
@@ -74,11 +74,16 @@ Radios, transponder, audio:
 | Panel | G1000 | GTN / GNS | Bendix/King |
 | --- | --- | --- | --- |
 | FREQ knob, push COM/NAV/ADF | COM and NAV knobs, ADF window | Dual knob, C/V push | KX 155/165 knobs, KR 87 |
-| COM ⇆, NAV ⇆, ADF ⇆ | Flip-flops | Flip-flops | Flip-flops, KR 87 FRQ |
-| 121.5 (SHIFT, COM ⇆) | Hold COM ⇆ | Hold COM ⇆ | Sets COM standby to 121.5 |
+| COM ⇆, NAV ⇆, ADF ⇆ | Flip-flops | Flip-flops (GTN: no key, see below) | Flip-flops, KR 87 FRQ |
+| 121.5 (SHIFT, COM ⇆) | Hold COM ⇆ | GNS: hold COM ⇆; GTN: hold the volume knob pushed for about 2 s | Sets COM standby to 121.5 |
 | UNIT for radio 2 | COM 2 / NAV 2 tuning box | Second unit | Second radio |
 | Squawk, XPDR mode, IDENT, VFR | GTX 345 | GTX 327 / GTN XPDR | KT 76 |
 | MIC / COM / NAV / ADF / DME audio | GMA 1347 | GMA 340 / GMA 35 | KMA 28 |
+
+The GTN has one dual knob for the FREQ and FMS rows. Its push toggles tuning between COM and NAV (there is no
+cursor), pushing and holding it flips the active and standby frequency, and it returns from NAV to COM by
+itself after 30 s without input. It has no COM ⇆ key: map COM ⇆ to the flip-flop event, where the aircraft
+exposes one.
 
 Partly covered: the KLN 90B (Black Square Bonanza). D→, CLR, ENT, MSG and the FMS knob can map to it
 if the aircraft exposes events for them; its cursor keys and second knob have no place on the panel.
