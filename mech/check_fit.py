@@ -1148,12 +1148,13 @@ def boss_web():
 def pipe_gaps(back_lo, back_hi):
     """the gap from the board top to the plate back at a light (the light pipes' rows): smallest (the plate back at its
     lowest and bowed PLATE_FLAT down, the board bowed PCB_BOW up) and largest (both the other way); the room left
-    over the pipe's base in the smallest (base long, a sanded stub left on), and its shoulder's distance off the
-    plate back in the largest (base short)."""
+    over the pipe's base in the smallest (base long and grown in its first week, a sanded stub left on), and its
+    shoulder's distance off the plate back in the largest (base short)."""
     pp = S.PIPE
     g_min = back_lo - S.PLATE_FLAT - S.PCB_BOW
     g_max = back_hi + S.PLATE_FLAT + S.PCB_BOW
-    return g_min, g_max, g_min - (pp["base_len"] + pp["len_tol"] + pp["stub"]), g_max - (pp["base_len"] - pp["len_tol"])
+    return (g_min, g_max, g_min - (pp["base_len"] + pp["len_tol"] + S.RESIN_DRIFT + pp["stub"]),
+            g_max - (pp["base_len"] - pp["len_tol"]))
 
 
 def visible(recess, a, r_hole, off, light=None, caps=(), view=S.CAP_VIEW_DEG, n=161):
@@ -1198,19 +1199,20 @@ def pipe_rows(back_lo, back_hi, face_lo, board, caps):
     # thinnest bare plate with a long rod, deepest under the thickest plate anodised on both faces with a short rod;
     # in use, resting on the board: nominal (a 4.0 plate anodised on both faces, the bosses and the pipe as drawn),
     # highest (a long pipe on a board bowed up, under the lowest face of a plate bowed down) and deepest (the
-    # shoulder `off` the plate back)
-    lifted = pp["top_len"] + pp["len_tol"] - t_min
+    # shoulder `off` the plate back); lifted and highest with the first week's growth (RESIN_DRIFT)
+    lifted = pp["top_len"] + pp["len_tol"] + S.RESIN_DRIFT - t_min
     bear_hi = t_max + S.ANODISE - (pp["top_len"] - pp["len_tol"])
     nominal = S.PLATE_T + S.ANODISE - pp["top_len"] + S.BOSS["h"] - pp["base_len"]
-    in_use = pp["len"] + pp["len_tol"] + pp["stub"] + S.PCB_BOW - (face_lo - S.PLATE_FLAT)
+    in_use = pp["len"] + pp["len_tol"] + S.RESIN_DRIFT + pp["stub"] + S.PCB_BOW - (face_lo - S.PLATE_FLAT)
     deep = bear_hi + off
     rows = [
         (f"light pipe proud at most {pp['proud']}: lifted onto its shoulder, the top ({pp['top_len']} "
-         f"+{pp['len_tol']}) stands {lifted:.2f} over the thinnest plate face ({t_min}); in use, on the board, "
-         f"{in_use:.2f} at most ({nominal:.2f} under the face in the nominal stack)",
+         f"+{pp['len_tol']}, +{S.RESIN_DRIFT} in its first week) stands {lifted:.2f} over the thinnest plate face "
+         f"({t_min}); in use, on the board, {in_use:.2f} at most ({nominal:.2f} under the face in the nominal stack)",
          pp["proud"] - max(lifted, in_use)),
-        (f"light pipe never clamped: its base ({pp['base_len']} +{pp['len_tol']}, a {pp['stub']} stub left on) under "
-         f"the smallest gap ({g_min:.3f}: plate back low, bowed {S.PLATE_FLAT} down, board {S.PCB_BOW:.2f} up)", room),
+        (f"light pipe never clamped: its base ({pp['base_len']} +{pp['len_tol']}, +{S.RESIN_DRIFT} in its first week, "
+         f"a {pp['stub']} stub left on) under the smallest gap ({g_min:.3f}: plate back low, bowed {S.PLATE_FLAT} "
+         f"down, board {S.PCB_BOW:.2f} up)", room),
         (f"LED lens ({ll['h']} +{ll['tol']} over the substrate, solder {ll['solder']}) inside the thinnest board "
          f"(-{S.STACK_TOL['pcb']}), under the pipe base", S.PCB_T - S.STACK_TOL["pcb"] - ll["h"] - ll["tol"]
          - ll["solder"]),
@@ -1327,6 +1329,10 @@ def clearances(plate, outer, inner, range_knob, knobs):
     r_max = S.KEY_HOLE_R_MAX                            # the key holes' corners at their largest (drawing)
     cap_room = cap_shift_room(r=r_max)[0]               # key hole +0.1/-0 after anodising: least at nominal
     cap_room_turn = cap_shift_room(turn=S.CAP_TURN, r=r_max)[0]   # the same cap turned on its plunger
+    cap_room_creep = cap_shift_room(turn=S.CAP_CREEP, r=r_max)[0]   # crept round in use
+    # a whole set printed large (WJP's outline error as a bias), squared: against the other per-key errors
+    cap_room_set = cap_shift_room(-S.WJP_TOL["size"], S.CAP_TURN, r_max)[0]
+    cap_err_set = math.sqrt(sum(v * v for k, v in S.CAP_TOL.items() if k != "cap"))
     cap_room_max = cap_shift_room(S.KEY_HOLE_TOL[0])[1]   # most in the largest hole
     board = cap_room_max + pt["centring"]              # board offset the caps allow (the most, diagonally)
     hole = B.MOUNT_HOLE
@@ -1417,32 +1423,54 @@ def clearances(plate, outer, inner, range_knob, knobs):
     fits = [0.0, *S.FIT_VARIANTS.values()]
     fit_off = max(min(abs(v + e) for v in fits) for e in np.linspace(-hole_tol, hole_tol, 601))
     legend_off, legend_at = legend_gap()
-    # ---- RANGE: knob height from the lever top (+-0.3) and its bore depth (resin) ----
+    # ---- RANGE: knob height from the lever top (+-0.3) and its bore depth (resin). A kept RANGE knob has at most
+    # stack.RANGE_PLAY on the lever: off the lever's axis by half of it, and pushed sideways at full tilt it cocks on
+    # its D bore (its length on the lever's flat, measured on the solid) by that play over the length, the way the
+    # lever tilts, about the bore's middle. The lever's centre push (stack.RANGE_PUSH) may go down at full tilt
+    # too (Alps does not say it cannot) ----
     rk_lo = S.PLATE_Z1 + rk["z0"] - S.LEVER_TOL - resin    # knob bottom, lowest
     push_hi = S.RANGE_PUSH[0] + S.RANGE_PUSH[1]
     a = math.radians(S.RKJXT_TILT)
     pz = S.RKJXT_FULCRUM
     poff = S.RKJXT_FULCRUM_OFF
+    rk_len = d_bore_len(range_knob, S.LEVER_D, S.LEVER_FLAT)
+    cock, rk_off = S.RANGE_PLAY / rk_len, S.RANGE_PLAY / 2
+    rk_mid = (S.LEVER_Z1 - S.LEVER_TOL - rk_len / 2, S.LEVER_Z1 + S.LEVER_TOL - rk_len / 2)   # the bore's middle
 
-    def tilted(r, h, side):
+    def turned(r, h, cr, cz, ang):
+        """the point (r, h) turned by ang about (cr, cz), its top towards +r"""
+        return (cr + (r - cr) * math.cos(ang) + (h - cz) * math.sin(ang),
+                cz + (h - cz) * math.cos(ang) - (r - cr) * math.sin(ang))
+
+    def tilted(r, h, side, cocked=0.0, push=0.0, mid=0.0):
         """where a point of the knob or the hub, r off the lever's axis towards the tilt and h over the PCB, is at
-        full tilt: (sideways from the axis, height). side: the fulcrum on the side the lever tilts to (1) or on the
-        other (-1); Alps' drawing shows the second, its specification is not public (stack.RKJXT_FULCRUM_OFF), so
-        every row takes the worse of the two."""
-        px = side * poff
-        return (px + (r - px) * math.cos(a) + (h - pz) * math.sin(a),
-                pz + (h - pz) * math.cos(a) - (r - px) * math.sin(a))
+        full tilt: (sideways from the axis, height); the knob cocked on the lever by `cocked` (rad) about the bore's
+        middle at height `mid`, and the lever pushed in by `push`. side: the fulcrum on the side the lever tilts to
+        (1) or on the other (-1); Alps' drawing shows the second, its specification is not public
+        (stack.RKJXT_FULCRUM_OFF), so every row takes the worse of the two."""
+        r, h = turned(r, h, 0.0, mid, cocked)
+        return turned(r, h - push, side * poff, pz, a)
 
     # the underside on the side the knob dips to: the hub's corner and the rim's bottom edge (the dish between them
-    # is a straight line), on the lowest knob, the skirt printed large and the dish shallow
+    # is a straight line), on the lowest knob, the skirt printed large and the dish shallow, cocked and pushed
     under = ((rk["hub_d"] / 2, rk_lo), ((rk["skirt_d"] + part_tol) / 2, rk_lo + rk["dish"] - resin))
-    skirt_lows = {side: min(tilted(r, h, side)[1] for r, h in under) for side in (1, -1)}
+    skirt_lows = {side: min(tilted(r, h, side, cock, push_hi, rk_mid[0])[1] for r, h in under) for side in (1, -1)}
     skirt_low = min(skirt_lows.values())
     # the skirt rim on the side the knob tilts away from, seen from above: its bottom edge is the outline; worst
-    # with the highest knob (lever +, bore deep) and the smallest skirt print
+    # with the highest knob (lever +, bore deep) and the smallest skirt print, cocked and pushed or not
     rk_hi = S.PLATE_Z1 + rk["z0"] + rk["dish"] + S.LEVER_TOL + resin    # the rim's bottom edge, highest
     rim_r = (rk["skirt_d"] - part_tol) / 2
-    skirt_cover = min(-tilted(-rim_r, rk_hi, side)[0] for side in (1, -1))
+    skirt_cover = min(-tilted(-rim_r, rk_hi, side, c, p, rk_mid[1])[0]
+                      for side in (1, -1) for c in (0.0, cock) for p in (0.0, push_hi))
+    # a diagonal: Alps gives 9 deg for the four directions only. Should the lever reach 9 deg on both axes at once
+    # (12.6 deg), the nominal knob over the nominal plate, the fulcrum along the diagonal as far off the axis as on
+    # the axes, or by half or twice that, pushed or not
+    a_diag = math.atan(math.hypot(math.tan(a), math.tan(a)))
+    rk_nom = S.PLATE_Z1 + rk["z0"]
+    diag = {p: min(turned(r, h - p, side * poff * k, pz, a_diag)[1] - S.PLATE_Z1
+                   for r, h in ((rk["hub_d"] / 2, rk_nom), (rk["skirt_d"] / 2, rk_nom + rk["dish"]))
+                   for side in (1, -1) for k in (0.5 ** 0.5, 1.0, 2 ** 0.5))
+            for p in (0.0, S.RANGE_PUSH[0])}
     on_board = board + pt["plate"] + pt["pcb"] + S.ENC_ON_PINS   # an encoder's axis off its plate hole
     on_board_r = board + pt["plate"] + pt["pcb"] + S.RKJXT_ON_PINS   # the RKJXT's: it floats more on its pins
     # RKJXT hub (Alps' STEP) tilted 9 deg about the fulcrum: its full-width top edge sideways at the plate
@@ -1474,16 +1502,25 @@ def clearances(plate, outer, inner, range_knob, knobs):
     shaft_top = S.SLOT_LEN - slot_tol                   # 6 mm shaft top over the slot floor, shallow slot
     knob_top = ok["z1"] - ok["z0"] - K.outer_key_z0()                # top of the knob's bore
     key_resin = S.RESIN_TOL["size"]                       # key printed up to this much wide
+    # the ring's lash about the shaft with the key's sides against the slot's walls, where they meet the shaft's
+    # surface (the furthest out both reach), in all
+    detent = 360 / S.ENC_DETENTS
+    lash_nom = math.degrees((S.SLOT_W - S.KEY_W) / (S.OUTER_D / 2))
+    lash_max = math.degrees((S.SLOT_W + slot_tol - S.KEY_W + key_resin) / ((S.OUTER_D - shaft_tol) / 2))
     # ---- RANGE skirt rim measured on the knob solid, at its edge (its thinnest: the top slopes up from there) ----
     rim = knob_m["rim"]
     d_len = d_bore_len(inner, S.INNER_D, S.INNER_FLAT)   # inner knob D bore, measured on the solid
     rows = [
         (f"outer knob over plate (face +{face_up:.3f}, bowed {S.PLATE_FLAT * bow_enc:.3f} up there, slot floor "
          f"+-{es['slot']:.2f} and key resin, RSS)", ok["z0"] - face_up - S.PLATE_FLAT * bow_enc - key_rss),
-        (f"outer knob grip on the 6 mm shaft (slot depth -{slot_tol}, resin), beyond 3.5",
-         min(knob_top, shaft_top) - cb_top - 3.5),
+        (f"outer knob grip on the 6 mm shaft above the counterbore (slot depth -{slot_tol}, resin), beyond "
+         f"{S.OUTER_GRIP_MIN}", min(knob_top, shaft_top) - cb_top - S.OUTER_GRIP_MIN),
         (f"outer knob key ({S.KEY_W} +{key_resin} resin) in the narrowest shaft slot ({S.SLOT_W} -{slot_tol})",
          S.SLOT_W - slot_tol - (S.KEY_W + key_resin)),
+        (f"outer ring lash, should its bore not grip: the key ({S.KEY_W}) in the slot ({S.SLOT_W}) turns "
+         f"{lash_nom:.1f} deg in all at the shaft's surface, {lash_max:.1f} at worst (key -{key_resin}, slot "
+         f"+{slot_tol}, shaft -{shaft_tol}), against {detent:.0f} deg a detent: within one, nominal (a kept ring must "
+         "not turn without its shaft)", detent - lash_nom, "°"),
         (f"outer knob key face ({S.KEY_R}) into the slot past the 6 mm shaft (-{shaft_tol}), face printed "
          f"{hole_tol / 2} back, beyond 0.4", (S.OUTER_D - shaft_tol) / 2 - (S.KEY_R + hole_tol / 2) - 0.4),
         (f"outer knob key face clear of the {S.INNER_D} inner shaft in the slot: face {hole_tol / 2} proud, "
@@ -1542,17 +1579,22 @@ def clearances(plate, outer, inner, range_knob, knobs):
         (f"RANGE knob over hub, pushed {push_hi:.1f} (lever -{S.LEVER_TOL}, bore +{resin})",
          rk_lo - push_hi - S.RKJXT_HUB_TOP),
         (f"RANGE knob's underside (the hub's corner and the dished skirt's rim, skirt +{part_tol}, dish -{resin}) "
-         f"over the plate at {S.RKJXT_TILT:.0f} deg, low knob, high plate (face +{face_up:.2f}, bowed "
-         f"{S.PLATE_FLAT * bow_rng:.3f} up): the fulcrum "
-         f"({pz} up, {poff} off the axis) on the side it tilts away from, the worse; on the other side "
-         f"{skirt_lows[1] - skirt_lows[-1]:.2f} more", skirt_low - S.PLATE_Z1 - face_up - S.PLATE_FLAT * bow_rng),
+         f"over the plate at {S.RKJXT_TILT:.0f} deg, cocked {math.degrees(cock):.1f} deg on the lever "
+         f"({S.RANGE_PLAY} play over its {rk_len:.2f} D bore) and pushed {push_hi:.1f}, low knob, high plate (face "
+         f"+{face_up:.2f}, bowed {S.PLATE_FLAT * bow_rng:.3f} up): the fulcrum ({pz} up, {poff} off the axis) on the "
+         f"side it tilts away from, the worse; on the other side {skirt_lows[1] - skirt_lows[-1]:.2f} more",
+         skirt_low - S.PLATE_Z1 - face_up - S.PLATE_FLAT * bow_rng),
         (f"RANGE skirt (Ø{rk['skirt_d']} -{part_tol}, high knob) still covers its {S.RANGE_HOLE} mm plate hole "
-         f"(+{gen}) at full tilt, the fulcrum on either side, the worse: lever {on_board_r:.2f} off (board, plate, "
-         f"PCB, pins), loose knob {bore_play:.2f} off it",
-         skirt_cover - (S.RANGE_HOLE + gen) / 2 - on_board_r - bore_play),
+         f"(+{gen}) at full tilt, cocked and pushed or not, the fulcrum on either side, the worse: lever "
+         f"{on_board_r:.2f} off (board, plate, PCB, pins), the knob {rk_off:.3f} off it ({S.RANGE_PLAY} play)",
+         skirt_cover - (S.RANGE_HOLE + gen) / 2 - on_board_r - rk_off),
         (f"RANGE pan arrows (from r {arrow_in:.2f}) outside the skirt seen square on (Ø{rk['skirt_d']} +{part_tol}), "
-         f"lever {on_board_r:.2f} off, loose knob {bore_play:.2f} off it",
-         arrow_in - (rk["skirt_d"] + part_tol) / 2 - on_board_r - bore_play),
+         f"lever {on_board_r:.2f} off, the knob {rk_off:.3f} off it",
+         arrow_in - (rk["skirt_d"] + part_tol) / 2 - on_board_r - rk_off),
+        (f"RANGE knob's underside over the plate on a diagonal, should the lever reach {S.RKJXT_TILT:.0f} deg on "
+         f"both axes ({math.degrees(a_diag):.1f} deg), nominal (Alps gives no diagonal limit): {diag[0.0]:.2f}, "
+         f"pushed {S.RANGE_PUSH[0]} {diag[S.RANGE_PUSH[0]]:.2f}",
+         diag[S.RANGE_PUSH[0]]),
         (f"RANGE knob as built: skirt Ø{knob_m['skirt_d']:.2f}, dished {knob_m['dish']:.2f} (measured on the knob "
          f"solid) are the stack's (Ø{rk['skirt_d']}, {rk['dish']})",
          0.01 - max(abs(knob_m["skirt_d"] - rk["skirt_d"]), abs(knob_m["dish"] - rk["dish"]))),
@@ -1612,6 +1654,11 @@ def clearances(plate, outer, inner, range_knob, knobs):
          cap_room - cap_err),
         (f"cap turned {S.CAP_TURN:.0f} deg on its plunger (squared on a rule): shift room ({cap_room_turn:.2f}) over "
          f"per-key RSS {cap_err:.2f}", cap_room_turn - cap_err),
+        (f"cap crept round to {S.CAP_CREEP} deg on its plunger in use (stack.CAP_CREEP): shift room "
+         f"({cap_room_creep:.2f}) over per-key RSS {cap_err:.2f}", cap_room_creep - cap_err),
+        (f"a whole cap set printed +{cap_print} on its outline (WJP, a per-set bias, taken linearly), turned "
+         f"{S.CAP_TURN:.0f} deg: shift room ({cap_room_set:.2f}) over the RSS of the other per-key errors "
+         f"({cap_err_set:.2f})", cap_room_set - cap_err_set),
         (f"M3 passes the narrowest PCB hole ({hole} -{pt['npth_d']}) where the caps centre the board (plate, PCB, "
          f"centring, thread: {need:.3f})", hole_lo - S.SCREW_D / 2 - need),
         (f"plate boss end (Ø{bo['d']} -{bo['d_tol']}) covers the widest PCB hole all round, the board {off:.2f} off "

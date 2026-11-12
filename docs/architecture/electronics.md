@@ -2,7 +2,7 @@
 
 The board has four layers (signals, GND, 3V3, signals). The RP2040, W25Q16 flash, a 12 MHz crystal, an XC6206
 regulator and USB-C with an ESD (electrostatic discharge) array and a fuse ([USB protection](#usb-protection))
-sit on the bottom; the keys, encoders and RANGE control on the top. It has 91 nets and 30 unconnected pins.
+sit on the bottom; the keys, encoders and RANGE control on the top. It has 93 nets and 30 unconnected pins.
 
 [pcb/board.py](../../pcb/board.py) generates it ([Generators](generators.md)). The
 [schematic](avionics-panel-rev1-schematic.pdf) (four A3 sheets: USB-C and power, RP2040, key matrix, knobs and
@@ -12,7 +12,8 @@ pad of the board is missing from it. Renders: [top](../../renders/5-pcb-top.png)
 
 [pcb/check.py](../../pcb/check.py) checks the result:
 
-- On the Gerbers: shorts and opens, the solder mask, the paste, the legend and the planes.
+- On the Gerbers: shorts and opens, on a raster and again on the copper as exact geometry, the solder mask,
+  the paste, the legend and the planes.
 - On the design data the Gerbers are written from: the clearances of the outer copper and the holes.
 - The files against that data, one for one: the copper Gerbers (every pad, via and trace), the drill files,
   the outline with its cutouts, and a cathode bar at every diode and LED.
@@ -23,11 +24,12 @@ It prints what each build reaches, and the build passes when:
 
 | Check | Passes when |
 | --- | --- |
-| Shorts, opens, nets with a detour | There are none |
+| Shorts, opens, nets with a detour | There are none, and no contact or neck in a net is under 0.08 mm wide (a point contact is an open) |
+| Plane copper | Nowhere narrower than 0.15 mm (`make.py` clears what is under 0.2 mm) |
 | Copper to copper | At least 0.15 mm |
 | Holes on different nets | At least 0.5 mm apart (JLCPCB's minimum) |
 | Holes on the same net | At least 0.254 mm apart |
-| Vias | None is in or within 0.1 mm of an SMD (surface-mount) pad or a paste opening, apart from the GND vias in the RP2040's exposed pad |
+| Vias | None is in or within 0.1 mm of an SMD (surface-mount) pad or a paste opening, apart from the GND vias in the RP2040's exposed pad; a tented one keeps 0.13 mm of solder mask to the nearest opening |
 | Paste | It is on every assembled pad and nowhere else |
 | Smallest drills | At least 0.3 mm plated, 0.5 mm unplated |
 | Smallest annular rings | At least 0.075 mm on vias, 0.15 mm on pads |
@@ -42,11 +44,11 @@ It prints what each build reaches, and the build passes when:
 | GP0 | Matrix row 4: RANGE A, B, C, D, com (columns 0-4), ALT/HDG push (5), FMS push (6) |
 | GP1, GP3, GP4, GP6, GP7, GP9, GP10 | Key matrix columns 0-6 |
 | GP18-21 | ALT/HDG encoder (outer, inner) |
-| GP24/25, GP22/23 | FREQ encoder (outer, inner) |
+| GP24/25, GP22/23 | FREQ encoder (outer, inner); GP25 through R_GP25, 1 k ([why](firmware.md#pins)) |
 | GP26/27, GP16/17 | FMS encoder (outer, inner) |
 | GP28/29 | RANGE encoder |
 | GP13 | FREQ push (direct to GND) |
-| GP12, GP15 | SHIFT light (amber), UNIT light (white) |
+| GP12, GP15 | SHIFT light (amber), UNIT light (white, through a transistor) |
 | GP14 | Spare: its fan-out stub ends under the solder mask, not connected (boxed in, no room for a pad) |
 | SWCLK, SWDIO | SWD (serial wire debug) points |
 
@@ -61,7 +63,8 @@ and 2. `KeyMatrix` drives a row low, reads the columns, drives the row high agai
 the next one; only the pull-ups then lift a column whose key was pressed. With 10 k the column's time constant
 is 0.2 to 0.3 µs, well inside the 1 µs wait. The RP2040's own pull-up alone (50 to 80 k, against 20 to 30 pF
 of copper and five diodes) would give 1 to 2.4 µs, long enough for a phantom press in the same column of the
-next row.
+next row. CircuitPython drives the scanned row at 12 mA, so a pressed key reads at most about 0.74 V, also with
+all seven keys of its row held, under the RP2040's 0.8 V input-low limit.
 
 So reversed diodes cannot be made up for in the firmware:
 
@@ -72,9 +75,10 @@ So reversed diodes cannot be made up for in the firmware:
   (every key reads pressed) until they come off the board.
 - A mixed reversal cannot be scanned at all.
 
-The encoders feed the RP2040 directly: CircuitPython's `rotaryio` decodes the quadrature in one PIO
-(programmable I/O) state machine per ring (7 of the 8). The encoders' metal mounting lugs are plated slots on
-GND (through the plane), an ESD path from the shaft.
+The encoders feed the RP2040 directly, without the RC filters Bourns suggests: CircuitPython's `rotaryio`
+decodes the quadrature in one PIO (programmable I/O) state machine per ring (7 of the 8), and quadrature
+decoding tolerates the contacts' bounce. The encoders' metal mounting lugs are plated slots on GND (through
+the plane), an ESD path from the shaft.
 
 ## USB protection
 
@@ -86,7 +90,8 @@ flowchart LR
   vbusf --> cin["C_IN 10 µF"]
   vbusf --> u3["U3 XC6206<br>3.3 V regulator"]
   vbusf --> u4vcc["U4 VCC<br>clamp to GND"]
-  u3 -- 3V3 --> loads["RP2040, flash,<br>LEDs, matrix"]
+  vbusf --> unit["UNIT light<br>R_UNIT, Q_UNIT"]
+  u3 -- 3V3 --> loads["RP2040, flash,<br>SHIFT light, matrix"]
 ```
 
 ```mermaid
@@ -99,7 +104,7 @@ flowchart LR
 | Part | Value | Job |
 | --- | --- | --- |
 | R_CC1, R_CC2 | 5.1 k (C23186, C25905) | Pull-downs on CC1 and CC2 (configuration channel): a USB-C source switches VBUS on only after it sees them |
-| U4 | SRV05-4 ESD array, SOT-23-6 (hongjiacheng, C7420376) | Takes discharges on D+, D- and VBUS_F to GND |
+| U4 | SRV05-4 ESD array, SOT-23-6 (hongjiacheng at JLCPCB, R+O at LCSC; C7420376) | Takes discharges on D+, D- and VBUS_F to GND |
 | R_IN | 1 R, 0603, 0.1 W (C22936, basic) | Damps VBUS at a hot plug; opens first on a short on VBUS_F |
 | F1 | Bourns MF-NSMF050-2 PTC (resettable) fuse, 1206, 13.2 V, 100 A (C75464) | Sustained overloads |
 | C_IN | 10 µF, 10 V X5R, 0603 (C19702) | U3's input capacitor |
@@ -122,7 +127,8 @@ U4 has four channels of steering diodes to its VCC pin and a clamp from VCC to G
   clamp diode forward across VBUS_F), then sits behind R_IN and the fuse instead of shorting the host's VBUS
   (see below for what gives way).
 - Part choice: the SRV05-4 ([Ordering](../building/ordering.md#parts-and-stock)); a USBLC6-2SC6 does the same
-  job with the same pinout.
+  job with the same pinout. JLC's datasheet link for C7420376 opens another part; R+O's SRV05-4 datasheet has
+  the pinout (I/O on pins 1, 3, 4 and 6, GND on 2, VCC on 5).
 - Checked: `check.py` cuts U4's pads out of the bottom copper and checks that J1's contacts then no longer
   reach the 27 R resistors (no copper runs past the array), and that U4 is at most 5 mm of copper from J1.
 
@@ -136,11 +142,12 @@ U4 has four channels of steering diodes to its VCC pin and a clamp from VCC to G
 | U3's output | 200 mA guaranteed; folds back at about 0.35 to 0.5 A (Torex's curve for the 3.0 V type), about 0.1 A into a short |
 | Capacitance on VBUS at attach | 10 µF (USB 2.0, 7.2.4.1), which C_IN alone reaches |
 
-The board draws about 90 mA at most (RP2040 a few tens of mA, flash up to 25 mA writing, LEDs up to 32.5 mA,
-0.3 mA per pressed key). From 4.40 V, the lowest VBUS of a USB 2.0 port, R_IN, F1 and U3's dropout still leave
-3.3 V out at 100 mA. The capacitors behind U3 add to C_IN while VBUS comes up, which puts the board over the
-intent of the attach limit; U3's current limit, behind R_IN and F1, limits that inrush, and on PC ports it is
-no practical issue.
+The board draws about 90 mA at most (RP2040 a few tens of mA, flash up to 25 mA writing, the SHIFT light up to
+17.2 mA, the UNIT light up to 14.2 mA from VBUS_F past U3, 0.3 mA per pressed key). From 4.40 V, the lowest
+VBUS of a USB 2.0 port, R_IN, F1 and U3's dropout still leave 3.3 V out at 100 mA. From 5.25 V, U3 dissipates
+under 0.2 W of the 0.25 W its SOT-23 takes. The capacitors behind U3 add to C_IN while VBUS comes up, which
+puts the board over the intent of the attach limit; U3's current limit, behind R_IN and F1, limits that
+inrush, and on PC ports it is no practical issue.
 
 What gives way on a fault:
 
@@ -155,8 +162,8 @@ What gives way on a fault:
 - A fault on 3V3: U3's current limit. F1 will not reliably trip.
 
 `check.py` checks that each net of the chain holds only its pads (VBUS: J1 and R_IN; VBUS_R: R_IN and F1;
-VBUS_F: F1, C_IN, U3 and U4's VCC; `CHAIN_PADS` and `LOADS`) and that no copper runs past or across R_IN or
-F1 (the parts in `VBUS_CHAIN`).
+VBUS_F: F1, C_IN, U3, U4's VCC and R_UNIT; `CHAIN_PADS` and `LOADS`) and that no copper runs past or across
+R_IN or F1 (the parts in `VBUS_CHAIN`).
 
 Hot plug: a live USB-A port (with an A to C cable) switches VBUS on hard, where a USB-C source ramps it with a
 controlled slope. The cable's inductance then rings with C_IN, a ceramic capacitor with next to no loss. R_IN
@@ -203,8 +210,9 @@ own from the pin; the 100 nF ones at the pins are 0402 (C1525). Where each capac
 - Pin 33 (IOVDD): no room for a capacitor, as east of its fan-out lane is the only way north for the ALT/HDG
   and FREQ lines. It drops into the 3V3 plane through its via under the chip and shares the capacitors there.
 - Pin 26 (RUN, tied to 3V3): into the 3V3 plane the same way.
-- Pin 23 (DVDD): no room between the crystal and the fan-out; it reaches the 1V1 capacitors over the top layer
-  through the 1V1 vias under the chip (about 10 mm, reported but not limited).
+- Pin 23 (DVDD): no capacitor of its own, against the datasheet's 100 nF close to each DVDD pin: between the
+  crystal and the chip the north fan-out and C_IO22 leave no room for one. It reaches the 1V1 capacitors over
+  the top layer through the 1V1 vias under the chip (10.05 mm, reported but not limited).
 
 The rules `check.py` holds, with their reasons in the comment above `OWN_CAP_MAX`:
 
@@ -227,33 +235,34 @@ so JLCPCB fits them in both assembly variants.
 | Intensity at 20 mA | 30 mcd minimum, 60 typical | 180 to 450 mcd |
 | Forward voltage at 20 mA | 2.0 V typical, 2.4 V at most | 2.8 to 3.6 V, in four bins of ±0.1 V |
 | Rated DC current | 30 mA | 20 mA |
-| GPIO | GP12 | GP15 |
-| Series resistor | 75 R (C4275, basic) | 47 R (C23182, basic) |
-| Current at full duty | About 13.5 mA typical, 6.8 to 17.2 mA | About 4.9 mA typical; 15.3 mA at most; about 1.8 mA with a high forward voltage |
+| GPIO | GP12 | GP15, through Q_UNIT (2N7002, C8545) with a 10 k gate pull-down (R_UNIT_PD) |
+| Series resistor | 75 R (C4275, basic), from the GPIO | 390 R (C23151, basic), from VBUS_F |
+| Current at full duty | About 13.5 mA typical, 6.8 to 17.2 mA | About 5.0 mA typical, 2.2 to 7.7 mA; under 14.2 mA whatever the LED |
 | Firmware duty | 0x4800 (28 %) | 0x5500 (33 %) |
 | Position | 5.75 mm below the SHIFT key's centre | Midway between the HOME and SHIFT rows, 5.5 mm east of their column |
-| Plate web to the next key hole (at least 0.8 mm, JLCCNC's recommended wall) | 1.10 mm (0.90 mm at tolerance) | 1.30 mm (1.10 mm at tolerance) |
-| Layout | Cathode west, resistor east | Cathode east, resistor west |
+| Plate web to the next key hole (at least 0.8 mm, JLCCNC's recommended wall) | 1.00 mm (0.80 mm at tolerance) | 1.23 mm (1.03 mm at tolerance) |
+| Layout | Cathode west, resistor east | Cathode east, resistor west; Q_UNIT 12 mm north, between key rows 1 and 2 |
 
 The current ranges, with their assumptions, are in `add_led` in `board.py`, the positions at `LEDS`, the
-layout at `LED_CATHODE_EAST`; the 1.8 mA is at `LED_DUTY` in `code.py`.
+layout at `LED_CATHODE_EAST` and `LED_SWITCH`.
 
 - Cutout: each LED shines up through a cutout in the board, 2.2 x 2.4 mm with R0.5 corners, round its lens
   (`board.LED_CUTOUT`, `stack.LED_LENS`). The lens stays inside the board, so the light pipe stands on the
   board over it ([Mechanics](mechanics.md#light-pipes)). At tolerance the lens clears the cutout's corners by
   0.01 mm (`check_fit.py`).
 - Copper: the pads (1.15 x 1.6 mm) and the other outer copper stop 0.2 mm short of the cutouts (JLCPCB's
-  minimum from copper to a routed edge), the planes 0.5 mm; `check.py` holds all copper to 0.2 mm.
+  minimum from copper to a routed edge), the planes 0.5 mm; `check.py` holds all copper to 0.2 mm. With
+  JLCPCB's ±0.2 mm on routed edges, the router may shave a pad's inner edge.
 - Resistors: in line with each LED beyond its anode pad, not below it: the SHIFT light is 5.25 mm from the
   board edge, and every part body but J1's keeps 2.5 mm from it, as JLCPCB's assembly terms ask.
-- Drive: `code.py` sets both pads to 12 mA drive strength (at most 57 ohm output resistance), so the
-  resistor sets the current. Both lights together draw at most about 32.5 mA, within the 50 mA all of the
-  RP2040's GPIOs may source.
-- Brightness: the white LED's forward voltage is close to the 3.3 V supply, so its current differs a lot from
-  part to part, and the intensity bins span a factor of two and more. The firmware's duties leave three to
-  three and a half times up to full duty, and the level that reads well behind the pipe is set on the first
-  board ([Bring-up](../building/bring-up.md#first-board)). A white LED from the highest forward voltage bin
-  may stay dim: then bridge R_UNIT's pads or fit a 0 R (C21189).
+- Drive: `code.py` sets GP12 and GP15 to 12 mA drive strength (at most 57 ohm output resistance), so the
+  resistor sets the SHIFT light's current, at most 17.2 mA of the 50 mA all of the RP2040's GPIOs may source.
+- UNIT: the white LED's forward voltage, 2.8 to 3.6 V by bin, is too close to the 3.3 V supply for a GPIO,
+  so it runs from VBUS_F and Q_UNIT switches its cathode to GND. GP15 high turns it on (at most 2.5 V
+  threshold), and the pull-down keeps it off while the pin floats from reset until `code.py` drives it.
+- Brightness: the intensity bins span a factor of two and more. The firmware's duties leave three to three
+  and a half times up to full duty, and the level that reads well behind the pipe is set on the first board
+  ([Bring-up](../building/bring-up.md#first-board)).
 
 ## Placement and legend
 
@@ -268,8 +277,9 @@ The placement keeps these rules:
 
 The legend:
 
-- Size: capital letters at least 1.0 mm high, measured on the font, lines at least 0.16 mm wide (JLCPCB's
-  minimums: 1.0 mm and 0.153 mm).
+- Size: capitals and the x-height of lowercase at least 1.0 mm, measured on the font, and every stroke, a "/"
+  too, at least 0.153 mm wide (JLCPCB's minimums). Text is 1.4 mm, 1.5 mm with a "/" and 1.85 mm with
+  lowercase.
 - Clearance: 0.15 mm from every mask opening and hole, 0.3 mm inside the board outline and round the two LED
   cutouts.
 - Placement: a part name or key legend that a via lands on, or that comes too near the edge, moves to the
@@ -310,11 +320,13 @@ JLCPCB keeps both, because the mask Gerber decides for a Gerber order. Should it
 
 The through-hole parts are soldered from the bottom, among the SMD parts: by JLCPCB in full assembly, by hand
 otherwise. `check.py` keeps every exposed SMD pad of another net at least 1.0 mm (copper to copper) from every
-through-hole pad and from J1's four shell tabs, room for the iron and a fillet without a bridge.
+through-hole pad and from J1's four shell tabs, room for the iron and a fillet without a bridge, and
+through-hole pads of different nets 0.5 mm apart (the closest 0.70 mm), apart from the RKJXT's COM and ECOM
+at 0.38 mm ([Hand-soldering](../building/assembly.md#hand-soldering)).
 
 The four J1 shell tabs get paste over their pads (pin-in-paste), but the stencil leaves about 0.12 mm³ of
 solder for about 0.8 mm³ of slot round each tab: a fillet on the bottom at most. The tabs carry the plug's
-load, so they are soldered from the top as well: by JLCPCB in full assembly (its order remark), by hand
+load, so they are soldered from the top as well: by JLCPCB in full assembly (its PCBA remark), by hand
 otherwise ([Hand-soldering](../building/assembly.md#hand-soldering)).
 
 Our drills follow the datasheets; `check.py` wants each within 0.21 mm of JLC's footprint
@@ -322,7 +334,7 @@ Our drills follow the datasheets; `check.py` wants each within 0.21 mm of JLC's 
 
 | Hole | Ours | JLC's | Datasheet |
 | --- | --- | --- | --- |
-| Key pins (TE 1-1825910-4) | 1.0 mm | 1.2 mm | Not recorded |
+| Key pins (TE 1-1825910-4) | 1.0 mm | 1.2 mm | 0.99 ±0.05 mm, on 6.50 x 4.50 mm |
 | Encoder pins (Bourns PEC11D) | 1.2 mm | 1.1 mm | 1.2 +0.1/-0 mm |
 | Encoder lug slots | 1.5 x 2.6 mm | 1.5 x 2.6 mm | 1.5 x 2.6 mm |
 | RANGE control terminals (Alps RKJXT1F42001, RKJXT below) | 1.1 mm | 1.2 mm | 1.0 +0.2/-0 mm |
@@ -359,9 +371,10 @@ counter-clockwise by the rotation.
 | U2, U4, Y1, the diodes | 0 |
 | Resistors, capacitors, F1 | 180 (horizontal) or 270 (vertical) |
 | R_SHIFT | 0 (pad 1, its GPIO end, to the east) |
-| R_UNIT | 180 (its GPIO end to the west) |
+| R_UNIT | 180 (its VBUS_F end to the west) |
 | LED_SHIFT | 180 (pin 1, the cathode, to the west) |
 | LED_UNIT | 0 (the cathode to the east) |
+| Q_UNIT | 90 (pin 3, the drain, to the south, towards LED_UNIT) |
 
 The bottom legend has a pin 1 corner mark at U1, pin 1 dots at U2, U3, U4 and Y1, and a cathode bar at each
 diode and LED, for the [placement preview](../building/ordering.md#placement-preview).

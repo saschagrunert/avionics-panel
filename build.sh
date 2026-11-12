@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Regenerate every output, run all checks and copy the results to production/ and renders/.
-# Usage: ./build.sh [--route]    --route also re-runs the board routing (seed 8, about half a minute) first.
+# Usage: ./build.sh [--route]    --route also re-runs the board routing (seed 1, a few minutes) first.
 # Needs Nix (nix-shell) for the Python environments, all from the nixpkgs revision locked in flake.lock
 # (read through nix/nixpkgs.nix, so without the flakes feature).
 # The independent sections run in parallel. Each one stops at its first failed step. Their outputs are printed
@@ -28,13 +28,13 @@ gen() { (cd "$1" && nix-shell "$SHELLS" -A gen --run "$2"); }
 # gen without OpenCascade's STEP writer statistics; stderr through the same pipe, so it stays in order
 occ() { gen "$@" 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | { grep -v '^\s*$\|\*\*\|Step File\|Transfer\|WorkSession' || true; }; }
 
-# Routing goes first and shows its progress: it takes about half a minute, and the board section reads its
+# Routing goes first and shows its progress: it takes a few minutes, and the board section reads its
 # routed.json.
 # Nothing else reads the routing (the other sections import board.py, which does not).
 BOARD="python3 make.py >/dev/null && python3 make_bom.py >/dev/null && python3 check.py && python3 render.py >/dev/null && python3 make_schematic.py"
 if [ "${1:-}" = --route ]; then
   echo "== placement check and routing"
-  gen pcb "python3 precheck.py && python3 run_route.py 8"
+  gen pcb "python3 precheck.py && python3 run_route.py 1"
 else
   BOARD="python3 precheck.py && $BOARD"
 fi

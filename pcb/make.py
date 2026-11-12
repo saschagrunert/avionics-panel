@@ -4,6 +4,7 @@ import math
 import os
 import shutil
 import zipfile
+from itertools import pairwise
 
 import board as B
 import numpy as np
@@ -11,6 +12,8 @@ from geom import SILK_EDGE, bbox, boxes_near, item_dist, pad_geom, pt_seg, round
 from matplotlib.font_manager import FontProperties
 from matplotlib.path import Path
 from matplotlib.textpath import TextPath
+from shapely.geometry import LineString, Point, Polygon
+from shapely.ops import unary_union
 
 OUT = "gerbers"
 shutil.rmtree(OUT, ignore_errors=True)       # the zip takes every file here: no leftovers from older runs
@@ -46,11 +49,24 @@ def text_polys(s, size, mirror=False):
 
 silk = {"F": [], "B": []}     # list of ("text", polys) or ("line", pts, width) or ("dot", x, y, diameter)
 # JLCPCB's legend minimum: characters 1.0 mm high, lines 0.153 mm (6 mil) wide. Measured on the font: a capital
-# letter (DejaVu Sans Bold caps are 0.73 of the size) and the stem of an "I" (0.19 of the size), so the text is
-# SILK (1.4) or larger. Lowercase text is SILK_LOWER: its x-height (0.55 of the size) 0.82 mm.
-SILK_MIN_H, SILK_MIN_LINE, SILK, SILK_LOWER = 1.0, 0.153, 1.4, 1.5
+# letter (DejaVu Sans Bold caps are 0.73 of the size), the stem of an "I" (0.19 of the size), a lowercase letter
+# (the x-height, 0.55 of the size) and the stroke of a "/" (0.10 of the size, across it: its area over its length).
+# Each text is SILK (1.4) or the smallest size in 0.05 steps above it at which all of its characters pass:
+# 1.5 with a "/", 1.85 with lowercase letters.
+SILK_MIN_H, SILK_MIN_LINE, SILK = 1.0, 0.153, 1.4
 CAP_H = TextPath((0, 0), "H", size=1.0, prop=FONT).get_extents().height
 STEM = TextPath((0, 0), "I", size=1.0, prop=FONT).get_extents().width
+X_H = TextPath((0, 0), "x", size=1.0, prop=FONT).get_extents().height
+_slash = Polygon(TextPath((0, 0), "/", size=1.0, prop=FONT).to_polygons()[0])
+SLASH = _slash.area / max(math.dist(a, b) for a, b in pairwise(_slash.exterior.coords))
+
+
+def legend_size(s):
+    """The size of the legend text s: SILK, or as much larger as its characters need, in 0.05 mm steps."""
+    need = [SILK, SILK_MIN_H / CAP_H, SILK_MIN_LINE / STEM]
+    need += [SILK_MIN_LINE / SLASH] if "/" in s else []
+    need += [SILK_MIN_H / X_H] if any(c.islower() for c in s) else []
+    return math.ceil(max(need) * 20 - 1e-9) / 20
 # JLCPCB clips the legend off pads and holes (check.py: SILK_CLEAR, 0.15 mm on the Gerbers). Each text keeps
 # LEGEND_GAP between its bounding box and the mask openings on its side, every hole and the legend placed before
 # it, and geom.SILK_EDGE inside the board outline; where its spot is taken (a via the router put there), it moves
@@ -90,10 +106,8 @@ def edge_dist(x, y):
     return min(((b[0] - a[0]) * (y - a[1]) - (b[1] - a[1]) * (x - a[0])) / n for a, b, n in EDGES)
 
 
-def T(layer, s, x, y, size=SILK):
-    if size * CAP_H < SILK_MIN_H - 1e-6 or size * STEM < SILK_MIN_LINE:     # a plain raise: asserts vanish under -O
-        raise ValueError(f"silkscreen text {s!r} too small")
-    polys = text_polys(s, size, mirror=(layer == "B"))
+def T(layer, s, x, y):
+    polys = text_polys(s, legend_size(s), mirror=(layer == "B"))
     pts = np.concatenate([p for _d, p in polys])
     (x0, y0), (x1, y1) = pts.min(axis=0), pts.max(axis=0)
     for dx, dy in NUDGE:
@@ -200,9 +214,9 @@ for ref, spots in NAME_SPOTS.items():
         except AssertionError:
             if i == len(spots) - 1:
                 raise
-T("B", "Avionics Panel rev 1 - RP2040 - USB-C", (B.COLS[2] + B.COLS[3]) / 2, 2.6, SILK_LOWER)
-T("B", "BOOT: bridge", B.BOOT[0], B.BOOT[1] + 2.4, SILK_LOWER)
-T("B", "while plugging in", B.BOOT[0], B.BOOT[1] + 4.35, SILK_LOWER)
+T("B", "Avionics Panel rev 1 - RP2040 - USB-C", (B.COLS[2] + B.COLS[3]) / 2, 2.6)
+T("B", "BOOT: bridge", B.BOOT[0], B.BOOT[1] + 2.4)
+T("B", "while plugging in", B.BOOT[0], B.BOOT[1] + 4.5)
 
 # ---------------- Gerber writer ----------------
 def fmt(v):
@@ -210,11 +224,15 @@ def fmt(v):
 
 
 class Gerber:
-    def __init__(self, fname, func):
+    """One Gerber X2 file. Its attributes say what it is, so JLCPCB's import need not guess from the name: the
+    layer (FileFunction), whether the image is the material (Positive) or where it is not (Negative: the solder
+    mask's openings), and what wrote it."""
+    def __init__(self, fname, func, polarity="Positive"):
         self.fname = fname
         self.body = []
         self.aps = {}
-        self.head = ["G04 DIY avionics panel*", f"%TF.FileFunction,{func}*%", "%FSLAX46Y46*%", "%MOMM*%"]
+        self.head = ["G04 DIY avionics panel*", "%TF.GenerationSoftware,DIY avionics panel,pcb/make.py*%",
+                     f"%TF.FileFunction,{func}*%", f"%TF.FilePolarity,{polarity}*%", "%FSLAX46Y46*%", "%MOMM*%"]
         self.cur = None
 
     def ap(self, kind, *p):
@@ -266,13 +284,14 @@ class Gerber:
         else:
             self.line(n, [(x1, y1), (x2, y2)])
 
-    def circle_region(self, x, y, r, n=72):
-        self.region([(x + r * math.cos(2 * math.pi * i / n), y + r * math.sin(2 * math.pi * i / n))
-                     for i in range(n)])
-
     def save(self):
         with open(os.path.join(OUT, self.fname), "w") as f:
             f.write("\n".join(self.head + ["%LPD*%", "G01*"] + self.body + ["M02*"]) + "\n")
+
+
+def circle_pts(x, y, r, n=72):
+    """A circle as a region's polygon."""
+    return [(x + r * math.cos(2 * math.pi * i / n), y + r * math.sin(2 * math.pi * i / n)) for i in range(n)]
 
 
 def pad_flash(g, p, grow=0.0):
@@ -299,14 +318,39 @@ def copper(layer, fname, func):
 
 PLANE_CLEAR = 0.35      # copper-free ring around a foreign hole on an inner plane (beyond the drill)
 THERMAL_GAP, THERMAL_RING, SPOKE = 0.30, 0.30, 0.40
+# Plane copper narrower than PLANE_MIN_W, where two clearances nearly meet (a sliver of 0.03 mm between the RANGE
+# control's ECOM thermal and its COM pin's clearance), and any piece of plane that only such necks held (a 0.5 mm2
+# island of 3V3 between the exposed pad's four GND vias), is cleared, as a CAM step would: a sliver can lift off
+# and carries nothing. check.py measures what is left (thin contacts).
+PLANE_MIN_W = 0.2
+
+
+def shape(kind, w, h, x, y):
+    """A flashed aperture (C or O, the obround upright or across) as shapely geometry."""
+    if kind == "C" or w == h:
+        return Point(x, y).buffer(w / 2, quad_segs=16)
+    d = abs(w - h) / 2
+    spine = [(x - d, y), (x + d, y)] if w > h else [(x, y - d), (x, y + d)]
+    return LineString(spine).buffer(min(w, h) / 2, quad_segs=16)
 
 
 def plane(layer, net, fname, func):
-    """Inner plane: solid copper, anti-pads around every hole of another net, thermals on THT pads of its own net."""
+    """Inner plane: solid copper, anti-pads around every hole of another net, thermals on THT pads of its own net,
+    and nothing narrower than PLANE_MIN_W."""
     g = Gerber(fname, func)
-    g.region(rounded_rect(B.EDGE_CLEAR + 0.2, B.EDGE_CLEAR + 0.2, B.W - B.EDGE_CLEAR - 0.2, B.H - B.EDGE_CLEAR - 0.2,
-                          B.CORNER_R - B.EDGE_CLEAR))
+    edge = rounded_rect(B.EDGE_CLEAR + 0.2, B.EDGE_CLEAR + 0.2, B.W - B.EDGE_CLEAR - 0.2, B.H - B.EDGE_CLEAR - 0.2,
+                        B.CORNER_R - B.EDGE_CLEAR)
+    g.region(edge)
     g.pol(False)
+    clears = []                                 # the same clearances as shapely geometry
+
+    def clear(kind, w, x, y, h=None):
+        g.flash(g.ap(kind, w, h or w) if kind == "O" else g.ap(kind, w), x, y)
+        clears.append(shape(kind, w, h or w, x, y))
+
+    def clear_region(pts):
+        g.region(pts)
+        clears.append(Polygon(pts))
     thermals = []
     for p in pads:
         if not p.drill:
@@ -316,25 +360,40 @@ def plane(layer, net, fname, func):
             if p.net == net:
                 thermals.append(p)
                 ring = 2 * (THERMAL_RING + THERMAL_GAP)
-                g.flash(g.ap("O", sw + ring, sh + ring), p.x, p.y)
+                clear("O", sw + ring, p.x, p.y, sh + ring)
             else:
-                g.flash(g.ap("O", sw + 2 * PLANE_CLEAR, sh + 2 * PLANE_CLEAR), p.x, p.y)
+                clear("O", sw + 2 * PLANE_CLEAR, p.x, p.y, sh + 2 * PLANE_CLEAR)
         else:
             if p.net == net:
                 thermals.append(p)
-                g.flash(g.ap("C", p.drill + 2 * (THERMAL_RING + THERMAL_GAP)), p.x, p.y)
+                clear("C", p.drill + 2 * (THERMAL_RING + THERMAL_GAP), p.x, p.y)
             else:
-                g.flash(g.ap("C", p.drill + 2 * PLANE_CLEAR), p.x, p.y)
+                clear("C", p.drill + 2 * PLANE_CLEAR, p.x, p.y)
     for (x, y, vnet, _d, dr) in vias:
         if vnet != net:
-            g.flash(g.ap("C", dr + 2 * PLANE_CLEAR), x, y)
+            clear("C", dr + 2 * PLANE_CLEAR, x, y)
     for (x, y) in B.MOUNTS:
-        g.circle_region(x, y, B.MOUNT_HOLE / 2 + 0.6)
+        clear_region(circle_pts(x, y, B.MOUNT_HOLE / 2 + 0.6))
     for (x, y, dd) in B.NPTH:
-        g.circle_region(x, y, dd / 2 + 0.5)
+        clear_region(circle_pts(x, y, dd / 2 + 0.5))
     for (x, y, w, h, r) in B.CUTOUTS:            # the LED cutouts: plane copper 0.5 mm back from the routed edge
         e = 0.5
-        g.region(rounded_rect(x - w / 2 - e, y - h / 2 - e, x + w / 2 + e, y + h / 2 + e, r + e))
+        clear_region(rounded_rect(x - w / 2 - e, y - h / 2 - e, x + w / 2 + e, y + h / 2 + e, r + e))
+    # what the clearances leave, opened by PLANE_MIN_W / 2: the plane is its largest piece, everything else of the
+    # copper (slivers, the corners next to them, islands) is cleared too
+    copper = Polygon(edge).difference(unary_union(clears))
+    opened = copper.buffer(-PLANE_MIN_W / 2, quad_segs=16).buffer(PLANE_MIN_W / 2, quad_segs=16)
+    main = max(getattr(opened, "geoms", [opened]), key=lambda q: q.area)
+    cut = copper.difference(main)
+    cut = [q for q in getattr(cut, "geoms", [cut]) if q.geom_type == "Polygon" and q.area > 1e-4]
+    for q in cut:
+        if q.interiors:                         # a plain raise: asserts vanish under -O
+            raise ValueError(f"{layer}: a piece to clear with a hole at {q.representative_point()}")
+        # 5 um larger, so it overlaps the flashed clearances round it, which the polygons above only approximate
+        g.region(list(q.buffer(0.005, quad_segs=4).exterior.coords)[:-1])
+    if cut:
+        print(f"{layer}: plane copper narrower than {PLANE_MIN_W} mm cleared at {len(cut)} places, "
+              f"{sum(q.area for q in cut):.2f} mm2")
     g.pol(True)
     foreign = [(q.x, q.y, max(q.slot) if q.slot else q.drill) for q in pads if q.drill and q.net != net]
     foreign += [(x, y, dr) for (x, y, vnet, _d, dr) in vias if vnet != net]
@@ -353,8 +412,9 @@ def plane(layer, net, fname, func):
         for ex, ey in ((p.x - lx, p.y), (p.x + lx, p.y), (p.x, p.y - ly), (p.x, p.y + ly)):
             # a spoke pointing at an unplated hole (the USB-C shell pegs next to the shell pads) or at a hole of
             # another net (the RANGE control's COM pin next to its GND pin) would run into its drill or its
-            # clearance: leave that one out, the other spokes carry the pad
-            if all(pt_seg(hx, hy, p.x, p.y, ex, ey) > hd / 2 + SPOKE / 2 + 0.25 for hx, hy, hd in near):
+            # clearance: leave that one out, the other spokes carry the pad. So does one ending off the plane.
+            if (all(pt_seg(hx, hy, p.x, p.y, ex, ey) > hd / 2 + SPOKE / 2 + 0.25 for hx, hy, hd in near)
+                    and main.contains(Point(ex, ey))):
                 g.line(n, [(p.x, p.y), (ex, ey)])
             else:
                 dropped.append(p.name)
@@ -367,7 +427,7 @@ def plane(layer, net, fname, func):
 
 
 def mask(layer, fname, func):
-    g = Gerber(fname, func)
+    g = Gerber(fname, func, "Negative")
     for p in pads:
         if layer in p.mask:          # breakout points of the fan-out and the 1V1 vias on the bottom stay under the mask
             pad_flash(g, p, MASK_GROW)
@@ -390,6 +450,9 @@ def paste(fname):
 
 def silkscreen(layer, fname, func):
     g = Gerber(fname, func)
+    # an aperture even where the legend is all regions (the top's text): a Gerber that defines none reads as
+    # RS-274D to some viewers (gerbv)
+    g.ap("C", SILK_MIN_LINE)
     dark = True
     for it in silk[layer]:
         if it[0] == "text":

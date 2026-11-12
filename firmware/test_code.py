@@ -9,13 +9,15 @@ import keys
 import panel as P
 import pytest
 
+import sim.hardware
 from sim import typed
-from sim.hardware import MATRIX_NAMES, PAD_RESET, Board, Device, Event
+from sim.hardware import BOOT_MS, FRAME_MS, MATRIX_NAMES, PAD_RESET, RESUME_MS, TICKS_WRAP_MS, Board, Device, Event
 
 PICO =[("\nPICO_TEST = False\n", "\nPICO_TEST = True\n")]   # code.py edited for the Pico bench
 
 
-def hardware(script=None, busy=0, usb_from=0, usb_gap=(0, 0), wrap=65536, memorymap=True, keyboard=False):
+def hardware(script=None, busy=0, usb_from=0, usb_gap=(0, 0), wrap=TICKS_WRAP_MS - BOOT_MS, memorymap=True,
+             keyboard=False):
     """the stand-in board after boot.py, with a script {ms: [action(hw)]}: hw.run(ms) runs code.py. A loop pass
     takes only its 1 ms sleep (no run time of its own)."""
     hw = Board(script, wrap=wrap, keyboard=keyboard).boot()
@@ -157,10 +159,11 @@ def test_error_releases_every_button_and_reloads():
 
 
 def test_error_while_usb_is_down_sends_nothing():
-    # with USB down a send would only block for 2 s: the release is skipped (the host resets on its return)
-    hw = hardware(crash(ValueError("bug")), usb_gap=(50, 10**6)).run(400)
+    # with USB down a send would only block for 2 s: the release is skipped (the host resets on its return). The
+    # detent that raises asks the host to resume first (wake), which finds no host
+    hw = hardware(crash(ValueError("bug")), usb_gap=(50, 10**6)).run(5000)
     assert len(hw.reloads) == 1
-    assert all(t < 50 for j in hw.devices for t in j.tries)
+    assert [t for j in hw.devices for t in j.tries if t >= 50] == [100]
 
 
 def test_error_with_usb_busy_still_reloads():
@@ -257,13 +260,31 @@ def test_shift_light_is_written_only_on_a_change():
 
 
 @pytest.mark.parametrize("count", [0, 1])
-def test_missing_joysticks_stop_code_py(count):
-    # without boot.py's two joysticks (a fresh install) code.py stops with a hint instead of running half
+def test_missing_joysticks_show_a_hint_and_restart(count):
+    # without boot.py's two joysticks (a fresh install) code.py prints a hint instead of running half, and
+    # restarts 2 s later, like after any error: the hint shows again until the panel is replugged
     hw = hardware()
     hw.modules["usb_hid"] = SimpleNamespace(devices=hw.devices[:count])
-    with pytest.raises(RuntimeError, match="joysticks missing"):
-        hw.run(100)
-    assert hw.reloads == []
+    hw.run(3000)
+    assert [str(e) for e in hw.printed] == ["joysticks missing: copy boot.py and replug the panel"]
+    assert hw.sleeps == [(0, 2)] and hw.reloads == [2000] and not any(j.tries for j in hw.devices)
+
+
+def test_error_before_the_loop_restarts():
+    # a file code.py imports is missing, or a pin is taken: code.py prints the error, releases every button it
+    # can (both joysticks once it has found them) and restarts after 2 s, instead of leaving the panel dead
+    hw = hardware()
+    hw.modules["panel"] = None
+    hw.run(3000)
+    assert isinstance(hw.printed[0], ImportError) and hw.reloads == [2000] and not hw.received
+
+    def taken(*_, **__):
+        raise ValueError("GP11 in use")
+    hw = hardware()
+    hw.modules["keypad"] = SimpleNamespace(KeyMatrix=taken)
+    hw.run(3000)
+    assert [str(e) for e in hw.printed] == ["GP11 in use"] and len(hw.reloads) == 1
+    assert received(hw, 1) == [bytes(BM.SIZE[1] // 8)] and received(hw, 2) == [bytes(BM.SIZE[2] // 8)]
 
 
 def test_pico_test_keeps_all_seven_encoders():
@@ -327,15 +348,86 @@ def test_shift_light_follows_shift():
 
 
 def test_no_reports_before_usb_connects():
-    # PC still booting: nothing is sent (send_report would block for 2 s), the loop and the light keep running
+    # PC still booting: nothing is sent (send_report would block for 2 s), then the current state
     sent = {}
 
     def count(hw):
         sent[hw.t] = len(received(hw, 1))
-    hw = hardware({10: [press("SHIFT", True)], 60: [press("SHIFT", False)], 150: [count], 300: [count]},
-                  usb_from=200).run(400)
-    assert duties(hw)[100] > 0                           # the light came on while USB was down
-    assert sent[150] == 0 and sent[300] >= 1             # nothing sent before USB, then the current state
+    hw = hardware({150: [count], 300: [count]}, usb_from=200).run(400)
+    assert sent[150] == 0 and sent[300] >= 1
+    assert all(t >= 200 for j in hw.devices for t in j.tries)
+
+
+def test_lights_are_dark_while_usb_is_down():
+    # the host suspends the bus (the PC sleeps) with SHIFT armed and unit 2 selected: both lights go off, the
+    # panel runs on, and once the host resumes they show its state again; no input, so no wake request
+    script = {10: [press("SHIFT", True)], 60: [press("SHIFT", False)], 110: [press("HOME", True)],
+              160: [press("HOME", False)], 300: [press("SHIFT", True)], 350: [press("SHIFT", False)]}
+    hw = hardware(script)
+    hw.suspend = (1000, 2000)
+    hw.run(2200)                                         # before SHIFT's last second, where it pulses
+    shift, unit = (dict(led.history) for led in hw.leds)
+    assert shift[300] > 0 and shift[1000] == 0 and shift[2000] > 0 and max(shift) == 2000
+    assert unit[110] > 0 and unit[1000] == 0 and unit[2000] > 0 and max(unit) == 2000
+    assert not [t for j in hw.devices for t in j.tries if 1000 <= t < 2000]
+
+
+@pytest.mark.parametrize("resume", [RESUME_MS, 300])
+def test_a_tap_while_suspended_wakes_the_host(monkeypatch, resume):
+    # the host has suspended the bus (an idle device, or the PC asleep with the panel allowed to wake it): AP's
+    # tap asks it to resume, which takes the 2 s send_report waits, and reaches the PC once the host is back, held
+    # for PRESS_MS from then although the finger let go long before; also from a host that takes 300 ms to resume
+    monkeypatch.setattr(sim.hardware, "RESUME_MS", resume)
+    hw = hardware({500: [press("AP", True)], 600: [press("AP", False)]})
+    hw.suspend = (100, 10**6)
+    hw.run(3500)
+    back = 500 + 2000 + resume
+    assert hw.devices[0].tries[1] == 500 and hw.suspend[1] == back
+    taken = [(t, pressed(r, 1, "AP")) for t, d, r in hw.received if d is hw.devices[0]]   # by the host's polls
+    on = [t for t, p in taken if p]
+    off = [t for t, p in taken if not p and t > on[0]]
+    assert back < on[0] <= back + 2 * FRAME_MS and off[0] - on[0] >= P.PRESS_MS
+
+
+def test_wake_requests_back_off_when_the_host_stays_away():
+    # a sleeping PC that does not let the panel wake it, or no host at all: a key tapped every 300 ms asks it to
+    # resume at most once per back-off (1 s after the last request's 2.5 s, doubling up to 8 s)
+    script = {t: [press("AP", (t // 300) % 2 == 1)] for t in range(300, 40000, 300)}
+    for away in ({"suspend": (100, 10**6), "wakeup": False}, {"usb_gap": (100, 10**6)}):
+        hw = hardware(script)
+        for k, v in away.items():
+            setattr(hw, k, v)
+        hw.run(40000)
+        tries = [t for t in hw.devices[0].tries if t >= 100]
+        gaps = [b - a for a, b in zip(tries, tries[1:])]
+        assert len(received(hw, 1)) == 1 and len(gaps) >= 5
+        for g, wait in zip(gaps, (1000, 2000, 4000, 8000, 8000)):
+            assert 2000 + 500 + wait <= g <= 2000 + 500 + wait + 300
+
+
+def test_a_host_back_by_itself_ends_the_wake_back_off():
+    # a request the host refuses backs off for 1 s; the host resumes on its own before that is up and soon
+    # suspends again, now letting the panel wake it: the next tap asks at once and reaches the PC
+    def sleep_again(hw):
+        hw.suspend, hw.wakeup = (3600, 10**6), True
+    script = {500: [press("AP", True)], 600: [press("AP", False)], 3600: [sleep_again],
+              3700: [press("AP", True)], 3800: [press("AP", False)]}
+    hw = hardware(script)
+    hw.suspend, hw.wakeup = (100, 3500), False
+    hw.run(6500)
+    assert [t for t in hw.devices[0].tries if 100 <= t < 3500] == [500] and 3700 in hw.devices[0].tries
+    back = 3700 + 2000 + RESUME_MS
+    assert hw.suspend[1] == back
+    assert any(t > back and pressed(r, 1, "AP") for t, d, r in hw.received if d is hw.devices[0])
+
+
+def test_a_turn_before_a_tap_while_suspended_comes_first():
+    # ALT/HDG outer turned one detent while the host has the bus suspended, then SHIFT tapped during the wake
+    # request's wait: the detent is ALT 100 as the dark light said, not BARO under the SHIFT that came later
+    hw = hardware({500: [step(0, 1)], 700: [press("SHIFT", True)], 750: [press("SHIFT", False)]})
+    hw.suspend = (100, 10**6)
+    hw.run(3500)
+    assert sent_names(hw, 1, ("ALT_100_UP", "BARO_UP")) == {"ALT_100_UP"}
 
 
 def overflow(hw):
@@ -529,12 +621,62 @@ def test_code_py_reads_the_mode_where_keys_py_keeps_it(byte):
     assert ("keys" in hw.code) is hw.code["KEYBOARD"]
 
 
-def test_a_missing_keyboard_stops_code_py():
-    # the keyboard mode stored, but boot.py made the joysticks (an older boot.py): code.py says what to do
+def test_a_missing_keyboard_shows_a_hint_and_restarts():
+    # the keyboard mode stored, but boot.py made the joysticks (an older boot.py): code.py prints what to do and
+    # restarts 2 s later, like after any error, and sends nothing
     hw = Board(keyboard=True).boot()
     hw.devices[:] = hardware().devices
-    with pytest.raises(RuntimeError, match="keyboard missing: copy boot.py and replug the panel"):
-        hw.run(100)
+    hw.modules["usb_hid"] = SimpleNamespace(devices=hw.devices[:])
+    hw.run(3000)
+    assert [str(e) for e in hw.printed] == ["keyboard missing: copy boot.py and replug the panel"]
+    assert hw.reloads == [2000] and not hw.received
+
+
+def test_keyboard_mode_error_at_start_lets_go_and_restarts():
+    # a pin taken while code.py starts in keyboard mode: the keyboard gets an all-zero report, and code.py
+    # restarts after 2 s
+    def taken(*_, **__):
+        raise ValueError("GP11 in use")
+    hw = hardware(keyboard=True)
+    hw.modules["keypad"] = SimpleNamespace(KeyMatrix=taken)
+    hw.run(3000)
+    assert [str(e) for e in hw.printed] == ["GP11 in use"] and hw.reloads == [2000]
+    assert [r for _, r in typed_by(hw)] == [bytes(keys.REPORT)]
+
+
+def test_keyboard_mode_lights_are_dark_while_usb_is_down():
+    # the start pattern shows also while USB is down (at plug-in the host may not have the panel mounted yet), then
+    # the lights stay dark until the host is there; later, the host suspends the bus with SHIFT armed and unit 2
+    # selected: both go off, and come back once the host resumes
+    script = {10: [press("SHIFT", True)], 60: [press("SHIFT", False)], 110: [press("HOME", True)],
+              160: [press("HOME", False)], 300: [press("SHIFT", True)], 350: [press("SHIFT", False)]}
+    hw = keyboard_hardware(script, usb_from=START_MS + 5)
+    hw.suspend = (START_MS + 1000, START_MS + 2000)
+    hw.run(START_MS + 2200)
+    steps = len(keys.START)
+    assert [(s > 0, u > 0) for (_, s), (_, u) in zip(hw.leds[0].history[:steps], hw.leds[1].history[:steps])] == [
+        (light == 0, light == 1) for light in keys.START]
+    shift, unit = (dict(led.history[steps:]) for led in hw.leds)
+    assert shift[START_MS] == unit[START_MS] == 0 and min(shift) == min(unit) == START_MS
+    t0 = START_MS
+    assert shift[t0 + 300] > 0 and shift[t0 + 1000] == 0 and shift[t0 + 2000] > 0 and max(shift) == t0 + 2000
+    assert unit[t0 + 110] > 0 and unit[t0 + 1000] == 0 and unit[t0 + 2000] > 0 and max(unit) == t0 + 2000
+
+
+def test_keyboard_mode_tap_while_suspended_wakes_the_host():
+    # as with the joysticks: AP's tap while the host has the bus suspended sends the keyboard's report as the
+    # request to resume, and AP's shortcut reaches the PC once the host is back, its key held about PRESS_MS (its
+    # modifiers go out a report before it)
+    hw = keyboard_hardware({500: [press("AP", True)], 600: [press("AP", False)]})
+    hw.suspend = (START_MS + 100, 10**6)
+    hw.run(START_MS + 3500)
+    back = START_MS + 500 + 2000 + RESUME_MS
+    assert START_MS + 500 in hw.devices[0].tries and hw.suspend[1] == back
+    sent = typed_by(hw)
+    assert [n for _, _, n in typed(sent)] == ["AP"]
+    down = next(t for t, r in sent if r[2])
+    up = next(t for t, r in sent if t > down and not r[2])
+    assert back < down <= back + 3 * FRAME_MS and up - down >= P.PRESS_MS - FRAME_MS   # as any short press here
 
 
 def test_a_host_in_the_boot_protocol_gets_the_same_reports():

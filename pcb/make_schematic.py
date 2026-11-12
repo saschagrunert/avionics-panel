@@ -541,7 +541,27 @@ def sheet_knobs(s):
         s.end(*rp["1"], res, "1", "l")
         lp = s.two(led, 212, y, "r", pins=("A", "K"), text_side=-1)
         s.wire([rp["2"], lp["A"]], [(res, "2"), (led, "A")])
-        s.end(*lp["K"], led, "K", "r")
+        if net(led, "K") == "GND":
+            s.end(*lp["K"], led, "K", "r")
+            continue
+        # switched on the low side: the FET's drain on the cathode, its gate on the GPIO with a pull-down
+        q = next(r for r in REFS if r.startswith("Q_") and net(r, "3") == net(led, "K"))
+        qp = s.ic(q, 236, y + 4.5, 12, left=[("3", "D")], right=[("2", "S"), ("1", "G")], pitch=4.5,
+                  wired=("3", "1"))
+        s.wire([lp["K"], qp["3"]], [(led, "K"), (q, "3")])
+        gx, gy = qp["1"]
+        pd = next(r for r in REFS if r.startswith("R_") and r.endswith("_PD") and net(r, "2") == net(q, "1"))
+        pp = s.two(pd, gx + 6, gy, "d", pins=("2", "1"))
+        s.wire([(gx, gy), pp["2"]], [(q, "1"), (pd, "2")])
+        s.dot(*pp["2"])
+        s.label(*pp["2"], net(q, "1"), "r", stub=6.0)
+        s.end(*pp["1"], pd, "1", "d")
+    # GP25's series resistor to the FREQ outer ring's B line (pcb/board.py add_gp25_resistor)
+    rp = s.two("R_GP25", 250, 104, "r")
+    s.end(*rp["1"], "R_GP25", "1", "l")
+    s.end(*rp["2"], "R_GP25", "2", "r")
+    s.note(236, 97, ["GP25 is CircuitPython's status LED on the Pico build:", "1k limits it into a closed contact."],
+           size=6.0)
 
 
 def main():

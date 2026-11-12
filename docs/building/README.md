@@ -19,8 +19,9 @@ flowchart LR
 ```
 
 1. **Order** ([details, shopping list](ordering.md)), in the sequence of
-   [Order step by step](ordering.md#order-step-by-step); with full assembly, buy the six encoders into
-   JLCPCB's Parts Manager first. Every file name below starts with `avionics-panel-rev1-`:
+   [Order step by step](ordering.md#order-step-by-step); first get at least ten crystals for Y1 (with full
+   assembly also the six encoders) into JLCPCB's Parts Manager. Every file name below starts with
+   `avionics-panel-rev1-`:
 
    | Shop | What | Files |
    | --- | --- | --- |

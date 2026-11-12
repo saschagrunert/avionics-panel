@@ -1,8 +1,8 @@
 {
- "lcsc": "C23182",
- "title": "0603WAF470JT5E",
+ "lcsc": "C23151",
+ "title": "0603WAF3900T5E",
  "package": "R0603",
- "source": "JLCPCB / EasyEDA library footprint, https://easyeda.com/api/products/C23182/components, fetched 2026-11-12",
+ "source": "JLCPCB / EasyEDA library footprint, https://easyeda.com/api/products/C23151/components, fetched 2026-11-12",
  "frame": "top view, mm, x right, y down, from the footprint origin; pads: number, x, y, size x, size y; pins: pad number, the pin's name in JLC's symbol",
  "pads": [
   ["1", -0.753, 0.0, 0.806, 0.864],

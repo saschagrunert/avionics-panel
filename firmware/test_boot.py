@@ -67,6 +67,15 @@ def test_shift_and_unit_pins_are_released_for_code_py():
         assert set(board.ios) == set(SHIFT_PINS + UNIT_PINS) and all(io.released for io in board.ios.values())
 
 
+def test_status_led_is_dark_after_boot():
+    # GP25, the Pico build's status LED, is the FREQ outer encoder's B line: at brightness 0 the supervisor's
+    # blinks after boot.py drive it low, in every mode (the stand-in starts at full brightness, as the board)
+    assert Board().rgb_status_brightness == 0xFF
+    for shift in (False, True):
+        for keyboard in (False, True):
+            assert boot(shift=shift, keyboard=keyboard).rgb_status_brightness == 0
+
+
 def test_shift_is_matrix_row_3_column_3_and_unit_above_it():
     assert BM.MATRIX[3][3] == "SHIFT" and BM.MATRIX[2][3] == "HOME"
 

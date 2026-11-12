@@ -130,19 +130,30 @@ after it keep their time), and a shifted push or tilt keeps SHIFT.
 
 ## Errors
 
-If the main loop raises, `code.py` releases every button (the PC keeps the last report otherwise, so a key
-could stay held), prints the traceback, waits 2 s and restarts itself, also when printing fails (a
-`MemoryError` may leave no room to format it). The pause lets Ctrl-C on the serial console stop even a crash
-loop at the REPL (CircuitPython's interactive prompt). There is no watchdog: every wait in the loop is
-bounded, and a watchdog reset would drop the joysticks off USB and run `boot.py` again.
+If `code.py` raises, in its main loop or while it starts (a missing file, no joysticks or keyboard from
+`boot.py`, a pin), it releases every button or key (the PC keeps the last report otherwise, so a key could stay
+held), prints the traceback, waits 2 s and restarts itself, also when printing fails (a `MemoryError` may
+leave no room to format it). The pause lets Ctrl-C on the serial console stop even a crash loop at the REPL
+(CircuitPython's interactive prompt). There is no watchdog: every wait in the loop is bounded, and a watchdog
+reset would drop the joysticks off USB and run `boot.py` again.
 
 ## USB
 
 Reports are only sent while the host has the panel mounted and not suspended. A host that enumerates the panel
 but never reads it (Linux, while no program has the joystick open) makes each send wait 2 s and fail. Both
 joysticks share one USB interface, so they fail alike and share one back-off: after a failed send neither
-device tries for 1 s, then 2, 4 and up to 8 s, so a loop pass never stalls for more than 2 s, and in the end
-the loop stalls for 2 s of every 10.
+device tries for 1 s, then 2, 4 and up to 8 s, so a loop pass never stalls for more than about 2 s, and in the
+end the loop stalls for 2 s of every 10.
+
+Input while the host has suspended the panel (a host that autosuspends idle HID devices, such as Linux with
+`power/control` at `auto`) asks the host to resume. CircuitPython has no call for that: a report sent while
+suspended waits 2 s, then sends the request, and the input waits up to 0.5 s more for the host to come back.
+So the first input reaches the PC about 2 s late, still held for its full 56 ms (in keyboard mode, as every
+short press there, a frame less); knob turns from before the request go before keys pressed during it. The
+request is joystick 1's last report, in keyboard mode the keyboard's. A host that refuses, or no host at all,
+stalls the loop for about 2.5 s per request, with a back-off like a failed send's; the back-off ends when the
+host comes back by itself. Whether a sleeping PC wakes is the PC's setting ("Allow this device to wake the
+computer" in Windows' Device Manager, `power/wakeup` on Linux).
 
 In update mode (SHIFT held at plug-in) the panel is a composite device with the drive and the console, and the
 joysticks move to another interface number: Windows may then see them as new controllers
@@ -183,24 +194,31 @@ but for one rule.
   of its own. `send_report` waits until the host has taken the report before, so each step reaches it, a
   frame apart: the key goes down a frame after its modifiers and is down about one frame less than
   `PRESS_MS`.
-- Each time it starts, before its loop, `code.py` lights SHIFT and UNIT by turns, 150 ms each, three times.
-  Keys and knobs used meanwhile go out after it.
+- Each time it starts, before its loop, `code.py` lights SHIFT and UNIT by turns, 150 ms each, three times,
+  also while USB is down (at plug-in the host may not have mounted the panel yet), so the mode shows on a
+  charger too. Then the loop sets both lights, dark while USB is down ([Lights](#lights)). Keys and knobs used
+  meanwhile go out after it.
 
 ## Lights
 
 `code.py` drives the SHIFT and UNIT lights with PWM at `LED_DUTY` = 0x4800 and 0x5500 (about 28 and 33 % of
-full), the amber one dimmed to a quarter for its pulse in SHIFT's last second. It sets the drive strength of
-their pads (GP12, GP15) to 12 mA, which their series resistors need ([Electronics](electronics.md#lights)), by
-writing the RP2040's pad registers through `memorymap` (CircuitPython has no call for it); should that fail,
-it prints "LED drive strength not set" and the lights stay dimmer at the 4 mA default.
+full), the amber one dimmed to a quarter for its pulse in SHIFT's last second. Both stay dark while USB is not
+connected (the PC asleep, booting or off, a charger, a host that has suspended the panel); the panel runs on.
+In keyboard mode they first take turns at each start ([Keyboard mode](#keyboard-mode)). It sets the drive
+strength of their pads (GP12, GP15) to 12 mA, which the SHIFT light's series resistor needs (GP15 only switches
+the UNIT light's transistor, [Electronics](electronics.md#lights)), by writing the RP2040's pad registers
+through `memorymap` (CircuitPython has no call for it); should that fail, it prints "LED drive strength not
+set" and the SHIFT light stays dimmer at the 4 mA default.
 
 ## Pins
 
 Seven `rotaryio` encoders use 7 of the RP2040's 8 PIO state machines; the Pico bench creates all seven too.
-GP25, the FREQ outer encoder's B line, is the Pico CircuitPython build's status LED during boot and in safe
-mode (harmless, limited current, and while `code.py` runs the pin belongs to `rotaryio`); a custom board
-definition would avoid it, and the spare GP14 cannot be routed in its place. The pins are in `code.py` and the
-[GPIO map](electronics.md#gpio-map).
+GP25, the FREQ outer encoder's B line, is the Pico CircuitPython build's status LED, driven high at 12 mA in
+blinks in the first second after power-up, after `code.py` stops with an error and in safe mode; a 1 k
+resistor in series on the board limits the current into a closed contact to 3.3 mA, `boot.py` sets the LED's
+brightness to 0 so that later blinks drive the pin low, and while `code.py` runs the pin belongs to
+`rotaryio`. A custom board definition would avoid it, and the spare GP14 cannot be routed in its place. The
+pins are in `code.py` and the [GPIO map](electronics.md#gpio-map).
 
 ## Code and tests
 
@@ -212,6 +230,7 @@ Run `pytest` from the repository root for the host tests:
 | `firmware/test_code.py` | `code.py`, on the simulator's stand-in hardware, in both modes |
 | `firmware/test_boot.py` | `boot.py`, on the simulator's stand-in hardware: USB, the drive, the stored mode |
 | `firmware/test_keys.py` | `keys.py`: the stored mode, the descriptor, a shortcut per button, the report |
+| `tests/test_sim.py` | The simulator itself: what it refuses, its errors, and its stand-ins against CircuitPython's (report length, suspend, key scans, event queue, clocks) |
 | `tests/test_workflows.py` | The [workflows](../using/controls.md#workflows), keys and knobs, on the simulator, in both modes |
 | `tests/test_live.py` | The simulator in real time: actions, reports, the lights, a reload after an error |
 | `tests/test_descriptor.py` | `boot.py`'s report descriptors, parsed, and the simulator's reports read with them |
@@ -225,14 +244,15 @@ Run `pytest` from the repository root for the host tests:
 | `tests/test_mobiflight.py` | The [MobiFlight profiles](../using/mapping.md#generated-profiles): tables and their codes, project format, workflows |
 
 The simulator in [sim/](../../sim/) runs the unchanged `boot.py` and `code.py` on stand-ins for the hardware
-modules, on virtual time: the keypads scan every 20 ms, a loop pass takes 3 ms, and the PC takes a report at
-its poll of the shared endpoint every 8 ms; seconds of flying take milliseconds. It does not reproduce
-CircuitPython's speed, memory or USB stack. `tests/test_workflows.py` uses it as a pilot would (tap SHIFT,
-turn the FREQ inner ring) and checks the buttons MobiFlight sees at its 31.25 ms polls, by their names, and
-that none stays pressed. With the firmware's own tests, a firmware change that breaks a documented workflow
-fails the build. Each workflow runs in keyboard mode too (`Sim(keyboard=True)`), where the sim must see the
-same functions typed, in the same order: `sim.typed()` reads them from the keyboard's reports and fails on a
-key that goes down with modifiers other than its own or beside another key.
+modules, on virtual time: the keypads scan every 20/1024 s (19.5 ms), a loop pass takes 3 ms, and the PC takes
+a report at its poll of the shared endpoint every 8 ms; seconds of flying take milliseconds. It does not
+reproduce CircuitPython's speed, memory or USB stack; the other differences are listed in
+[sim/hardware.py](../../sim/hardware.py). `tests/test_workflows.py` uses it as a pilot would (tap
+SHIFT, turn the FREQ inner ring) and checks the buttons MobiFlight sees at its 31.25 ms polls, by their names,
+and that none stays pressed. With the firmware's own tests, a firmware change that breaks a documented
+workflow fails the build. Each workflow runs in keyboard mode too (`Sim(keyboard=True)`), where the sim must
+see the same functions typed, in the same order: `sim.typed()` reads them from the keyboard's reports and fails
+on a key that goes down with modifiers other than its own or beside another key.
 
 The compiler is CircuitPython 9.2's own `mpy-cross`, so it rejects the syntax the board rejects. It checks
 syntax only: a module or argument the board's build lacks shows up on the bench. It is not in nixpkgs:

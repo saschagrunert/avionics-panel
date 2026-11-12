@@ -10,13 +10,14 @@ Full assembly (the default), in this order:
 
 1. Rail edge (the long front edge, away from J1, the USB-C socket): check that the rail is gone and both
    corners are round (R3). File a square corner to R3 and sand off a burr.
-2. Plate threads: turn one of the M3 screws into each of the five bosses by hand with the 2 mm hex key, about
-   ten turns, and out again. It must run freely: an anodised thread that was neither masked nor cut again
-   stops it early (take it up with JLCCNC). Do not drive it home: without the body it would go past the 6.0 mm
-   of full thread.
-3. Joints the remark asked for: check that the two mounting lugs of each encoder are soldered in their slots
-   (bottom side), and that all four J1 shell tab slots are filled from the top with the solder wetting the
-   tabs. If not, solder them as in [Hand-soldering](assembly.md#hand-soldering).
+2. Plate threads: turn one of the M3 screws into each of the five bosses by hand with the 2 mm hex key,
+   eleven turns (5.5 mm: about as deep as the screw reaches in use, a turn short of the end of the full
+   thread), and out again. It must run freely: an anodised thread that was neither masked nor cut again
+   stops it early (take it up with JLCCNC). Do not drive it home: without the body it would go past the full
+   thread.
+3. Joints the PCBA remark asked for: check that the two mounting lugs of each encoder are soldered in their
+   slots (bottom side), and that all four J1 shell tab slots are filled from the top with the solder wetting
+   the tabs. If not, solder them as in [Hand-soldering](assembly.md#hand-soldering).
 4. Parts: check that the keys, the encoders and the RANGE control sit flat on the board. Reheat the pins of
    one that does not while pressing it down, or use the second board for the panel.
 5. Cap set: [choose it](#choosing-the-cap-set) on one of the spare keys from the LCSC order.
@@ -43,6 +44,9 @@ pulling off a tight cap loads no soldered key.
 - Too tight: the cap stops short of the plunger top or needs more than a firm thumb. Too loose: it falls off
   or rocks.
 - If two sets fit, take the tighter one (from tight to loose: D, A, B, C).
+- Full assembly: then try a cap of the chosen set on one soldered key, as JLCPCB's keys come from other
+  stock than the spares. Push it on only until it starts to bind: if it stops short of the plunger top, take
+  the next looser set; if it falls off or rocks, the next tighter one.
 - Without a spare key, try them on a soldered key from loose to tight (C, B, A, D) and stop at the first set
   that holds, so no tight cap has to be pulled off.
 - If even C is too tight, raise `CAP_SETS_MOVE` in [mech/stack.py](../../mech/stack.py) by 0.1 mm for each
@@ -100,9 +104,12 @@ CIRCUITPY run `sync` and let it finish before you replug.
    2. Open the serial console (Linux: for example `tio /dev/ttyACM0`; Windows: the serial console of Thonny or
       Mu, or PuTTY on the panel's COM port, which Device Manager lists under Ports). Press Ctrl-C, then
       Ctrl-D: `code.py` runs again and prints "Avionics Panel rev 1 ready", or, if `boot.py` did not run, a
-      traceback ending in `RuntimeError: joysticks missing: copy boot.py and replug the panel`.
-   3. Replug without SHIFT: CIRCUITPY and the serial port must not appear. If they still do, SHIFT reads as
-      held (row GP2, column GP6).
+      traceback, again every 2 s, ending in
+      `RuntimeError: joysticks missing: copy boot.py and replug the panel` (in the
+      [keyboard mode](#normal-and-update-mode): `keyboard missing`).
+   3. Replug without SHIFT: CIRCUITPY and the serial port must not appear. If they still do, look at the
+      console: "You are in safe mode because:" means CircuitPython skipped `boot.py`
+      ([When bring-up fails](#when-bring-up-fails)); otherwise SHIFT reads as held (row GP2, column GP6).
 6. Check the joysticks:
    - Windows: "Set up USB game controllers" (`joy.cpl`) must show two "Avionics Panel" devices (if it shows
      another name, see [Mapping](../using/mapping.md#device-name)). It only shows 32 buttons per device, so
@@ -145,6 +152,10 @@ By the step of [Flash and test](#flash-and-test) that shows the fault:
 - Step 2, no RPI-RP2 drive: try another cable (a charge-only cable shows nothing) and another USB port, then
   measure 3V3 again. With 3V3 right, look at J1's contacts and the crystal Y1 under the magnifier for bridges
   or a lifted pin (solder wick for a bridge). Still nothing: put this board aside and use the second one.
+- Step 5.3 or later, CIRCUITPY and the console appear without SHIFT, no joysticks, and the console shows "You
+  are in safe mode because:": CircuitPython started in safe mode, which skips `boot.py`, after a supply dip
+  in its first second or a crash. Unplug for a few seconds and plug in again; if it comes back at every
+  plug-in, put this board aside and use the second one.
 - Step 6, a key that never registers: check its diode, the SOD-123 next to it on the bottom, under the
   magnifier: its cathode band must be on the pad with the silkscreen bar. Turn a reversed one round with the
   iron. Then check the key's four solder joints (hand-soldering).
@@ -169,9 +180,9 @@ On the first board; step 7.3 of [Flash and test](#flash-and-test) says which che
   If steps go missing, tune `PRESS_MS`, `GAP_MS` and `MAX_QUEUE` in [panel.py](../../firmware/panel.py) (a
   step longer than the 120 ms tilt repeat slows a held tilt down).
 - Loop pass time: the firmware times every pulse in passes of its main loop, so each pass adds to the 56 ms
-  of a press and of a gap. To measure it, add this to `code.py` temporarily: before the `try:` above
-  `while True:` the line `n_pass = t_mark = t_prev = worst = 0`, and right after the line that sets `t` in the
-  loop:
+  of a press and of a gap. To measure it, add this to `code.py` temporarily: right before the line that prints
+  "Avionics Panel rev 1 ready", indented like it, the line `n_pass = t_mark = t_prev = worst = 0`, and right
+  after the first line in the loop, which sets `t`:
 
   ```python
           if t_prev:
@@ -187,16 +198,12 @@ On the first board; step 7.3 of [Flash and test](#flash-and-test) says which che
   held, with a program reading the joysticks (on Linux keep `evtest` open, or every send stalls). The longest
   pass counts: up to about 4 ms a held tilt keeps its 120 ms repeat, beyond that it slows down. Copy the
   repository's `code.py` back afterwards.
-- GP25: check that the FREQ outer ring counts normally once `code.py` runs
-  ([why](../architecture/firmware.md#pins)).
-- Lights: judge both behind their light pipes once the panel is assembled.
-  - The brightness is `LED_DUTY` in [code.py](../../firmware/code.py): 0x4800 for SHIFT and 0x5500 for UNIT,
-    about 28 and 33 % of full. Change those first (up to 0xFFFF).
-  - If the console showed "LED drive strength not set" in step 5 of [Flash and test](#flash-and-test), the
-    lights stay dimmer at the RP2040's 4 mA default.
-  - Only if the white light is still too dim at full duty (a part from the highest forward voltage bin):
-    bridge R_UNIT's pads with solder or fit a 0603 0 R (for example C21189) in its place
-    ([why](../architecture/electronics.md#lights)), then keep `LED_DUTY[1]` at 0x8000 or less.
+- GP25: check that the FREQ outer ring counts normally once `code.py` runs, its B line coming through R_GP25
+  (1 k) ([why](../architecture/firmware.md#pins)).
+- Lights: judge both behind their light pipes once the panel is assembled. The brightness is `LED_DUTY` in
+  [code.py](../../firmware/code.py): 0x4800 for SHIFT and 0x5500 for UNIT, about 28 and 33 % of full, up to
+  0xFFFF. If the console showed "LED drive strength not set" in step 5 of [Flash and test](#flash-and-test),
+  the SHIFT light stays dimmer at the RP2040's 4 mA default.
 
 ## Normal and update mode
 

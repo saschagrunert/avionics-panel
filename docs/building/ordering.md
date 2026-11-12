@@ -25,20 +25,25 @@ edge rail.
 
 ## Order step by step
 
-1. Full assembly: first buy the six encoders into your Parts Manager stock, so no other order can take them
-   ([Parts and stock](#parts-and-stock)).
+1. First buy at least ten crystals for Y1 into your Parts Manager stock through Global Sourcing, and with
+   full assembly the six encoders from JLCPCB's stock (those show at once). Global Sourcing takes 2 to 5
+   weeks, and step 4 can use the crystals only once Parts Manager shows them in stock
+   ([Parts and stock](#parts-and-stock)). Steps 2, 3, 7 and 8 need not wait.
 2. [JLCCNC](#jlccnc): the plate. It is paid after its review.
-3. [JLCPCB](#jlcpcb): the boards. Go through the [placement preview](#placement-preview), then pay.
-4. [JLC3DP](#jlc3dp): body, key caps, knobs, light pipes, as an order and a parcel of its own
-   ([why](#shipping-tax-and-cost)).
-5. [LCSC](#lcsc): the spare keys (or, hand-soldering, the through-hole parts), shipped on its own.
-6. JLCMC: the screws from the [shopping list](#shopping-list), an order and a parcel of its own. JLCMC does
-   not combine with JLCPCB, JLC3DP or JLCCNC.
+3. JLCMC: the screws from the [shopping list](#shopping-list), as an order and a parcel of their own. JLCMC
+   does not combine with the other JLC shops.
+4. [JLCPCB](#jlcpcb): the boards. Go through the [placement preview](#placement-preview).
+5. [JLC3DP](#jlc3dp): body, key caps, knobs, light pipes, added to the JLCPCB cart, so they come in one
+   parcel with the boards ([why](#shipping-tax-and-cost)). Quote one cap zip first ([why](#jlc3dp)). Then
+   pay the cart.
+6. [LCSC](#lcsc): the spare keys (or, hand-soldering, the through-hole parts), joined to the JLCPCB order at
+   LCSC's checkout.
 7. Locally: the rest of the [shopping list](#shopping-list).
 8. Optional, to run the firmware before the boards arrive: the [Pico bench](bring-up.md#pico-bench) parts.
 
 Before paying each order, read the [review questions](#review-questions) and the
-[tax lines](#shipping-tax-and-cost). No order waits for another's review.
+[tax lines](#shipping-tax-and-cost). No order waits for another's review; only the JLCPCB order waits for Y1
+(step 1).
 
 ## Shopping list
 
@@ -56,8 +61,8 @@ variant. Hardware:
 | ☐ | Screws | 7 (5 + 2 spare), or JLCMC's pack minimum | JLCMC, either EDDH-C16E1-M3-L8 (10B21 blackened, 8.8) or EDDH-S1W-M3-L8 (A2-70) | M3 x 8 flanged button head, hex socket, ISO 7380-2 | Step 4 of [Putting it together](assembly.md#putting-it-together) |
 | ☐ | Spare keys (full assembly) | 5 (LCSC's minimum; 2 needed) | LCSC, C589907 | TE 1-1825910-4 | Trying the cap sets without pulling at a soldered key |
 | ☐ | Through-hole parts (hand-soldering) | 1 set (one board; a second for the spare board if wanted) | LCSC, `THT-LCSC.csv` ([LCSC](#lcsc)) | 30 keys, 3 encoders, 1 RANGE control | [Hand-soldering](assembly.md#hand-soldering) |
-| ☐ | Feet | 4 | Local | Self-adhesive, up to 10 mm across | Step 6 of [Putting it together](assembly.md#putting-it-together) |
-| ☐ | USB-C cable | 1 | Local | Data-capable (a charge-only cable shows no RPI-RP2 drive) | Step 2 of [Flash and test](bring-up.md#flash-and-test) |
+| ☐ | Feet | 4 | Local | Self-adhesive silicone (high friction), up to 10 mm across | Step 6 of [Putting it together](assembly.md#putting-it-together) |
+| ☐ | USB-C cable | 1 | Local | Data-capable (a charge-only cable shows no RPI-RP2 drive), straight plug, its overmould at most 12.85 x 7.0 mm ([why](../architecture/mechanics.md#plate-and-body)) | Step 2 of [Flash and test](bring-up.md#flash-and-test), step 4 of [Putting it together](assembly.md#putting-it-together) |
 
 Consumables:
 
@@ -65,7 +70,7 @@ Consumables:
 | --- | --- | --- | --- | --- | --- |
 | ☐ | Fine sandpaper | 1 sheet | Local | 400 to 1000 grit | The light pipe stubs, step 2 of [Putting it together](assembly.md#putting-it-together) |
 | ☐ | Flat file, or coarse sandpaper on a block | 1 | Local | 240 grit | Only for a square corner or a burr at the rail edge, [On arrival](bring-up.md#on-arrival) |
-| ☐ | Adhesive tape | A strip | Local | | Only for a loose knob or a drill's depth mark, [Fitting the knobs](assembly.md#fitting-the-knobs) |
+| ☐ | Adhesive tape | A strip | Local | | Only for a drill's depth mark, [Fitting the knobs](assembly.md#fitting-the-knobs) |
 | ☐ | Solder and flux (hand-soldering; full assembly: rework only) | | Local | | [Hand-soldering](assembly.md#hand-soldering), rework |
 | ☐ | Solder wick (hand-soldering; full assembly: rework only) | 1 | Local | | Rework |
 
@@ -79,7 +84,7 @@ Tools:
 | ☐ | Multimeter | 1 | Local | Continuity beeper and diode mode | Steps 1 and 2 of [Flash and test](bring-up.md#flash-and-test), [Hand-soldering](assembly.md#hand-soldering) |
 | ☐ | Soldering iron (hand-soldering; full assembly: rework only) | 1 | Local | Temperature controlled | [Hand-soldering](assembly.md#hand-soldering), rework |
 | ☐ | Magnifier or loupe | 1 | Local | | [When bring-up fails](bring-up.md#when-bring-up-fails), checking joints |
-| ☐ | Drills and a needle file | 3 drills, 1 file | Local | Drills of 6.0, 3.5 and 2.5 mm | Only if a knob bore is too tight, [Fitting the knobs](assembly.md#fitting-the-knobs) |
+| ☐ | Drills, a hand chuck or T-handle tap wrench that holds a 6 mm drill, a needle file | 4 drills, 1 holder, 1 file | Local | Drills of 6.0, 4.2, 3.5 and 2.5 mm | Only if a knob bore is too tight ([Fitting the knobs](assembly.md#fitting-the-knobs)) or a screw does not pass a body hole (step 4 of [Putting it together](assembly.md#putting-it-together)) |
 | ☐ | Flat-nose pliers | 1 | Local | | Only if a board arrives with its rail, [On arrival](bring-up.md#on-arrival) |
 
 ## JLCPCB
@@ -89,26 +94,27 @@ Tools:
 outer copper, stackup, PCB quantity 5). Standard assembly, assembly quantity 2 (JLCPCB's minimum); the panel
 needs one, the second is the spare. Edge Rails/Fiducials: Added by JLCPCB, with the paid option to remove the
 edge rail before delivery. Confirm Parts Placement and Confirm Production File: yes. Check the price and build
-time the quote shows for black.
+time the quote shows for black, and in the Gerber viewer the inner layers' order: Inner Layer 1 (layer 2) must
+be `avionics-In1_Cu.g2` (GND) and Inner Layer 2 `avionics-In2_Cu.g3` (3V3). PCB Remark, in both variants:
 
-- Full assembly: both sides; `BOM-full.csv` and `CPL-full.csv` (the BOM step must find all 27 lines with
-  stock for 2 boards); remark:
+> J1 (USB-C) overhangs the y = 60 mm edge by 0.5 mm by design: no rail there. One edge rail of at least
+> 10 mm on the y = 0 edge only, removed before delivery; keep the R3 corners milled. Solder mask: keep the
+> 0.13 mm dams between the pads of U1, J1 and C_X2/R_X; please ask before removing any. The two
+> 2.2 x 2.4 mm internal cutouts in the outline are for reverse-mount LEDs: please mill them with R0.5
+> inside corners (1.0 mm router).
 
-  > J1 (USB-C) overhangs the y = 60 mm edge by 0.5 mm by design: no rail there. One edge rail of at least
-  > 10 mm on the y = 0 edge only, removed before delivery; keep the R3 corners milled. Solder mask: keep the
-  > 0.13 mm dams between the pads of U1, J1 and C_X2/R_X; please ask before removing any. The two
-  > 2.2 x 2.4 mm internal cutouts in the outline are for reverse-mount LEDs: please mill them with R0.5
-  > inside corners (1.0 mm router). Solder the mounting lugs of ENC_ALTHDG, ENC_FREQ and ENC_FMS in their
-  > slots. Solder the four J1 shell tabs from the top, filling the slots.
+- Full assembly: both sides; `BOM-full.csv` and `CPL-full.csv` (the BOM step must find all 28 lines with
+  stock for 2 boards). Under Advanced Options set PCBA Remark to Yes and enter:
 
-- Hand-soldering: bottom side; `BOM.csv` and `CPL.csv` (the BOM step must find all 24 lines with stock for
-  2 boards); remark:
+  > Solder the mounting lugs of ENC_ALTHDG, ENC_FREQ and ENC_FMS in their slots. Solder the four J1 shell
+  > tabs from the top, filling the slots. All through-hole joints by hand soldering: no wave or selective
+  > soldering over the bottom side.
 
-  > J1 (USB-C) overhangs the y = 60 mm edge by 0.5 mm by design: no rail there. One edge rail of at least
-  > 10 mm on the y = 0 edge only, removed before delivery; keep the R3 corners milled. Solder mask: keep the
-  > 0.13 mm dams between the pads of U1, J1 and C_X2/R_X; please ask before removing any. The two
-  > 2.2 x 2.4 mm internal cutouts in the outline are for reverse-mount LEDs: please mill them with R0.5
-  > inside corners (1.0 mm router).
+  JLCPCB's capabilities page says through-hole parts are wave soldered, but 113 of the through-hole pads are
+  1.1 to 1.5 mm from a bottom-side SMD pad (each key pin from its diode), where selective soldering asks for
+  5 mm. Hand soldering costs $0.0164 a joint, 152 joints a board, plus $3.58 an order.
+- Hand-soldering: bottom side; `BOM.csv` and `CPL.csv` (the BOM step must find all 25 lines with stock for
+  2 boards); no PCBA remark.
 
 The reasons: [edge rails](#edge-rails), [solder mask](../architecture/electronics.md#solder-mask),
 [LED cutouts](../architecture/electronics.md#lights), [J1 shell tabs](assembly.md#hand-soldering).
@@ -119,10 +125,15 @@ The reasons: [edge rails](#edge-rails), [solder mask](../architecture/electronic
   wall: no rail can go there.
 - Standard assembly needs edge rails and at least 70 x 70 mm with them. The board is 60 mm wide and the J1
   edge takes no rail, so one rail of at least 10 mm goes on the opposite long edge (y = 0). JLCPCB removes it
-  before delivery (a paid option), and the V-cut edge it leaves (scored and snapped, ±0.4 mm) fits the body.
-- JLCPCB's default is a 5 mm rail on two opposite edges. If its engineer wants more than the one rail, accept
-  any that leaves the J1 edge free; a rail on a short edge leaves a V-cut edge that may need sanding
-  ([On arrival](bring-up.md#on-arrival)).
+  before delivery (a paid option), and the V-cut edge it leaves (scored and snapped, ±0.4 mm), or a
+  mouse-bite edge with small nubs to file flat, fits the body.
+- JLCPCB's default is a 5 mm rail on two opposite edges, here the J1 edge too, and its assembly terms want
+  part bodies at least 2.5 mm from the board edge. Check the panel in the confirmed production file: one rail
+  on y = 0 only, the J1 edge free, the R3 corners milled.
+- If its engineer wants more than the one rail, accept any that leaves the J1 edge free; a rail on a short
+  edge leaves a V-cut edge that may need sanding ([On arrival](bring-up.md#on-arrival)). If JLCPCB insists on
+  a rail on the J1 edge, accept only one joined by mouse bites behind a routed gap, never a V-cut: its blade
+  would run under J1.
 - The R3 corners stay milled: a V-cut square corner does not fit the body.
 
 A board that arrives with a rail anyway: [On arrival](bring-up.md#on-arrival).
@@ -135,22 +146,35 @@ ordering:
 
 | Part | JLC part | Per board |
 | --- | --- | --- |
+| Y1: Abracon ABM8-272-T3 12 MHz crystal | C20625731 | 1 |
 | TE 1-1825910-4 key switch | C589907 | 28 (full assembly only) |
 | Bourns PEC11D-4120F-S0015 dual encoder | C19270361 | 3 (full assembly only) |
 | Alps RKJXT1F42001 RANGE control | C160841 | 1 (full assembly only) |
-| U4: hongjiacheng SRV05-4 ESD (electrostatic discharge) protection array, SOT-23-6 | C7420376 | 1 |
+| U4: SRV05-4 ESD (electrostatic discharge) protection array, SOT-23-6 (hongjiacheng at JLCPCB, R+O at LCSC) | C7420376 | 1 |
 | F1: Bourns MF-NSMF050-2 PTC (resettable) fuse, 0.5 A hold, 1206 | C75464 | 1 |
 | LiteOn LTST-C230KSKT yellow LED (the amber SHIFT light) | C125108 | 1 |
 | LiteOn LTW-C230DS white LED | C575513 | 1 |
 
-The encoders are the tight part: JLCPCB stocks few of them ([step 1](#order-step-by-step)). If the stock is
-short:
+Y1 is rarely in stock at JLCPCB or LCSC, and a board without it has no USB. Before ordering, buy at least ten
+ABM8-272-T3 through Global Sourcing (Parts Manager, Order Parts, Global Sourcing Parts; search for
+ABM8-272-T3). JLCPCB places at least five of this part and adds attrition on top (the part's order guide on
+JLCPCB's parts page gives both), and own stock that falls short of what the BOM step needs is not used at
+all: ten leaves room for both. The review takes 1 to 3 business days and the buying 9 to 20. In the BOM step,
+Y1 must then come from your own parts; if the step does not find them, match them by the part number
+ABM8-272-T3. Consigning crystals bought elsewhere also works, but it needs a declared-value form,
+a courier to JLCPCB's Hong Kong warehouse and a handling fee of at least $10. Take a stocked 12 MHz 3225
+crystal instead only if you test it on the first board: C5310728 (10 pF, 60 ohm), C362368 (9 pF, 60 ohm) and
+C50430 (YXC, 10 pF, 80 ohm) have more ESR than the 50 ohm of Raspberry Pi's design, whose guide asks for
+extensive testing of any change to its crystal circuit. Pick one in the BOM step in place of C20625731, check
+in the placement preview that its four pads land on ours, and on the first board that RPI-RP2 appears at every
+plug-in (step 2 of [Flash and test](bring-up.md#flash-and-test)).
 
-- Buy them in through Global Sourcing (a fee and days to weeks).
-- Send six as consigned parts.
-- Unselect the encoder line (ENC_ALTHDG, ENC_FREQ, ENC_FMS) in the BOM step, which then finds 26 lines, and
-  drop the sentence on the encoder lugs from the remark. Buy three encoders per board at LCSC or a Bourns
-  distributor and solder them by hand in step 7 of [Flash and test](bring-up.md#flash-and-test)
+The encoders are the other tight part: JLCPCB stocks few of them. If the stock is short:
+
+- Buy them in through Global Sourcing (2 to 5 weeks; switch-type parts may carry a $20 inspection fee).
+- Unselect the encoder line (ENC_ALTHDG, ENC_FREQ, ENC_FMS) in the BOM step, which then finds 27 lines, and
+  drop the sentence on the encoder lugs from the PCBA remark. Buy three encoders per board at LCSC or a
+  Bourns distributor and solder them by hand in step 7 of [Flash and test](bring-up.md#flash-and-test)
   ([Hand-soldering](assembly.md#hand-soldering)); skip the encoder checks of steps 3 and 4 of
   [On arrival](bring-up.md#on-arrival).
 
@@ -182,6 +206,9 @@ review; do not order as is.
   from J1 on the fuse's side. Turned by 180° it damages the board at the first plug-in
   ([why](../architecture/electronics.md#usb-protection)); step 1 of
   [Flash and test](bring-up.md#flash-and-test) tests for it.
+- Q_UNIT (the UNIT light's transistor, the SOT-23 12 mm from that light towards the J1 edge): JLC's single pin
+  (3, the drain) towards the light, its pin 1 (the gate) on the pad next to the resistor beside it
+  (R_UNIT_PD).
 - F1 (the 1206 between U4 and the regulator), the resistors and the capacitors have no polarity: only check
   they sit on their pads.
 
@@ -196,13 +223,17 @@ Full assembly, the top side as well (no polarity marks there; go by the pads and
 
 Aluminium 6061 from 12 mm stock, CNC, bead blasting and black anodising (matte), laser marking and UV print.
 If the form has a UV colour field, pick orange. Files: `plate.step`, `plate-drawing.pdf` (an A3 drawing with
-every tolerance, the threads, the finish and the edge breaks) and `plate.dxf` (the marking). Remark:
+every tolerance, the threads, the finish, the edge breaks, the machining order and where the anodising racks
+may touch) and `plate.dxf` (the marking). Remark:
 
 > 6061 from 12 mm plate, machined to plate-drawing.pdf; all its notes apply, also where they are tighter
 > than your general tolerance: boss height 6.55 ±0.05 mm, positions ±0.1 mm, flatness 0.1 mm after anodising,
-> pocket depths +0/-0.1 mm, key holes +0.1/-0 mm after anodising, light holes +0.1/-0 mm. The five M3-6H
-> threads must take a screw after anodising: mask them or cut them again afterwards. Marking per plate.dxf:
-> layer LASER is laser marking, layer UV_AMBER is UV print in your standard orange.
+> pocket depths +0/-0.1 mm, key holes +0.1/-0 mm after anodising, light holes +0.1/-0 mm. Machining order:
+> face the front first, then machine the back. The five M3-6H threads must take a screw after anodising:
+> mask them or cut them again afterwards. Anodising rack contacts in one of the M3 threads (cut it again
+> afterwards), on the back face, on the boss end faces or inside the pockets; never on the front face, the
+> outline or the key holes.
+> Marking per plate.dxf: layer LASER is laser marking, layer UV_AMBER is UV print in your standard orange.
 
 ## JLC3DP
 
@@ -215,22 +246,22 @@ every tolerance, the threads, the finish and the edge breaks) and `plate.dxf` (t
 | `knob-inner.step` | 3 | SLA Black Resin | Inner knobs |
 | `knob-range.step` | 1 | SLA Black Resin | RANGE knob |
 | The eight `knob-*-tight.step` and `knob-*-loose.step` | 1 each | SLA Black Resin | Each knob type with a bore 0.2 mm tighter and 0.2 mm looser |
-| `lightpipes.step` | 2 | SLA 8001 Resin, transparent, no post-processing | Two light pipes on one bar; the second bar is the spare |
+| `lightpipes.step` | 2 | SLA 8001 Resin, translucent | Two light pipes on one bar; the second bar is the spare |
 
 That is 18 files, and the quote page takes 10 per upload: upload them in two batches into the same cart.
-Remark:
+Black Resin is the material of that name, not JLC Black Resin or Imagine Black Resin. Remark:
 
 > Please print every part as designed. Light pipes (lightpipes.step): no sanding and no oil spray; the 2.0 mm
-> rods are 4.35 mm long on purpose. Body: the counterbore of the screw column in the middle is open on two
+> rods are 4.45 mm long on purpose. Body: the counterbore of the screw column in the middle is open on two
 > sides on purpose.
 
 - Key caps: upload the zips, they carry the texture (the OBJ alone prints without legends). JLC3DP asks for
-  one part per file, and its connected-parts option is not offered for full colour, so see whether the quote
-  or the review accepts 28 separate caps per file. If they insist on single parts, ask their support to accept
-  all 28 caps of a set as one file. All four sets are ordered at once: which one fits depends on the print
-  ([why](../architecture/mechanics.md#key-caps)).
-- Light pipes: JLC3DP sands and oil-sprays 8001 by default, which can break the thin rods, so pick no
-  post-processing where the form offers it.
+  one part per file, offers no connected parts for full colour and prices WJP from $5 a part, so quote one zip
+  before ordering. If the quote counts its 28 caps as 28 parts (the four sets then come to at least $560), ask
+  their support to take all 28 caps of a set as one part. All four sets are ordered at once: which one fits
+  depends on the print ([why](../architecture/mechanics.md#key-caps)).
+- Light pipes: JLC3DP sands and oil-sprays transparent 8001 by default, which can break the thin rods;
+  translucent gets no sanding, and the remark asks for none.
 
 ## LCSC
 
@@ -242,7 +273,7 @@ Remark:
 ## Review questions
 
 Items at or under a shop's published guideline: expect a question in the review. A question not in the table:
-accept a change only if it keeps the drawing's notes (JLCCNC) and the remark; otherwise ask for the part as
+accept a change only if it keeps the drawing's notes (JLCCNC) and the remarks; otherwise ask for the part as
 drawn. If a review ends in a change, change [mech/stack.py](../../mech/stack.py), run
 [`./build.sh`](../architecture/generators.md#build), see which files in `production/` changed and upload each
 to its shop again.
@@ -252,13 +283,14 @@ to its shop again.
 | JLCPCB | Black solder mask: 64 dams on the bottom (U1's pads, J1's contacts, C_X2 to R_X) are exactly 0.13 mm, JLCPCB's minimum for black | Check that the confirmed production file still has a dam between every pair of those pads. If any is gone, change the order to green (0.10 mm minimum): the same Gerbers then keep 0.03 mm to spare |
 | JLCPCB | The two 2.2 x 2.4 mm cutouts in the outline Gerber | Internal cutouts for reverse-mount LEDs, milled with R0.5 corners (1.0 mm router), not slots |
 | JLCPCB | The six plated encoder lug slots, 1.5 x 2.6 mm as on Bourns' drawing, against a slot rule of length at least twice the width | As drawn |
-| JLCCNC | The UV legends are 6.1 and 6.7 pt, at the 6 pt minimum | Accept a sample or a little blur |
+| JLCPCB | J1 overhangs its edge by 0.5 mm, against the assembly terms' 2.5 mm from a part body to the board edge | As designed: no rail on that edge ([Edge rails](#edge-rails)) |
+| JLCCNC | The UV legends: capitals 1.55 and 1.7 mm high (6.1 and 6.7 pt), at the 6 pt minimum, and 0.7 mm from the key holes, where the margin is usually 3 mm | Accept a sample or a little blur. Keep them where drawn: they leave 0.5 mm beyond the hole's edge break for the print's register |
 | JLCCNC | The web, 4.0 ±0.1 mm | Ask for 3.9 to 4.1 mm if they offer a wider tolerance |
-| JLCCNC | The pocket floors: 0.95 mm over the RANGE pocket (at least 0.85 mm, the drawing's note), 1.5 mm over the encoder pockets; JLCCNC recommends 0.8 mm | As drawn. Hold the pocket depths +0/-0.1 mm; a thicker floor takes the room over the parts |
+| JLCCNC | The pocket floors: 0.95 mm over the RANGE pocket (at least 0.85 mm, the drawing's note), 1.5 mm over the encoder pockets; JLCCNC recommends 0.8 mm, and over 1.5 mm where the part is bead blasted | As drawn. Hold the pocket depths +0/-0.1 mm (a thicker floor takes the room over the parts) and the flatness after blasting. If they will not blast it as drawn: low-pressure blasting of the front face only, or (your call) anodising without blasting; never a thicker floor |
 | JLCCNC | Threads they cannot mask | Cut them after anodising |
 | JLCCNC | The boss height, 6.55 ±0.05 mm | ±0.1 mm is acceptable |
 | JLCCNC | Flatness 0.1 mm: milling most of a 12 mm plate off one side can bow it, and JLCCNC publishes no flatness figure | Up to 0.2 mm is acceptable; with the boss height at ±0.1 mm, up to 0.15 mm ([why](../architecture/mechanics.md#light-pipes)). Stress-relieved plate (T651) helps, if they offer it |
-| JLC3DP | Light pipes: the 2.0 mm rods are 4.35 mm long, over the pillar guideline (Ø2.0 up to 4 mm) | Print as is. If they refuse: set `top_len` in `PIPE` in `mech/stack.py` to 4.0, run `./build.sh` and upload `lightpipes.step` again |
+| JLC3DP | Light pipes: the 2.0 mm rods are 4.45 mm long, over the pillar guideline (Ø2.0 up to 4 mm) | Print as is. If they refuse: set `top_len` in `PIPE` in `mech/stack.py` to 4.0, run `./build.sh` and upload `lightpipes.step` again |
 | JLC3DP | Light pipes: the Ø2.8 bases are under the next guideline entry (Ø3.0 up to 6 mm), the necks are Ø1.0 | Print as is; the order has a spare pair |
 | JLC3DP | Body: the counterbore of the middle column is wider than its 4.0 mm bar, so it is open on two sides | Print as is: it is open on purpose, as the remark says. The bar ends keep 1.9 mm of wall beyond the counterbore, over the 1.5 mm for fastener features |
 | JLC3DP | Body: 1.6 mm of PA12 between the counterbore seats and the board | Print as is: over the 1.5 mm for fastener features |
@@ -267,19 +299,21 @@ to its shop again.
 
 ## Shipping, tax and cost
 
-Each JLC shop has its own checkout, but JLC3DP parts can join the JLCPCB cart: keep them out of it. Ship
-JLC3DP, JLCMC and LCSC as orders and parcels of their own: added to the JLCPCB parcel, they push it over the
-€150 line below.
+Each JLC shop has its own checkout. JLC3DP parts can join the JLCPCB cart, and LCSC orders can join a JLCPCB
+order at LCSC's checkout; JLCMC combines with neither, so the screws come as a parcel of their own. JLCPCB
+recommends one shipment over €150, so put the JLC3DP parts in the JLCPCB cart and join the LCSC order to it;
+the plate and the screws come on their own. The JLC3DP parts then ship with the boards, once Y1 has arrived
+and the boards are built.
 
-EU (Germany as the example), for parcels to consumers:
+EU (Germany as the example), for parcels to consumers: under €150 of goods, IOSS collects only the VAT; the
+€3 customs duty per item category and the €2 handling fee per declaration line are paid on delivery with the
+carrier's disbursement fee (DHL: 2 %, at least €15), unless the checkout offers DDP shipping, which collects
+them all. Pick DDP where offered. Over €150, the parcel is cleared on delivery at the standard tariff, with VAT
+and the carrier's fee.
 
-- Every parcel pays the EU handling fee of €2 per customs declaration line, whatever its value.
-- Under €150 of goods per shipment, JLC collects the VAT at checkout (IOSS, the EU import scheme). A flat
-  customs duty of €3 per tariff line and a carrier's disbursement fee can come on top, so check the tax lines
-  before paying.
-- A shipment over €150, such as a full assembly JLCPCB order, is cleared on delivery instead, with the
-  carrier's fee.
-
-Rough cost of the panel with its spare board, without the rail removal fee: about €370 to 420 with shipping
-for full assembly, €290 to 340 with hand-soldering. The screws with their own shipping and the local items
-come on top. The quotes give the current figures.
+JLCPCB's share with full assembly and the spare board: its published fees alone come to about $133 and its
+parts to about $82 ($49.60 of them the six encoders), before the boards, shipping, VAT and the carrier's fee.
+With hand-soldering JLCPCB assembles one side, so its setup fee is about $25.56 and its stencil $8.21 instead
+of $51.12 and $16.42. The plate, the printed parts, the screws and the local items come on top. The quotes
+give the totals. Allow 2 to 5 weeks for Y1 through Global Sourcing before the JLCPCB order can be placed, then
+at least 4 days of Standard assembly; at least 72 hours of build time for the key caps (WJP).

@@ -1,7 +1,7 @@
 # Controls
 
-What each key and knob does, and why it sits where it is. Button numbers for mapping are in
-[BUTTONS.md](../../firmware/BUTTONS.md), how to map them in [Mapping](mapping.md); in the
+What each key and knob does, why it sits where it is, and how to look after the panel. Button numbers for
+mapping are in [BUTTONS.md](../../firmware/BUTTONS.md), how to map them in [Mapping](mapping.md); in the
 [keyboard mode](keyboard.md) the same functions send shortcuts instead. To try them without a panel, the
 firmware runs on the PC and the browser shows the panel: [Simulator](simulator.md).
 
@@ -14,7 +14,9 @@ firmware runs on the PC and the browser shows the panel: [Simulator](simulator.m
   knob columns symmetric: the map's RANGE knob sits under ALT/HDG, and BARO and CRS share the ALT/HDG knob
   behind SHIFT.
 - White legends are primary functions, amber legends are SHIFT functions. All caps are black. Two lights:
-  amber whenever SHIFT applies (pulsing in its last second), white while unit 2 is selected.
+  amber whenever SHIFT applies (pulsing in its last second), white while unit 2 is selected. Both are dark while
+  the PC is off, asleep, not connected or has suspended the panel. In the [keyboard mode](keyboard.md) they take
+  turns at each start.
 - Everything behind SHIFT can wait until the autopilot flies, apart from IDENT (SHIFT, VFR). If both hands are
   needed, LVL first.
 
@@ -217,3 +219,20 @@ stateDiagram-v2
   U1 --> U2: SHIFT, HOME
   U2 --> U1: SHIFT, HOME
 ```
+
+## Care
+
+- The panel weighs about 0.2 kg, so a RANGE tilt can slide it or tip it over its front feet: pinch the knob
+  between thumb and finger to tilt it, or steady the panel with the other fingers. Hold the panel when you
+  unplug the cable.
+- A key that rubs or sticks has a cap that crept round on its plunger: turn the cap back square with its
+  neighbours, in place.
+- Keep the panel out of direct sun and away from heat: its printed parts soften from about 53 °C, the knobs
+  and caps, held by friction, loosen when warm, and the light pipes yellow in UV. Clean it with a dry or damp
+  cloth, no solvents.
+- The amber legends are UV ink on the anodising and wear where fingertips land; the white ones are laser
+  marked.
+- The encoders are rated for 15,000 rotations and 20,000 pushes, the RANGE control's encoder for 15,000
+  rotations, the keys for 100,000 presses. The spare board replaces a worn one; with hand-soldering it comes
+  bare, so it needs a second set of the through-hole parts ([Disassembly](../building/assembly.md#disassembly),
+  [Bring-up](../building/bring-up.md)).

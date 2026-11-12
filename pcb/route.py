@@ -14,7 +14,9 @@ FREE, NONET = -1, -2
 
 THR = (B.CLEAR + B.TRACE_W / 2) / RES + 0.5          # trace centre keep distance (cells)
 THR_VIA = (B.CLEAR + B.VIA_D / 2) / RES + 0.5
-VIA_PAD_CLEAR = 0.1         # via copper to any SMD pad, its own net included: no via in or at a pad
+# via copper to any SMD pad, its own net included: no via in or at a pad, and a 0.13 mm strip of solder mask
+# (JLCPCB's black minimum) between the tented via and the pad's opening, 0.035 mm beyond the pad (check.py)
+VIA_PAD_CLEAR = 0.165
 LAYER_COST = (1.15, 1.0)    # no top pour on the 4-layer board
 VIA_COST = 60.0             # in cells
 

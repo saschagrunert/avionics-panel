@@ -18,56 +18,74 @@ the tongue, which goes over J1, the USB-C socket), at most 8 mm in (the nearest 
    (SHIFT: the key with the SHIFT light's cutout in front of it), legend upright, until it sits on the plunger
    top. The tactile bars of SHIFT and DN are then at the front edge, the bar of UP at the back edge. Square
    the caps: hold a steel rule against the front edges of each row and turn every cap until its edge lies flat
-   on the rule. A cap turned by more than about 1° can rub its hole; one turned by more than about 5° lands on
-   the plate back instead of in its hole.
+   on the rule. A cap turned by more than about 1.5° can rub its hole (2.5° in a set printed true); one
+   turned by more than about 6.5° lands on the plate back instead of in its hole.
 2. Light pipes (before or after step 1): break both off their bar and sand the two stubs flush with the base
    on fine sandpaper laid on the table, no further (the visible tops stay as printed). The two pipes are the
    same. Lay the plate face down on the blocks and the cloth. Drop a pipe, rod first, into each of the two
    small round holes in the key field (the light holes: on the face, below the SHIFT key and beside the UNIT
-   legend). Each rests on its shoulder on the plate back.
+   legend). Each rests on its shoulder on the plate back. A rod that has grown too tight for its hole (resin
+   keeps changing size in its first week) sands free in a fold of the fine sandpaper.
 3. Board: lower it face down into the plate. The caps drop into their key holes and centre the board, and it
    comes to rest on the five bosses, the pipes' bases standing clear under it. Look at the face between the
    blocks: every cap must stand up through its hole. One that sits on the plate back was turned, so square it
    again.
-4. Body: set it over the board, bottom up. The tongue on the plate's back edge goes into the slot in the
+4. Body: first push the USB-C cable's plug into the body's USB-C opening from outside. Its overmould must go
+   in without force, or the plug cannot seat in the socket ([which cable](ordering.md#shopping-list)). Then
+   set the body over the board, bottom up. The tongue on the plate's back edge goes into the slot in the
    body's back wall, over the USB-C socket.
    1. Put the five screws in from below, four at the corners and one in the middle of the key field (they are
-      all the same), and turn each in by hand until it holds the body loosely.
+      all the same), and turn each in with the hex key until it holds the body loosely (the counterbores are
+      too deep to start them by hand). A screw that does not pass its body hole: lift the body off, open
+      that hole with the 4.2 mm drill, its drawn size, turned by hand, and set the body on again; the flange
+      still covers it.
    2. Centre the body by eye: slide it until its walls are flush with the plate's edges and the gaps on both
       sides of the tongue look the same, about 0.9 mm each. If the screws leave no room to slide, leave it:
       0.3 to 1.5 mm per side is within tolerance.
-   3. Tighten the screws gently with the 2 mm hex key (two fingers on its short arm), the corners crosswise,
-      then the middle one.
+   3. Tighten the screws gently with the 2 mm hex key (two fingers on its short arm, about 0.3 N m), the
+      corners crosswise, then the middle one. Tighten them again the same way after a week: the PA12 under the
+      flanges settles.
 
    A gap of about 1 mm stays between the wall tops and the plate all round: the bosses carry the plate, not
-   the walls.
+   the walls. Check it after tightening; where a wall touches the plate, sand that wall top down until the
+   gap shows.
 5. Knobs: turn the panel face up and [fit them](#fitting-the-knobs).
 6. Feet: stick the four self-adhesive feet onto the flat pads under the corners.
 
 ### Fitting the knobs
 
-Push the outer knob's key into the shaft slot until it sits on the slot floor, the inner knob onto the D flat
-until its bore end sits on the shaft tip, and the RANGE knob onto the lever's D flat until its bore end sits
-on the lever tip. The knobs are held by friction only, and resin bores vary, so the order has each knob type
-also with a bore 0.2 mm tighter and 0.2 mm looser: keep whichever grips.
+Resin keeps changing size in its first week, so fit the knobs a few days after they arrive. With the panel
+face up on the desk, push the outer knob's key into the shaft slot until it sits on the slot floor, the inner
+knob onto the D flat until its bore end sits on the shaft tip, and the RANGE knob onto the lever's D flat until
+its bore end sits on the lever tip. The knobs are held by friction only, and resin bores vary, so the order
+has each knob type also with a bore 0.2 mm tighter and 0.2 mm looser: keep whichever grips. For about four
+knobs in ten none grips as printed: then open the loosest one that is too tight until it just goes on.
 
-- Open a bore that is still too tight with a drill of the shaft size turned by hand (6.0 mm outer, 3.5 mm
-  inner, 2.5 mm RANGE), then a needle file on the D flat. In the outer knob, drill from below only up to the
-  key (3.8 mm deep) and file the rest, or the drill takes the key off.
+- A knob that needs more than a firm thumb is too tight: open it rather than force it, as the force goes into
+  the encoder's shaft (the inner one is the push switch). Open a bore with a drill of the shaft size turned by
+  hand in a hand chuck or tap wrench (6.0 mm outer, 3.5 mm inner, 2.5 mm RANGE), then a needle file on the D
+  flat. In the outer knob, drill from below only up to the key (3.8 mm deep) and file the rest, or the drill
+  takes the key off.
 - Never drill past the existing bore depth; mark it on the drill with tape. The inner and the RANGE knob sit
   with their bore end on the shaft or lever tip, so a deeper bore lowers the knob, and the RANGE knob clears
-  the plate by only about 0.2 mm at full tilt.
-- Hold a loose knob with a strip of tape on the shaft.
-- If only the tight or loose variant grips, the order has too few of it for the outer rings and inner knobs.
-  Set `FIT` in [mech/stack.py](../../mech/stack.py) to -0.2 (tight) or 0.2 (loose) and run
-  [`./build.sh`](../architecture/generators.md#build): it rewrites all 12 knob files in `production/`. Order
-  the types that ran short again: `knob-outer.step` and `knob-inner.step` with their `-tight` and `-loose`
-  variants. `FIT` applies to every knob type, so an outer ring that needs tight and an inner knob that needs
-  loose take two builds.
+  the plate by as little as 0.17 mm at full tilt.
+- Outer ring: turn it a little back and forth; one that moves without its shaft is loose, so take the next
+  tighter one. Its key has about a detent of play in the slot, which only the bore's grip takes out.
+- RANGE knob: it must sit on the lever without wobble. A loose one cocks on the lever at full tilt until its
+  skirt touches the plate: take the next tighter one. Then tilt it fully in every direction, also between two,
+  and push it while tilted: the skirt must not touch the plate. If it does, the knob is loose or sits too low
+  (a bore drilled too deep): take the next tighter one.
+- If even the tight variant is loose, or only the tight or loose variant grips and the order has too few of it
+  (outer rings and inner knobs): set `FIT` in [mech/stack.py](../../mech/stack.py) to -0.2 (tight) or 0.2
+  (loose) and run [`./build.sh`](../architecture/generators.md#build): it rewrites all 12 knob files in
+  `production/`. Order the types that ran short again, each with its `-tight` and `-loose` variants
+  (`knob-outer.step`, `knob-outer-fms.step`, `knob-inner.step`, `knob-range.step`). `FIT` applies to every knob
+  type, so an outer ring that needs tight and an inner knob that needs loose take two builds.
 
 ## Disassembly
 
-1. Pull the knobs off (inner first). Lay the panel face down on the blocks.
+1. Pull the knobs off, inner first, the panel face up on the desk: rock each while pulling, and never lever
+   against the plate. Lay the panel face down on the blocks.
 2. Undo the five screws and lift off the body.
 3. Lift the board out. Caps that stay in their key holes come out from the front. The light pipes stay on
    their shoulders in the plate as long as it lies face down.
