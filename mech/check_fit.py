@@ -64,7 +64,7 @@ def draw_sections(plate, outer, inner, range_knob):
     cx, cy = PS.P(*B.ALTHDG)
     draw(ax, plate, cy, "#1f5fa0", dx=-cx, dz=S.PLATE_Z0)
     part(ax, -12, -S.PCB_T, 24, S.PCB_T, fc="#c8d8c0")
-    part(ax, -11.7 / 2, 0, 11.7, S.EC11_BODY)
+    part(ax, -S.EC11_SIZE[0] / 2, 0, S.EC11_SIZE[0], S.EC11_BODY)
     for sx in (-1, 1):                                          # side lugs: 13.1 across (PEC11D drawing)
         part(ax, sx * S.EC11_LUGS / 2 - (sx > 0) * 0.7, 0, 0.7, S.EC11_BODY, fc="#cfcfcf")
     part(ax, -S.SLEEVE_D / 2, S.EC11_BODY, S.SLEEVE_D, S.SLEEVE_TOP - S.EC11_BODY)

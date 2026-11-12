@@ -80,9 +80,9 @@ def range_knob(fit=S.FIT):
     rk = S.RANGE_KNOB
     h = rk["z1"] - rk["z0"]
     sk, r0, u = rk["skirt_d"] / 2, rk["hub_d"] / 2, rk["dish"]
-    top = u + rk["rim"] + sk - rk["d"] / 2 + 0.3            # where the skirt's 45 degree top meets the body
+    top = u + rk["rim"] + sk - rk["d"] / 2 + rk["sink"]     # where the skirt's 45 degree top meets the body
     body = fuse(knurl("range", rk["d"] / 2, h, bottom_cham=0.0),
-                revolve([(0, 0), (sk, 0), (sk, u + rk["rim"]), (rk["d"] / 2 - 0.3, top), (0, top)]))
+                revolve([(0, 0), (sk, 0), (sk, u + rk["rim"]), (rk["d"] / 2 - rk["sink"], top), (0, top)]))
     # the dish: everything under the cone from the hub's edge (r0, 0) to the rim's bottom edge (sk, u)
     body = cut(body, revolve([(r0, -1), (r0, 0), (sk + 1, u * (sk + 1 - r0) / (sk - r0)), (sk + 1, -1)]))
     lever0 = S.LEVER_Z0 - S.PLATE_Z1 - rk["z0"]; lever1 = S.LEVER_Z1 - S.PLATE_Z1 - rk["z0"]

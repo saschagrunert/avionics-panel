@@ -19,9 +19,10 @@ the scripts one by one. Generated files are named `avionics-panel-rev1-*`.
 a fixed order, the firmware tests with their coverage first. A failed section does not stop the others, and
 the build then exits 1; Ctrl-C stops everything.
 
-Renders 1 to 4 are stills of the 3D view, not part of the build. Open
+Renders 1 to 4 and 9 are stills of the 3D view, not part of the build. Open
 [viewer/index.html](../../viewer/index.html) with the fragment after the URL (it hides the page's controls),
-at a device pixel ratio of 1 and with the dark colour scheme, and save the picture from the canvas.
+at a device pixel ratio of 1 and with the dark colour scheme, and save the picture from the canvas. Load the
+page at the final size: a resize after the load shifts the top view by a few pixels.
 
 | Render | Fragment | Viewport (px) |
 | --- | --- | --- |
@@ -29,6 +30,7 @@ at a device pixel ratio of 1 and with the dark colour scheme, and save the pictu
 | 2 top | `#shot-c` | 2150 x 905 |
 | 3 exploded | `#shot-e` | 1800 x 1100 |
 | 4 seated | `#shot-a` | 1800 x 1100 |
+| 9 bottom | `#shot-b` | 1800 x 1100 |
 
 ## Scripts
 

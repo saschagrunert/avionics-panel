@@ -49,7 +49,7 @@ def circle(cx, cy, r, n=72):
     return [(cx + r * math.cos(2 * math.pi * i / n), cy + r * math.sin(2 * math.pi * i / n)) for i in range(n)]
 
 
-def bar(x0, y0, x1, y1, w=0.3):
+def bar(x0, y0, x1, y1, w=S.KEY_FRAME["line"]):
     """A straight marked line as a thin closed outline."""
     dx, dy = x1 - x0, y1 - y0
     L = math.hypot(dx, dy)
@@ -59,7 +59,7 @@ def bar(x0, y0, x1, y1, w=0.3):
 
 def advance(ch, fp, em):
     if ch == " ":
-        return 0.26 * em
+        return S.PLATE_TEXT["space"] * em
     w, _, _ = TTP.get_text_width_height_descent(ch, fp.copy(), ismath=False)
     return w * em / fp.get_size_in_points()
 
@@ -75,7 +75,7 @@ def glyph(ch, fp, em, x, y, rot):
     for poly in tp.to_polygons(closed_only=True):
         pts = []
         for gx, gy in poly:
-            lx, ly = gx - w / 2, -(gy - 0.35 * em)          # centre the glyph, y down, middle of cap height
+            lx, ly = gx - w / 2, -(gy - S.PLATE_TEXT["mid"] * em)   # centre the glyph, y down, middle of cap height
             pts.append((x + lx * c - ly * s, y + lx * s + ly * c))
         out.append(pts)
     return out
@@ -130,17 +130,14 @@ for (lx, ly), _, _ in B.LEDS.values():
 
 # ---------------- LASER: frame, titles, white knob legends, pan arrows ----------------
 def em(mm):
-    return mm / 0.72                                    # the 3D view sizes text by 0.72 em = mm
-x0, x1 = B.COLS[0] - CAP[0] / 2 - 3.0, B.COLS[6] + CAP[0] / 2 + 3.0
-y0, y1 = B.ROWS[0] - CAP[1] / 2 - 4.2, B.ROWS[3] + CAP[1] / 2 + 4.6
-vAP, vRadio = (B.COLS[2] + B.COLS[3]) / 2, (B.COLS[4] + B.COLS[5]) / 2
-hFMS = (B.ROWS[1] + CAP[1] / 2 + 2.6 + B.ROWS[2] - CAP[1] / 2) / 2
-TITLE_EM, TITLE_TRACK = em(1.75), 0.32
-titles = [("AUTOPILOT", x0 + 3.5, y0), ("AUDIO", vAP + 3.0, y0), ("RADIO", vRadio + 3.0, y0), ("FMS", vAP + 3.0, hFMS)]
+    return mm / S.PLATE_TEXT["cap"]                     # a capital height in mm as the font's em
+FRAME, TITLE = S.key_frame(B.COLS, B.ROWS), S.GROUP_TITLE   # stack.py holds the frame and the titles
+x0, x1, y0, y1 = (FRAME[k] for k in ("x0", "x1", "y0", "y1"))
+vAP, vRadio, hFMS = FRAME["v_ap"], FRAME["v_radio"], FRAME["h_fms"]
 gaps = {}
-for t, tx, ty in titles:
-    w = text("LASER", t, tx, ty, SEMI, TITLE_EM, TITLE_TRACK, align="left")
-    gaps.setdefault(round(ty, 3), []).append((tx - 0.7, tx + w + 0.7))
+for t, tx, ty in FRAME["titles"]:
+    w = text("LASER", t, tx, ty, SEMI, em(TITLE["size"]), TITLE["track"], align="left")
+    gaps.setdefault(round(ty, 3), []).append((tx - TITLE["pad"], tx + w + TITLE["pad"]))
 
 
 def hline(xa, xb, y):
@@ -164,7 +161,7 @@ def hline(xa, xb, y):
 # The frame's pieces butt against each other and never overlap, so the marking is the same whether the vendor fills
 # the contours even-odd or non-zero: the straight lines stop at the corner arcs' ends, each corner is one ring
 # quarter, and a line that meets another one ends at that line's edge.
-r, lw = 1.6, 0.3                                             # corner radius, line width (bar's default)
+r, lw = S.KEY_FRAME["r"], S.KEY_FRAME["line"]                # corner radius, line width (bar's default)
 hline(x0 + r, x1 - r, y0)
 hline(x0 + r, x1 - r, y1)
 layers["LASER"].append(bar(x0, y0 + r, x0, y1 - r))
@@ -180,10 +177,11 @@ layers["LASER"].append(bar(vRadio, y0 + lw / 2, vRadio, hFMS - lw / 2))
 for name, ((kx, ky), main, shift) in KNOBS.items():
     tilt = math.radians(S.KNOB_LEGEND_TILT[name])
     mid = tilt if kx < B.W / 2 else math.pi - tilt
-    r0 = S.RANGE_ART["legend_r"] if name == "RANGE" else S.OUTER_KNOB["d"] / 2 + 1.9
-    arc_text("LASER", [(main, SEMI, em(1.55))], kx, ky, r0, mid, 0.22)
+    KL = S.KNOB_ART
+    r0 = S.RANGE_ART["legend_r"] if name == "RANGE" else S.OUTER_KNOB["d"] / 2 + KL["off"]
+    arc_text("LASER", [(main, SEMI, em(KL["size"]))], kx, ky, r0, mid, KL["track"])
     if shift:
-        arc_text("UV_AMBER", [(shift, SEMI, em(1.55))], kx, ky, r0 + 2.2, mid, 0.22)
+        arc_text("UV_AMBER", [(shift, SEMI, em(KL["size"]))], kx, ky, r0 + KL["shift_off"], mid, KL["track"])
 rx, ry = B.RANGE
 for i in range(4):                                           # pan arrows, outside the skirt (check_fit.py)
     a = i * math.pi / 2

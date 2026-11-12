@@ -1,4 +1,5 @@
-"""Mechanical stack of the Avionics Panel rev 1: one place for every height and fit.
+"""Mechanical stack of the Avionics Panel rev 1: one place for every height and fit, the legends and the layout
+of the artwork.
 
 z = 0 is the PCB top. Part heights from the datasheets:
   Bourns PEC11D-4120F-S0015 (dual encoder): body 8 mm (11.7 x 12, 13.1 over the side lugs), unthreaded
@@ -71,6 +72,13 @@ CAP_VIEW_DEG = 45.0
 # before the growth. check_fit.py measures the strokes on the generated texture.
 LEGEND_WEIGHT, LEGEND_GROW, LEGEND_LINE = 700, 0.055, 0.12
 LEGEND_STROKE_MIN = 0.4
+# One legend size for every cap: the widest legend, grown, fills LEGEND_FILL of the cap top's width, and the em is
+# LEGEND_EM_MAX at most (mm).
+LEGEND_EM_MAX, LEGEND_FILL = 3.1, 0.84
+# The direct-to arrow through the D of the "D→" cap (em): it ends `w` right of the D; its line runs `dy` over the
+# middle of the capitals, from `tail` left of the D to `neck` short of the tip; its head is `head` long and `head_h`
+# high each way.
+DIRECT_TO = dict(w=0.55, dy=0.02, tail=0.12, neck=0.2, head=0.26, head_h=0.17)
 # Key cap socket for the full-colour resin (JLC3DP WJP: walls 1.0 mm min., pillars 1.0 mm no taller than 2.0,
 # holes and gaps 1.0 min., +-0.2 on the outline and on holes, WJP_TOL). A 3.8 mm bore (1.3 mm wall at the narrow
 # cap sides, 1.1 on a print with the outline 0.2 small and the bore 0.2 large; nothing open to the outside;
@@ -243,6 +251,9 @@ SLEEVE_CLEAR = 0.9                         # outer knob counterbore around the f
 # what shows through them is the dark cavity over the board).
 USB_TONGUE = dict(w=14.4, d=2.0, d_tol=0.1, h=5.5, tol=0.1, root_r=0.3)
 USB_GAP_MAX = 1.6
+# The body's plug opening and the slot over it are cut in from the back wall to this board y, past the board's edge:
+# under the socket the floor is notched down to the opening's bottom.
+USB_OPEN_IN = 1.0
 # The body's column under the middle mount (make_mech.py) is a bar along board y, MID_BAR["w"] wide, with the
 # corners' round boss on top and their counterbore and screw hole through it: the leads of the four keys round it
 # stand 5.3 mm off its axis in x, where a round column would touch them. Leads, solder fillets and bottom-side parts
@@ -258,6 +269,7 @@ WALL_GAP = 0.95
 
 # encoder shafts (z above the PCB); "sleeve" is the fixed bushing
 EC11_BODY, SLEEVE_TOP, OUTER_TOP, INNER_TOP = 8.0, 13.0, 18.0, 28.0
+EC11_SIZE = (11.7, 12.0)                   # PEC11D body across, along board x and y
 SLEEVE_D, OUTER_D, INNER_D, INNER_FLAT, FLAT_LEN, SLOT_W, SLOT_LEN = 7.0, 6.0, 3.5, 2.5, 7.0, 2.0, 2.5
 PUSH_TRAVEL = 0.5
 # PEC11D tolerances: +-0.3 for dimensions under 10 mm, +-0.5 from 10 mm. The outer knob rests with its key on
@@ -324,6 +336,9 @@ OUTER_FLUTES = {"ALTHDG": "outer", "FREQ": "outer", "FMS": "outer_fms"}   # each
 # knob legends: degrees their arc is turned from the horizontal towards the user, for the plate artwork and
 # the 3D view alike, chosen so a seated eye (CAP_VIEW_DEG) sees as much of each as the knobs allow.
 KNOB_LEGEND_TILT = {"ALTHDG": 20, "FREQ": 10, "FMS": 20, "RANGE": 35}
+# Their capitals are `size` high and `track` apart; the white arc lies `off` outside a dual knob's outer ring (RANGE:
+# RANGE_ART) and the amber one `shift_off` outside the white one (arc radii to the glyph centres).
+KNOB_ART = dict(size=1.55, track=0.22, off=1.9, shift_off=2.2)
 
 # Legends, the one source for the caps (make_caps.py), the plate (make_plate_art.py), the board silkscreen
 # (pcb/board.py) and the 3D view (geometry.js). Only the firmware button map (firmware/buttonmap.py,
@@ -335,6 +350,35 @@ AMBER = dict(hex="#d9a441", rgb=(217, 164, 65))
 # below the cap's front edge, capitals `size` high, letters `track` apart. With dy 1.9 the ink starts 0.7 from the
 # largest key hole (0.5 past its edge break, for the UV print's register) and ends 1.55 short of the next row's.
 SHIFT_LEGEND = dict(dy=1.9, size=1.7, track=0.08)
+# The plate's legends (em): their sizes are capital heights in mm, `cap` of the font's em; a space is `space` wide;
+# a glyph is centred `mid` over its baseline, the middle of the capitals.
+PLATE_TEXT = dict(cap=0.72, space=0.26, mid=0.35)
+# The marked frame round all keys (make_plate_art.py and the 3D view): lines `line` wide, `side`, `back` and
+# `front` outside the outer caps, corners of radius r. One line splits AUTOPILOT from the rest (between key columns
+# 3 and 4), one AUDIO from RADIO (between columns 5 and 6) and one both from FMS below: it runs through the middle
+# of what is left between key rows 2 and 3 after `fms` under row 2 for its amber legends.
+KEY_FRAME = dict(side=3.0, back=4.2, front=4.6, fms=2.6, r=1.6, line=0.3)
+# The group titles break the frame's lines: capitals `size` high, letters `track` apart, the line cleared `pad`
+# on each side of the text, which starts `inset` after the group's left line (`inset_first` after the frame's
+# rounded corner).
+GROUP_TITLE = dict(size=1.75, track=0.32, pad=0.7, inset=3.0, inset_first=3.5)
+
+
+def key_frame(cols, rows):
+    """the frame round the keys at the board's key columns and rows: its sides x0, x1, y0, y1, the lines v_ap,
+    v_radio (x) and h_fms (y), the group titles (text, x of its left end, y of its line), the corner radius r and
+    the line width."""
+    f, t = KEY_FRAME, GROUP_TITLE
+    x0, x1 = cols[0] - CAP["w"] / 2 - f["side"], cols[6] + CAP["w"] / 2 + f["side"]
+    y0, y1 = rows[0] - CAP["h"] / 2 - f["back"], rows[3] + CAP["h"] / 2 + f["front"]
+    v_ap, v_radio = (cols[2] + cols[3]) / 2, (cols[4] + cols[5]) / 2
+    h_fms = (rows[1] + CAP["h"] / 2 + f["fms"] + rows[2] - CAP["h"] / 2) / 2
+    titles = [("AUTOPILOT", x0 + t["inset_first"], y0), ("AUDIO", v_ap + t["inset"], y0),
+              ("RADIO", v_radio + t["inset"], y0), ("FMS", v_ap + t["inset"], h_fms)]
+    return dict(x0=x0, x1=x1, y0=y0, y1=y1, v_ap=v_ap, v_radio=v_radio, h_fms=h_fms, titles=titles, r=f["r"],
+                line=f["line"])
+
+
 # Keys: (cap label, amber shift legend under it) per key, rows top to bottom, columns left to right.
 KEY_LEGENDS = [
     [("AP", "TEST"), ("ALT", "ARM"), ("HDG", "CRS CTR"), ("MIC 1", "ADF"), ("COM 1", "NAV 1"), ("CDI", "OBS"),
@@ -369,12 +413,12 @@ KNOB_LEGENDS = {
 }
 
 # RANGE knob on the RKJXT lever. The skirt (skirt_d) hides the plate hole; its rim is `rim` thick (no feather edge
-# in resin: 1.0 left at -0.1, with 0.2 to spare). The underside is dished: flat over the hub (hub_d across, z0 over
-# the plate, which gives the D bore its 4.6 mm on the lever), then a cone that rises by `dish` to the rim, at the
-# tilt's own 9 degrees, so at full tilt the hub's corner and the rim come equally close to the plate (check_fit.py,
-# for the fulcrum on either side).
+# in resin: 1.0 left at -0.1, with 0.2 to spare); above the rim a 45 degree cone runs up to `sink` inside the
+# fluted body. The underside is dished: flat over the hub (hub_d across, z0 over the plate, which gives the D bore
+# its 4.6 mm on the lever), then a cone that rises by `dish` to the rim, at the tilt's own 9 degrees, so at full
+# tilt the hub's corner and the rim come equally close to the plate (check_fit.py, for the fulcrum on either side).
 LEVER_Z0, LEVER_Z1, LEVER_D, LEVER_FLAT = 12.4, 17.4, 2.5, 1.8
-RANGE_KNOB = dict(d=13.6, skirt_d=17.3, z0=2.25, z1=10.45, rim=1.3, hub_d=6.0, dish=0.9)
+RANGE_KNOB = dict(d=13.6, skirt_d=17.3, z0=2.25, z1=10.45, rim=1.3, sink=0.3, hub_d=6.0, dish=0.9)
 RANGE_RELIEF = (4.0, 0.3)                  # round bore under its D bore, clear of the lever: dia, least depth
 # RANGE artwork on the plate (make_plate_art.py and the 3D view): legend arc radius (glyph centres) and the
 # four pan arrows (triangle in mm, tip along the pan direction), outside the skirt with the lever off its hole
@@ -394,8 +438,8 @@ LED_LENS = dict(l=1.5, w=1.6, h=0.82, tol=0.1, place=0.1, solder=0.05, die=0.3) 
 # review question) top_len from there. Every length is +-len_tol (JLC3DP's resin tolerance, 0.2 within 100 mm).
 # Lifted, the shoulder stops on the plate back round the hole, so the pipe is captive; its top then stands over the
 # face of a thin plate, by at most `proud` (check_fit.py: about half of what the key caps stand over the face). In use
-# the pipe rests on the board and its top sits 0.40 under the face in the nominal stack (check_fit.py has the range
-# and how much of it shows from the seat). The pipe is never clamped: base_len + len_tol + stub stays under the
+# the pipe rests on the board and its top sits 0.40 under the anodised face in the nominal stack (check_fit.py has the
+# range and how much of it shows from the seat). The pipe is never clamped: base_len + len_tol + stub stays under the
 # smallest gap from the board to the plate back (plate back low and bowed down, the board bowed up). A clamp cannot be
 # bounded: a bare board held at its corners alone is about 13 (SHIFT) and 17 N/mm (UNIT) stiff at the lights, and the
 # middle mount stiffens it further, so even 0.1 mm would load the pipe with newtons. The rod is `clear` under its hole
@@ -425,8 +469,8 @@ PCB_BOW = 0.1
 # 2768-K alone would allow 0.4 over its 165 mm), either way. check_fit.py moves the plate at a part by that times
 # its plate_bow() (a dome, or a bow along or across the plate, held at the corner bosses), in the direction that
 # costs the row. The light pipe rows take PLATE_FLAT in full. Every row still passes up to 0.2 (the light pipes'
-# clamp row goes first, at 0.22); that is what to answer should JLCCNC ask. With the bosses at +-0.1 as well, up
-# to 0.15 (docs/building/ordering.md).
+# clamp row goes first, just above 0.22); that is what to answer should JLCCNC ask. With the bosses at +-0.1 as
+# well, up to 0.15 (docs/building/ordering.md).
 PLATE_FLAT = 0.1
 # The body post under the PCB (make_mech.py) ends SUPPORT_SHORT under it, so with JLC3DP's MJF +-0.3 (post height
 # against the bosses) it never lifts the board. It is a backstop: with the board held at the middle mount, a firm
