@@ -5,7 +5,8 @@ may stop short of a joystick's 128 buttons. Every state (SHIFT, UNIT, the FREQ k
 firmware and comes out as fixed joystick buttons, so a mapping never needs variables or preconditions and
 cannot get out of sync with the panel. What each control is meant to do is in [Controls](controls.md), and
 what it maps to per aircraft in [Compatibility](compatibility.md). For the families under
-[Generated profiles](#generated-profiles), download the ready profile instead of mapping by hand.
+[Generated profiles](#generated-profiles), download the ready profile instead of mapping by hand. For MSFS
+without MobiFlight, and on Xbox and PS5, there is the [keyboard mode](keyboard.md), not yet tried in MSFS.
 
 ## Two joysticks
 

@@ -155,6 +155,13 @@ def test_a_missing_or_wrong_device_is_named_before_anything_is_acquired(dll, mes
     assert not [c for c in dll.calls if c[0] in ("AcquireVJD", "UpdateVJD")]
 
 
+def test_the_keyboard_mode_is_refused_before_anything_is_loaded():
+    dll = Dll()
+    with pytest.raises(VJoyError, match="vJoy takes the joysticks: the keyboard mode goes .* through --sendinput"):
+        VJoy(Board(keyboard=True).boot(), dll)
+    assert dll.calls == []
+
+
 def test_a_device_that_cannot_be_acquired_lets_go_of_the_other():
     dll = Dll(acquire=(1,))
     with pytest.raises(VJoyError, match="vJoy device 2 cannot be acquired"):

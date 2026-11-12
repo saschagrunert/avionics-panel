@@ -69,7 +69,10 @@ check_timing()
 
 
 class Panel:
-    def __init__(self):
+    def __init__(self, solo=False):
+        """solo: one button down at a time, for the keyboard mode (keys.py): a press waits until no other button
+        is down, so each shortcut goes down with its own modifiers and no other key held"""
+        self.solo = solo
         self.shift = None            # None, "any" (armed by the SHIFT key) or the knob that keeps it
         self.under = None            # with "any": the knob whose held push or tilt keeps its session under it
         self.shift_until = 0
@@ -374,10 +377,11 @@ class Panel:
 
     def _next(self, t):
         """Presses the head of order PRESS_MS after the last press it sent, so MobiFlight has seen that one first
-        (another button may go down in its gap), and once the head's own last press and gap are over."""
+        (another button may go down in its gap), and once the head's own last press and gap are over; solo, also
+        once no button is down (a held key holds the next one back)."""
         k = self.order[0]
         e = self.shown[k]
-        if e[0] or (e[1] is not None and t - e[1] < GAP_MS):
+        if e[0] or (e[1] is not None and t - e[1] < GAP_MS) or (self.solo and self.pressed() is not None):
             return
         self.order.pop(0)
         e[0], e[1], e[2] = True, t, e[2] - 1
@@ -414,3 +418,10 @@ class Panel:
     def buttons(self, dev):
         """Button numbers currently pressed on one device."""
         return {b for (d, b), e in self.shown.items() if d == dev and e[0]}
+
+    def pressed(self):
+        """A (device, button) pressed now, or None; solo keeps it to one (no set or view: called every pass)"""
+        for k in self.shown:                               # noqa: SIM110 (next() would allocate a generator)
+            if self.shown[k][0]:
+                return k
+        return None

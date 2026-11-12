@@ -16,7 +16,7 @@ import pytest
 
 import sim.page
 from sim import BM, TILT, key_name
-from sim.hardware import RINGS, SWITCHES
+from sim.hardware import RINGS, SWITCHES, keys, make_keys
 from sim.live import Live
 from sim.page import VIEWER, Page, inputs
 
@@ -67,10 +67,11 @@ class Stream:
 
 
 @contextlib.contextmanager
-def serve(speed=SPEED):
-    live = Live(speed=speed)
-    page = Page(live, forward=lambda device, report: page.sent.append((device, names(device, report))))
-    page.sent = []                             # every report: (device, buttons by name)
+def serve(speed=SPEED, keyboard=False):
+    live = Live(speed=speed, keyboard=keyboard)
+    page = Page(live, forward=lambda device, report: page.sent.append(
+        (device, report if keyboard else names(device, report))))
+    page.sent = []                             # every report: (device, buttons by name; the keyboard's as sent)
     live.start(page.output)
     threading.Thread(target=page.serve_forever, args=(0.02,), daemon=True).start()
     try:
@@ -156,6 +157,35 @@ def test_keys_and_knobs_reach_the_reports_and_the_lights(page):
     post(page, "press COM_SWAP", stream.client)
     stream.until(pressed(2, "COM_SWAP"))
     stream.close()
+
+
+def test_keyboard_mode_shows_the_lights_taking_turns_and_the_shortcut_down():
+    with serve(speed=4, keyboard=True) as page:
+        stream = Stream(page)
+        stream.until(lambda s: s["lights"] == {"SHIFT": 1, "UNIT": 0})             # the start pattern
+        stream.until(lambda s: s["lights"] == {"SHIFT": 0, "UNIT": 1})
+        stream.until(lambda s: s["buttons"] == {"keyboard": []})                  # the loop's first report
+        post(page, "press SHIFT\nrelease SHIFT", stream.client)
+        stream.until(lambda s: s["lights"]["SHIFT"] == 1)
+        post(page, "press HOME\nrelease HOME", stream.client)
+        stream.until(lambda s: s["lights"] == {"SHIFT": 0, "UNIT": 1})
+        # held, so the stream's reads see it (a knob's pulse can fall between them)
+        assert post(page, "press COM_SWAP", stream.client) == 204
+        name = make_keys.shortcut_name(*keys.shortcut(2, BM.BUTTON[2]["COM_SWAP"]))
+        stream.until(lambda s: s["buttons"] == {"keyboard": [f"COM_SWAP (unit 2) {name}"]})
+        assert post(page, "release COM_SWAP", stream.client) == 204
+        stream.until(lambda s: s["buttons"] == {"keyboard": []})
+        stream.close()
+        assert page.live.idle(TIMEOUT_S) and page.sent[-1] == (1, bytes(keys.REPORT))
+
+
+@pytest.mark.parametrize("args, message", [
+    (["--sendinput"], "SendInput takes the keyboard mode's keys: add --keyboard"),
+    (["--keyboard", "--vjoy"], "vJoy takes the joysticks: the keyboard mode goes to Windows through --sendinput"),
+])
+def test_an_output_the_mode_has_not_is_refused(args, message):
+    with pytest.raises(SystemExit, match=f"sim.page: {message}"):
+        sim.page.main([*args, "--port", "0"])
 
 
 def test_the_shift_light_pulses_in_its_last_second():

@@ -1,14 +1,15 @@
 """The live panel (sim/live.py) as a Linux HID device, through uhid: the kernel gets the report descriptor boot.py
-builds (both joysticks, report IDs 4 and 5, as on the panel's one HID interface), the name and IDs the panel has
-on USB, and every report code.py sends. The USB layer itself (enumeration, interfaces, update mode's drive and
-console) is not there.
+builds (both joysticks, report IDs 4 and 5, as on the panel's one HID interface; in keyboard mode the keyboard of
+keys.py), the name and IDs the panel has on USB, and every report code.py sends. The USB layer itself
+(enumeration, interfaces, update mode's drive and console) is not there.
 
-    python3 -m sim.uhid
+    python3 -m sim.uhid [--keyboard]
 
 reads actions from stdin, one per line (sim.live.LINES), such as `tap AP`, `tap AP 500` (held 500 ms),
 `turn FREQ_INNER 3`, `tilt UP 500`, `press SHIFT`, `release SHIFT` or `wait 1000`; a turn is 30 detents at most
 (sim.live.TURN_MAX, a turn of the knob). `lights` prints the duty of both lights once the actions before it have
-taken effect. The end of the input ends it, after the actions have run.
+taken effect. The end of the input ends it, after the actions have run. --keyboard runs the keyboard mode: the
+desktop then takes its shortcuts like those of any keyboard, in the window that has the focus.
 
 It needs write access to /dev/uhid: run it as root, or give your user access with a udev rule, which lets it
 create any HID device, keyboards included.
@@ -33,16 +34,18 @@ VERSION = 0x0100           # bcdDevice
 
 
 class Uhid:
-    """One uhid device with both joysticks. send(device, report) is Live's output. A thread answers the kernel's
-    requests: GET_REPORT of an input report with the last one sent, any other with EIO, as SET_REPORT (the
-    descriptor has no feature or output reports)."""
+    """One uhid device with both joysticks, or the keyboard. send(device, report) is Live's output. A thread
+    answers the kernel's requests: GET_REPORT of an input report with the last one sent, any other with EIO, as
+    SET_REPORT (the descriptor has no feature reports; the keyboard's LED output reports come as UHID_OUTPUT,
+    which goes unanswered)."""
 
     def __init__(self, board, phys="avionics-panel-sim", path="/dev/uhid"):
         descriptor = b"".join(d.report_descriptor for d in board.devices)
         manufacturer, product, *ids = next(c[1:] for c in board.calls if c[0] == "set_usb_identification")
         vid, pid = ids[:2] if ids else (VID, PID)
         self.name = f"{manufacturer} {product}"    # as Linux names a USB HID device
-        self.last, self.closing = {}, threading.Event()   # the last report sent, by report ID
+        self.numbered = any(d.report_ids[0] for d in board.devices)   # the joysticks' reports start with their ID
+        self.last, self.closing = {}, threading.Event()   # the last report sent, by report ID (0: none)
         try:
             self.fd = os.open(path, os.O_RDWR | os.O_CLOEXEC)
         except PermissionError as e:
@@ -80,7 +83,7 @@ class Uhid:
                 self.write(UHID_SET_REPORT_REPLY, struct.pack("<IH", struct.unpack_from("<I", data)[0], errno.EIO))
 
     def send(self, device, report):
-        self.last[report[0]] = report
+        self.last[report[0] if self.numbered else 0] = report
         self.write(UHID_INPUT2, struct.pack("<H", len(report)) + report)
 
     def close(self):
@@ -90,8 +93,9 @@ class Uhid:
 
 
 def main(argv=None):
-    argparse.ArgumentParser(prog="python3 -m sim.uhid", description=__doc__.split("\n\n")[0]).parse_args(argv)
-    live = Live()
+    parser = argparse.ArgumentParser(prog="python3 -m sim.uhid", description=__doc__.split("\n\n")[0])
+    parser.add_argument("--keyboard", action="store_true", help="the keyboard mode: a keyboard, no joysticks")
+    live = Live(keyboard=parser.parse_args(argv).keyboard)
     try:
         uhid = Uhid(live)
     except OSError as e:

@@ -1,6 +1,7 @@
 # code.py - Avionics Panel rev 1 (CircuitPython on the panel's RP2040).
 # Flash the CircuitPython 9.2.9 "Raspberry Pi Pico" build (docs/building/bring-up.md, Flash and test, step 3; same
-# chip, 2 MB flash, 12 MHz crystal), then copy boot.py, code.py, panel.py and buttonmap.py to CIRCUITPY and replug.
+# chip, 2 MB flash, 12 MHz crystal), then copy boot.py, code.py, panel.py, buttonmap.py and keys.py to CIRCUITPY and
+# replug.
 # From then on boot.py hides CIRCUITPY and the serial console unless SHIFT is held from plugging in until
 # CIRCUITPY appears (about 2 s; boot.py runs up to 1 s after power-up, docs/building/bring-up.md).
 # Logic: panel.py. Button numbers: buttonmap.py / BUTTONS.md. Pins: pcb/board.py.
@@ -65,9 +66,13 @@ if PICO_TEST:
         ("FREQ_OUTER", P.GPIO12, P.GPIO13, False), ("FREQ_INNER", P.GPIO14, P.GPIO15, False))
     FREQ_PUSH, SHIFT_LED, UNIT_LED = P.GPIO22, P.GPIO25, None
 
-devices = [d for d in usb_hid.devices if d.usage_page == 0x01 and d.usage == 0x04]
-if len(devices) < 2:
-    raise RuntimeError("joysticks missing: copy boot.py and replug the panel")
+# keyboard mode (keys.py): boot.py made one keyboard instead of the joysticks. keys.py's mode byte, read here, so
+# that keys.py is imported in keyboard mode only and the joysticks keep its RAM (test_code.py checks they agree)
+KEYBOARD = microcontroller.nvm[0] == 0x4B
+devices = [d for d in usb_hid.devices if d.usage_page == 0x01 and d.usage == (0x06 if KEYBOARD else 0x04)]
+if len(devices) < (1 if KEYBOARD else 2):
+    raise RuntimeError(("keyboard" if KEYBOARD else "joysticks") + " missing: copy boot.py and replug the panel")
+OUTPUTS = ((0, devices[0]),) if KEYBOARD else ((1, devices[0]), (2, devices[1]))   # (report, device): 0 the keyboard
 
 # Both keypads scan every KEY_SCAN s (panel.KEY_SCAN_MS: the panel's bounce window follows it), and RESYNC_MS
 # below follows it too. debounce_threshold stays at its default (1), so a press reaches the PC on the first scan
@@ -104,7 +109,7 @@ if not PICO_TEST:                  # the Pico's onboard LED has a resistor of it
         drive_12ma(gp)
 unit_shown = None
 shift_shown = None
-panel = Panel()
+panel = Panel(solo=KEYBOARD)             # keyboard mode: one shortcut at a time (keys.py)
 RESYNC_MS = 3 * KEY_SCAN_MS              # three scans, to spare: reset() reports the keys still held at once
 RETRY_MS, RETRY_MAX_MS = 1000, 8000      # after a failed send: wait before the next try, doubling up to this
 TICKS_PERIOD = 1 << 29                   # supervisor.ticks_ms and Event.timestamp wrap after this many ms
@@ -157,18 +162,22 @@ class Source:
 # each keypad on its own: an overflow on one leaves the keys held on the other alone
 sources = (Source(matrix, [n for row in BM.MATRIX for n in row]), Source(direct, ["FREQ_PUSH"]))
 reports = {1: bytearray(BM.SIZE[1] // 8), 2: bytearray(BM.SIZE[2] // 8)}
-sent = {1: None, 2: None}
+sent = {0: None, 1: None, 2: None}
 # [no send before this ms, current back-off ms], one for both devices: they share one USB HID interface, and
 # send_report waits for that interface, so a host that doesn't poll fails both alike
 retry = [0, 0]
 ZERO = {1: bytes(BM.SIZE[1] // 8), 2: bytes(BM.SIZE[2] // 8)}   # made now: release_all may run out of memory
+if KEYBOARD:                             # report 0: the keyboard's, filled by keys.Keyboard
+    import keys
+    keyboard = keys.Keyboard(panel)
+    reports[0], ZERO[0] = bytearray(keys.REPORT), bytes(keys.REPORT)
 
 
 def release_all():
-    """All buttons up on both devices: the host keeps the last report, also after code.py has stopped."""
+    """All buttons (or keys) up on every device: the host keeps the last report, also after code.py has stopped."""
     if not supervisor.runtime.usb_connected:
         return
-    for n, dev in ((1, devices[0]), (2, devices[1])):
+    for n, dev in OUTPUTS:
         try:                                     # noqa: SIM105 (CircuitPython has no contextlib)
             dev.send_report(ZERO[n])
         except OSError:
@@ -176,6 +185,12 @@ def release_all():
 
 
 print("Avionics Panel rev 1 ready")
+if KEYBOARD:                       # the lights take turns at each start (keys.START), the loop then sets them
+    for on in keys.START:
+        for i in (0, 1):
+            if leds[i]:
+                leds[i].duty_cycle = LED_DUTY[i] if i == on else 0
+        time.sleep(keys.BLINK_S)
 
 # An error in the loop must not leave a button held on the PC: release everything, then restart code.py (a
 # reload keeps USB up, boot.py does not run again). The traceback comes after the release and may fail on its
@@ -212,14 +227,17 @@ try:
         # timer would stall
         connected = supervisor.runtime.usb_connected
         if not connected:
-            sent[1] = sent[2] = None                 # a host that comes back assumes all released: resend
+            sent[0] = sent[1] = sent[2] = None       # a host that comes back assumes all released: resend
             retry[0] = retry[1] = 0
-        for n, dev in ((1, devices[0]), (2, devices[1])):
+        for n, dev in OUTPUTS:
             rep = reports[n]
-            for k in range(len(rep)):
-                rep[k] = 0
-            for b in panel.buttons(n):
-                rep[b >> 3] |= 1 << (b & 7)
+            if n:
+                for k in range(len(rep)):
+                    rep[k] = 0
+                for b in panel.buttons(n):
+                    rep[b >> 3] |= 1 << (b & 7)
+            else:
+                keyboard.fill(rep)
             if connected and rep != sent[n] and t >= retry[0]:
                 # A host can enumerate the panel and never poll it (Linux with nothing reading the joystick):
                 # then every send blocks for 2 s and fails. Back off, so the loop runs between the tries. The

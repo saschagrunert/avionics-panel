@@ -5,9 +5,12 @@
 # can't ask to be ejected) and no serial console. To keep both for an update, hold SHIFT while plugging in
 # and until CIRCUITPY appears (about 2 s): CircuitPython waits up to 1 s (its safe-mode window) after
 # power-up before it runs this file, and SHIFT is read only then.
+# Holding the HOME key (amber legend UNIT) alone the same way switches between the joysticks and the keyboard
+# mode (keys.py), which the panel keeps from then on; in keyboard mode the lights take turns at each start.
 import time
 
 import digitalio
+import keys
 import microcontroller
 import storage
 import supervisor
@@ -18,12 +21,14 @@ import usb_midi
 # SHIFT is matrix row 3, column 3 (buttonmap.MATRIX; pcb/board.py ROW_GP, COL_GP): row GP2, column GP6.
 # The diode anode is on the column, so with the row driven low and the column pulled up, a held SHIFT
 # reads low. The other rows are left as CircuitPython resets them (input, no pull), so no other key can
-# pull the column down.
+# pull the column down. UNIT (HOME) sits above it in the same column: row 2, GP5.
 SHIFT_ROW, SHIFT_COL = microcontroller.pin.GPIO2, microcontroller.pin.GPIO6
+UNIT_ROW = microcontroller.pin.GPIO5
 
 
-def shift_held():
-    row = digitalio.DigitalInOut(SHIFT_ROW)
+def held(row_pin):
+    """Whether the key of this row in SHIFT's column is held"""
+    row = digitalio.DigitalInOut(row_pin)
     col = digitalio.DigitalInOut(SHIFT_COL)
     try:
         col.switch_to_input(pull=digitalio.Pull.UP)
@@ -35,7 +40,8 @@ def shift_held():
         col.deinit()
 
 
-if not shift_held():
+update = held(SHIFT_ROW)
+if not update:
     storage.disable_usb_drive()
     usb_cdc.disable()
 
@@ -67,4 +73,12 @@ def joystick(report_id, buttons):
 # interface, which CircuitPython calls "CircuitPython HID" unless told otherwise, and keeps the first name
 # it saw (docs/using/mapping.md, Device name)
 usb_hid.set_interface_name("Avionics Panel")
-usb_hid.enable((joystick(4, 128), joystick(5, 64)))
+if keys.keyboard_mode(microcontroller.nvm, held(UNIT_ROW)):
+    # One boot keyboard instead (keys.py), as the PS5 is reported to need. CircuitPython declares the boot
+    # protocol only on USB interface 0 (else safe mode): not with the console and drive of an update, which come
+    # first.
+    keyboard = usb_hid.Device(report_descriptor=keys.DESCRIPTOR, usage_page=0x01, usage=0x06, report_ids=(0,),
+                              in_report_lengths=(keys.REPORT,), out_report_lengths=(1,))
+    usb_hid.enable((keyboard,), boot_device=0 if update else 1)
+else:
+    usb_hid.enable((joystick(4, 128), joystick(5, 64)))

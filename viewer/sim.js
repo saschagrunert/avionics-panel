@@ -65,7 +65,8 @@ window.playPanel = function playPanel(V) {
   let alertTimer;
   const say = (text, ms) => { clearTimeout(alertTimer); alert.textContent = text; if (ms) alertTimer = setTimeout(() => say(''), ms); };
 
-  // the lights in words, and each joystick's buttons; one that went stays a while, dimmed
+  // the lights in words, and each joystick's buttons (in keyboard mode the keyboard's function and shortcut); one
+  // that went stays a while, dimmed
   let lights = {}, buttons = {}, fadeTimer;
   let went = {};                       // device: { button: when it went }
   function render() {
@@ -83,7 +84,7 @@ window.playPanel = function playPanel(V) {
         const s = document.createElement('span'); s.textContent = n; s.className = cls;
         return i ? [' · ', s] : [s];
       });
-      line(`joystick ${device}: `, ...(parts.length ? parts : ['none']));
+      line(device === 'keyboard' ? 'keyboard mode: ' : `joystick ${device}: `, ...(parts.length ? parts : ['none']));
     }
     if (next < Infinity) fadeTimer = setTimeout(render, Math.ceil(next) + 1);
   }

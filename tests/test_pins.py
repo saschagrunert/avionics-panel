@@ -114,3 +114,11 @@ def test_boot_reads_the_board_shift_key():
     assert NET[f"K{r}{c}.A"] == pins[0] and NET[f"DK{r}{c}.A"] == pins[1]
     assert not test_boot.hidden(test_boot.boot(shift=True, pins=pins))
     assert test_boot.hidden(test_boot.boot(shift=False, pins=pins))
+
+
+def test_boot_reads_the_board_unit_key():
+    # UNIT is the HOME key: boot.py switches the mode only with the switch on the board's row and column of HOME
+    r, c = next((r, row.index("HOME")) for r, row in enumerate(BM.MATRIX) if "HOME" in row)
+    assert (B.ROW_GP[r], B.COL_GP[c]) == test_boot.UNIT_PINS
+    assert NET[f"K{r}{c}.A"] == B.ROW_GP[r] and NET[f"DK{r}{c}.A"] == B.COL_GP[c]
+    assert test_boot.boot(unit=True).keyboard and not test_boot.boot().keyboard

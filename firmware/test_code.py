@@ -5,18 +5,20 @@ The tests script key events and encoder steps per millisecond and look at the HI
 from types import SimpleNamespace
 
 import buttonmap as BM
+import keys
 import panel as P
 import pytest
 
-from sim.hardware import MATRIX_NAMES, PAD_RESET, Board, Event
+from sim import typed
+from sim.hardware import MATRIX_NAMES, PAD_RESET, Board, Device, Event
 
 PICO =[("\nPICO_TEST = False\n", "\nPICO_TEST = True\n")]   # code.py edited for the Pico bench
 
 
-def hardware(script=None, busy=0, usb_from=0, usb_gap=(0, 0), wrap=65536, memorymap=True):
+def hardware(script=None, busy=0, usb_from=0, usb_gap=(0, 0), wrap=65536, memorymap=True, keyboard=False):
     """the stand-in board after boot.py, with a script {ms: [action(hw)]}: hw.run(ms) runs code.py. A loop pass
     takes only its 1 ms sleep (no run time of its own)."""
-    hw = Board(script, wrap=wrap).boot()
+    hw = Board(script, wrap=wrap, keyboard=keyboard).boot()
     hw.busy, hw.usb_from, hw.usb_gap = busy, usb_from, usb_gap
     if not memorymap:                         # a CircuitPython build without memorymap: the import fails
         hw.modules["memorymap"] = None
@@ -447,6 +449,102 @@ def test_key_scan_outlasts_switch_bounce():
     # debounce_threshold 1: a key's state changes on the first scan that reads it differently. A scan interval
     # longer than the bounce means the next scan reads it settled, so one press is one event
     hw = hardware().run(5)
-    for keys in (hw.matrix, hw.direct):
-        assert keys.interval * 1000 == P.KEY_SCAN_MS and keys.debounce_threshold == 1
-        assert keys.interval * 1000 >= SWITCH_BOUNCE_MS
+    for pad in (hw.matrix, hw.direct):
+        assert pad.interval * 1000 == P.KEY_SCAN_MS and pad.debounce_threshold == 1
+        assert pad.interval * 1000 >= SWITCH_BOUNCE_MS
+
+
+# ---------------- keyboard mode ----------------
+START_MS = len(keys.START) * round(keys.BLINK_S * 1000)     # the start pattern, before the loop's first pass
+
+
+def keyboard_hardware(script, **kwargs):
+    """hardware() in keyboard mode, with the script's times counted from the end of the start pattern"""
+    return hardware({START_MS + t: actions for t, actions in script.items()}, keyboard=True, **kwargs)
+
+
+def typed_by(hw):
+    """(ms, report) of every report the keyboard sent"""
+    return [(t, r) for t, d, r in hw.received if d is hw.devices[0]]
+
+
+def test_keyboard_mode_starts_with_the_lights_taking_turns():
+    # SHIFT, UNIT, SHIFT ... for BLINK_S each, then the loop's first pass sets both as the panel has them (dark),
+    # and SHIFT lights up as ever
+    hw = keyboard_hardware({10: [press("SHIFT", True)], 60: [press("SHIFT", False)]}).run(START_MS + 100)
+    steps = len(keys.START)
+    shift, unit = hw.leds[0].history, hw.leds[1].history
+    assert [t for t, _ in shift[:steps]] == [t for t, _ in unit[:steps]] == list(range(0, START_MS, START_MS // steps))
+    assert [(s > 0, u > 0) for (_, s), (_, u) in zip(shift[:steps], unit[:steps])] == [
+        (light == 0, light == 1) for light in keys.START]
+    assert shift[steps:] == [(START_MS, 0), (START_MS + 10, hw.code["LED_DUTY"][0])] and unit[steps:] == [(START_MS, 0)]
+
+
+@pytest.mark.parametrize("name", ["AP", "VFR"])
+def test_a_shortcut_goes_down_after_its_modifiers_and_up_before_them(name):
+    # one report per step: the modifiers, the key, the key up, the modifiers up
+    mods, key = keys.shortcut(1, BM.BUTTON[1][name])
+    hw = keyboard_hardware({10: [press(name, True)], 200: [press(name, False)]}).run(START_MS + 400)
+    sent = typed_by(hw)
+    assert [r for _, r in sent] == [bytes(8), bytes((mods, 0, 0)) + bytes(5), bytes((mods, 0, key)) + bytes(5),
+                                    bytes((mods, 0, 0)) + bytes(5), bytes(8)]
+    assert [(d, n) for _, d, n in typed(sent)] == [(1, name)]
+    down = next(t for t, r in sent if r[2])
+    up = next(t for t, r in sent if t > down and not r[2])
+    assert down <= START_MS + 10 + 2 * 8 and up - down >= P.PRESS_MS      # down within two frames, and held
+
+
+def test_a_held_key_holds_the_next_shortcut_back():
+    # AP held while ALT turns: the detent's shortcut goes down once AP's is up, never both at once (typed() checks)
+    hw = keyboard_hardware({10: [press("AP", True)], 50: [step(0, 1)], 400: [press("AP", False)]})
+    hw.run(START_MS + 800)
+    (ap, _, first), (alt, _, second) = typed(typed_by(hw))
+    assert (first, second) == ("AP", "ALT_100_UP")
+    released = next(t for t, r in typed_by(hw) if t > ap and not r[2])
+    assert released >= START_MS + 400 + P.BOUNCE_MS and alt > released
+
+
+def test_a_held_shortcut_is_resent_after_usb_comes_back():
+    # the PC reboots while AP is held: the new host assumes every key up, so the panel sends AP's report again
+    hw = keyboard_hardware({10: [press("AP", True)]}, usb_gap=(START_MS + 100, START_MS + 200)).run(START_MS + 400)
+    mods, key = keys.shortcut(1, BM.BUTTON[1]["AP"])
+    before, after = [t for t, r in typed_by(hw) if r == bytes((mods, 0, key)) + bytes(5)]
+    assert before < START_MS + 100 and START_MS + 200 <= after < START_MS + 200 + 2 * 8
+
+
+def test_keyboard_mode_lets_go_of_every_key_on_an_error():
+    hw = keyboard_hardware(crash(ValueError("bug"))).run(START_MS + 400)
+    assert hw.printed and len(hw.reloads) == 1
+    sent = typed_by(hw)
+    assert [n for _, _, n in typed(sent)] == ["AP"] and sent[-1][1] == bytes(keys.REPORT)
+
+
+@pytest.mark.parametrize("byte", [keys.KEYBOARD, keys.JOYSTICK, 0x00, keys.KEYBOARD ^ 1])
+def test_code_py_reads_the_mode_where_keys_py_keeps_it(byte):
+    # code.py reads the byte itself, so that keys.py is imported in keyboard mode only: it must agree with keys.py
+    hw = Board()
+    hw.nvm[keys.MODE_BYTE] = byte
+    hw.boot().run(10)
+    assert hw.code["KEYBOARD"] is keys.keyboard_mode(hw.nvm) is (byte == keys.KEYBOARD)
+    assert ("keys" in hw.code) is hw.code["KEYBOARD"]
+
+
+def test_a_missing_keyboard_stops_code_py():
+    # the keyboard mode stored, but boot.py made the joysticks (an older boot.py): code.py says what to do
+    hw = Board(keyboard=True).boot()
+    hw.devices[:] = hardware().devices
+    with pytest.raises(RuntimeError, match="keyboard missing: copy boot.py and replug the panel"):
+        hw.run(100)
+
+
+def test_a_host_in_the_boot_protocol_gets_the_same_reports():
+    # a host that asks for the boot protocol gets CircuitPython's boot keyboard in usb_hid.devices: no report ID
+    # and 8 bytes, as the panel's own keyboard, so code.py sends the same reports
+    def run(boot_protocol):
+        hw = keyboard_hardware({10: [press("VS", True)], 100: [press("VS", False)], 300: [step(5, 1)]})
+        if boot_protocol:
+            hw.devices[:] = [Device(hw, report_descriptor=b"", usage_page=0x01, usage=0x06, report_ids=(0,),
+                                    in_report_lengths=(keys.REPORT,), out_report_lengths=(1,))]
+        return [r for _, r in typed_by(hw.run(START_MS + 600))]
+    assert run(True) == run(False) and len(run(True)) > 4
+

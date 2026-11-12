@@ -47,4 +47,5 @@ flowchart LR
    over it with five screws, the knobs and the feet ([Putting it together](assembly.md#putting-it-together)).
 6. **Map**: two joysticks, every function a fixed button ([Mapping](../using/mapping.md),
    [BUTTONS.md](../../firmware/BUTTONS.md)), or a [generated profile](../using/mapping.md#generated-profiles);
-   then the knob timing check of the [first board](bring-up.md#first-board).
+   then the knob timing check of the [first board](bring-up.md#first-board). For a console, or the sim
+   without MobiFlight, the [keyboard mode](../using/keyboard.md) instead, not yet tried in MSFS.

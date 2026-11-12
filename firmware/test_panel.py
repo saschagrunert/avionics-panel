@@ -4,8 +4,8 @@ import panel as P
 
 
 class Sim:
-    def __init__(self):
-        self.p, self.t, self.seen, self.log = P.Panel(), 0, [], []
+    def __init__(self, solo=False):
+        self.p, self.t, self.seen, self.log = P.Panel(solo), 0, [], []
         self.prev = {1: set(), 2: set()}
         self.names = {d: {v: k for k, v in BM.BUTTON[d].items()} for d in (1, 2)}
 
@@ -1324,6 +1324,33 @@ def test_shifted_repeat_stops_when_another_control_ends_shift():
     s.turn("FMS_OUTER", 1, every=1); s.take()
     rest = light_and_edges(s, 2000)
     assert all(level == P.LIGHT_OFF and "S_PAN_UP" not in names for level, names in rest)
+
+
+def test_solo_presses_one_button_at_a_time():
+    # the keyboard mode's panel: a detent while a key is held goes out once the key is up (at its turn without
+    # solo), and pressed() names the one button down
+    for solo in (False, True):
+        s = Sim(solo)
+        assert s.p.pressed() is None
+        s.p.key("AP", True, s.t); s.run(10)
+        assert s.p.pressed() == (1, BM.BUTTON[1]["AP"])
+        s.p.turn("ALTHDG_OUTER", 1, s.t); s.run(300)
+        assert s.take() == ([(1, "AP")] if solo else [(1, "AP"), (1, "ALT_100_UP")])
+        s.p.key("AP", False, s.t); s.run(300)
+        released = s.t - 300 + P.BOUNCE_MS
+        assert s.take() == ([(1, "ALT_100_UP")] if solo else [])
+        assert not solo or s.log[-1] == (released, 1, "ALT_100_UP")     # in the same pass as AP's release
+        assert s.p.pressed() is None
+
+
+def test_solo_keeps_the_order_and_the_spacing():
+    # a turn with a key in between: the same presses, in the same order and 112 ms apart, with or without solo
+    logs = []
+    for solo in (False, True):
+        s = Sim(solo)
+        s.turn("FREQ_INNER", 3, every=20); s.key("COM_SWAP", 20); s.turn("FREQ_INNER", 2, every=20); s.run(1000)
+        logs.append(s.log)
+    assert logs[0] == logs[1] and [n for _, _, n in logs[0]] == ["COM_KHZ_UP"] * 3 + ["COM_SWAP"] + ["COM_KHZ_UP"] * 2
 
 
 def test_counts():

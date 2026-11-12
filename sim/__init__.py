@@ -16,10 +16,16 @@ Inputs go by their firmware names: the keys, pushes and RANGE switches as in but
 (COM1 is COM 1, COM_SWAP is COM ⇆, DIRECT is D→, ALTHDG_PUSH the ALT/HDG push, RANGE_COM the RANGE centre), the
 rings as in code.py's RINGS (FREQ_INNER); key_name() gives a cap's from its legend. Buttons go by their BUTTONS.md
 names.
+
+Sim(keyboard=True) runs the keyboard mode (keys.py), from after its start pattern. The keyboard is device 1 there:
+typed() reads the functions its shortcuts stand for, and buttons(), presses() and held() name them too, each
+shared shortcut by the function it stands for (canonical()).
 """
-from sim.hardware import BM, RINGS, SWITCHES, Board
+from sim.hardware import BM, RINGS, SWITCHES, Board, keys
 
 START_MS = 107       # the scenario starts this long after code.py, off the keypads' 20 ms scans
+PATTERN_MS = 960     # ... and this much later in keyboard mode, after its start pattern (keys.START, 6 x 152 ms
+                     # here): a multiple of the 3 ms pass and the 20 ms key scan, so it meets both in the same phase
 PASS_MS = 3          # a loop pass: its 1 ms sleep plus its own run time (a few ms, docs/using/controls.md)
 TAP_MS = 100         # a tap holds a key or push this long ...
 PAUSE_MS = 300       # ... and the next action follows this long after its release
@@ -29,6 +35,19 @@ POLL_OFFSET_MS = 11  # ... first at this ms
 # a RANGE tilt closes "com" and its direction: away from the pilot A, left B, towards C, right D (Alps drawing)
 TILT = {"UP": "RANGE_A", "LEFT": "RANGE_B", "DN": "RANGE_C", "RIGHT": "RANGE_D"}
 LIGHTS = ("SHIFT", "UNIT")
+# (modifiers, key) -> (device, button name): what each shortcut of the keyboard mode stands for. A shortcut that
+# buttons share (keys.py) stands for the first of them: device 1's, a key's plain function.
+FUNCTIONS = {}
+for _dev, _names in BM.DEVICE.items():
+    for _b, _name in enumerate(_names):
+        FUNCTIONS.setdefault(keys.shortcut(_dev, _b), (_dev, _name))
+MODIFIERS = keys.LC | keys.LS | keys.LA | keys.RC | keys.RS
+
+
+def canonical(device, name):
+    """The function a button's shortcut stands for in keyboard mode: the button itself, or the one it shares its
+    shortcut with"""
+    return FUNCTIONS[keys.shortcut(device, BM.BUTTON[device][name])]
 
 
 def key_name(label):
@@ -37,9 +56,30 @@ def key_name(label):
     return {"D→": "DIRECT"}.get(label, label.replace(" ⇆", "_SWAP").replace(" ", ""))
 
 
+def typed(reports):
+    """(ms, device, name) of every function a run of keyboard reports (ms, report) types, in order. ValueError for
+    what a host could take for another shortcut: two keys at once, modifiers that change under a key or as it goes
+    down, or a shortcut of no function. (Everything may go up at once.)"""
+    out, last = [], bytes(keys.REPORT)
+    for ms, r in reports:
+        if len(r) != keys.REPORT or r[1] or any(r[3:]) or r[0] & ~MODIFIERS:
+            raise ValueError(f"{ms} ms: not one key and its modifiers: {r.hex()}")
+        if r[0] != last[0] and r[2]:
+            raise ValueError(f"{ms} ms: the modifiers change with a key down: {last.hex()} to {r.hex()}")
+        if r[2] and r[2] != last[2]:
+            if last[2]:
+                raise ValueError(f"{ms} ms: one key replaces another: {last.hex()} to {r.hex()}")
+            if (r[0], r[2]) not in FUNCTIONS:
+                raise ValueError(f"{ms} ms: a shortcut of no function: {r.hex()}")
+            out.append((ms, *FUNCTIONS[r[0], r[2]]))
+        last = r
+    return out
+
+
 class Sim:
-    def __init__(self):
-        self.pass_ms, self.now, self.script, self.board = PASS_MS, START_MS, {}, None
+    def __init__(self, keyboard=False):
+        self.keyboard, self.pass_ms, self.script, self.board = keyboard, PASS_MS, {}, None
+        self.now = START_MS + (PATTERN_MS if keyboard else 0)
 
     def _at(self, ms, action):
         self.script.setdefault(ms, []).append(action)
@@ -99,23 +139,34 @@ class Sim:
         """The board after boot.py and code.py ran up to now. An error in code.py is raised: its handler prints it
         (the stand-in keeps it) before it waits and reloads, so also when the run ends before the reload."""
         if self.board is None:
-            board = Board(self.script, work_ms=self.pass_ms - 1).boot().run(self.now)
+            board = Board(self.script, work_ms=self.pass_ms - 1, keyboard=self.keyboard).boot().run(self.now)
             if board.printed:
                 raise board.printed[0]
             self.board = board
         return self.board
 
     def reports(self, device):
-        """(ms, bytes) of every report the PC took from device 1 or 2 before now: the report ID, then one bit per
-        button, as on the wire"""
+        """(ms, bytes) of every report the PC took from device 1 or 2 before now, as on the wire: the report ID (a
+        joystick's), then one bit per button, or the keyboard's 8 bytes"""
         dev = self._board().devices[device - 1]
-        return [(ms, bytes(dev.report_ids[:1]) + data) for ms, d, data in self.board.received
+        return [(ms, bytes(i for i in dev.report_ids[:1] if i) + data) for ms, d, data in self.board.received
                 if d is dev and ms < self.now]
 
     def buttons(self, device):
-        """(ms, names) of every report from device 1 or 2: the buttons pressed, by name, in button order"""
+        """(ms, names) of every report from device 1 or 2: the buttons pressed, by name, in button order. In
+        keyboard mode the keyboard's reports, with the function of the shortcut down if it is one of device's."""
+        if self.keyboard:
+            out = []
+            for ms, r in self.reports(1):
+                dev, name = FUNCTIONS.get((r[0], r[2]), (None, None))
+                out.append((ms, [name] if dev == device else []))
+            return out
         return [(ms, [BM.DEVICE[device][b] for b in range(8 * len(r) - 8) if r[1 + b // 8] >> b % 8 & 1])
                 for ms, r in self.reports(device)]
+
+    def typed(self):
+        """(ms, device, name) of every function the keyboard typed before now (keyboard mode), as typed() reads them"""
+        return typed(self.reports(1))
 
     def _polls(self, device):
         """(ms, buttons pressed) at each of MobiFlight's polls before now"""
@@ -147,5 +198,7 @@ class Sim:
         return polls[-1][1] if polls else []
 
     def light(self, name):
-        """(ms, duty) of every duty written to the "SHIFT" or "UNIT" light before now"""
-        return [(ms, d) for ms, d in self._board().leds[LIGHTS.index(name)].history if ms < self.now]
+        """(ms, duty) of every duty written to the "SHIFT" or "UNIT" light before now, after the keyboard mode's
+        start pattern (one duty per light and step)"""
+        history = self._board().leds[LIGHTS.index(name)].history[len(keys.START) if self.keyboard else 0:]
+        return [(ms, d) for ms, d in history if ms < self.now]

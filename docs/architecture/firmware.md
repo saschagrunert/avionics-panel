@@ -13,19 +13,24 @@ flowchart LR
   dev1["Joystick device 1<br>128 buttons"]
   dev2["Joystick device 2<br>64 buttons, unit 2"]
   pc["MobiFlight"]
+  kbd["Keyboard mode instead:<br>one keyboard, a shortcut per button<br>(keys.py)"]
+  sim["The sim's controls menu"]
   matrix --> panel
   push --> panel
   rings --> panel
   panel --> lights
   panel --> dev1 --> pc
   panel --> dev2 --> pc
+  panel -.-> kbd -.-> sim
 ```
 
 `code.py` reads the hardware and feeds key events, encoder detents and the time to `panel.py`, which holds all
 the logic, has no hardware access and runs on the PC in the tests. `boot.py` sets up the two joysticks, which
 share one USB HID (human interface device) interface with two report IDs, and hides the drive and console in
 normal use. `buttonmap.py` numbers the buttons, and `make_buttons.py` (PC only) writes
-[BUTTONS.md](../../firmware/BUTTONS.md).
+[BUTTONS.md](../../firmware/BUTTONS.md). In the [keyboard mode](#keyboard-mode) `boot.py` sets up a keyboard
+instead, and `keys.py` turns the buttons into shortcuts; `make_keys.py` writes
+[KEYS.md](../../firmware/KEYS.md).
 
 ## State
 
@@ -143,6 +148,44 @@ In update mode (SHIFT held at plug-in) the panel is a composite device with the 
 joysticks move to another interface number: Windows may then see them as new controllers
 ([Mapping](../using/mapping.md#update-mode-and-guids)).
 
+## Keyboard mode
+
+[keys.py](../../firmware/keys.py) holds what the [keyboard mode](../using/keyboard.md) adds: the stored mode,
+the keyboard's descriptor, the shortcut of every button and the report. `panel.py` is the same in both modes,
+but for one rule.
+
+- The mode is one byte of `microcontroller.nvm`, the 4 KB of flash that CircuitPython's RP2040 builds keep
+  between the firmware and CIRCUITPY (`CIRCUITPY_INTERNAL_NVM_SIZE`), so it survives power cycles, new files
+  and a new UF2; `flash_nuke.uf2` erases it. 0x4B is the keyboard, any other value (a blank flash reads 0xFF)
+  the joysticks. `boot.py` reads HOME (amber legend UNIT; row GP5, in SHIFT's column GP6) the way it reads
+  SHIFT, and while it is held stores the other mode: switching to the keyboard writes one byte, switching back
+  erases and rewrites the 4 KB sector. `code.py` reads the byte itself and imports `keys.py` only in keyboard
+  mode, so the joysticks keep its RAM, then looks for the device that mode needs.
+- USB: one keyboard and no joysticks, under the same names: HID 1.11's boot keyboard (appendix E.6), without
+  report ID, 8 bytes (the modifiers, a reserved byte, six keys of which the panel uses one), keys 0 to 101.
+  The interface declares the boot protocol (`usb_hid.enable(boot_device=1)`), for hosts that take only a boot
+  keyboard. A host that switches to the boot protocol, if it does so before `code.py` starts, gets
+  CircuitPython's own boot keyboard in `usb_hid.devices`, with the same 8 bytes, so `code.py` sends the same
+  reports. In update mode the console and the drive come first, and CircuitPython takes a boot device only on
+  USB interface 0 (it starts in safe mode otherwise), so there the keyboard declares no boot protocol.
+- The shortcuts: F1 to F12, Insert, Home, Page Up, Page Down and the arrows, with left Ctrl, Shift and Alt and
+  right Ctrl and Shift. `keys.GROUPS` lists them with what each group leaves out and why; `keys.FIRST` names
+  the functions the sim may have no action for, which get shortcuts whose parts do nothing in flight. With
+  SHIFT, a key without an amber legend sends its plain shortcut, and in unit 2 only COM and NAV have their own
+  (not COM 121.5). 114 shortcuts, frozen by `firmware/test_keys.py`; `keys.UNIT2` leaves 8 free for new
+  functions of device 1, and 2 more are free after unit 2's.
+- One shortcut at a time: `Panel(solo=True)` presses a button only while no other one is down, so a held key
+  holds back what follows. The queue, its order, its spacing and the acceleration stay the same
+  ([Knob steps](#knob-steps)). A shortcut is a combination of keys: two at once would be another one.
+- The report: `keys.Keyboard` turns the pressed button into its shortcut, a step per loop pass. The modifiers
+  go down alone, then the key; on release the key goes up first, then the modifiers. So the host never sees a
+  key with modifiers other than its own, and a shortcut that follows at once swaps the modifiers in a report
+  of its own. `send_report` waits until the host has taken the report before, so each step reaches it, a
+  frame apart: the key goes down a frame after its modifiers and is down about one frame less than
+  `PRESS_MS`.
+- Each time it starts, before its loop, `code.py` lights SHIFT and UNIT by turns, 150 ms each, three times.
+  Keys and knobs used meanwhile go out after it.
+
 ## Lights
 
 `code.py` drives the SHIFT and UNIT lights with PWM at `LED_DUTY` = 0x4800 and 0x5500 (about 28 and 33 % of
@@ -166,14 +209,16 @@ Run `pytest` from the repository root for the host tests:
 | Test | Checks |
 | --- | --- |
 | `firmware/test_panel.py` | `panel.py` |
-| `firmware/test_code.py` | `code.py`, on the simulator's stand-in hardware |
-| `firmware/test_boot.py` | `boot.py`, on the simulator's stand-in hardware |
-| `tests/test_workflows.py` | The [workflows](../using/controls.md#workflows), keys and knobs, on the simulator |
+| `firmware/test_code.py` | `code.py`, on the simulator's stand-in hardware, in both modes |
+| `firmware/test_boot.py` | `boot.py`, on the simulator's stand-in hardware: USB, the drive, the stored mode |
+| `firmware/test_keys.py` | `keys.py`: the stored mode, the descriptor, a shortcut per button, the report |
+| `tests/test_workflows.py` | The [workflows](../using/controls.md#workflows), keys and knobs, on the simulator, in both modes |
 | `tests/test_live.py` | The simulator in real time: actions, reports, the lights, a reload after an error |
-| `tests/test_descriptor.py` | `boot.py`'s report descriptor, parsed, and the simulator's reports read with it |
-| `tests/test_uhid.py` | The simulator as a Linux HID device: descriptor, name and IDs, a key press |
+| `tests/test_descriptor.py` | `boot.py`'s report descriptors, parsed, and the simulator's reports read with them |
+| `tests/test_uhid.py` | The simulator as a Linux HID device: descriptor, name and IDs, a key press, the keyboard |
 | `tests/test_page.py` | The panel page's server: actions, its event stream, an error, a page that goes |
 | `tests/test_vjoy.py` | The vJoy output: its struct, every button of both devices, its calls into a stand-in DLL |
+| `tests/test_sendinput.py` | The keystroke output: its structs, the keystrokes of the keyboard's reports, a stand-in DLL |
 | `tests/test_windows_zip.py` | The simulator's zip for Windows: layout, `._pth`, the simulator run from it |
 | `tests/test_pins.py` | Every pin `code.py` uses, against the nets in `pcb/board.py` |
 | `tests/test_mpy_cross.py` | Every board file, compiled with the board's compiler |
@@ -185,7 +230,9 @@ its poll of the shared endpoint every 8 ms; seconds of flying take milliseconds.
 CircuitPython's speed, memory or USB stack. `tests/test_workflows.py` uses it as a pilot would (tap SHIFT,
 turn the FREQ inner ring) and checks the buttons MobiFlight sees at its 31.25 ms polls, by their names, and
 that none stays pressed. With the firmware's own tests, a firmware change that breaks a documented workflow
-fails the build.
+fails the build. Each workflow runs in keyboard mode too (`Sim(keyboard=True)`), where the sim must see the
+same functions typed, in the same order: `sim.typed()` reads them from the keyboard's reports and fails on a
+key that goes down with modifiers other than its own or beside another key.
 
 The compiler is CircuitPython 9.2's own `mpy-cross`, so it rejects the syntax the board rejects. It checks
 syntax only: a module or argument the board's build lacks shows up on the bench. It is not in nixpkgs:
@@ -201,8 +248,9 @@ wall clock. Any thread queues the simulator's actions by the firmware's input na
 (`act("turn", "FREQ_INNER", 3, 0)`) run at once, while a tap, a tilt and a turn with its default spacing take
 their time. A switch changes no sooner than 50 ms after its last change, on the panel's clock, as with a
 finger: a quicker click would fall between two key scans. Every report the PC takes goes to an output function
-as the device (1 or 2) and the report bytes, report ID first; `light()` reads a light's duty. An error in the
-loop goes as on the board: `code.py` releases every button, waits 2 s and reloads, on the same board.
+as the device (1 or 2) and the report bytes, report ID first (in keyboard mode the keyboard's 8 bytes, as
+device 1); `light()` reads a light's duty. An error in the loop goes as on the board: `code.py` releases every
+button, waits 2 s and reloads, on the same board.
 
 [sim/uhid.py](../../sim/uhid.py) makes it a HID device on Linux through `/dev/uhid`: one device with the
 report descriptor `boot.py` builds (both report IDs), the name `DIY Avionics Panel` and the IDs 239A:80F4. It
@@ -218,12 +266,13 @@ lights
 
 `hid-recorder` or a `/dev/hidrawN` node shows every report. Linux's input layer makes one input device of
 both joysticks and maps only the first 80 buttons of device 1, so `evtest` sees part of it, as with the panel
-([Linux](../using/mapping.md#linux)). The USB layer (enumeration, interfaces, the drive in update mode) is not
-simulated. `tests/test_uhid.py` runs where `/dev/uhid` and the new hidraw node are accessible and skips
-elsewhere, CI included: the hosted runners' kernel has `uhid` only in an extra modules package.
-`REQUIRE_UHID=1` turns the skips into failures. Without a kernel, `tests/test_descriptor.py` parses the
-descriptor with the parser of [hid-tools](https://gitlab.freedesktop.org/libevdev/hid-tools) (the firmware
-shell provides it on Linux) and reads the simulator's reports with it.
+([Linux](../using/mapping.md#linux)). `python3 -m sim.uhid --keyboard` makes the keyboard of the keyboard
+mode instead, which the desktop takes like any keyboard. The USB layer (enumeration, interfaces, the drive in
+update mode) is not simulated. `tests/test_uhid.py` runs where `/dev/uhid` and the new hidraw node are
+accessible and skips elsewhere, CI included: the hosted runners' kernel has `uhid` only in an extra modules
+package. `REQUIRE_UHID=1` turns the skips into failures. Without a kernel, `tests/test_descriptor.py` parses
+the descriptors with the parser of [hid-tools](https://gitlab.freedesktop.org/libevdev/hid-tools) (the
+firmware shell provides it on Linux) and reads the simulator's reports with them.
 
 ### The panel page
 
@@ -239,8 +288,9 @@ in [The page](../using/simulator.md#the-page). `--port N` changes the port (8000
 the page to the network, and `--open` opens it in the default browser once it is served. A page that goes,
 also one that drops off the network, lets go of what it holds within a few seconds. `--uhid` also feeds the
 uhid device above, so programs on Linux see the joysticks, and `--vjoy` the vJoy devices below; without them
-the reports go only to the page. The API is described in `sim/page.py`. Opened without `?sim`, as on GitHub
-Pages, the viewer stays the plain 3D view.
+the reports go only to the page. `--keyboard` runs the keyboard mode, and `--sendinput` then types its
+shortcuts on Windows ([below](#keystrokes-on-windows)). The API is described in `sim/page.py`. Opened without
+`?sim`, as on GitHub Pages, the viewer stays the plain 3D view.
 
 ### vJoy on Windows
 
@@ -255,6 +305,19 @@ whose first reports clear them. `python -m sim.vjoy` reads actions from stdin li
 `python -m sim.page --vjoy` feeds vJoy from the page. `tests/test_vjoy.py` checks it on Linux against the
 header's layout, `boot.py`'s descriptor, BUTTONS.md and stand-ins for the DLL and the console; the DLL itself
 and MobiFlight are tested on Windows.
+
+### Keystrokes on Windows
+
+[sim/sendinput.py](../../sim/sendinput.py) types the keyboard mode's shortcuts on Windows, through user32's
+`SendInput` with `ctypes`: each report becomes the key presses and releases it differs by from the one
+before, by their scan codes (Microsoft's table of HID usages and scan codes), so a game that reads scan codes
+takes them as a keyboard's. Windows gives them to the window in front, so the page is played from another
+device ([Simulator](../using/simulator.md#keyboard-mode)). At the end it lets go of every key, through a
+console handler as vJoy's also on Ctrl-Break and when the window closes, and sends nothing after that. Windows
+takes no keystrokes while a UAC prompt or the lock screen is up: a report it does not take in full ends the
+run with an error, and the end lets go of that report's keys too, and of every modifier.
+`tests/test_sendinput.py` checks its structs against `winuser.h`'s 64-bit layout and its keystrokes against
+a stand-in for `user32.dll`; Windows and the sim are tested on Windows.
 
 [windows/make_zip.py](../../windows/make_zip.py) builds the zip the [Simulator](../using/simulator.md) page
 describes, on Linux: Python's embeddable package for Windows (amd64, pinned by version and SHA-256), whose
