@@ -2,8 +2,7 @@
 
 What each key and knob does, and why it sits where it is. Button numbers for mapping are in
 [BUTTONS.md](../../firmware/BUTTONS.md), how to map them in [Mapping](mapping.md). To try them without a
-panel, the firmware runs on the PC and the browser shows the panel:
-[The panel page](../architecture/firmware.md#the-panel-page).
+panel, the firmware runs on the PC and the browser shows the panel: [Simulator](simulator.md).
 
 ## Principles
 

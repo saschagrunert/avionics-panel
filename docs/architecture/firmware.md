@@ -173,6 +173,8 @@ Run `pytest` from the repository root for the host tests:
 | `tests/test_descriptor.py` | `boot.py`'s report descriptor, parsed, and the simulator's reports read with it |
 | `tests/test_uhid.py` | The simulator as a Linux HID device: descriptor, name and IDs, a key press |
 | `tests/test_page.py` | The panel page's server: actions, its event stream, an error, a page that goes |
+| `tests/test_vjoy.py` | The vJoy output: its struct, every button of both devices, its calls into a stand-in DLL |
+| `tests/test_windows_zip.py` | The simulator's zip for Windows: layout, `._pth`, the simulator run from it |
 | `tests/test_pins.py` | Every pin `code.py` uses, against the nets in `pcb/board.py` |
 | `tests/test_mpy_cross.py` | Every board file, compiled with the board's compiler |
 | `tests/test_mobiflight.py` | The [MobiFlight profiles](../using/mapping.md#generated-profiles): tables, project format, workflows |
@@ -232,27 +234,30 @@ playable in it. It needs Python 3.10 or newer and nothing else. From the reposit
 python3 -m sim.page        # then open the URL it prints, http://127.0.0.1:8000/?sim
 ```
 
-The page shows the panel from above and keeps the view still:
+How the page is played (keys, knobs, pushes, touch, the RANGE tilt, the lights) and how a tablet opens it are
+in [The page](../using/simulator.md#the-page). `--port N` changes the port (8000), `--host 0.0.0.0` serves
+the page to the network, and `--open` opens it in the default browser once it is served. A page that goes,
+also one that drops off the network, lets go of what it holds within a few seconds. `--uhid` also feeds the
+uhid device above, so programs on Linux see the joysticks, and `--vjoy` the vJoy devices below; without them
+the reports go only to the page. The API is described in `sim/page.py`. Opened without `?sim`, as on GitHub
+Pages, the viewer stays the plain 3D view.
 
-- Keys: press with the mouse or a finger; a key stays pressed as long as you hold it.
-- Knobs: the pointer's distance from the knob's middle picks the inner knob or the outer ring round it. The
-  mouse wheel turns that ring, one detent per notch, so a fast spin is a fast turn, and a mouse button pushes
-  the knob as long as it is down. On a touch screen, a finger moved round the knob turns the ring it touched,
-  one detent per 12 degrees as on the panel. A quick tap in the middle pushes the knob; a finger that moves
-  round it, even by a fraction of a detent, never does. A push held by touch is not possible; the mouse can
-  hold one.
-- RANGE turns and pushes like the other knobs; holding one of the four arrows round it tilts it that way.
-- The SHIFT and UNIT lights follow the firmware. The lines at the bottom left say the same in words and show
-  the buttons each joystick reports, by their [BUTTONS.md](../../firmware/BUTTONS.md) names; a button that
-  went off stays there dimmed for a second. A firmware error shows its message; when the program stops, the
-  page says it is disconnected and reconnects once it runs again.
+### vJoy on Windows
 
-Clicking the page takes the keyboard focus from the sim, so run the sim in a window or borderless, not in
-exclusive full screen. `--port N` changes the port (8000). `--host 0.0.0.0` serves the page to the network,
-for a tablet in landscape beside the sim (a phone is too small): open it by the IP address the program
-prints, not by a host name. If that is 127.0.0.1 or a VPN address, use the computer's Wi-Fi address with the
-same port instead. Anyone on that network can then press the keys. A page that goes, also one that
-drops off the network, lets go of what it holds within a few seconds.
-`--uhid` also feeds the uhid device above, so programs on Linux see the joysticks; without it the reports go
-only to the page. The API is described in `sim/page.py`. Opened without `?sim`, as on GitHub Pages, the
-viewer stays the plain 3D view.
+[sim/vjoy.py](../../sim/vjoy.py) feeds vJoy 2.2.2.0 through its `vJoyInterface.dll` with `ctypes`: report ID
+4 goes to vJoy device 1 and ID 5 to device 2, each report as one `UpdateVJD`, so MobiFlight never reads half
+a report. Its struct mirrors `JOYSTICK_POSITION_V3` of vJoy's `SDK/inc/public.h` at the tag `v2.2.2.0`
+(124 bytes; pyvjoy's is an older, shorter one). It acquires both devices at the start, after checking that
+they exist with enough buttons and that no other program owns them. At the end it lets go of every button and
+of the devices: after Ctrl-C, and through a console handler also on Ctrl-Break and when the window closes,
+where Python runs no `finally`. A kill from Task Manager leaves the last buttons down until the next start,
+whose first reports clear them. `python -m sim.vjoy` reads actions from stdin like `sim.uhid`, and
+`python -m sim.page --vjoy` feeds vJoy from the page. `tests/test_vjoy.py` checks it on Linux against the
+header's layout, `boot.py`'s descriptor, BUTTONS.md and stand-ins for the DLL and the console; the DLL itself
+and MobiFlight are tested on Windows.
+
+[windows/make_zip.py](../../windows/make_zip.py) builds the zip the [Simulator](../using/simulator.md) page
+describes, on Linux: Python's embeddable package for Windows (amd64, pinned by version and SHA-256), whose
+`._pth` file gets the zip's folder, with `firmware/`, `sim/`, `viewer/` and the batch files in `windows/`.
+The `windows` workflow builds it for every pull request and push to main, keeps it as an artifact of the run,
+and attaches it to every published release.

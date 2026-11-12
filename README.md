@@ -43,6 +43,8 @@ Using the panel:
   Bendix/King, by aircraft
 - [Mapping](docs/using/mapping.md): the two joysticks,
   [generated profiles](docs/using/mapping.md#generated-profiles), update mode and GUIDs, the device name
+- [Simulator](docs/using/simulator.md): the panel on the PC before the hardware exists, in the browser and as
+  two virtual joysticks (vJoy) for MobiFlight
 
 Building one, in build order:
 

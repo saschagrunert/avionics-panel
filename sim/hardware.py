@@ -330,7 +330,7 @@ class Board:
         """Runs firmware/<name> with the stand-ins as its modules, imported in that file only (sys.modules stays as
         it is). edits: (old, new) source text, each once. A module set to None is one the build lacks."""
         path = os.path.join(FIRMWARE, name)
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             source = f.read()
         for old, new in edits:
             assert source.count(old) == 1, old

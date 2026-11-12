@@ -5,10 +5,10 @@ console) is not there.
 
     python3 -m sim.uhid
 
-reads actions from stdin, one per line (LINES), such as `tap AP`, `tap AP 500` (held 500 ms), `turn FREQ_INNER 3`,
-`tilt UP 500`, `press SHIFT`, `release SHIFT` or `wait 1000`; a turn is 30 detents at most (sim.live.TURN_MAX, a
-turn of the knob). `lights` prints the duty of both lights once the actions before it have taken effect. The end
-of the input ends it, after the actions have run.
+reads actions from stdin, one per line (sim.live.LINES), such as `tap AP`, `tap AP 500` (held 500 ms),
+`turn FREQ_INNER 3`, `tilt UP 500`, `press SHIFT`, `release SHIFT` or `wait 1000`; a turn is 30 detents at most
+(sim.live.TURN_MAX, a turn of the knob). `lights` prints the duty of both lights once the actions before it have
+taken effect. The end of the input ends it, after the actions have run.
 
 It needs write access to /dev/uhid: run it as root, or give your user access with a udev rule, which lets it
 create any HID device, keyboards included.
@@ -21,7 +21,7 @@ import struct
 import sys
 import threading
 
-from sim.live import SETTLE_MS, USAGE, Live, parse
+from sim.live import Live, from_stdin
 
 # <linux/uhid.h>
 UHID_START, UHID_GET_REPORT, UHID_GET_REPORT_REPLY, UHID_CREATE2, UHID_INPUT2 = 2, 9, 10, 11, 12
@@ -30,7 +30,6 @@ EVENT_SIZE = 4376          # sizeof(struct uhid_event)
 BUS_USB = 3
 VID, PID = 0x239A, 0x80F4  # CircuitPython's Raspberry Pi Pico build (docs/using/mapping.md): boot.py keeps them
 VERSION = 0x0100           # bcdDevice
-LINES = {**USAGE, "lights": "lights"}   # what stdin takes
 
 
 class Uhid:
@@ -98,31 +97,7 @@ def main(argv=None):
     except OSError as e:
         sys.exit(f"sim.uhid: {e}")
     print(f"{uhid.name} on uhid; actions, one per line:", file=sys.stderr)
-    sys.stdin.reconfigure(errors="replace")
-    live.start(uhid.send)
-    try:
-        try:
-            for line in sys.stdin:
-                try:
-                    action = parse(line, LINES)
-                    if action and action[0] == "lights":
-                        live.act("wait", SETTLE_MS)
-                        live.do(lambda b: print(f"SHIFT {b.light('SHIFT'):#06x} UNIT {b.light('UNIT'):#06x}",
-                                                flush=True))
-                    elif action:
-                        live.act(action[0], *action[1])
-                except ValueError as e:
-                    print(f"{line.strip()}: {e}", file=sys.stderr)
-            live.idle()
-        finally:
-            try:
-                live.stop()
-            finally:
-                uhid.close()
-    except KeyboardInterrupt:
-        pass
-    except Exception as e:                             # the panel stopped: the output or code.py itself failed
-        sys.exit(f"sim.uhid: {e.__cause__ or e}")
+    from_stdin(live, uhid, "sim.uhid")
 
 
 if __name__ == "__main__":
