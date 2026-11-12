@@ -8,7 +8,8 @@ come from stack.py (datasheet shaft dimensions); each part has its bottom at z =
   inner knob  dia 12, all three: D bore on the 3.5 mm inner shaft. The bore bottom sits on the shaft tip,
               so a push goes straight to the switch.
   RANGE knob  dia 13.6 with a 17.3 skirt over the 11.1 mm plate hole, D bore on the RKJXT lever; the underside
-              is dished from the hub to the skirt's rim, so the rim clears the plate at full tilt.
+              is dished from the hub to the skirt's rim, so the rim clears the plate at full tilt, cocked on the
+              lever by its play and pushed.
   light pipes clear resin, stepped: a base that stands on the board over the LED's cutout, up to a shoulder
               under the plate back, and the rod through the plate hole; captive, no glue. Both are printed as
               one part on a snap-off bar under their bases (JLC3DP's minimum resin part is 10 x 2 x 2 mm), on
@@ -41,12 +42,12 @@ def outer_key_z0():
 
 def outer_counterbore_top():
     """top of the counterbore round the fixed bushing, above the outer knob's bottom."""
-    return S.SLEEVE_TOP - S.PLATE_Z1 - S.OUTER_KNOB["z0"] + S.SLEEVE_CLEAR
+    return S.SLEEVE_TOP - S.PLATE_Z1 - S.OUTER_KNOB["z0"] + S.SLEEVE_CLEAR["above"]
 
 
 def outer_counterbore_d():
     """diameter of the counterbore round the fixed bushing."""
-    return S.SLEEVE_D + 2 * S.SLEEVE_CLEAR
+    return S.SLEEVE_D + 2 * S.SLEEVE_CLEAR["radial"]
 
 
 def outer_knob(flutes="outer", fit=S.FIT):

@@ -23,9 +23,10 @@ shared shortcut by the function it stands for (canonical()).
 """
 from sim.hardware import BM, RINGS, SWITCHES, Board, keys
 
-START_MS = 107       # the scenario starts this long after code.py, off the keypads' 20 ms scans
+START_MS = 107       # the scenario starts this long after code.py, off the keypads' 19.5 ms scans
 PATTERN_MS = 960     # ... and this much later in keyboard mode, after its start pattern (keys.START, 6 x 152 ms
-                     # here): a multiple of the 3 ms pass and the 20 ms key scan, so it meets both in the same phase
+                     # here): a multiple of the 3 ms pass, so it meets the passes in the same phase (the 19.5 ms
+                     # key scans in another, which no workflow depends on)
 PASS_MS = 3          # a loop pass: its 1 ms sleep plus its own run time (a few ms, docs/using/controls.md)
 TAP_MS = 100         # a tap holds a key or push this long ...
 PAUSE_MS = 300       # ... and the next action follows this long after its release

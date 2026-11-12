@@ -173,9 +173,11 @@ def hollow():
 # It runs on up through the top of the wall as a slot of the same width: JLC's C165948 puts the socket face 0.52
 # past the board edge, level with the cavity wall, so a solid wall above the opening would stop the socket while the
 # body goes on. The plate's tongue (stack.USB_TONGUE) hangs into the slot and is the opening's top edge.
-# z: the middle of the socket; h: from the bottom at -7.4 up to 1.0, where the tongue ends on the lowest plate.
-USB_OPEN = dict(w=16.2, h=8.4, r=0.5, z=-S.PCB_T - 1.6)
-USB_PLUG = (12.35, 6.5)             # USB-C spec: the plug's overmould, at most (width, height)
+# z, h: from the bottom at -7.7 up to 1.0, where the tongue ends on the lowest plate.
+USB_OPEN = dict(w=16.8, h=8.7, r=0.5, z=-S.PCB_T - 1.75)
+# USB Type-C R2.5, Figure 3-3: the plug's overmould is at most 12.85 wide and 7.0 high. A larger or angled plug
+# does not pass the 2 mm wall far enough to seat (docs/building/ordering.md: the cable).
+USB_PLUG = (12.85, 7.0)
 # solid down to the desk plane under the USB-C opening, 0.8 wider than it on each side: no thin floor between the
 # opening and the hollow
 USB_KEEP = (USB_OPEN["w"] + 1.6, 3.0)   # width, board y up to which the floor stays solid
@@ -210,8 +212,11 @@ def body():
     hw = S.MID_BAR["w"] / 2
     shell = fuse(shell, box(mx - hw, my - BOSS_R_LOW, Z_FLOOR_TOP - 0.1, mx + hw, my + BOSS_R_LOW,
                             -S.PCB_T - JOIN_SHORT))
-    for (mx, my) in B.MOUNTS:          # the round boss that bears on the PCB, at all five
-        shell = fuse(shell, cyl(BOSS_R, S.SEAT_Z - 0.1, -S.PCB_T, mx, my))
+    # the round boss that bears on the PCB, at all five, inside the board's outline: at a corner it would touch the
+    # cavity walls along a line, which leaves the mesh non-manifold there
+    board = rrect_prism(cx, cy, B.W, B.H, B.CORNER_R, S.SEAT_Z - 1, 0)
+    for (mx, my) in B.MOUNTS:
+        shell = fuse(shell, common(cyl(BOSS_R, S.SEAT_Z - 0.1, -S.PCB_T, mx, my), board))
     for (px, py) in SUPPORTS:          # just under the PCB: a backstop for a press beside the middle column
         shell = fuse(shell, cyl(SUPPORT_R, Z_FLOOR_TOP - 0.5, SUPPORT_TOP, px, py))
     holes = [wedge_cutter(), hollow(), usb_cutter(), cyl(BOOT_HOLE / 2, -41, 0, *B.BOOT)]

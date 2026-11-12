@@ -150,7 +150,10 @@ class Panel:
         session, SHIFT taps and the key a tap armed included; another knob does (_knob_shift). A release still
         waiting out BOUNCE_MS counts as held: it may be a bounce (docs/architecture/firmware.md)."""
         knob = self._kept()
-        return knob if knob in self.holds.values() else None
+        for src in self.holds:                             # not in values(): no view per tick
+            if self.holds[src] == knob:
+                return knob
+        return None
 
     def _knob_shift(self, knob, t):
         """SHIFT for a knob action: armed SHIFT or this knob's own shifted session. Starts/extends it."""
@@ -360,7 +363,9 @@ class Panel:
             self._next(t)
 
     def _repeat(self, t):
-        for src in list(self.repeat):                      # a copy: a session that ended drops its entry
+        # in a fixed order, by source name, not the dict's: CircuitPython's dicts keep no insertion order, and
+        # repeats due in the same pass queue in this order (the second one may find the queue full)
+        for src in sorted(self.repeat):                    # a copy: a session that ended drops its entry
             r = self.repeat[src]
             dev, button, nxt, every = r
             if src in self.holds and self._kept() != self.holds[src]:
@@ -425,3 +430,12 @@ class Panel:
             if self.shown[k][0]:
                 return k
         return None
+
+    def fill_report(self, dev, report):
+        """One device's HID report, in place: a bit per button, set while it is pressed (buttons(), without a set
+        or a view: code.py calls this for both devices in every pass)"""
+        for i in range(len(report)):
+            report[i] = 0
+        for k in self.shown:
+            if k[0] == dev and self.shown[k][0]:
+                report[k[1] >> 3] |= 1 << (k[1] & 7)

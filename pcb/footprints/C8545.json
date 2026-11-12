@@ -1,0 +1,17 @@
+{
+ "lcsc": "C8545",
+ "title": "2N7002",
+ "package": "SOT-23-3_L2.9-W1.3-P1.90-LS2.4-BR",
+ "source": "JLCPCB / EasyEDA library footprint, https://easyeda.com/api/products/C8545/components, fetched 2026-11-12",
+ "frame": "top view, mm, x right, y down, from the footprint origin; pads: number, x, y, size x, size y; pins: pad number, the pin's name in JLC's symbol",
+ "pads": [
+  ["1", 1.0, 0.95, 1.0, 0.65],
+  ["2", 1.0, -0.95, 1.0, 0.65],
+  ["3", -1.0, 0.0, 1.0, 0.65]
+ ],
+ "pins": [
+  ["1", "G"],
+  ["2", "S"],
+  ["3", "D"]
+ ]
+}

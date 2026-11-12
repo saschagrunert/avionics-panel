@@ -72,6 +72,8 @@ PLANES = {"In1": "GND", "In2": "3V3"}
 KEY_DX, KEY_DY, KEY_PAD, KEY_DRILL = 3.25, 2.25, 1.8, 1.0
 DIO_DX, DIO_W, DIO_H = 1.65, 1.0, 1.3
 ENC_PAD, ENC_DRILL = 1.8, 1.2   # Bourns PEC11D: pin holes 1.2 +0.1/-0
+# the encoders' lug slots, Bourns' recommended 1.5 x 2.6 (+0.1 / -0) and JLC's own footprint's: 1.73 long to 1
+# wide, under JLCPCB's 2:1 for slots, but 1.3 wide or 3.0 long would leave both (ordering.md's review questions)
 SLOT = (1.5, 2.6)
 
 COL_PITCH = 11.85
@@ -101,6 +103,9 @@ LEDS = {"SHIFT": ((COLS[3], ROWS[3] + 5.75), "GP12", "amber"),
 # The LEDs that lie with the cathode east and the anode and the series resistor west (add_led); the others have
 # the cathode west. UNIT: east of it the resistor would lie on the column 4 bus, 4.7 mm from the LED's centre.
 LED_CATHODE_EAST = {"UNIT"}
+# The LEDs switched by a low-side N-FET from VBUS_F instead of driven from their GPIO (add_led_switch): the FET's
+# place, in the free band between key rows 1 and 2 above the LED, clear of the body's post and middle column
+LED_SWITCH = {"UNIT": (87.0, 31.5)}
 # The cutout under each LED: 2.2 mm along the pads by 2.4 mm across, R0.5 corners (a 1.0 mm router), round LiteOn's
 # 1.5 x 1.6 mm lens (LiteOn's land pattern: 2.1 x 2.3, sharp corners); in the Edge_Cuts layer. The pads stop
 # LED_CUT_CLEAR short of it, JLCPCB's copper-to-routed-edge minimum, and still reach 0.3 mm under the terminals on
@@ -234,11 +239,11 @@ def chip(pads, ref, x, y, net1, net2, value, lcsc, vertical=False, size="0603", 
     return (x - dx, y - dy), (x + dx, y + dy)
 
 
-def plane_via(pad_xy, net, dx, dy):
+def plane_via(pad_xy, net, dx, dy, d=VIA_D):
     """Short stub from an SMD pad to a via into the GND / 3V3 plane."""
     x, y = pad_xy
     seg(x, y, x + dx, y + dy, net, "B", 0.3)
-    via(x + dx, y + dy, net)
+    via(x + dx, y + dy, net, d)
 
 
 def add_diode(pads, name, x, y, anode, cathode):
@@ -296,39 +301,68 @@ def add_rkjxt(pads, ref, cx, cy, enc_a, enc_b):
     part(ref, "RKJXT1F42001", "C160841", cx, cy, side="top")
 
 
-def add_led(pads, name, x, y, gpio, colour, cathode_east=False):
+def add_led(pads, name, x, y, gpio, colour, cathode_east=False, switch=None):
     """Reverse-mount 1206 LED on the bottom under a light pipe, its lens up in a cutout through the board, and its
     series resistor beside it. LiteOn's C230 package (LTST-C230KSKT amber, LTW-C230DS white), pad 1 of JLC's
     footprint the cathode: cathode west and anode east (pad 1 on the left, rotation 180 on the bottom), or with
-    cathode_east the mirror image (pad 1 on the right, rotation 0)."""
+    cathode_east the mirror image (pad 1 on the right, rotation 0). The cathode goes to GND and the resistor to the
+    GPIO, or with switch (the FET's place) the cathode to the FET and the resistor to VBUS_F (add_led_switch)."""
     w, h, r = LED_CUTOUT
     CUTOUTS.append((x, y, w, h, r))
     pl, pw = LED_PAD
     off = w / 2 + LED_CUT_CLEAR + pl / 2
     k = 1 if cathode_east else -1                           # the cathode's side: +1 east, -1 west
-    anode = f"LED_{name}_A"
-    pads.append(smd(f"LED_{name}.K", "GND", x + k * off, y, pl, pw))
+    anode, cathode = f"LED_{name}_A", f"LED_{name}_K" if switch else "GND"
+    pads.append(smd(f"LED_{name}.K", cathode, x + k * off, y, pl, pw))
     pads.append(smd(f"LED_{name}.A", anode, x - k * off, y, pl, pw))
-    plane_via((x + k * off, y), "GND", k * (pl / 2 + 0.95), 0)   # beyond the cathode, room for the silk bar between
+    if not switch:                                      # beyond the cathode, room for the silk bar between
+        plane_via((x + k * off, y), "GND", k * (pl / 2 + 0.95), 0)
     # Amber about 13.5 mA from GP12 at 12 mA drive strength (the firmware sets it), 75 R (the basic part between 51
     # and 100): 6.8 to 17.2 mA over the GPIO's output resistance and the LED's forward voltage (the low end with
-    # 2.4 V across the LED and the pad's 57 ohm at most: (3.3 - 2.4) / (75 + 57)), under its 30 mA. White: forward
-    # voltage 2.8 to 3.6 V at 20 mA (+-0.1 per bin), close to the 3.3 V supply, and 20 mA DC at most. 47 R
-    # keeps it at 15.3 mA at full duty in the worst case: the supply at 3.3 V + 2 % (XC6206P332), the lowest
-    # forward voltage (the 2.8 V bin less 0.1 V), no resistance in the GPIO and the resistor 1 % low. A typical LED
-    # (3.2 V at 20 mA) on 3.3 V gets about 4.9 mA, with 25 ohm in the GPIO. Both figures assume the forward
-    # voltage falls by 0.415 V per decade of current below 20 mA; the worst case stays under 20 mA whatever the
-    # slope, since at 20 mA the resistor alone would need 0.93 V where 0.67 V is left. The firmware sets both
+    # 2.4 V across the LED and the pad's 57 ohm at most: (3.3 - 2.4) / (75 + 57)), under its 30 mA.
+    # White: forward voltage 2.8 to 3.6 V at 20 mA (+-0.1 per bin, and JLCPCB cannot choose the bin), too close to
+    # the 3.3 V supply: on a GPIO a top-bin part got 1 to 2 mA. So it runs from VBUS_F (4.23 to 5.5 V: USB's 4.40
+    # to 5.5 V less up to 0.17 V over R_IN and the fuse) through 390 R and the FET. A typical LED (3.2 V at 20 mA)
+    # on 5.0 V gets 5.0 mA, the 2.8 V and 3.6 V bins 6.0 and 4.1 mA; the extremes are 2.2 mA (4.40 V, 3.7 V, the
+    # resistor 1 % high, 24 ohm in a FET at its highest threshold, below) and 7.7 mA (5.5 V, 2.7 V, 1 % low, the
+    # FET at 0 ohm). These assume the forward voltage falls by 0.415 V per decade of current below 20 mA; whatever
+    # the slope, the current stays under 5.5 V / 386 ohm = 14.2 mA, below the LED's 20 mA. The firmware sets both
     # brightnesses with PWM (docs/architecture/electronics.md).
     led_part, lcsc, res, res_lcsc = {"amber": ("LTST-C230KSKT", "C125108", "75R", "C4275"),
-                                     "white": ("LTW-C230DS", "C575513", "47R", "C23182")}[colour]
+                                     "white": ("LTW-C230DS", "C575513", "390R", "C23151")}[colour]
     part(f"LED_{name}", led_part, lcsc, x, y, 0 if cathode_east else 180, foot="1206 reverse")
-    # The resistor in line beyond the anode pad, its anode end 0.3 mm from it (the same net) and its GPIO end
-    # beyond. Beside, not below: SHIFT is near the board edge, every part body but J1's stays 2.5 mm from it
+    # The resistor in line beyond the anode pad, its anode end 0.3 mm from it (the same net) and its GPIO (VBUS_F)
+    # end beyond. Beside, not below: SHIFT is near the board edge, every part body but J1's stays 2.5 mm from it
     # (JLCPCB's terms).
     roff, rlen, _ = CHIP["0603"]
-    chip(pads, f"R_{name}", x - k * (off + pl / 2 + 0.3 + rlen / 2 + roff), y, gpio, anode, res, res_lcsc,
-         flip=not cathode_east)
+    chip(pads, f"R_{name}", x - k * (off + pl / 2 + 0.3 + rlen / 2 + roff), y, "VBUS_F" if switch else gpio, anode,
+         res, res_lcsc, flip=not cathode_east)
+    if switch:
+        add_led_switch(pads, name, *switch, gpio, cathode)
+
+
+# The low-side switch of an LED on VBUS_F: a 2N7002 (basic part; threshold 1.0 to 2.5 V, at most 7 ohm at 5 V gate
+# and 50 mA) between the LED's cathode and GND, its gate on the GPIO, so the GPIO high still lights the LED. 3.23 V
+# on the gate (the regulator's low end) leaves 0.73 V over the highest threshold: about 15 mA at least in
+# saturation and 24 ohm at most at the LED's few mA (square law from 7 ohm at 5 V and 2.5 V over the threshold), so
+# the LED's current is set by its resistor. The 10 k pull-down holds the gate low while the pin floats (from reset
+# until code.py drives it), so the LED stays off; with the pin high it takes 0.33 mA. JLC's footprint of C8545: pad
+# 1 G and pad 2 S on one side, pad 3 D on the other; at rotation 90 on the bottom, seen from the top, D is south
+# (towards the LED), G north-west and S north-east.
+def add_led_switch(pads, name, qx, qy, gpio, drain):
+    ref = f"Q_{name}"
+    pads.append(smd(f"{ref}.1", gpio, qx - 0.95, qy - 1.0, 0.65, 1.0))
+    pads.append(smd(f"{ref}.2", "GND", qx + 0.95, qy - 1.0, 0.65, 1.0))
+    pads.append(smd(f"{ref}.3", drain, qx, qy + 1.0, 0.65, 1.0))
+    part(ref, "2N7002", "C8545", qx, qy, 90, foot="SOT-23")
+    plane_via((qx + 0.95, qy - 1.0), "GND", 0, -1.2)
+    # the pull-down west of the gate, in line with it (its GND end west, its own via south of it)
+    roff, rlen, _ = CHIP["0603"]
+    gnd, g = chip(pads, f"R_{name}_PD", qx - 0.95 - 0.325 - 0.375 - rlen / 2 - roff, qy - 1.0, "GND", gpio, "10k",
+                  "C25804")
+    seg(*g, qx - 0.95, qy - 1.0, gpio, "B", TRACE_W)
+    plane_via(gnd, "GND", 0, 1.2)
+    JOINED.update((f"{ref}.2", f"R_{name}_PD.2"))   # on the gate's (the GPIO's) and the GND via's fixed copper
 
 
 # ---------------- RP2040 (bottom side, mirrored top-to-bottom) ----------------
@@ -380,6 +414,9 @@ def add_rp2040(pads):
         seg(sx, sy, ex, ey, net)
         pads.append(smd(f"U1.F{pin}", net, ex, ey, 0.3, 0.3, "circle", paste=False, mask=False))   # breakout point
     pads.append(smd("U1.EP", "GND", mx, my, 3.2, 3.2, "rect", paste=False))
+    # its four GND vias: tented on the top, open on the bottom inside the pad's mask opening, in the cross between
+    # its four paste windows (make.py EP_WINDOWS), each hole 0.25 mm from them. Some solder may run into them;
+    # JLCPCB X-rays the QFN, and filled and capped vias would cost extra for little.
     for vx, vy in ((-0.8, 0), (0.8, 0), (0, -0.8), (0, 0.8)):
         via(mx + vx, my + vy, "GND")
     inner = 2.45
@@ -419,9 +456,10 @@ def add_rp2040(pads):
                 p.y -= 0.8
             p.w = p.h = 0.7 if m.group(1) == "25" else 0.6
             p.mask = p.layers                               # exposed: the probe wires solder here
-    # west and east fan-out ends get a via (matrix: the last mile comes in on F)
+    # west and east fan-out ends get a via (matrix: the last mile comes in on F); GP25's ends in its series
+    # resistor instead (add_gp25_resistor)
     for p in list(pads):
-        if re.match(r"U1\.F\d+$", p.name) and abs(p.x - mx) > FAN_END:
+        if re.match(r"U1\.F\d+$", p.name) and abs(p.x - mx) > FAN_END and p.net != "GP25":
             via(p.x, p.y, p.net, SVIA_D, SVIA_DRILL)
             if p.net in BUS_NETS:
                 BUS_COPPER.append(("via",) + FIXED_VIAS[-1])
@@ -430,6 +468,23 @@ def add_rp2040(pads):
     p = next(p for p in pads if p.name == f"U1.F{next(k for k, n in RP.items() if n == PUSH_GP['FREQ'])}")
     via(p.x, p.y, p.net, SVIA_D, SVIA_DRILL)
     p.layers = "F"
+    add_gp25_resistor(pads)
+
+
+# GP25 is the FREQ outer ring's B line and, on the stock Pico build of CircuitPython the panel runs, the status LED
+# (MICROPY_HW_LED_STATUS): CircuitPython drives it high, push-pull, at 12 mA drive strength, while it starts (4 x
+# 125 ms after each power-up), on entering the REPL and in endless blinks after an error in code.py and in safe mode.
+# Half the encoder's detents rest with B closed to GND (C), so straight on the contact that is a short of well over
+# 30 mA (RP2040 datasheet figure 171), against the PEC11D's 10 mA contact rating and 50 mA for all GPIOs together.
+# R_GP25 (1 k) in series limits it to 3.3 mA; against rotaryio's 50 to 80 k pull-up a closed contact still reads at
+# most 3.3 V x 1 / 51 = 0.07 V, far under the 0.8 V input low limit. It sits at the end of GP25's fan-out, in place
+# of the via there, so the whole line out to the encoder (GP25_R) is behind it.
+def add_gp25_resistor(pads):
+    p = next(p for p in pads if p.name == f"U1.F{next(k for k, n in RP.items() if n == 'GP25')}")
+    off = CHIP["0603"][0]
+    a, _ = chip(pads, "R_GP25", p.x + 0.7 + off, p.y, "GP25", "GP25_R", "1k", "C21190")
+    seg(p.x, p.y, *a, "GP25", "B", FAN_W)
+    JOINED.add("R_GP25.1")
 
 
 # ---------------- USB-C on the bottom ----------------
@@ -448,14 +503,16 @@ def add_usb(pads):
     for s in (-1, 1):
         # shell pads 1.2 wide, as in JLC's footprint; pin-in-paste: paste over the whole pad on the bottom. That
         # is about 0.12 mm3 of solder for about 0.8 mm3 of slot, a bottom fillet at most: the four tabs, which
-        # take the plug's load, are soldered from the top by hand as well (docs/building/assembly.md)
-        pads.append(Pad(f"J1.SH{s}a", "GND", cx + s * 4.325, 6.28, "obround", 1.2, 2.0, "FB",
+        # take the plug's load, are soldered from the top by hand as well (docs/building/assembly.md). Each pad
+        # reaches 0.2 mm beyond the ends of its slot, JLCPCB's recommended ring (JLC's footprint: 0.15 at the rear
+        # pair).
+        pads.append(Pad(f"J1.SH{s}a", "GND", cx + s * 4.325, 6.28, "obround", 1.2, 2.1, "FB",
                         drill=0.6, slot=(0.6, 1.7), pip=True))
         pads.append(Pad(f"J1.SH{s}b", "GND", cx + s * 4.325, 2.10, "obround", 1.2, 1.8, "FB",
                         drill=0.6, slot=(0.6, 1.4), pip=True))
         NPTH.append((cx + s * 2.89, 5.79, 0.6))
     ye = yc + L / 2                     # 7.70: pad ends, the breakout starts here
-    yv = ye + 0.55                      # small vias just below the pads
+    yv = VBUS_VIA_Y                     # small vias just below the pads
     plane_via((cx - 3.2, ye), "GND", 0, 0.82)
     # B1A12 shares C_IN's GND via (add_support): its own, below the pad, would sit on R_IN
     seg(cx + 3.2, ye, LDO[0] - 3.4, LDO[1], "GND", "B", 0.3)
@@ -475,9 +532,10 @@ def add_usb(pads):
     a, b = chip(pads, "R_CC1", cx - 3.4, 10.4, "CC1", "GND", "5.1k", "C23186", vertical=True)
     plane_via(b, "GND", -1.0, 0)
     path("CC1", [(cx - 1.25, ye), (cx - 1.25, 9.1), (cx - 1.75, a[1]), a])
-    # (an 0402 below the fuse, clear of the crystal)
+    # (an 0402 below the fuse, clear of the crystal). Its GND pad shares the crystal's GND via (add_crystal): a via
+    # of its own sat 0.02 mm from that one.
     a, b = chip(pads, "R_CC2", cx + 2.9, 13.45, "CC2", "GND", "5.1k", "C25905", size="0402")
-    plane_via(b, "GND", 0.8, 0)
+    seg(*b, *XTAL_GND_VIA, "GND", "B", 0.3)
     path("CC2", [(cx + 1.75, ye), (cx + 1.75, a[1] - 0.25), (cx + 2.0, a[1]), a])
     JOINED.update(("R_CC1.1", "R_CC2.1"))
     add_protection(pads)
@@ -499,6 +557,9 @@ ESD_PX, ESD_PY = 0.95, 1.2          # SOT-23-6: pad columns 0.95 apart, rows 2.4
 FUSE = (131.0, 12.05)               # F1 centre: its pin 1 under R_IN, clear of CC2 to the west
 R_IN = (129.55, 9.8)                # R_IN centre (0603, vertical): in B4A9's line, between its via and the fuse
 FUSE_PX = 1.5                       # pad centres east and west of FUSE (Bourns: 1.0 x 1.6 pads, 2.0 apart)
+# The two VBUS vias below J1's VBUS contacts: the one in B4A9's line keeps a 0.13 mm strip of solder mask to
+# R_IN's pad opening below it (check.py: tented vias), and both keep as much to the contacts' openings above
+VBUS_VIA_Y = 8.15
 
 
 def add_protection(pads):
@@ -524,7 +585,7 @@ def add_protection(pads):
         path(net, [(x, yi), (x, yx)], w=0.2)
     # VCC: a small via between the lines, right above pin 5, and over the top layer east to a via on the VBUS_F
     # line from the fuse to the regulator (add_support: down from C_IN's pad row at 45 degrees to U3's VIN)
-    yc5 = yi - 0.6 - 0.15 - SVIA_D / 2              # 0.15 mm from pin 5's pad
+    yc5 = yi - 0.6 - 0.165 - SVIA_D / 2             # 0.165 mm from pin 5's pad: 0.13 of mask to its opening
     via(ex, yc5, "VBUS_F", SVIA_D, SVIA_DRILL)
     path("VBUS_F", [(ex, yc5), (ex, yi)], w=0.3)
     vf = (FUSE[0] + FUSE_PX + 0.4, LDO[1] + 1.2)    # on that line, 0.275 mm from C_IN's pad
@@ -539,7 +600,7 @@ def add_protection(pads):
     # the series path does the same, and only here, in B4A9's line above the fuse, is there room for it.
     a, b = chip(pads, "R_IN", *R_IN, "VBUS", "VBUS_R", "1R", "C22936", vertical=True)
     fx, fy = FUSE
-    seg(cx + 2.4, yv, *a, "VBUS", "B", 0.4)
+    seg(cx + 2.4, VBUS_VIA_Y, *a, "VBUS", "B", 0.4)
     seg(*b, fx - FUSE_PX, fy, "VBUS_R", "B", 0.4)
     pads.append(smd("F1.1", "VBUS_R", fx - FUSE_PX, fy, 1.0, 1.6))
     pads.append(smd("F1.2", "VBUS_F", fx + FUSE_PX, fy, 1.0, 1.6))
@@ -558,8 +619,9 @@ LDO_PX = 1.2                    # U3's pad centres east and west of LDO (add_sup
 # Nominal package bodies of the bottom-side parts by footprint name: (x, y) in JLC's footprint frame at
 # rotation 0, swapped at 90 / 270. From JLC's package names where they give them (SOT-23-3_L2.9-W1.6,
 # SOT-23-6_L2.9-W1.6, SOP-8_L4.9-W3.9, SOD-123F_L2.7-W1.6, CRYSTAL-SMD_4P-L3.2-W2.5, LQFN-56_L7.0-W7.0), which
-# match the datasheets' nominal sizes; the chips at their EIA sizes (0603: 1.6 x 0.8, 0402: 1.0 x 0.5, the PTC
-# fuse's 1206: 3.2 x 1.6, Bourns 3.0 to 3.4 x 1.4 to 1.8); J1 is J1_BODY.
+# match the datasheets' nominal sizes (the 2N7002's SOT-23-3_L2.9-W1.3 fits in the regulator's); the chips at their
+# EIA sizes (0603: 1.6 x 0.8, 0402: 1.0 x 0.5, the PTC fuse's 1206: 3.2 x 1.6, Bourns 3.0 to 3.4 x 1.4 to 1.8); J1
+# is J1_BODY.
 # Leads reaching past a body (SOT-23, SOIC, SOD-123) sit on their pads: precheck.py keeps every body BODY_GAP
 # clear of every other body and of every pad of another part.
 BODY = {"0603": (1.6, 0.8), "0402": (1.0, 0.5), "1206": (3.2, 1.6), "SOD-123": (2.7, 1.6), "SOT-23": (1.6, 2.9),
@@ -583,6 +645,7 @@ def bodies():
         out[ref] = (x - w / 2, y - h / 2, x + w / 2, y + h / 2)
     return out
 XTAL = (130.7, 15.6)                # crystal centre, over the XIN fan-out end
+XTAL_GND_VIA = (XTAL[0] + 1.1, XTAL[1] - 2.0)    # above the crystal's top-right GND pad; R_CC2's GND pad shares it
 
 
 def build():
@@ -616,13 +679,14 @@ def build():
     # GP18-21 ALT/HDG (north, then west over the top), GP22-25 FREQ, GP26/27 + GP16/17 FMS, GP28/29 RANGE (south, west)
     enc = ("PEC11D-4120F-S0015", "C19270361")
     add_encoder(pads, "ENC_ALTHDG", *ALTHDG, True, "GP18", "GP19", "GP20", "GP21", "ALTHDG_K", *enc)
-    add_encoder(pads, "ENC_FREQ", *FREQ, True, "GP24", "GP25", "GP22", "GP23", PUSH_GP["FREQ"], *enc, push_d="GND")
+    # (FREQ's outer B line is GP25 behind its series resistor, add_gp25_resistor)
+    add_encoder(pads, "ENC_FREQ", *FREQ, True, "GP24", "GP25_R", "GP22", "GP23", PUSH_GP["FREQ"], *enc, push_d="GND")
     add_encoder(pads, "ENC_FMS", *FMS, True, "GP26", "GP27", "GP16", "GP17", "FMS_K", *enc)
     add_diode(pads, "D_FMS", FMS[0], FMS[1] + 3.0, COL_GP[R4_COL["FMS"]], "FMS_K")      # under the knob
     add_diode(pads, "D_ALTHDG", ALTHDG[0], ALTHDG[1] + 3.0, COL_GP[R4_COL["ALTHDG"]], "ALTHDG_K")      # under the knob
     add_rkjxt(pads, "RANGE", *RANGE, "GP28", "GP29")
     for name, ((lx, ly), gp, colour) in LEDS.items():
-        add_led(pads, name, lx, ly, gp, colour, cathode_east=name in LED_CATHODE_EAST)
+        add_led(pads, name, lx, ly, gp, colour, cathode_east=name in LED_CATHODE_EAST, switch=LED_SWITCH.get(name))
     # BOOT: bridge pads (QSPI_SS via R_BOOT), bridged with a small screwdriver through the body floor
     bx, by = BOOT
     pads.append(smd("JP_BOOT.1", "BOOT_SW", bx - 0.9, by, 1.2, 1.8, paste=False))
@@ -694,7 +758,7 @@ def add_support(pads):
     # 0.15 to 0.7 ohm; its other assumptions and its peaks are in docs/architecture/electronics.md. 10 uF is
     # USB 2.0's limit for a device at attach, and the regulator's output capacitors add to it.
     a, b = chip(pads, "C_IN", lx - 2.5, ly + 0.8, "GND", "VBUS_F", "10uF", "C19702", vertical=True)
-    plane_via(a, "GND", -0.9, 0)
+    plane_via(a, "GND", -0.9, 0, SVIA_D)            # small: a 0.13 mm mask strip to C_IN's GND pad opening
     vx = lx - px                        # U3's VIN pad centre
     fx = FUSE[0] + FUSE_PX              # the fuse's VBUS_F pad
     path("VBUS_F", [b, (fx, b[1]), (vx, b[1] - (vx - fx)), (vx, ly)], w=0.4)
@@ -753,7 +817,7 @@ def add_crystal(pads):
     pads.append(smd("Y1.3", "XIN", yx - 1.1, yy - 0.8, 1.4, 1.2))
     pads.append(smd("Y1.4", "GND", yx + 1.1, yy - 0.8, 1.4, 1.2))
     part("Y1", "ABM8-272-T3 12MHz", "C20625731", yx, yy, 0, foot="3225 4-pad")
-    plane_via((yx + 1.1, yy - 0.8), "GND", 0, -1.2)
+    plane_via((yx + 1.1, yy - 0.8), "GND", 0, XTAL_GND_VIA[1] - (yy - 0.8))
     cx, rx = yx - 2.8, yx + 3.1                         # C_X1 west of the crystal, R_X and C_X2 east of it
     a, b = chip(pads, "C_X1", cx, yy, "XIN", "GND", "15pF", "C1644", vertical=True)
     seg(*a, yx - 1.1, yy - 0.8, "XIN", "B", TRACE_W)
@@ -788,9 +852,11 @@ def add_core_caps(pads):
         chip(pads, name, x, yf + 0.65, "1V1", "GND", val, lc, vertical=True, size="0402")
     # down, then clear of pin 46's fan-out
     path("1V1", [(x45, yo), (x45, yf - 0.25), (x45 + 0.25, yf), (c2, yf)], w=TRACE_W)
-    for x in (c1, c2):                                  # GND vias right below the 0402 GND pads
-        plane_via((x, yf + 1.15), "GND", 0, 0.75)
-    d2 = (x45 + 2.9, my + 4.9)                          # C_D2: 3V3 pad at y 29.1, GND pad at 30.7
+    for x in (c1, c2):  # GND vias right below the 0402 GND pads, small: 0.2 mm from R_DM's USB_DM pad
+        plane_via((x, yf + 1.15), "GND", 0, 0.75, SVIA_D)
+    # C_D2: 3V3 pad at y 29.1, GND pad at 30.7; its 3V3 pad 0.3 mm from C_1V2's 1V1 pad beside it, so a solder
+    # bridge between the two (core supply to 3.3 V) is no likelier than between any other pair of parts
+    d2 = (x45 + 2.975, my + 4.9)
     # pin 42's outer end straight to C_D2's 3V3 pad, below pin 41's fan-out (pins 43 / 44 join through their via)
     x42, y42 = mx + 3.875, my + qfn_pad_xy(42)[0][1]
     path("3V3", [(x42, y42), (x42 + 0.325, y42 + 0.325), (d2[0], d2[1] - 0.8)], w=TRACE_W)
@@ -802,7 +868,8 @@ def add_core_caps(pads):
     seg(x50, yo, *a, "1V1", "B", TRACE_W)
     plane_via(b, "GND", 0, 1.0)
     a, b = chip(pads, "C_IO49", x50 + 0.8, yc, "3V3", "GND", "100nF", "C1525", vertical=True, size="0402")
-    path("3V3", [(x49, yo), (x49, yo + 0.475), (x48, yo + 0.875)], w=0.2)
+    # pin 49 down and across to pin 48's line at a right angle (a 45 degree join left an acute notch)
+    path("3V3", [(x49, yo), (x49, yo + 0.6), (x48, yo + 0.6)], w=0.2)
     seg(x48, yo, *a, "3V3", "B", 0.2)
     plane_via(b, "GND", 0, 1.0)
     # the three 1V1 vias joined on the top layer, round the 3V3 via of pins 48/49 and the exposed pad's vias

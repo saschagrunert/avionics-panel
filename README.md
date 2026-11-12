@@ -39,7 +39,7 @@ Using the panel:
 
 - [Controls](docs/using/controls.md): what each key and knob does, [SHIFT](docs/using/controls.md#shift),
   workflows, [knobs](docs/using/controls.md#knobs),
-  [keys](docs/using/controls.md#keys-label-shift-legend-in-parentheses)
+  [keys](docs/using/controls.md#keys-label-shift-legend-in-parentheses), [care](docs/using/controls.md#care)
 - [Compatibility](docs/using/compatibility.md): what each control does on the G1000, GFC 500, GTN, GNS,
   Bendix/King radios and KAP 140, by aircraft
 - [Mapping](docs/using/mapping.md): the two joysticks,

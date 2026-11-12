@@ -126,7 +126,7 @@ vJoy takes only the joysticks: `--vjoy` refuses the keyboard mode, and `--sendin
   [update mode](mapping.md#update-mode-and-guids) do not come up. Only `--uhid` on Linux shows the panel's
   name and IDs, and nothing shows its USB layer.
 - The firmware is the panel's, but the PC runs it on stand-ins for the hardware, so its timing is modelled: a
-  key scan every 20 ms, a loop pass of 3 ms and a USB report every 8 ms, as on the board. The PC's own load
+  key scan every 19.5 ms, a loop pass of 3 ms and a USB report every 8 ms, as on the board. The PC's own load
   can delay a step slightly; the board's real loop time is tested on the board.
 - A mouse is not the panel: the feel of the keys and knobs, their reach and the legends' legibility are for
   the real panel to show.

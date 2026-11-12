@@ -10,6 +10,9 @@ from sim.hardware import RINGS, Board
 PICO = [("\nPICO_TEST = False\n", "\nPICO_TEST = True\n")]   # code.py edited for the Pico bench
 B = load("_pins_board", "pcb/board.py")
 NET = {p.name: p.net for p in B.build()}
+# a contact behind a series resistor R_GP<n> (pcb/board.py: R_GP25, GP25 to the FREQ outer ring's B line): the
+# firmware's pin is the GPIO on the resistor's other pad
+SERIES = {NET[f"{ref}.2"]: NET[f"{ref}.1"] for ref in {n.split(".")[0] for n in NET} if ref.startswith("R_GP")}
 
 
 def firmware(pico_test=False):
@@ -23,10 +26,11 @@ def firmware(pico_test=False):
 def ring_nets(ring):
     """board nets of a ring's A / B lines: ring 1 (A, B) of a dual encoder is the outer knob, ring 2 the inner"""
     if ring == "RANGE":
-        return NET["RANGE.ENCA"], NET["RANGE.ENCB"]
-    knob, part = ring.rsplit("_", 1)
-    pins = ("A", "B") if part == "OUTER" else ("A2", "B2")
-    return tuple(NET[f"ENC_{knob}.{p}"] for p in pins)
+        pads = ("RANGE.ENCA", "RANGE.ENCB")
+    else:
+        knob, part = ring.rsplit("_", 1)
+        pads = tuple(f"ENC_{knob}.{p}" for p in (("A", "B") if part == "OUTER" else ("A2", "B2")))
+    return tuple(SERIES.get(NET[p], NET[p]) for p in pads)
 
 
 def all_pins(hw):
@@ -74,6 +78,8 @@ def test_encoder_rings():
         assert abs(int(enc.pins[0][2:]) - int(enc.pins[1][2:])) == 1, ring   # rotaryio on RP2040: sequential
     for ref in ("ENC_ALTHDG", "ENC_FREQ", "ENC_FMS"):
         assert NET[ref + ".C"] == NET[ref + ".C2"] == "GND"
+    # GP25, CircuitPython's status LED on the Pico build, reaches its contact only through its series resistor
+    assert {NET["ENC_FREQ.B"]: "GP25"} == SERIES
 
 
 def test_encoder_divisor():

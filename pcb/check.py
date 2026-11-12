@@ -1,13 +1,16 @@
 """Independent checks on the generated Gerbers:
 1. rasterise each Gerber file (own minimal parser)
-2. electrical check: shorts and opens per net, using the rasterised copper + drills
+2. electrical check: shorts and opens per net, using the rasterised copper + drills; then again on the copper
+   as exact geometry (shapely): no shorts, and no contact or neck under NECK (a point contact is an open), and no
+   plane copper narrower than PLANE_NECK
 3. the outer copper Gerbers against the design primitives (the pads of board.py, the segments and vias of
    routed.json): every pad flashed in its place, shape and size, every via and trace as routed, and nothing
    else; then the geometric clearance DRC on those primitives
 4. drills and annular rings against JLCPCB's limits, no hole at or in an SMD pad or a paste opening (bar a
    pin-in-paste hole in its own opening), paste on every assembled pad and nowhere else
-5. solder mask dams (between openings on the mask Gerbers) against JLCPCB's black minimum, and every opening
-   clear of its pad by the mask's registration
+5. solder mask dams (between openings on the mask Gerbers) against JLCPCB's black minimum, every opening
+   clear of its pad by the mask's registration, and the same minimum of mask between each tented via and the
+   openings beside it
 6. copper path from every RP2040 supply pin to its nearest decoupling capacitor, one capacitor of its own per
    IOVDD pin over the outer layers, and every decoupling capacitor with its own plane vias
 7. routed length of every net against its shortest tree (no detours), USB D+ / D- length and skew
@@ -15,8 +18,9 @@
    numbers, positions; the cathode and anode of the diodes and LEDs by the pin names of JLC's symbol)
 9. no copper on F or B within the keep-out of each mounting hole (plate boss, body boss), only the plane
    inside, and copper on every layer clear of the LED cutouts
-10. no exposed SMD pad of another net near a through-hole pad (solder bridges where a pad is soldered by hand:
-    J1's shell tabs after full assembly, every through-hole pad with the hand-soldering option)
+10. no exposed SMD pad of another net near a through-hole pad, and no two through-hole pads of different nets
+    close together but the known pair (solder bridges where a pad is soldered by hand: J1's shell tabs after full
+    assembly, every through-hole pad with the hand-soldering option)
 11. JLCPCB's footprint of every through-hole part at its top-side position and rotation in the CPL file (full
    assembly) on our holes pin by pin, each hole within TH_DRILL_TOL of JLC's in size
 12. no copper on B under J1's shell but J1's own pads
@@ -68,6 +72,10 @@ from geom import (
 from matplotlib.path import Path
 from PIL import Image, ImageDraw
 from scipy import ndimage
+from shapely import STRtree, make_valid
+from shapely.geometry import LineString, Point, Polygon
+from shapely.geometry import box as shapely_box
+from shapely.ops import unary_union
 
 PX = 0.05
 WPX, HPX = int(B.W / PX) + 1, int(B.H / PX) + 1
@@ -627,19 +635,26 @@ def holes_and_paste(pads, vias, pth, npth):
 # through-hole LED's GND pad 0.28 mm from its resistor's GPIO pad was one). J1's four shell tabs (pin-in-paste)
 # are filled with solder by hand from the top too, and the excess comes out on the bottom (docs/building/assembly.md).
 # Every exposed SMD pad of another net keeps HAND_SMD_MIN of copper from every hand-soldered pad: room for the
-# iron's tip and a fillet.
+# iron's tip and a fillet. Two hand-soldered pads of different nets keep HAND_PAIR_MIN (the 2.5 mm pin rows of the
+# encoders: 0.7 mm between their 1.8 mm pads, as 0.1 inch headers have), but for the pairs in HAND_PAIR_EXCEPT,
+# which the part's own hole pattern sets: the RANGE control's COM (a switch, through its diode to column 4) and ECOM
+# (GND) 2.08 mm apart in Alps' drawing, 0.38 mm between their pads. A bridge there reads as every key of column 4
+# held, which the first key test at bring-up shows; the check lists the pair each run.
 HAND_SMD_MIN = 1.0
+HAND_PAIR_MIN = 0.5
+HAND_PAIR_EXCEPT = {frozenset({"RANGE.COM", "RANGE.ECOM"})}
 
 
 def hand_solder(pads):
     """Exposed SMD pads (a mask opening) of another net near the plated holes of the top-side (hand-soldered)
-    parts and J1's shell tabs, measured copper to copper."""
+    parts and J1's shell tabs, and those plated holes' pads of different nets near each other, measured copper to
+    copper."""
     top = {ref for ref, *_r, side in B.PARTS if side == "top"}
     tht = [p for p in pads if p.drill and not p.pip and p.name.split(".")[0] in top]
     tht += [p for p in pads if p.pip and p.name.startswith("J1.SH")]     # the shell tabs
     smd = [p for p in pads if not p.drill and len(p.layers) == 1 and p.layers in p.mask]
-    bad, near = 0, (9.0, "")
-    for t in tht:
+    bad, near, near_pair, known = 0, (9.0, ""), (9.0, ""), []
+    for i, t in enumerate(tht):
         tg = pad_geom(t)
         tb = bbox(tg)
         for p in smd:
@@ -653,8 +668,21 @@ def hand_solder(pads):
             if d < HAND_SMD_MIN - 1e-6:
                 bad += 1
                 print(f"HAND-SOLDERED PAD {t.name} ({t.net}) {d:.3f} mm from SMD pad {p.name} ({p.net})")
+        for u in tht[i + 1:]:
+            if (u.net == t.net and u.net) or not boxes_near(bbox(pad_geom(u)), tb, HAND_PAIR_MIN + 0.5):
+                continue
+            d = item_dist(tg, pad_geom(u))
+            pair = f"{t.name} ({t.net}) to {u.name} ({u.net})"
+            if frozenset({t.name, u.name}) in HAND_PAIR_EXCEPT:
+                known.append(f"{pair} {d:.3f} mm")
+                continue
+            near_pair = min(near_pair, (d, pair))
+            if d < HAND_PAIR_MIN - 1e-6:
+                bad += 1
+                print(f"HAND-SOLDERED PADS {pair} {d:.3f} mm apart")
     print(f"hand soldering: {len(tht)} hand-soldered pads, closest SMD pad of another net {near[0]:.3f} mm "
-          f"(min {HAND_SMD_MIN}), {near[1]}; {bad} problems")
+          f"(min {HAND_SMD_MIN}), {near[1]}; closest hand-soldered pads of different nets {near_pair[0]:.3f} mm "
+          f"(min {HAND_PAIR_MIN}), {near_pair[1]}; known exception: {', '.join(known) or 'none'}; {bad} problems")
     return bad
 
 
@@ -798,11 +826,11 @@ def inset(g, x, y):
 MASK_EXCEPT = ((re.compile(r"U1\.F(?!2[45]$)\d+|R_D[MP]\.E"), ""), (re.compile(r"U1\.V\d+"), "F"))
 
 
-def mask_dams(pads):
+def mask_dams(pads, vias):
     """Solder mask dams measured on the mask Gerbers: no two openings closer than MASK_DAM, and no openings of
     pads on different nets touching (one merged opening leaves no dam at all). Every opening reaches
     MASK_MIN_GROW beyond its pad's copper all round, and every pad is open on its layers (MASK_EXCEPT aside).
-    Prints the count of dams at the minimum."""
+    Every tented via keeps MASK_DAM of mask to the openings beside it. Prints the count of dams at the minimum."""
     bad = 0
     for p in pads:
         want = next((m for rx, m in MASK_EXCEPT if rx.fullmatch(p.name)), p.layers)
@@ -843,9 +871,25 @@ def mask_dams(pads):
             elif d < MASK_DAM + 1e-4:
                 at_min += 1
         narrow = f"{worst:.3f} mm" if worst < 9 else "none under 0.2 mm"
+        # The vias are tented: the mask over each must keep MASK_DAM to every opening beside it, or the strip
+        # between can come off and leave the via's ring bare next to a pad (solder wicks down it; a ring of another
+        # net is a bridge). A via inside an opening (the exposed pad's, a probe pad's) is not tented there.
+        strip, where = 1.0, "none within 1 mm"
+        for x, y, net, d, _dr in vias:
+            vg = ("cap", x, y, x, y, d / 2)
+            for g, b in zip(ops, bbs, strict=True):
+                if not boxes_near(b, bbox(vg), strip) or inset(g, x, y) >= 0:
+                    continue
+                s = item_dist(vg, g)
+                if s < strip:
+                    strip, where = s, f"the {net} via at ({x:.2f}, {y:.2f})"
+                if s < MASK_DAM - 1e-4:
+                    bad += 1; print(f"VIA MASK STRIP {s:.3f} mm on {layer} between the {net} via at ({x:.2f}, "
+                                    f"{y:.2f}) and the opening at ({(b[0] + b[2]) / 2:.2f}, {(b[1] + b[3]) / 2:.2f})")
         print(f"mask {layer}: {len(ops)} openings, narrowest dam {narrow} (min {MASK_DAM}, black), "
               f"{at_min} at exactly {MASK_DAM}; openings at least {grow:.3f} mm beyond their pads "
-              f"({MASK_MIN_GROW} to {MASK_MAX_GROW})")
+              f"({MASK_MIN_GROW} to {MASK_MAX_GROW}); tented vias to the nearest opening "
+              f"{f'{strip:.3f} mm, ' if strip < 1.0 else ''}{where} (min {MASK_DAM})")
     return bad
 
 
@@ -1106,17 +1150,17 @@ def j1_shell(ras_b, pads):
 #   no longer reach that line's 27R resistor (outer layers joined through the plated holes), so no copper runs
 #   past the array; and its pad on the line is at most ESD_MAX of copper from each of J1's contacts.
 # - The damping resistor R_IN and the fuse F1 are in series on VBUS ahead of every load, U4's clamp (VCC, pin 5)
-#   included: J1 -> R_IN -> F1 -> VBUS_F (C_IN, U3, U4's VCC). Each net of the chain holds only the pads it should
-#   (VBUS_CHAIN), and with either part's pads cut out of the bottom copper, the copper on its input side (from J1,
-#   from R_IN) no longer reaches any pad on its output side, and no copper island touches the rims of both of its
-#   pads (nothing runs past or across it). So a shorted clamp, or U4 turned by 180 degrees, sits behind both:
-#   R_IN burns open, the host's port and cable are protected.
+#   included: J1 -> R_IN -> F1 -> VBUS_F (C_IN, U3, U4's VCC, the UNIT light's resistor). Each net of the chain
+#   holds only the pads it should (VBUS_CHAIN), and with either part's pads cut out of the bottom copper, the
+#   copper on its input side (from J1, from R_IN) no longer reaches any pad on its output side, and no copper island
+#   touches the rims of both of its pads (nothing runs past or across it). So a shorted clamp, or U4 turned by 180
+#   degrees, sits behind both: R_IN burns open, the host's port and cable are protected.
 ESD_MAX = 5.0
 USB_PROT = {"D+": (("J1.A6", "J1.B6"), "U4.6", "R_DP.2"), "D-": (("J1.A7", "J1.B7"), "U4.4", "R_DM.2")}
 # part, net of its pin 1, net of its pin 2, a pad on its input side
 VBUS_CHAIN = (("R_IN", "VBUS", "VBUS_R", "J1.B4A9"), ("F1", "VBUS_R", "VBUS_F", "R_IN.2"))
 CHAIN_PADS = {"VBUS": {"R_IN.1"}, "VBUS_R": {"R_IN.2", "F1.1"}}            # besides J1's contacts on VBUS
-LOADS = {"C_IN.2", "U3.3", "U4.5"}              # on VBUS_F, besides the fuse's pin 2
+LOADS = {"C_IN.2", "U3.3", "U4.5", "R_UNIT.1"}  # on VBUS_F, besides the fuse's pin 2 (R_UNIT: the UNIT light)
 
 
 def union_find():
@@ -1354,6 +1398,132 @@ def ij(x, y):
     return int(round(y / PX)), int(round(x / PX))
 
 
+# Thin contacts. The electrical check labels the 0.05 mm raster, which joins copper that only touches: two round
+# trace ends exactly one width apart met at a single point (GP0 at the FMS push, an open once etched) and came out
+# as one piece. Here each copper layer is read from its Gerber as exact geometry (dark and clear in order), and
+# the nets are traced again through the plated holes: on that copper as drawn, no two nets may touch (copper
+# closer than TOUCH counts as touching), and on that copper eroded by NECK / 2 (shrunk on every edge, so any
+# contact or neck narrower than NECK comes apart) every net must still be one piece.
+NECK = 0.08
+TOUCH = 1e-4                                # arcs are polygons inside the true circle: tangent edges read as apart
+# And no strip of plane copper narrower than PLANE_NECK, where two clearances nearly meet: JLCPCB's narrowest
+# inner-layer copper is 0.09 mm, and a sliver can lift off; make.py clears what is under 0.2 mm (PLANE_MIN_W).
+# The 1e-3 mm2 floor below relies on that: a sharp 90 degree plane corner alone leaves 0.0012 mm2 after this
+# opening, and only make.py's 0.2 mm opening rounds every corner first. Lower PLANE_MIN_W and this check may
+# flag plain corners.
+PLANE_NECK = 0.15
+ARC = 16                                    # buffer segments per quarter circle: 0.0012 x the radius off
+
+
+def vector_copper(fname):
+    """A copper Gerber as one shapely geometry, board mm (y down), every aperture and region exact."""
+    out, dark, run = Polygon(), True, []
+
+    def flush():
+        nonlocal out
+        if run:
+            u = unary_union(run)
+            out = out.union(u) if dark else out.difference(u)
+            run.clear()
+    for op in gerber_ops(fname):
+        if op[0] == "dark":
+            if op[1] != dark:
+                flush()
+                dark = op[1]
+            continue
+        if op[0] == "region":
+            run.append(make_valid(Polygon(op[1])))
+            continue
+        (k, a, b) = op[1]
+        if op[0] == "line":
+            run.append(LineString([op[2], op[3]]).buffer(a / 2, quad_segs=ARC))
+        elif k == "C":
+            run.append(Point(op[2]).buffer(a / 2, quad_segs=ARC))
+        elif k == "R":
+            x, y = op[2]
+            run.append(shapely_box(x - a / 2, y - b / 2, x + a / 2, y + b / 2))
+        else:
+            x, y = op[2]
+            d = abs(a - b) / 2
+            spine = LineString([(x - d, y), (x + d, y)] if a >= b else [(x, y - d), (x, y + d)])
+            run.append(spine.buffer(min(a, b) / 2, quad_segs=ARC) if d else Point(x, y).buffer(a / 2, quad_segs=ARC))
+    flush()
+    return out
+
+
+def vector_nets(copper, probes, joins, neck):
+    """{(layer, piece): set of nets} over every probe's piece, the pieces joined through the plated holes, and the
+    probes on no copper, for the copper of each layer eroded by neck / 2 (0: as drawn, pieces closer than TOUCH
+    joined)."""
+    pieces, trees = {}, {}
+    for ly, g in copper.items():
+        if neck:
+            g = g.buffer(-neck / 2, quad_segs=ARC)
+        pieces[ly] = list(getattr(g, "geoms", [g]))
+        trees[ly] = STRtree(pieces[ly])
+
+    def at(ly, x, y):
+        pt = Point(x, y)
+        return next((int(i) for i in trees[ly].query(pt) if pieces[ly][int(i)].covers(pt)), None)
+    find, union = union_find()
+    if not neck:
+        for ly, ps in pieces.items():
+            for i, q in enumerate(ps):
+                for k in trees[ly].query(q, predicate="dwithin", distance=TOUCH):
+                    if int(k) > i:
+                        union((ly, i), (ly, int(k)))
+    for x, y in joins:
+        hit = [(ly, k) for ly in copper if (k := at(ly, x, y)) is not None]
+        for h in hit[1:]:
+            union(hit[0], h)
+    nets, lost = {}, []
+    for net, ly, x, y in probes:
+        k = at(ly, x, y)
+        if k is None:
+            lost.append((net, ly, x, y))
+        else:
+            nets.setdefault(find((ly, k)), {}).setdefault(net, []).append((ly, x, y))
+    return nets, lost
+
+
+def thin_contacts(layers, probes, joins):
+    bad = 0
+    copper = {ly: vector_copper(f) for ly, f in layers.items()}
+    for neck in (0.0, NECK):
+        nets, lost = vector_nets(copper, probes, joins, neck)
+        what = f"eroded by {neck / 2:g} mm" if neck else "as drawn"
+        for net, ly, x, y in lost:
+            bad += 1; print(f"VECTOR PROBE NOT ON COPPER ({what}): {net} on {ly} at ({x:.3f}, {y:.3f})")
+        pieces = {}
+        for ns in nets.values():
+            if len(ns) > 1 and not neck:
+                bad += 1; print("VECTOR SHORT between", sorted(ns))
+            for n, pts in ns.items():
+                pieces.setdefault(n, []).append(pts)
+        for n, ps in sorted(pieces.items()):
+            if len(ps) < 2 or n.startswith("NC:"):
+                continue
+            bad += 1                            # where: the closest two probes of the first two pieces
+            a, b = min(((a, b) for a in ps[0] for b in ps[1] if a[0] == b[0]),
+                       key=lambda ab: math.dist(ab[0][1:], ab[1][1:]), default=(ps[0][0], ps[1][0]))
+            print(f"{'THIN CONTACT' if neck else 'VECTOR OPEN'} on net {n}: {len(ps)} pieces {what}, nearest "
+                  f"probes on {a[0]} at ({a[1]:.3f}, {a[2]:.3f}) and ({b[1]:.3f}, {b[2]:.3f})")
+    # the planes: no copper narrower than PLANE_NECK anywhere (make.py clears what is under PLANE_MIN_W there)
+    for ly in B.PLANES:
+        g = copper[ly]
+        cut = g.difference(g.buffer(-PLANE_NECK / 2, quad_segs=ARC).buffer(PLANE_NECK / 2, quad_segs=ARC))
+        for q in getattr(cut, "geoms", [cut]):
+            if q.area > 1e-3:
+                bad += 1
+                c = q.representative_point()
+                print(f"PLANE SLIVER on {ly} at ({c.x:.2f}, {c.y:.2f}): {q.area:.4f} mm2 of copper narrower than "
+                      f"{PLANE_NECK} mm")
+    print(f"thin contacts: the copper Gerbers as exact geometry, {len({p[0] for p in probes})} nets; no two nets "
+          f"touching as drawn (closer than {TOUCH:g} mm), every net one piece with each contact and neck at least "
+          f"{NECK} mm wide; no plane copper narrower than {PLANE_NECK} mm; {bad} problems")
+    return bad
+
+
 if __name__ == "__main__":
     LAYERS = {"F": "avionics-F_Cu.gtl", "In1": "avionics-In1_Cu.g2", "In2": "avionics-In2_Cu.g3",
               "B": "avionics-B_Cu.gbl"}
@@ -1416,6 +1586,7 @@ if __name__ == "__main__":
                 print("FLOATING copper", ly, f"{sizes[c-1]*PX*PX:.1f} mm2 at",
                       round(xs.mean() * PX, 1), round(ys.mean() * PX, 1))
     print(f"electrical: {len(net_comps)} nets, {bad} problems, {floating} floating islands")
+    bad += thin_contacts(LAYERS, probes, [(x, y) for x, y, _d in pth] + slots)
 
     # --- inner planes: every hole of another net (and every unplated hole) keeps clear of the plane copper.
     # Measured on the Gerbers: the distance from each drill hole to the nearest plane pixel, minus its radius.
@@ -1566,7 +1737,7 @@ if __name__ == "__main__":
           f"same net {hmin[True][0]:.3f} mm (min 0.254)")
     print(f"DRC: worst copper clearance {worst:.3f} mm, {viol} violations")
     hole_bad = holes_and_paste(pads, rd["vias"], pth, npth)
-    hole_bad += mask_dams(pads)
+    hole_bad += mask_dams(pads, rd["vias"])
     hole_bad += hand_solder(pads)
     hole_bad += decoupling(pads, rd["segments"], rd["vias"])
     hole_bad += cap_vias(pads, rd["vias"])

@@ -4,8 +4,9 @@
 four corner mounts and in the middle of the key field), each tapped M3 from its end face, 10.55 mm high in all, and
 a tongue on its back edge over the USB-C socket (stack.USB_TONGUE), shorter than the bosses. Front face (+Z) is
 flat: laser marking and UV print follow the DXF from make_plate_art.py, in the same coordinates. Back face (Z = 0):
-pockets for the encoder and RANGE bodies, the bosses, which stand down to the PCB, and the tongue. Everything but
-the front face is machined from the back in one setup; the front may be faced in a second one.
+pockets for the encoder and RANGE bodies, the bosses, which stand down to the PCB, and the tongue. The front is
+faced first; then everything else is machined from the back in one setup, so the 4 mm web is never faced while it
+is held on its bosses.
 
 Coordinates: origin at the bottom-left corner of the plate seen from the front, X right, Y up, mm.
 Needs pythonocc-core (nix-shell nix/shells.nix -A gen, from the repository root).
@@ -117,7 +118,8 @@ def drawing_notes(vol):
         f"flatness {S.PLATE_FLAT} over the whole web after bead blasting and anodising (the plate is held only at its "
         "bosses).",
         "Front face (+Z in the STEP) is flat: no pockets or fastener holes on the front, and no chamfers beyond "
-        "the edge break below.",
+        "the edge break below. Machining order: face the front first, then machine the back (pockets, bosses, "
+        "tongue, holes), so the web is never faced while it is held on its bosses.",
         f"Positions of the {len(B.MOUNTS)} bosses and their tapped holes, of the pockets, of the tongue and of all "
         f"through holes: +-{S.POS_TOL['plate']} to each other (the key caps, the board, the parts in the pockets, "
         "the screws and the body's slot must line up).",
@@ -137,7 +139,9 @@ def drawing_notes(vol):
         f"Encoder pockets and RANGE pocket: floor corner (inside radius between wall and floor) at most "
         f"{S.POCKET_FLOOR_R} mm; the parts' top corners come within about 0.2 mm of the pocket walls.",
         "Finish: black anodised, matte (bead blasted before anodising); the pockets may be anodised or bare, but "
-        "all pockets alike (all anodised or all bare).",
+        "all pockets alike (all anodised or all bare). Anodising rack contacts in one of the M3 threads (cut it "
+        "again afterwards), on the back face, on the boss end faces or inside the pockets; never on the front face, "
+        "the outline or the key holes.",
         "Marking on the front per avionics-panel-rev1-plate.dxf, same origin (bottom-left, seen from the front): "
         "layer LASER = laser marking, layer UV_AMBER = UV print in JLCCNC's standard orange. Layer CUT = outline "
         "and through holes for reference. DXF units mm; fill closed contours even-odd (letter counters are "

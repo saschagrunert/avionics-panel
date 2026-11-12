@@ -192,6 +192,10 @@ Linux, keep `evtest` or `jstest` open on that input device (it makes the host po
 enumerates the panel but never reads it makes the firmware [back off](../architecture/firmware.md#usb), and
 the lights and timers stutter.
 
+With USB autosuspend on for the panel (`power/control` at `auto`, which powertop sets), Linux suspends it after
+a few idle seconds: both lights go dark and the next input reaches the PC about 2 s late
+([why](../architecture/firmware.md#usb)). Set its `power/control` to `on`.
+
 [g1000]: https://github.com/saschagrunert/avionics-panel/releases/download/rolling/avionics-panel-g1000.mfproj
 [g3x]: https://github.com/saschagrunert/avionics-panel/releases/download/rolling/avionics-panel-g3x.mfproj
 [gns]: https://github.com/saschagrunert/avionics-panel/releases/download/rolling/avionics-panel-gns.mfproj

@@ -17,6 +17,7 @@ in
           scipy
           matplotlib
           pillow
+          shapely
         ]
       ))
       pkgs.librsvg

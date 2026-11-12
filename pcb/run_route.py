@@ -19,6 +19,10 @@ seed = int(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1].isdigit() else 0
 pads = B.build()
 nets = sorted({p.net for p in pads if p.net})
 PLANE_NETS = set(B.PLANES.values())
+# Nets the router grows from their pre-routed copper, like a matrix bus: the chip select (its pins at the RP2040
+# and the flash are joined in board.py, R_BOOT is the router's) and VBUS_F (the fuse, C_IN, the regulator and the
+# ESD array's VCC are joined; the UNIT light's resistor is the router's, wherever the line suits it)
+GROWN = {"QSPI_SS", "VBUS_F"}
 
 
 def is_fixed_end(p):
@@ -74,6 +78,19 @@ if seed % 2:
 others = [n for n in others if n not in mfirst]
 
 
+def seed_stamp(smask, layers, x1, y1, x2, y2, half):
+    """Marks the cells of pre-routed copper (half its width round the centre line) in the source mask on the given
+    layers. The router may end a path on any of them, so none may lie beyond the copper's edge (stamp_capsule takes
+    cells up to r + RES / 2 from the centre line; copper narrower than a cell keeps the cells within RES / 2): the
+    path's round end then overlaps the copper by at least half its width. Stamped at w / 2, a cell could lie half a
+    cell beyond the edge, and a 0.25 mm trace ending there only touched a 0.25 mm lane at a point (GP0 at the FMS
+    push: an open once etched; check.py: thin contacts)."""
+    tmp = np.zeros((R.NY, R.NX), np.int8)
+    R.stamp_capsule(tmp, x1, y1, x2, y2, max(half - R.RES / 2, 0.0), 1)
+    for ly in layers:
+        smask[ly] |= tmp.astype(bool)
+
+
 def run(order):
     router = R.Router(pads, nets)
     for (x1, y1, x2, y2, ly, net, w) in B.FIXED_SEGS:
@@ -87,33 +104,30 @@ def run(order):
         if pico:
             ps = pico + [p for p in ps if p not in pico]
         smask = None
-        if net in B.BUS_NETS or net == "QSPI_SS":
+        if net in B.BUS_NETS or net in GROWN:
             smask = np.zeros((2, R.NY, R.NX), bool)
-            src = B.FIXED_SEGS if net == "QSPI_SS" else [c for c in B.BUS_COPPER if c[0] != "via"]
-            srcv = B.FIXED_VIAS if net == "QSPI_SS" else [c[1:] for c in B.BUS_COPPER if c[0] == "via"]
+            src = B.FIXED_SEGS if net in GROWN else [c for c in B.BUS_COPPER if c[0] != "via"]
+            srcv = B.FIXED_VIAS if net in GROWN else [c[1:] for c in B.BUS_COPPER if c[0] == "via"]
             for (x1, y1, x2, y2, ly, n, w) in src:
                 if n == net:
-                    tmp = np.zeros((R.NY, R.NX), np.int8)
-                    R.stamp_capsule(tmp, x1, y1, x2, y2, w / 2, 1)
-                    smask[0 if ly == "F" else 1] |= tmp.astype(bool)
+                    seed_stamp(smask, [0 if ly == "F" else 1], x1, y1, x2, y2, w / 2)
             for (x, y, n, d, _dr) in srcv:
                 if n == net:
-                    tmp = np.zeros((R.NY, R.NX), np.int8)
-                    R.stamp_capsule(tmp, x, y, x, y, d / 2, 1)
-                    smask[0] |= tmp.astype(bool); smask[1] |= tmp.astype(bool)
+                    seed_stamp(smask, [0, 1], x, y, x, y, d / 2)
         if not router.route_tree(net, ps, smask):
             failed.append(net)
     return router, failed
 
 
 def merge_fixed_vias(segments, vias):
-    """Drops router vias that overlap a pre-placed via of the same net (redundant, and the drills would be too
-    close) and links whatever met them to the fixed via on both layers."""
+    """Drops router vias that overlap a pre-placed via of the same net or come closer to it than the copper
+    clearance (redundant, and the drills would be too close: GP21's pair stood 0.1 mm apart) and links whatever met
+    them to the fixed via on both layers."""
     fixed = [tuple(v) for v in B.FIXED_VIAS]
     segments, keep = [list(s) for s in segments], []
     for v in map(tuple, vias):
-        near = [f for f in fixed
-                if v not in fixed and f[2] == v[2] and math.hypot(f[0] - v[0], f[1] - v[1]) < (f[3] + v[3]) / 2]
+        near = [f for f in fixed if v not in fixed and f[2] == v[2]
+                and math.hypot(f[0] - v[0], f[1] - v[1]) < (f[3] + v[3]) / 2 + B.CLEAR]
         if near:
             f = near[0]
             segments += [[v[0], v[1], f[0], f[1], ly, v[2], B.TRACE_W] for ly in "FB"]

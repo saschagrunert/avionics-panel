@@ -11,13 +11,18 @@ class Sim:
 
     def run(self, ms):
         """advance time, record every button press edge as (device, name) in seen, and as (ms, device, name) in
-        log"""
+        log; checks that fill_report (code.py's) gives the same buttons as buttons()"""
         names = self.names
         for _ in range(ms):
             self.t += 1
             self.p.tick(self.t)
             for d in (1, 2):
                 now = self.p.buttons(d)
+                report, want = bytearray(b"\xff" * (BM.SIZE[d] // 8)), bytearray(BM.SIZE[d] // 8)
+                self.p.fill_report(d, report)
+                for b in now:
+                    want[b >> 3] |= 1 << (b & 7)
+                assert report == want
                 for b in sorted(now - self.prev[d]):
                     self.seen.append((d, names[d][b]))
                     self.log.append((self.t, d, names[d][b]))
@@ -631,6 +636,17 @@ def test_up_dn_repeat():
     s.p.key("DN", True, s.t); s.run(1000); s.p.key("DN", False, s.t); s.run(300)
     n = len(s.take())
     assert 4 <= n <= 7, n                    # 1 at once, then from 400 ms about 8 per second
+
+
+def test_repeats_due_together_queue_in_a_fixed_order():
+    # UP and DN held together repeat in the same ms: they queue in the same order whichever went down first.
+    # CircuitPython's dicts keep no insertion order, so on the board an order by insertion would differ
+    logs = []
+    for first, second in (("UP", "DN"), ("DN", "UP")):
+        s = Sim()
+        s.p.key(first, True, s.t); s.p.key(second, True, s.t); s.run(1000)
+        logs.append([(t, n) for t, _, n in s.log if t > P.REPEAT_DELAY_MS])
+    assert logs[0] == logs[1] and len(logs[0]) >= 4
 
 
 def pressed_trace(s, ms, dev=1):

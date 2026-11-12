@@ -17,10 +17,10 @@ the scripts one by one. Generated files are named `avionics-panel-rev1-*`.
 ## Build
 
 `./build.sh` regenerates everything, runs every check and copies the results to `production/` and `renders/`;
-`./build.sh --route` re-runs the board routing first. Its sections run in parallel and print their outputs in
-a fixed order, the firmware tests with their coverage first. A failed section does not stop the others, and
-the build then exits 1; Ctrl-C stops everything. It needs [Nix](https://nixos.org/download) and is tested only
-on Linux; on Windows run it in WSL 2.
+`./build.sh --route` re-runs the board routing first (a few minutes). Its sections run in parallel and print
+their outputs in a fixed order, the firmware tests with their coverage first. A failed section does not stop
+the others, and the build then exits 1; Ctrl-C stops everything. It needs [Nix](https://nixos.org/download)
+and is tested only on Linux; on Windows run it in WSL 2.
 
 Renders 1 to 4 and 9 are stills of the 3D view, not part of the build. Open
 [viewer/index.html](../../viewer/index.html) with the fragment after the URL (it hides the page's controls),
@@ -38,13 +38,14 @@ page at the final size: a resize after the load shifts the top view by a few pix
 ## Scripts
 
 The steps one by one, with Nix from the repository root: `nix-shell nix/shells.nix -A gen` (OpenCascade,
-numpy, scipy, matplotlib, pillow, librsvg), then the script inside its directory. The firmware tests run in
-`nix-shell nix/shells.nix -A firmware` (pytest, pytest-cov; on Linux hid-tools and CircuitPython's `mpy-cross`).
+numpy, scipy, matplotlib, pillow, shapely, librsvg), then the script inside its directory. The firmware tests
+run in `nix-shell nix/shells.nix -A firmware` (pytest, pytest-cov; on Linux hid-tools and CircuitPython's
+`mpy-cross`).
 
 | Directory | Script | Does |
 | --- | --- | --- |
 | `pcb/` | `python3 precheck.py` | Placement clearances, bottom-side part bodies, mount keep-outs |
-| `pcb/` | `python3 run_route.py 8` | Routing, writes `routed.json` for a fully routed board ([seeds](#routing-seeds)) |
+| `pcb/` | `python3 run_route.py 1` | Routing, writes `routed.json` for a fully routed board ([seeds](#routing-seeds)) |
 | `pcb/` | `python3 make.py` | Gerbers |
 | `pcb/` | `python3 make_bom.py` | BOM (parts list) and CPL (placement file) |
 | `pcb/` | `python3 check.py` | The electrical and manufacturing checks, on the Gerbers, BOM and CPL ([Electronics](electronics.md)) |
@@ -63,7 +64,7 @@ numpy, scipy, matplotlib, pillow, librsvg), then the script inside its directory
 
 `run_route.py <seed>` routes the board from a random seed. It writes `routed.json` only when every net is
 routed, none with a detour and the USB pair within its length limits, which is what `check.py` accepts;
-otherwise the file stays as it is and the script exits 1. The build uses seed 8. `run_route.py <seed> x`
+otherwise the file stays as it is and the script exits 1. The build uses seed 1. `run_route.py <seed> x`
 writes `routed_<seed>.json` instead of `routed.json`, for trying seeds in parallel.
 
 ## Nix

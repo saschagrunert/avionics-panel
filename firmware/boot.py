@@ -25,6 +25,12 @@ import usb_midi
 SHIFT_ROW, SHIFT_COL = microcontroller.pin.GPIO2, microcontroller.pin.GPIO6
 UNIT_ROW = microcontroller.pin.GPIO5
 
+# The Pico build's status LED is GP25, here the FREQ outer encoder's B line (code.py). At brightness 0 its blinks
+# after code.py stops with an error and at the REPL drive the pin low, not high, until the next hard reset. Its
+# blinks in the first second after power-up and in safe mode come before boot.py; the 1 k in series with GP25
+# limits those.
+supervisor.runtime.rgb_status_brightness = 0
+
 
 def held(row_pin):
     """Whether the key of this row in SHIFT's column is held"""
