@@ -13,9 +13,10 @@ and lights) is drawn from the same netlist by [make_schematic.py](../../pcb/make
 any pad of the board is missing from it. Renders: [top](../../renders/5-pcb-top.png),
 [bottom](../../renders/6-pcb-bottom.png).
 
-RP2040 with W25Q16 flash, 12 MHz crystal, XC6206 regulator and USB-C with an ESD array and a fuse ([USB
-protection](#usb-protection)), all on the bottom of a 4-layer board (signals / GND / 3V3 / signals) with 91
-nets and 30 unconnected pins. `check.py` prints what each build reaches, and the build passes when:
+RP2040 with W25Q16 flash, 12 MHz crystal, XC6206 regulator and USB-C with an ESD (electrostatic discharge)
+array and a fuse ([USB protection](#usb-protection)), all on the bottom of a 4-layer board (signals / GND /
+3V3 / signals) with 91 nets and 30 unconnected pins. `check.py` prints what each build reaches, and the
+build passes when:
 
 | Check | Passes when |
 | --- | --- |
@@ -277,20 +278,27 @@ flowchart LR
   r27 --> rp["RP2040<br>USB_DP, USB_DM"]
 ```
 
-U4, an SRV05-4 ESD array (hongjiacheng, C7420376, SOT-23-6), sits right behind J1: four channels of steering
-diodes to its VCC pin and a clamp from VCC to GND.
+| Part | Value | Job |
+| --- | --- | --- |
+| R_CC1, R_CC2 | 5.1 k (C23186, C25905) | Pull-downs on CC1 and CC2 (configuration channel): a USB-C source switches VBUS on only after it sees them |
+| U4 | SRV05-4 ESD array, SOT-23-6 (hongjiacheng, C7420376) | Takes discharges on D+, D- and VBUS_F to GND |
+| R_IN | 1 R, 0603, 0.1 W (C22936, basic) | Damps VBUS at a hot plug; opens first on a short on VBUS_F |
+| F1 | Bourns MF-NSMF050-2 PTC (resettable) fuse, 1206, 13.2 V, 100 A (C75464) | Sustained overloads |
+| C_IN | 10 µF, 10 V X5R, 0603 (C19702) | U3's input capacitor |
+| U3 | XC6206P332MR regulator, SOT-23 (C5446) | 3.3 V for every load; its current limit covers faults on 3V3 |
+
+U4 has four channels of steering diodes to its VCC pin and a clamp from VCC to GND.
 
 | U4 | Value |
 | --- | --- |
-| Working voltage | 5.0 V (VBUS may reach 5.25 V) |
+| Working voltage | 5.0 V (VBUS may reach 5.25 V, 5.5 V under USB 2.0's VBUS Max Limit ECN and USB-C) |
 | Breakdown | At least 6.0 V at 1 mA |
 | Capacitance | 1.0 pF per channel to GND |
 | ESD | ±30 kV contact discharge (IEC 61000-4-2) |
 | Surge (8/20 µs) | 4 A at 13.5 V typical, 15 V maximum |
 
-- In line: D+ and D- each run through two channels, from J1 into pin 6 (D+) or 4 (D-), under the body to the
-  opposite pin 1 or 3 and on from there. So the array has no stub, and each line sees 2 pF, far less than full
-  speed tolerates. Its pins are 4.5 mm of copper from J1's farthest contact.
+- In line: D+ and D- each run through two channels, in at one pad and out at the opposite one, so the array
+  has no stub and each line sees 2 pF, far less than full speed tolerates.
 - Behind the fuse: VCC is on VBUS_F (over the top layer to a via on the line from the fuse to the regulator),
   GND on a via under the body. A clamp that fails short, or U4 placed turned by 180° (its VCC on GND, the
   clamp diode forward across VBUS_F), then sits behind R_IN and the fuse instead of shorting the host's VBUS
@@ -300,70 +308,57 @@ diodes to its VCC pin and a clamp from VCC to GND.
 - Checked: `check.py` cuts U4's pads out of the bottom copper and checks that J1's contacts then no longer
   reach the 27 R resistors (no copper runs past the array), and that U4 is at most 5 mm of copper from J1.
 
-F1, a Bourns MF-NSMF050-2 PTC fuse (C75464, 1206), and R_IN, a 1 R 0603 resistor (C22936, basic), sit in
-series in VBUS between J1 and everything else: J1, R_IN, F1, then VBUS_F with C_IN, the regulator and U4's
-VCC. F1 holds 0.5 A and trips at 1.0 A (23 °C; 0.40 A hold at 50 °C), is rated 13.2 V and 100 A, and has 0.15
-to 0.7 ohm. The board draws about 90 mA at most (the RP2040 with CircuitPython a few tens of mA, the flash up
-to 25 mA while writing, the two LEDs up to about 32.5 mA, 0.3 mA per pressed key in the matrix). For a short
-on VBUS_F (a bridge across C_IN, a failed U3, U4 shorted or placed turned) R_IN, not F1, is what gives way:
-R_IN is a 0.1 W part.
+| Limit | Value |
+| --- | --- |
+| F1's hold current | 0.5 A at 23 °C, 0.40 A at 50 °C |
+| F1's trip current | 1.0 A at 23 °C |
+| Series resistance | F1 0.15 to 0.7 ohm; with R_IN at most 1.7 ohm |
+| U3's input | 7.0 V absolute maximum |
+| U3's dropout | At most 0.68 V at 100 mA |
+| U3's output | 200 mA guaranteed; folds back at about 0.35 to 0.5 A (Torex's curve for the 3.0 V type), about 0.1 A into a short |
+| Capacitance on VBUS at attach | 10 µF (USB 2.0, 7.2.4.1), which C_IN alone reaches |
 
-| Fault current | F1 trips after | R_IN takes |
-| --- | --- | --- |
-| 1 A | About 7 s | 1 W |
-| 1.6 A | About 0.25 s | 2.6 W |
-| 2.5 A | About 70 ms | 6 W |
-| 3.5 A | About 25 ms | 12 W |
+The board draws about 90 mA at most (RP2040 a few tens of mA, flash up to 25 mA writing, LEDs up to 32.5 mA,
+0.3 mA per pressed key). From 4.40 V, the lowest VBUS of a USB 2.0 port, R_IN, F1 and U3's dropout still leave
+3.3 V out at 100 mA. The capacitors behind U3 add to C_IN while VBUS comes up, which puts the board over the
+intent of the attach limit; U3's current limit, behind R_IN and F1, limits that inrush, and on PC ports it is
+no practical issue.
 
-A port that limits its current at 0.5 to 1 A may never trip F1 at all and leaves R_IN at 0.25 to 1 W. So R_IN
-overheats and opens, or drifts or scorches, before F1 trips in practically every case: it is the sacrificial
-element for a short behind it, and F1 covers slow overloads below that. Either way the host's port and the
-cable are protected, but after such a fault R_IN, and perhaps F1 (and U4 if it was turned or shorted), must be
-replaced. A larger R_IN would not change that (a 1206 1 R takes 0.25 W, still 4 to 48 times over at these
-currents), and does not fit between the VBUS via and the fuse without moving F1 into R_CC2 and the crystal.
+What gives way on a fault:
 
-F1 will not reliably trip on a fault behind the regulator either. The XC6206's own current limit handles
-those: it lets about 0.35 to 0.5 A through before it folds back (Torex's curve for the 3.0 V type; 200 mA is
-guaranteed), and holds about 0.1 A into a short.
+- A short on VBUS_F (a bridge across C_IN, a failed U3, U4 shorted or placed turned): R_IN opens, or drifts or
+  scorches, before F1 trips in practically every case. At 1 to 3.5 A, F1 takes about 7 s to 25 ms, and R_IN
+  takes 1 to 12 W meanwhile; a port that limits its current at 0.5 to 1 A may never trip F1 and leaves R_IN at
+  0.25 to 1 W. The host's port and the cable are protected. Afterwards replace R_IN, perhaps F1, and U4 if it
+  was turned or shorted. A 1206 resistor (0.25 W) would overheat as well, and does not fit between the VBUS
+  via and F1.
+- A sustained overload under about 1 A: F1 (only 1.0 A and more is a guaranteed trip; R_IN already runs over
+  its 0.1 W from about 0.32 A).
+- A fault on 3V3: U3's current limit. F1 will not reliably trip.
 
-Even at 100 mA (the XC6206's dropout figure) and the lowest VBUS a USB 2.0 port may deliver, 4.40 V, R_IN and
-F1 (at most 1.7 ohm together) leave the regulator 4.23 V, and its maximum dropout of 0.68 V at 100 mA still
-leaves 3.3 V out (typical dropout 0.25 V).
+`check.py` checks that each net of the chain holds only its pads (VBUS: J1 and R_IN; VBUS_R: R_IN and F1;
+VBUS_F: F1, C_IN, U3 and U4's VCC; `CHAIN_PADS` and `LOADS`) and that no copper runs past or across R_IN or
+F1 (the parts in `VBUS_CHAIN`).
 
-`check.py` checks that nothing runs past or across R_IN and F1: each net of the chain holds only its pads
-(VBUS: J1 and R_IN; VBUS_R: R_IN and F1; VBUS_F: F1, C_IN, U3 and U4's VCC), and with either part's pads cut
-out of the copper, no copper connects its input side to its output side or touches both of its pads.
+Hot plug: a live USB-A port (with an A to C cable) switches VBUS on hard, where a USB-C source ramps it with a
+controlled slope. The cable's inductance then rings with C_IN, a ceramic capacitor with next to no loss. R_IN
+damps it: with the cable's and F1's resistance, 1 R takes the circuit to critical damping or past it
+(2 x √(L / C) is 0.8 to 1.3 ohm up to 1 µH).
 
-The XC6206 is rated 7.0 V absolute maximum, and C_IN is a ceramic capacitor with next to no loss, so VBUS
-switched on hard rings with the cable's inductance. That happens when the board is plugged into a live USB-A
-port (with an A to C cable); a USB-C source switches VBUS on only after it sees the 5.1 k pull-downs, and with
-a controlled slope. R_IN damps it: the cable's inductance, the series resistance (cable, R_IN, F1) and C_IN
-form a series circuit that 1 ohm takes to critical damping or past it (2 x √(L / C) is 0.8 to 1.3 ohm up to
-1 µH), so the input settles on the supply voltage without ringing above it on the usual cables.
+A step model of the circuit, not kept in the repository, gives the peaks on VBUS_F. It assumes a 5.25 V step,
+no load, no contact bounce, no U4 clamp and C_IN's DC-bias loss (about 3 µF at 5 V and 2.3 to 2.5 µF at 7 V;
+a pessimistic curve 1.8 µF at 5 V and 1.4 µF at 7 V). The cable and fuse ranges are in the comment at C_IN in
+[board.py](../../pcb/board.py). With 1 R the peak stays within 0.05 V of 5.25 V up to 1 µH of cable. On 2 to
+3 µH with little resistance it reaches 5.8 V with the nominal curve and 6.6 V with the pessimistic one, under
+U3's 7.0 V maximum; with a 5.5 V step the pessimistic worst case scales to about 6.9 V, still under it.
 
-The model behind that: a 5.25 V step, 0.3 to 3 µH and 0.05 to 0.4 ohm of cable, F1 at 0.15 to 0.7 ohm, no load
-and no contact bounce, C_IN with the DC-bias loss of a 10 V X5R 0603 (10 µF nominal, about 3 µF at 5 V and 2.3
-to 2.5 µF at 7 V; a pessimistic curve with 1.8 µF at 5 V and 1.4 µF at 7 V), and U4's clamp left out, the
-worst case.
-
-| R_IN | Cable | Peak on VBUS_F |
-| --- | --- | --- |
-| 1 R | Up to 1 µH | Within 0.05 V of 5.25 V |
-| 1 R | 2 to 3 µH with little resistance | About 6 V (5.8 V on the nominal curves, 6.6 V on the pessimistic one) |
-| None | Short and low resistance | 9.7 V, above the 7.0 V maximum for about 3 µs |
-| 0.33 R | The same cable | 6.4 V |
-| 0.5 R | The same cable | 5.7 V |
-
-With 1 R every case modelled stays under 7.0 V. A smaller value would also do, but 1 R is the lowest basic
-value. R_IN takes the inrush: at most 4.1 A, about 17 W at its peak and above half of that current for 5 to
-7 µs, under 0.1 mJ in all. An 0603 thick-film resistor takes about 25 W for a 5 µs single pulse (Vishay's
-CRCW0603 pulse curve, as a stand-in for the Uniroyal part), about 1.5 times the peak. A separate TVS diode
-would not do it: an SMF5.0A breaks down at 6.4 to 7.0 V and clamps no lower.
-
-With 10 µF on VBUS_F the board is at the 10 µF the USB 2.0 specification (7.2.4.1) allows a device to show on
-VBUS at attach, and the capacitance behind the regulator (C_OUT0's 10 µF, C_D2 and C_BULK, the 100 nF
-capacitors) adds to what the host sees while VBUS comes up; R_IN and the fuse limit that inrush. So the board
-is at the limit and, counting those, over its intent; on PC ports that is no practical issue.
+- Value: without R_IN, a short, low-resistance cable peaks at 9.7 V, above the 7.0 V maximum for about 3 µs;
+  0.33 R gives 6.4 V there and 0.5 R 5.7 V. A smaller value would also do; 1 R is the lowest basic one.
+- Pulse: R_IN takes the inrush: at most 4.1 A, about 17 W at its peak and above half that current for 5 to
+  7 µs, under 0.1 mJ in all. An 0603 thick-film resistor takes about 25 W for a 5 µs single pulse (Vishay's
+  CRCW0603 pulse curve, as a stand-in for the Uniroyal part).
+- Clamp: a TVS (transient voltage suppressor) diode from VBUS to GND instead of R_IN would not keep U3
+  reliably under 7.0 V: an SMF5.0A breaks down at 6.4 to 7.0 V and clamps no lower.
 
 ## Lights
 
