@@ -6,9 +6,8 @@ lights, BOOT as bridge pads under a hole in the body floor, SWD debug points.
 Top view (component side), mm, origin top-left, y down. Layer stack: F (signals), In1 = GND plane,
 In2 = 3V3 plane, B (signals). Switches, knobs and the RANGE control (THT) sit on top; every SMD part (RP2040,
 flash, USB-C, regulator, diodes, passives, the two reverse-mount LEDs that shine up through cutouts in the board)
-is on the bottom, so JLCPCB's Economic assembly does one SMD side and the through-hole parts are soldered by hand.
-Standard assembly of both sides (full assembly, docs/building/ordering.md) has JLCPCB fit the through-hole
-parts too, from a top-side CPL.
+is on the bottom, so JLCPCB assembles one SMD side. The through-hole parts are soldered by hand (hand-soldering)
+or fitted by JLCPCB from a top-side CPL (full assembly); docs/building/ordering.md has both.
 
 Footprint sources:
   RP2040 QFN-56: RP2040 datasheet fig. 165 (pads 0.20 x 0.875, pitch 0.40, 7.75/6.00, EP 3.20)

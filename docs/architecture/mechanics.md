@@ -103,8 +103,8 @@ Heights as drawn, z = 0 at the top of the board. Anodising raises the plate's fa
   them under 1.6 mm (`stack.USB_GAP_MAX`).
 - Body: PA12 printed by MJF (JLC3DP's nylon print), with 2.0 mm walls and ribs (JLC3DP's wall for parts over
   100 mm). The cavity leaves 0.5 mm per side round the board and 4.0 mm under it for the SMD parts, the socket
-  and the untrimmed leads (2.7 mm at most). The milled outline fits as delivered, and so does full assembly's
-  V-cut rail edge (±0.4 mm); V-cut short edges would have to be sanded
+  and the untrimmed leads (2.7 mm at most). The milled outline fits as delivered, and so does the V-cut rail
+  edge (±0.4 mm); V-cut short edges would have to be sanded
   ([On arrival](../building/bring-up.md#on-arrival)).
 - Bottom: a 5 mm hole in the floor over the two BOOT pads, for recovery only
   ([Bring-up](../building/bring-up.md#updates-and-recovery)), and four flat 12 mm pads under the corners for

@@ -162,7 +162,7 @@ WJP_TOL = dict(size=0.2, hole=0.2)
 CAP_PRINT = (-WJP_TOL["hole"], WJP_TOL["hole"])
 # JLC3DP MJF PA12 (body), +-: MJF_TOL on a length up to 100 mm, MJF_SCALE of it above.
 MJF_TOL, MJF_SCALE = 0.3, 0.004
-# JLCPCB, +-: the routed board outline, a V-cut edge (full assembly's rail edge), a routed cutout per side
+# JLCPCB, +-: the routed board outline, a V-cut edge (the rail edge), a routed cutout per side
 # (assumed: the outline's +-0.2 on its size).
 PCB_OUTLINE_TOL, PCB_VCUT_TOL, PCB_CUTOUT_TOL = 0.2, 0.4, 0.1
 # Should JLCPCB add rails on the short edges too, those V-cut edges can be too long for the body's cavity at worst:

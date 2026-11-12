@@ -38,7 +38,7 @@ flowchart LR
    spare keys.
 3. **Check on arrival**: look at the rail edge, try the plate threads, check that the encoder lugs and the J1
    shell tabs are soldered and the parts sit flat, choose the cap set ([On arrival](bring-up.md#on-arrival);
-   with hand-soldering only the threads and the cap set).
+   with hand-soldering only the rail edge, the threads and the cap set).
 4. **Bring-up**: flash CircuitPython and the [firmware](../../firmware/), then test every key, knob and light
    on the bare board ([Flash and test](bring-up.md#flash-and-test); with hand-soldering, you solder the J1
    shell tabs, the keys and last the encoders and RANGE control along the way). Optional before the boards
