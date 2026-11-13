@@ -1,7 +1,8 @@
 """The MobiFlight profile generator (mobiflight/): the family tables against the button map, their codes, the
-project against the format MobiFlight 11 reads, the joysticks read from a saved project, and the documented
-workflows through the simulated panel and the profile to the codes."""
+project against the format MobiFlight 11.2 and newer reads, the joysticks read from a saved project, the documented
+workflows through the simulated panel and the profile to the codes, and the docs' lists of what does nothing."""
 import json
+import math
 import os
 import re
 import uuid
@@ -12,7 +13,7 @@ import pytest
 from mobiflight import __main__ as cli
 from mobiflight import profile
 from mobiflight.families import FAMILIES
-from mobiflight.families.rpn import b, h, k
+from mobiflight.families.rpn import h, k
 from sim import Sim
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -62,11 +63,11 @@ def test_every_button_is_mapped_or_listed_as_unmapped(key):
         assert all(reason for reason in family.UNMAPPED[device].values())
 
 
-# a code's tokens: a variable, read as (A:NAME:INDEX, unit) or set as (>X:NAME) or (>A:NAME:INDEX, unit), a number
-# or an operator
+# a code's tokens: a variable, read as (A:NAME:INDEX, unit) or (L:NAME, unit) or set as (>X:NAME) or
+# (>A:NAME:INDEX, unit), a number or an operator
 TOKEN = re.compile(r"\([^()]*\)|[^\s()]+")
-READ = re.compile(r"\(A:([A-Z0-9 ]+(?::[1-9])?), [A-Za-z]+\)")
-WRITE = re.compile(r"\(>(?:(K:[A-Z0-9_]+|[BH]:[A-Za-z0-9_]+)|(A:[A-Z ]+:[1-9]), Enum)\)")
+READ = re.compile(r"\((?:A:([A-Z0-9 ]+(?::[1-9])?)|(L:[A-Za-z0-9_]+)), [A-Za-z]+\)")
+WRITE = re.compile(r"\(>(?:(K:[A-Z0-9_]+|H:[A-Za-z0-9_]+)|(A:[A-Z ]+:[1-9]), Enum)\)")
 NUMBER = re.compile(r"[0-9]+|0x[0-9A-F]+")
 VALUE = re.compile(NUMBER.pattern + r"|[-+!>]|==|dnor|near|if\{|els\{|\}")
 
@@ -90,11 +91,12 @@ def uses(code):
 
 
 def run(code, variables=()):
-    """Runs a code as the simulator's RPN does, on these simulation variables ({name: value}): [(what it set,
-    value)], with None for an event sent without a value"""
+    """Runs a code as the simulator's RPN does, on these variables ({name: value}, an L: variable with its
+    prefix): [(what it set, value)], with None for an event sent without a value"""
     variables, stack, out = dict(variables), [], []
     binary = {"+": lambda x, y: x + y, "-": lambda x, y: x - y, ">": lambda x, y: x > y, "==": lambda x, y: x == y}
-    unary = {"!": lambda x: not x, "near": round, "dnor": lambda x: x % 360}
+    # near rounds half up, as the SDK's RPN page says (Python's round() goes to the even number)
+    unary = {"!": lambda x: not x, "near": lambda x: math.floor(x + 0.5), "dnor": lambda x: x % 360}
 
     def block(tokens, live):
         """Runs the tokens up to the } that closes their block, if live, and returns the ones after it"""
@@ -108,7 +110,8 @@ def run(code, variables=()):
             elif not live:
                 continue
             elif READ.fullmatch(token):
-                stack.append(variables[READ.fullmatch(token)[1]])
+                read = READ.fullmatch(token)
+                stack.append(variables[read[1] or read[2]])
             elif sets(token):
                 out.append((sets(token), stack.pop() if stack else None))
             elif token in binary:
@@ -127,43 +130,45 @@ def run(code, variables=()):
 
 @FAMILY
 def test_codes_are_well_formed(key):
-    # every token reads a simulation variable, sets an event or variable, or is a number or operator, every block
-    # is closed, every input event's _Inc or _Dec gets its step of 1 or more, and every code sets something; no
-    # "@", which MobiFlight would replace with the button's value; and a code fits the 1024 bytes of the message
-    # MobiFlight's WASM module takes it in (MOBIFLIGHT_MESSAGE_SIZE in its Module.cpp), with room for the command
-    # in front of it
+    # every token reads a variable, sets an event or variable, or is a number or operator, every block is closed,
+    # and every code sets something; no "@", which MobiFlight would replace with the button's value; and a code
+    # fits the 1024 bytes of the message MobiFlight's WASM module takes it in (MOBIFLIGHT_MESSAGE_SIZE in its
+    # Module.cpp), with room for the command in front of it
     for device, button, event, code in codes(key):
         tokens = TOKEN.findall(code)
         assert " ".join(tokens) == code and "@" not in code, (device, button, event)
         assert len(code.encode()) < 1000, (device, button, event)
         depth = 0
-        for i, token in enumerate(tokens):
+        for token in tokens:
             assert READ.fullmatch(token) or sets(token) or VALUE.fullmatch(token), (button, token)
             depth += (token in ("if{", "els{")) - (token == "}")
             assert depth >= 0, (button, code)
-            if re.fullmatch(r"\(>B:\w+_(Inc|Dec)\)", token):
-                assert i and tokens[i - 1].isdigit() and int(tokens[i - 1]) >= 1, (button, code)
         assert depth == 0 and any(sets(token) for token in tokens), (device, button, event)
 
 
 def unit(variable):
-    """The unit a simulation variable is read in: degrees for a heading or course, number for an index, enum for
-    a state, bool for a flag"""
+    """The unit a variable is read in: degrees for a heading or course, number for an index or the G1000's CDI
+    source, enum for a state, bool for a flag"""
     if re.search(r"HEADING|OBS|RADIAL|NAV LOCALIZER", variable):
         return "degrees"
-    return "number" if variable.endswith("SELECTED") else "enum" if variable.endswith("STATE") else "bool"
+    if variable.endswith(("SELECTED", "PFD_CDI_Source")):
+        return "number"
+    return "enum" if variable.endswith("STATE") else "bool"
 
 
 @FAMILY
 def test_reads_use_the_unit_of_their_kind(key):
     for _, button, _, code in codes(key):
-        for variable, read_unit in re.findall(r"\(A:([A-Z0-9 ]+)(?::[1-9])?, ([A-Za-z]+)\)", code):
-            assert read_unit.lower() == unit(variable), (button, variable)
+        for token in TOKEN.findall(code):
+            if READ.fullmatch(token):
+                read = READ.fullmatch(token)
+                variable = read[1].split(":")[0] if read[1] else read[2]
+                assert token.rsplit(", ", 1)[1][:-1].lower() == unit(variable), (button, token)
 
 
 # the H: events of each family's units, by their prefix, in their exact case
 PREFIXES = {
-    "g1000": {1: ("AS1000_MFD_",), 2: ("AS1000_MFD_",)},
+    "g1000": {1: ("AS1000_MFD_", "AS1000_PFD_", "AS1000_VNAV_TOGGLE"), 2: ("AS1000_MFD_",)},
     "g3x": {1: ("AS3X_Touch_1_", "AS1000_VNAV_TOGGLE"), 2: ("AS3X_Touch_2_",)},
     "gns": {1: ("AS530_", "KAP140_"), 2: ("AS430_",)},
     "gtn": {1: ("KAP140_",), 2: ()},
@@ -196,7 +201,7 @@ def words(name):
 
 
 # the words of an event that increases or goes up (a GNS knob turned right, its map zoomed out, a step added), and
-# of one that decreases or goes down; of several, as in AS1000_RANGE_ZOOM_MFD_Inc, the last one counts
+# of one that decreases or goes down; of several, as in AS1000_MFD_RANGE_INC, the last one counts
 UP, DOWN = {"inc", "up", "right", "dezoom", "+"}, {"dec", "down", "dn", "left", "zoom", "-"}
 
 
@@ -227,8 +232,8 @@ RINGS = {"ALT_1000": OUTER, "ALT_100": INNER, "FMS_OUTER": OUTER, "FMS_INNER": I
 @FAMILY
 def test_rings_use_codes_of_their_ring(key):
     # ALT's outer ring (1000 ft) and inner knob (100 ft), and FMS's, each turn the ring of their name; a code that
-    # names no ring is for one knob, as the GFC 500's ALT SEL, whose selector takes a value above 999 as the
-    # 1000 ft step (AltitudeSelectManager.ts)
+    # names no ring is for one knob, as the selected altitude of Garmin's autopilot (GFC 500 and GFC 700), whose
+    # selector takes a value above 999 as the 1000 ft step (AltitudeSelectManager.ts)
     for _, button, _, code in codes(key):
         ring = RINGS.get(button.rsplit("_", 1)[0])
         if ring is not None:
@@ -319,8 +324,8 @@ def test_no_two_functions_send_the_same_code(key):
 
 # What every function sets, as uses() gives it (a release after a /; @2 marks the function in unit 2, on device 2):
 # the functions every family maps alike, then each family's others. A new, dropped, swapped or misspelt event and
-# a changed value show here. The K: events are the MSFS 2024 SDK's key events; the H: events of the G1000's MFD,
-# the G3X Touch and the GNS are Working Title's.
+# a changed value show here. The K: events are the MSFS 2024 SDK's key events; the H: events of the G1000 NXi,
+# the G3X Touch and the GNS are Working Title's, and the KAP 140's those of the sim's KAP140.js.
 EVERY = """
     ADF_100_DN=K:ADF_100_DEC ADF_100_DN@2=K:ADF_100_DEC ADF_100_UP=K:ADF_100_INC ADF_100_UP@2=K:ADF_100_INC
     ADF_10_DN=K:ADF_10_DEC ADF_10_DN@2=K:ADF_10_DEC ADF_10_UP=K:ADF_10_INC ADF_10_UP@2=K:ADF_10_INC
@@ -343,46 +348,44 @@ EVERY = """
 """
 SETS = {
     "g1000": """
-        ALT=B:AS1000_AUTOPILOT_ALTITUDE_PFD_TOGGLE ALT_1000_DN=1,B:AS1000_ALTITUDE_OUTER_PFD_Dec
-        ALT_1000_UP=1,B:AS1000_ALTITUDE_OUTER_PFD_Inc ALT_100_DN=1,B:AS1000_ALTITUDE_INNER_PFD_Dec
-        ALT_100_UP=1,B:AS1000_ALTITUDE_INNER_PFD_Inc AP=B:AS1000_AUTOPILOT_AP_PFD_TOGGLE
-        APR=B:AS1000_AUTOPILOT_APPROACH_PFD_TOGGLE BARO_DN=1,B:AS1000_BARO_PFD_Dec BARO_UP=1,B:AS1000_BARO_PFD_Inc
-        BC=B:AS1000_AUTOPILOT_BACKCOURSE_PFD_TOGGLE CDI=K:TOGGLE_GPS_DRIVES_NAV1 CDI@2=K:TOGGLE_GPS_DRIVES_NAV1
-        CLR=H:AS1000_MFD_CLR CLR@2=H:AS1000_MFD_CLR CRS_10_DN=10,-,K:GPS_OBS_SET,2,10,-,K:VOR2_SET,10,-,K:VOR1_SET
-        CRS_10_UP=10,+,K:GPS_OBS_SET,2,10,+,K:VOR2_SET,10,+,K:VOR1_SET CRS_1_DN=1,B:AS1000_COURSE_PFD_Dec
-        CRS_1_UP=1,B:AS1000_COURSE_PFD_Inc CRS_CTR=B:AS1000_COURSE_PUSH_PFD_PUSH DIRECT=H:AS1000_MFD_DIRECTTO
-        DIRECT@2=H:AS1000_MFD_DIRECTTO DN=B:AS1000_AUTOPILOT_VERTICALSPEED_DOWN_PFD_PUSH ENT=H:AS1000_MFD_ENT_Push
-        ENT@2=H:AS1000_MFD_ENT_Push FD=B:AS1000_AUTOPILOT_FD_PFD_TOGGLE
-        FLC=B:AS1000_AUTOPILOT_FLIGHTLEVELCHANGE_PFD_TOGGLE FMS_CRSR=H:AS1000_MFD_FMS_Upper_PUSH
-        FMS_CRSR@2=H:AS1000_MFD_FMS_Upper_PUSH FMS_INNER_CCW=H:AS1000_MFD_FMS_Upper_DEC
-        FMS_INNER_CCW@2=H:AS1000_MFD_FMS_Upper_DEC FMS_INNER_CW=H:AS1000_MFD_FMS_Upper_INC
-        FMS_INNER_CW@2=H:AS1000_MFD_FMS_Upper_INC FMS_OUTER_CCW=H:AS1000_MFD_FMS_Lower_DEC
-        FMS_OUTER_CCW@2=H:AS1000_MFD_FMS_Lower_DEC FMS_OUTER_CW=H:AS1000_MFD_FMS_Lower_INC
-        FMS_OUTER_CW@2=H:AS1000_MFD_FMS_Lower_INC FPL=H:AS1000_MFD_FPL_Push FPL@2=H:AS1000_MFD_FPL_Push
-        HDG=B:AS1000_AUTOPILOT_HEADING_PFD_TOGGLE HDG_1_DN=1,B:AS1000_HEADING_PFD_Dec
-        HDG_1_UP=1,B:AS1000_HEADING_PFD_Inc HDG_SYNC=B:AS1000_HEADING_SYNC_PFD_PUSH
-        LVL=K:AP_WING_LEVELER_ON,K:AP_PITCH_LEVELER_ON,K:AUTOPILOT_ON MENU=H:AS1000_MFD_MENU_Push
-        MENU@2=H:AS1000_MFD_MENU_Push NAV=B:AS1000_AUTOPILOT_NAVIGATION_PFD_TOGGLE PAN_DN=H:AS1000_MFD_JOYSTICK_DOWN
-        PAN_LEFT=H:AS1000_MFD_JOYSTICK_LEFT PAN_RIGHT=H:AS1000_MFD_JOYSTICK_RIGHT PAN_UP=H:AS1000_MFD_JOYSTICK_UP
-        PROC=H:AS1000_MFD_PROC_Push PROC@2=H:AS1000_MFD_PROC_Push PTR=H:AS1000_MFD_JOYSTICK_PUSH
-        RANGE_CCW=1,B:AS1000_RANGE_ZOOM_MFD_Dec RANGE_CW=1,B:AS1000_RANGE_ZOOM_MFD_Inc
-        S_DN=B:AS1000_AUTOPILOT_VERTICALSPEED_DOWN_PFD_PUSH S_ENT=H:AS1000_MFD_ENT_Push S_ENT@2=H:AS1000_MFD_ENT_Push
-        S_FLC=B:AS1000_AUTOPILOT_FLIGHTLEVELCHANGE_PFD_TOGGLE S_PAN_DN=H:AS1000_MFD_JOYSTICK_DOWN
+        ALT=K:AP_ALT_HOLD ALT_1000_DN=1000,K:AP_ALT_VAR_DEC ALT_1000_UP=1000,K:AP_ALT_VAR_INC
+        ALT_100_DN=K:AP_ALT_VAR_DEC ALT_100_UP=K:AP_ALT_VAR_INC AP=K:AP_MASTER APR=K:AP_APR_HOLD
+        BARO_DN=H:AS1000_PFD_BARO_DEC BARO_UP=H:AS1000_PFD_BARO_INC BC=K:AP_BC_HOLD
+        CDI=3,1,K:AP_NAV_SELECT_SET,1,2,K:AP_NAV_SELECT_SET,K:TOGGLE_GPS_DRIVES_NAV1
+        CDI@2=3,1,K:AP_NAV_SELECT_SET,1,2,K:AP_NAV_SELECT_SET,K:TOGGLE_GPS_DRIVES_NAV1 CLR=H:AS1000_MFD_CLR
+        CLR@2=H:AS1000_MFD_CLR CRS_10_DN=3,10,-,K:GPS_OBS_SET,2,10,-,K:VOR2_SET,10,-,K:VOR1_SET
+        CRS_10_UP=3,10,+,K:GPS_OBS_SET,2,10,+,K:VOR2_SET,10,+,K:VOR1_SET CRS_1_DN=H:AS1000_PFD_CRS_DEC
+        CRS_1_UP=H:AS1000_PFD_CRS_INC CRS_CTR=H:AS1000_PFD_CRS_PUSH DIRECT=H:AS1000_MFD_DIRECTTO
+        DIRECT@2=H:AS1000_MFD_DIRECTTO DN=K:AP_VS_VAR_DEC,K:AP_SPD_VAR_INC,K:AP_PITCH_REF_INC_DN
+        ENT=H:AS1000_MFD_ENT_Push ENT@2=H:AS1000_MFD_ENT_Push FD=K:TOGGLE_FLIGHT_DIRECTOR FLC=K:FLIGHT_LEVEL_CHANGE
+        FMS_CRSR=H:AS1000_MFD_FMS_Upper_PUSH FMS_CRSR@2=H:AS1000_MFD_FMS_Upper_PUSH
+        FMS_INNER_CCW=H:AS1000_MFD_FMS_Upper_DEC FMS_INNER_CCW@2=H:AS1000_MFD_FMS_Upper_DEC
+        FMS_INNER_CW=H:AS1000_MFD_FMS_Upper_INC FMS_INNER_CW@2=H:AS1000_MFD_FMS_Upper_INC
+        FMS_OUTER_CCW=H:AS1000_MFD_FMS_Lower_DEC FMS_OUTER_CCW@2=H:AS1000_MFD_FMS_Lower_DEC
+        FMS_OUTER_CW=H:AS1000_MFD_FMS_Lower_INC FMS_OUTER_CW@2=H:AS1000_MFD_FMS_Lower_INC FPL=H:AS1000_MFD_FPL_Push
+        FPL@2=H:AS1000_MFD_FPL_Push HDG=K:AP_HDG_HOLD HDG_1_DN=K:HEADING_BUG_DEC HDG_1_UP=K:HEADING_BUG_INC
+        HDG_SYNC=K:HEADING_BUG_SET LVL=K:AP_WING_LEVELER_ON,K:AP_PITCH_LEVELER_ON,K:AUTOPILOT_ON
+        MENU=H:AS1000_MFD_MENU_Push MENU@2=H:AS1000_MFD_MENU_Push NAV=K:AP_NAV1_HOLD OBS=K:GPS_OBS OBS@2=K:GPS_OBS
+        PAN_DN=H:AS1000_MFD_JOYSTICK_DOWN PAN_LEFT=H:AS1000_MFD_JOYSTICK_LEFT PAN_RIGHT=H:AS1000_MFD_JOYSTICK_RIGHT
+        PAN_UP=H:AS1000_MFD_JOYSTICK_UP PROC=H:AS1000_MFD_PROC_Push PROC@2=H:AS1000_MFD_PROC_Push
+        PTR=H:AS1000_MFD_JOYSTICK_PUSH RANGE_CCW=H:AS1000_MFD_RANGE_DEC RANGE_CW=H:AS1000_MFD_RANGE_INC
+        S_DN=K:AP_VS_VAR_DEC,K:AP_SPD_VAR_INC,K:AP_PITCH_REF_INC_DN S_ENT=H:AS1000_MFD_ENT_Push
+        S_ENT@2=H:AS1000_MFD_ENT_Push S_FLC=K:FLIGHT_LEVEL_CHANGE S_PAN_DN=H:AS1000_MFD_JOYSTICK_DOWN
         S_PAN_LEFT=H:AS1000_MFD_JOYSTICK_LEFT S_PAN_RIGHT=H:AS1000_MFD_JOYSTICK_RIGHT
-        S_PAN_UP=H:AS1000_MFD_JOYSTICK_UP S_PTR=H:AS1000_MFD_JOYSTICK_PUSH S_RANGE_CCW=1,B:AS1000_RANGE_ZOOM_MFD_Dec
-        S_RANGE_CW=1,B:AS1000_RANGE_ZOOM_MFD_Inc S_UP=B:AS1000_AUTOPILOT_VERTICALSPEED_UP_PFD_PUSH
-        S_VNV=B:AS1000_AUTOPILOT_VERTICAL_NAVIGATION_PFD_TOGGLE S_VS=B:AS1000_AUTOPILOT_VERTICALSPEED_PFD_TOGGLE
-        UP=B:AS1000_AUTOPILOT_VERTICALSPEED_UP_PFD_PUSH VNV=B:AS1000_AUTOPILOT_VERTICAL_NAVIGATION_PFD_TOGGLE
-        VS=B:AS1000_AUTOPILOT_VERTICALSPEED_PFD_TOGGLE YD=K:YAW_DAMPER_TOGGLE
+        S_PAN_UP=H:AS1000_MFD_JOYSTICK_UP S_PTR=H:AS1000_MFD_JOYSTICK_PUSH S_RANGE_CCW=H:AS1000_MFD_RANGE_DEC
+        S_RANGE_CW=H:AS1000_MFD_RANGE_INC S_UP=K:AP_VS_VAR_INC,K:AP_SPD_VAR_DEC,K:AP_PITCH_REF_INC_UP
+        S_VNV=H:AS1000_VNAV_TOGGLE S_VS=K:AP_VS_HOLD UP=K:AP_VS_VAR_INC,K:AP_SPD_VAR_DEC,K:AP_PITCH_REF_INC_UP
+        VNV=H:AS1000_VNAV_TOGGLE VS=K:AP_VS_HOLD YD=K:YAW_DAMPER_TOGGLE
     """,
     "g3x": """
         ALT=K:AP_ALT_HOLD ALT_1000_DN=1000,K:AP_ALT_VAR_DEC ALT_1000_UP=1000,K:AP_ALT_VAR_INC
         ALT_100_DN=K:AP_ALT_VAR_DEC ALT_100_UP=K:AP_ALT_VAR_INC AP=K:AP_MASTER APR=K:AP_APR_HOLD
-        BARO_DN=1,K:KOHLSMAN_DEC BARO_UP=1,K:KOHLSMAN_INC CDI=K:TOGGLE_GPS_DRIVES_NAV1 CDI@2=K:TOGGLE_GPS_DRIVES_NAV1
-        CLR=H:AS3X_Touch_1_Back_Push CLR@2=H:AS3X_Touch_2_Back_Push
+        BARO_DN=1,K:KOHLSMAN_DEC BARO_UP=1,K:KOHLSMAN_INC CDI=K:TOGGLE_GPS_DRIVES_NAV1
+        CDI@2=K:TOGGLE_GPS_DRIVES_NAV1 CLR=H:AS3X_Touch_1_Back_Push CLR@2=H:AS3X_Touch_2_Back_Push
         CRS_10_DN=10,-,K:GPS_OBS_SET,2,10,-,K:VOR2_SET,10,-,K:VOR1_SET
         CRS_10_UP=10,+,K:GPS_OBS_SET,2,10,+,K:VOR2_SET,10,+,K:VOR1_SET
-        CRS_1_DN=K:GPS_OBS_DEC,2,K:VOR2_OBI_DEC,K:VOR1_OBI_DEC CRS_1_UP=K:GPS_OBS_INC,2,K:VOR2_OBI_INC,K:VOR1_OBI_INC
+        CRS_1_DN=K:GPS_OBS_DEC,2,K:VOR2_OBI_DEC,K:VOR1_OBI_DEC
+        CRS_1_UP=K:GPS_OBS_INC,2,K:VOR2_OBI_INC,K:VOR1_OBI_INC
         CRS_CTR=2,K:VOR2_SET,180,+,K:VOR2_SET,K:VOR1_SET,180,+,K:VOR1_SET DIRECT=H:AS3X_Touch_1_DirectTo_Push
         DIRECT@2=H:AS3X_Touch_2_DirectTo_Push DN=K:AP_VS_VAR_DEC,K:AP_SPD_VAR_INC,K:AP_PITCH_REF_INC_DN
         FD=K:TOGGLE_FLIGHT_DIRECTOR FLC=K:FLIGHT_LEVEL_CHANGE FMS_CRSR=H:AS3X_Touch_1_Knob_Inner_R_PUSH
@@ -403,32 +406,34 @@ SETS = {
     "gns": """
         ALT=H:KAP140_Push_ALT ALT_1000_DN=H:KAP140_Knob_Outer_DEC ALT_1000_UP=H:KAP140_Knob_Outer_INC
         ALT_100_DN=H:KAP140_Knob_Inner_DEC ALT_100_UP=H:KAP140_Knob_Inner_INC AP=H:KAP140_Push_AP
-        APR=H:KAP140_Push_APR BARO_DN=K:KOHLSMAN_DEC BARO_UP=K:KOHLSMAN_INC BC=H:KAP140_Push_REV CDI=H:AS530_CDI_Push
-        CDI@2=H:AS430_CDI_Push CLR=H:AS530_CLR_Push CLR@2=H:AS430_CLR_Push CRS_10_DN=10,-,K:VOR1_SET
-        CRS_10_UP=10,+,K:VOR1_SET CRS_1_DN=K:VOR1_OBI_DEC CRS_1_UP=K:VOR1_OBI_INC DIRECT=H:AS530_DirectTo_Push
-        DIRECT@2=H:AS430_DirectTo_Push DN=H:KAP140_Push_DN ENT=H:AS530_ENT_Push ENT@2=H:AS430_ENT_Push
-        FMS_CRSR=H:AS530_RightSmallKnob_Push FMS_CRSR@2=H:AS430_RightSmallKnob_Push
-        FMS_INNER_CCW=H:AS530_RightSmallKnob_Left FMS_INNER_CCW@2=H:AS430_RightSmallKnob_Left
-        FMS_INNER_CW=H:AS530_RightSmallKnob_Right FMS_INNER_CW@2=H:AS430_RightSmallKnob_Right
-        FMS_OUTER_CCW=H:AS530_RightLargeKnob_Left FMS_OUTER_CCW@2=H:AS430_RightLargeKnob_Left
-        FMS_OUTER_CW=H:AS530_RightLargeKnob_Right FMS_OUTER_CW@2=H:AS430_RightLargeKnob_Right FPL=H:AS530_FPL_Push
-        FPL@2=H:AS430_FPL_Push HDG=H:KAP140_Push_HDG HDG_1_DN=K:HEADING_BUG_DEC HDG_1_UP=K:HEADING_BUG_INC
-        HDG_SYNC=K:HEADING_BUG_SET MAP=H:AS530_CLR_Push_Long MAP@2=H:AS430_CLR_Push_Long MENU=H:AS530_MENU_Push
-        MENU@2=H:AS430_MENU_Push MSG=H:AS530_MSG_Push MSG@2=H:AS430_MSG_Push NAV=H:KAP140_Push_NAV
-        OBS=H:AS530_OBS_Push OBS@2=H:AS430_OBS_Push PROC=H:AS530_PROC_Push PROC@2=H:AS430_PROC_Push
-        RANGE_CCW=H:AS530_RNG_Zoom RANGE_CW=H:AS530_RNG_Dezoom S_DN=H:KAP140_Push_DN S_ENT=H:AS530_ENT_Push
-        S_ENT@2=H:AS430_ENT_Push S_RANGE_CCW=H:AS530_RNG_Zoom S_RANGE_CW=H:AS530_RNG_Dezoom S_UP=H:KAP140_Push_UP
-        UP=H:KAP140_Push_UP VNAV=H:AS530_VNAV_Push
+        APR=H:KAP140_Push_APR BARO_DN=K:KOHLSMAN_DEC BARO_UP=K:KOHLSMAN_INC BC=H:KAP140_Push_REV
+        CDI=H:AS530_CDI_Push CDI@2=H:AS430_CDI_Push CLR=H:AS530_CLR_Push CLR@2=H:AS430_CLR_Push
+        CRS_10_DN=10,-,K:VOR1_SET CRS_10_UP=10,+,K:VOR1_SET CRS_1_DN=K:VOR1_OBI_DEC CRS_1_UP=K:VOR1_OBI_INC
+        CRS_CTR=K:VOR1_SET,180,+,K:VOR1_SET DIRECT=H:AS530_DirectTo_Push DIRECT@2=H:AS430_DirectTo_Push
+        DN=H:KAP140_Push_DN ENT=H:AS530_ENT_Push ENT@2=H:AS430_ENT_Push FMS_CRSR=H:AS530_RightSmallKnob_Push
+        FMS_CRSR@2=H:AS430_RightSmallKnob_Push FMS_INNER_CCW=H:AS530_RightSmallKnob_Left
+        FMS_INNER_CCW@2=H:AS430_RightSmallKnob_Left FMS_INNER_CW=H:AS530_RightSmallKnob_Right
+        FMS_INNER_CW@2=H:AS430_RightSmallKnob_Right FMS_OUTER_CCW=H:AS530_RightLargeKnob_Left
+        FMS_OUTER_CCW@2=H:AS430_RightLargeKnob_Left FMS_OUTER_CW=H:AS530_RightLargeKnob_Right
+        FMS_OUTER_CW@2=H:AS430_RightLargeKnob_Right FPL=H:AS530_FPL_Push FPL@2=H:AS430_FPL_Push
+        HDG=H:KAP140_Push_HDG HDG_1_DN=K:HEADING_BUG_DEC HDG_1_UP=K:HEADING_BUG_INC HDG_SYNC=K:HEADING_BUG_SET
+        MAP=H:AS530_CLR_Push_Long MAP@2=H:AS430_CLR_Push_Long MENU=H:AS530_MENU_Push MENU@2=H:AS430_MENU_Push
+        MSG=H:AS530_MSG_Push MSG@2=H:AS430_MSG_Push NAV=H:KAP140_Push_NAV OBS=H:AS530_OBS_Push
+        OBS@2=H:AS430_OBS_Push PROC=H:AS530_PROC_Push PROC@2=H:AS430_PROC_Push RANGE_CCW=H:AS530_RNG_Zoom
+        RANGE_CW=H:AS530_RNG_Dezoom S_DN=H:KAP140_Push_DN S_ENT=H:AS530_ENT_Push S_ENT@2=H:AS430_ENT_Push
+        S_RANGE_CCW=H:AS530_RNG_Zoom S_RANGE_CW=H:AS530_RNG_Dezoom S_UP=H:KAP140_Push_UP UP=H:KAP140_Push_UP
+        VNAV=H:AS530_VNAV_Push
     """,
     "gtn": """
         ALT=H:KAP140_Push_ALT ALT_1000_DN=H:KAP140_Knob_Outer_DEC ALT_1000_UP=H:KAP140_Knob_Outer_INC
         ALT_100_DN=H:KAP140_Knob_Inner_DEC ALT_100_UP=H:KAP140_Knob_Inner_INC AP=H:KAP140_Push_AP
         APR=H:KAP140_Push_APR BARO_DN=K:KOHLSMAN_DEC BARO_UP=K:KOHLSMAN_INC BC=H:KAP140_Push_REV
         CRS_10_DN=10,-,K:VOR1_SET CRS_10_UP=10,+,K:VOR1_SET CRS_1_DN=K:VOR1_OBI_DEC CRS_1_UP=K:VOR1_OBI_INC
-        DIRECT=2,K:GPS_DIRECTTO_BUTTON/4,K:GPS_DIRECTTO_BUTTON
+        CRS_CTR=K:VOR1_SET,180,+,K:VOR1_SET DIRECT=2,K:GPS_DIRECTTO_BUTTON/4,K:GPS_DIRECTTO_BUTTON
         DIRECT@2=26,K:GPS_DIRECTTO_BUTTON/28,K:GPS_DIRECTTO_BUTTON DN=H:KAP140_Push_DN
-        FMS_CRSR=2,K:GPS_CURSOR_BUTTON/4,K:GPS_CURSOR_BUTTON FMS_CRSR@2=26,K:GPS_CURSOR_BUTTON/28,K:GPS_CURSOR_BUTTON
-        FMS_INNER_CCW=0,K:GPS_PAGE_KNOB_DEC FMS_INNER_CCW@2=24,K:GPS_PAGE_KNOB_DEC FMS_INNER_CW=0,K:GPS_PAGE_KNOB_INC
+        FMS_CRSR=2,K:GPS_CURSOR_BUTTON/4,K:GPS_CURSOR_BUTTON
+        FMS_CRSR@2=26,K:GPS_CURSOR_BUTTON/28,K:GPS_CURSOR_BUTTON FMS_INNER_CCW=0,K:GPS_PAGE_KNOB_DEC
+        FMS_INNER_CCW@2=24,K:GPS_PAGE_KNOB_DEC FMS_INNER_CW=0,K:GPS_PAGE_KNOB_INC
         FMS_INNER_CW@2=24,K:GPS_PAGE_KNOB_INC FMS_OUTER_CCW=0,K:GPS_GROUP_KNOB_DEC
         FMS_OUTER_CCW@2=24,K:GPS_GROUP_KNOB_DEC FMS_OUTER_CW=0,K:GPS_GROUP_KNOB_INC
         FMS_OUTER_CW@2=24,K:GPS_GROUP_KNOB_INC HDG=H:KAP140_Push_HDG HDG_1_DN=K:HEADING_BUG_DEC
@@ -483,19 +488,28 @@ def test_a_vfr_code_replaces_the_squawk_of_the_table():
         command(ident, "7800")
 
 
+def cdi_shows(key, source):
+    """The variables by which a Garmin family's CDI shows source ("GPS", 1 or 2): the G3X Touch keeps GPS DRIVES
+    NAV1 and AUTOPILOT NAV SELECTED on it, the G1000 NXi L:PFD_CDI_Source (3 for GPS), which it also writes when it
+    starts, where AUTOPILOT NAV SELECTED may be stale"""
+    if key == "g1000":
+        return {"L:PFD_CDI_Source": 3 if source == "GPS" else source, "GPS DRIVES NAV1": source == "GPS",
+                "AUTOPILOT NAV SELECTED": 2}
+    return {"GPS DRIVES NAV1": source == "GPS", "AUTOPILOT NAV SELECTED": 1 if source == "GPS" else source}
+
+
 @pytest.mark.parametrize("key", ["g1000", "g3x"])
 def test_the_fast_crs_step_sets_the_course_the_cdi_shows(key):
-    # Working Title's G1000 NXi and G3X Touch keep GPS DRIVES NAV1 and AUTOPILOT NAV SELECTED on their CDI: 10° on
-    # the GPS's OBS course, or on the course of the NAV radio it shows, in whole degrees from 0 to 360
+    # 10° on the GPS's OBS course, or on the course of the NAV radio the CDI shows, in whole degrees from 0 to 360
     table = FAMILIES[key].DEVICE[1]
     courses = {"GPS OBS VALUE": 355.4, "NAV OBS:1": 5, "NAV OBS:2": 180}
     for radio, up, down in ((1, 15, 355), (2, 190, 170)):
-        variables = {"GPS DRIVES NAV1": 0, "AUTOPILOT NAV SELECTED": radio, **courses}
+        variables = {**cdi_shows(key, radio), **courses}
         assert run(table["CRS_10_UP"], variables) == [(f"K:VOR{radio}_SET", up)]
         assert run(table["CRS_10_DN"], variables) == [(f"K:VOR{radio}_SET", down)]
-        variables["GPS DRIVES NAV1"] = 1
-        assert run(table["CRS_10_UP"], variables) == [("K:GPS_OBS_SET", 5)]
-        assert run(table["CRS_10_DN"], variables) == [("K:GPS_OBS_SET", 345)]
+    variables = {**cdi_shows(key, "GPS"), **courses}
+    assert run(table["CRS_10_UP"], variables) == [("K:GPS_OBS_SET", 5)]
+    assert run(table["CRS_10_DN"], variables) == [("K:GPS_OBS_SET", 345)]
     assert table["CRS_1_UP"] != table["CRS_10_UP"] and table["CRS_1_DN"] != table["CRS_10_DN"]
 
 
@@ -529,11 +543,11 @@ def test_the_fast_hdg_step_moves_the_heading_bug(key):
     assert run(table["HDG_10_DN"], variables) == [("K:HEADING_BUG_SET", 345)]
 
 
-@pytest.mark.parametrize("key", ["g3x", "gns", "gtn"])
+@FAMILY
 def test_the_hdg_push_sets_the_bug_to_the_heading(key):
-    # the heading flown, in whole degrees from 0 to 359 (the G1000 has an input event for the push)
+    # the heading flown, in whole degrees from 0 to 359, half a degree rounded up
     code = FAMILIES[key].DEVICE[1]["HDG_SYNC"]
-    for heading, bug in ((359.6, 0), (90.4, 90), (0.4, 0)):
+    for heading, bug in ((359.6, 0), (90.4, 90), (90.5, 91), (0.4, 0)):
         variables = {"HEADING INDICATOR:1": heading, "AUTOPILOT HEADING LOCK DIR:1": 200}
         assert run(code, variables) == [("K:HEADING_BUG_SET", bug)]
 
@@ -558,7 +572,7 @@ def test_the_g3x_slow_crs_step_is_on_what_the_cdi_shows():
 
 def test_the_g3x_centres_the_course_of_the_nav_radio_the_cdi_shows():
     # CRS CTR: the localizer's course, or the course to the VOR (its radial + 180°), in whole degrees; nothing on
-    # GPS or without a signal
+    # GPS or without a signal (the G1000 NXi takes its CRS push as an H: event)
     code = FAMILIES["g3x"].DEVICE[1]["CRS_CTR"]
     signals = {"NAV HAS LOCALIZER:1": 1, "NAV LOCALIZER:1": 94.6, "NAV HAS NAV:1": 1, "NAV RADIAL:1": 10,
                "NAV HAS LOCALIZER:2": 0, "NAV LOCALIZER:2": 0, "NAV HAS NAV:2": 1, "NAV RADIAL:2": 200.4}
@@ -572,15 +586,37 @@ def test_the_g3x_centres_the_course_of_the_nav_radio_the_cdi_shows():
     assert centred(1, 1) == centred(1, 2) == []
 
 
-def test_the_g3x_fd_key_does_nothing_with_the_autopilot_engaged():
-    code = FAMILIES["g3x"].DEVICE[1]["FD"]
+@pytest.mark.parametrize("key", ["gns", "gtn"])
+def test_crs_ctr_of_the_kap_140_cockpit_centres_nav_1(key):
+    # the course of NAV 1, whose course the knob sets, whatever the CDI shows: the localizer's, or the course to
+    # the VOR, in whole degrees; nothing without a signal
+    code = FAMILIES[key].DEVICE[1]["CRS_CTR"]
+    signals = {"NAV HAS LOCALIZER:1": 0, "NAV LOCALIZER:1": 0, "NAV HAS NAV:1": 1, "NAV RADIAL:1": 200.5}
+    assert run(code, signals) == [("K:VOR1_SET", 21)]
+    assert run(code, {**signals, "NAV HAS LOCALIZER:1": 1, "NAV LOCALIZER:1": 94.4}) == [("K:VOR1_SET", 94)]
+    assert run(code, {**signals, "NAV HAS NAV:1": 0}) == []
+
+
+def test_the_g1000_cdi_key_cycles_gps_nav_1_and_nav_2():
+    # as the NXi's CDI softkey: GPS, NAV 1, NAV 2, GPS, in both units, also with a stale AUTOPILOT NAV SELECTED
+    for device in (1, 2):
+        code = FAMILIES["g1000"].DEVICE[device]["CDI"]
+        for source, then in (("GPS", ("K:AP_NAV_SELECT_SET", 1)), (1, ("K:AP_NAV_SELECT_SET", 2)),
+                             (2, ("K:TOGGLE_GPS_DRIVES_NAV1", None))):
+            assert run(code, cdi_shows("g1000", source)) == [then]
+
+
+@pytest.mark.parametrize("key", ["g1000", "g3x"])
+def test_the_garmin_fd_key_does_nothing_with_the_autopilot_engaged(key):
+    code = FAMILIES[key].DEVICE[1]["FD"]
     assert run(code, {"AUTOPILOT MASTER": 0}) == [("K:TOGGLE_FLIGHT_DIRECTOR", None)]
     assert run(code, {"AUTOPILOT MASTER": 1}) == []
 
 
-def test_the_g3x_up_and_dn_step_the_reference_of_the_vertical_mode():
+@pytest.mark.parametrize("key", ["g1000", "g3x"])
+def test_the_garmin_up_and_dn_step_the_reference_of_the_vertical_mode(key):
     # VS first, then IAS (nose up slows it), then pitch, and nothing in another mode
-    table = FAMILIES["g3x"].DEVICE[1]
+    table = FAMILIES[key].DEVICE[1]
     modes = ("AUTOPILOT VERTICAL HOLD", "AUTOPILOT FLIGHT LEVEL CHANGE", "AUTOPILOT PITCH HOLD")
     for on, up, down in (((1, 1, 1), "AP_VS_VAR_INC", "AP_VS_VAR_DEC"), ((0, 1, 1), "AP_SPD_VAR_DEC", "AP_SPD_VAR_INC"),
                          ((0, 0, 1), "AP_PITCH_REF_INC_UP", "AP_PITCH_REF_INC_DN"), ((0, 0, 0), None, None)):
@@ -602,6 +638,68 @@ def test_actions_take_a_press_a_release_or_both():
     for bad in ({}, {"hold": "a"}):
         with pytest.raises(ValueError):
             profile.actions(bad)
+
+
+# ---------------- the docs' lists of what does nothing ----------------
+# the controls as the docs name them in those lists, by their buttons; a button's copy with SHIFT (S_VS, S_ENT,
+# S_PTR and so on) goes with it
+DOC_NAMES = {
+    **{name: (name,) for name in ("TEST", "ARM", "GPSS", "BC", "FD", "YD", "VS", "FLC", "VNV", "LVL", "HOME", "CDI",
+                                  "OBS", "FPL", "MENU", "PROC", "CLR", "ENT", "MSG", "NRST", "TERR", "VNAV", "MAP",
+                                  "PTR")},
+    "½ BANK": ("HALF_BANK",),
+    "RANGE": ("RANGE_CW", "RANGE_CCW"),
+    "the map's pan": ("PAN_UP", "PAN_DN", "PAN_LEFT", "PAN_RIGHT"),
+    "the FREQ push": ("FREQ_PUSH",),
+    "the dimmers": ("PANEL_LT_UP", "PANEL_LT_DN", "FLOOD_LT_UP", "FLOOD_LT_DN"),
+}
+SECTIONS = {"g1000": "G1000 NXi", "g3x": "GFC 500 and G3X Touch", "gns": "GNS 530/430",
+            "gtn": "TDS GTN 750Xi and 650Xi"}
+
+
+def doc(name):
+    """A page of docs/using/ with its lines joined"""
+    with open(os.path.join(ROOT, "docs", "using", name), encoding="utf-8") as f:
+        return " ".join(f.read().split())
+
+
+def listed(text, device):
+    """[button] of this device a list names, in its order: its controls, apart, and without the reasons in
+    parentheses; one named "in unit 2" counts on device 2 only"""
+    out = []
+    for item in re.split(r",\s*|\s+and\s+", re.sub(r"\s*\([^()]*\)", "", text)):
+        name = item.removesuffix(" in unit 2")
+        assert name in DOC_NAMES, item
+        if name == item or device == 2:
+            out += [b for button in DOC_NAMES[name] for b in (button, "S_" + button) if b in BM.DEVICE[device]]
+    return out
+
+
+def once(buttons):
+    """The buttons as a set, none named twice"""
+    assert len(set(buttons)) == len(buttons), sorted(b for b in buttons if buttons.count(b) > 1)
+    return set(buttons)
+
+
+@FAMILY
+def test_mapping_md_lists_what_does_nothing(key):
+    # "Does nothing in every profile" and the family's "Does nothing in this profile" name its unmapped buttons,
+    # each once
+    text = doc("mapping.md")
+    [every] = re.findall(r"Does nothing in every profile: (.+?)\. ", text)
+    [section] = [s for s in text.split("### ") if s.startswith(SECTIONS[key] + " ")]
+    [own] = re.findall(r"Does nothing in this profile: (.+?)\.(?: |$)", section.split(" ## ")[0])
+    for device in (1, 2):
+        assert once(listed(every, device) + listed(own, device)) == set(FAMILIES[key].UNMAPPED[device]), device
+
+
+@pytest.mark.parametrize("key, unit", [("gtn", "GTN"), ("g3x", "G3X Touch")])
+def test_compatibility_md_lists_the_touchscreen_functions(key, unit):
+    # what does nothing with a GTN or G3X Touch is what the family has on the touchscreen only, and it is unmapped
+    [text] = re.findall(rf"these controls do nothing with an? {unit}: (.+?)\. ", doc("compatibility.md"))
+    for device in (1, 2):
+        touch = set(FAMILIES[key].TOUCHSCREEN) & set(BM.DEVICE[device])
+        assert once(listed(text, device)) == touch and touch <= set(FAMILIES[key].UNMAPPED[device]), device
 
 
 # ---------------- the project ----------------
@@ -808,19 +906,38 @@ def test_command_line_errors(tmp_path, monkeypatch, args):
 
 
 # ---------------- workflows (docs/using/controls.md) through the panel and the profiles ----------------
-def sent(sim, key="g1000"):
+def sent(sim, key="g1000", swapped=False):
     """The codes MobiFlight sends for what it saw go down on both joysticks, in order per device (an unmapped
-    button sends none)"""
+    button sends none); swapped: with the project's two joysticks bound the wrong way round"""
     by_button = {(item["Controller"]["Serial"], item["Device"]["Name"]): item["button"]["onPress"]["Command"]
                  for item in items(build(key=key)) if item["button"]["onPress"]}
     assert sim.held(1) == [] and sim.held(2) == []
     out = ([], [])
     for device in (1, 2):
         for name in sim.presses(device):
-            command = by_button.get((PANEL[device][1], f"Button {BM.BUTTON[device][name] + 1}"))
+            bound = 3 - device if swapped else device
+            command = by_button.get((PANEL[bound][1], f"Button {BM.BUTTON[device][name] + 1}"))
             if command:
                 out[device - 1].append(command)
     return out
+
+
+@FAMILY
+def test_the_heading_bug_checks_the_binding(key):
+    # the check of docs/using/mapping.md, step 4: with SHIFT off, a detent of the ALT/HDG inner knob moves the
+    # heading bug by 1° in every family, in either unit, and nothing with the joysticks bound the wrong way round
+    # (device 2's Button 39 is the FREQ push, which sends nothing, and it has no Button 40)
+    [ring, moves] = re.findall(r"With the amber light by SHIFT off \([^)]*\), turn the (.+?) one detent: the (.+?) "
+                               r"must move by 1 degree\.", doc("mapping.md"))[0]
+    assert (ring, moves) == ("inner knob of the ALT/HDG knob", "heading bug")
+    for unit in (1, 2):
+        sim = Sim()
+        if unit == 2:
+            sim.tap("SHIFT")
+            sim.tap("HOME")
+        sim.turn("ALTHDG_INNER", 1)
+        assert sent(sim, key) == ([k("HEADING_BUG_INC")], [])
+        assert sent(sim, key, swapped=True) == ([], [])
 
 
 # every family tunes the radios and the transponder directly (mobiflight/families/parts.py)
@@ -903,4 +1020,4 @@ def test_g1000_after_takeoff():
     sim.tap("SHIFT")
     sim.tap("FD")
     sim.tap("AP")
-    assert sent(sim) == ([k("YAW_DAMPER_TOGGLE"), b("AS1000_AUTOPILOT_AP_PFD_TOGGLE")], [])
+    assert sent(sim) == ([k("YAW_DAMPER_TOGGLE"), k("AP_MASTER")], [])

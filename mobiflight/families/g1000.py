@@ -2,23 +2,42 @@
 (docs/using/controls.md, docs/using/compatibility.md). What the profile does differently from the real G1000 is in
 docs/using/mapping.md#g1000-nxi.
 
-The autopilot keys, the PFD's knobs and the MFD's RANGE knob are the input events MSFS 2024's G1000 aircraft
-define (B:AS1000_*, which the sim also lists for binding in the aircraft's controls: AS1000_HEADING_PFD_INC and
-so on). The MFD's FMS keys, FMS knob and joystick are the H: events Working Title's G1000 NXi takes for them
-(MFDViewService.ts in microsoft/msfs-avionics-mirror, MSFS 2024 SU5); it takes no H: event for a long press of
-CLR. The rest is the simulator's own key events and variables, which the NXi follows (it intercepts
-TOGGLE_GPS_DRIVES_NAV1 for the CDI and BAROMETRIC_STD_PRESSURE, and its autopilot the leveler events of LVL), with
-the radios, ADF, transponder and audio panel the parts the tables share (parts.py). The keys without an amber
-legend and the RANGE knob send the plain function with SHIFT too, so a stray SHIFT does no harm
-(docs/using/mapping.md#two-joysticks).
+Every row is an input Working Title's G1000 NXi takes, by its source (src/workingtitle-instruments-g1000 and
+src/garminsdk in microsoft/msfs-avionics-mirror, MSFS 2024 SU5). Its autopilot is Garmin's, built as the G3X
+Touch's (GarminAPStateManager.ts, WTG1000_MFD.tsx), so the autopilot keys and the ALT/HDG knob are the simulator's
+key events the two share (parts.GARMIN_SHARED). The PFD's CRS and BARO knobs, the MFD's RANGE knob, FMS keys, FMS
+knob and joystick are the H: events the NXi takes for them (CourseKnobInputHandler.ts, Altimeter.tsx,
+MFDViewService.ts); it takes no H: event for a long press of CLR. The CDI and OBS are the simulator's key events
+the NXi follows (ActiveNavSourceManager.ts, LNavObsManager.ts); the radios, ADF, transponder and audio panel are
+the parts the tables share (parts.py). The keys without an amber legend and the RANGE knob send the plain function
+with SHIFT too, so a stray SHIFT does no harm (docs/using/mapping.md#two-joysticks).
 """
 from mobiflight.families import parts
-from mobiflight.families.rpn import b, h, k
+from mobiflight.families.rpn import h, k
 
 NAME = "G1000 NXi"
 
+# what the CDI shows, as the NXi's PFD keeps it in L:PFD_CDI_Source on every change and at start (HSI.tsx): 3 for
+# GPS, 1 or 2 for NAV 1 or NAV 2. AUTOPILOT NAV SELECTED would not do: the NXi may start its CDI on NAV 1 without
+# writing it (NavProcessor.ts, initCdi).
+_SOURCE = "(L:PFD_CDI_Source, Number)"
+
+
+def _shows(gps, radio):
+    """The code for what the CDI shows: gps for the GPS, radio for a NAV radio (# for its number)"""
+    return (f"{_SOURCE} 3 == if{{ {gps} }} "
+            f"els{{ {_SOURCE} 2 == if{{ {radio.replace('#', '2')} }} els{{ {radio.replace('#', '1')} }} }}")
+
+
+# the CDI softkey's cycle, GPS, NAV 1, NAV 2, GPS: the NXi selects a NAV radio on AP_NAV_SELECT_SET and GPS on
+# TOGGLE_GPS_DRIVES_NAV1, which alone would never select NAV 2 (ActiveNavSourceManager.ts, NavProcessor.ts)
+_NAV1, _NAV2, _GPS = k("AP_NAV_SELECT_SET", 1), k("AP_NAV_SELECT_SET", 2), k("TOGGLE_GPS_DRIVES_NAV1")
+_CDI = f"{_SOURCE} 3 == if{{ {_NAV1} }} els{{ {_SOURCE} 1 == if{{ {_NAV2} }} els{{ {_GPS} }} }}"
+
 _UNIT = {
-    "CDI": k("TOGGLE_GPS_DRIVES_NAV1"),
+    "CDI": _CDI,
+    # the OBS softkey's mode: the NXi follows the sim's GPS OBS (LNavObsManager.ts, GarminObsLNavModule.ts)
+    "OBS": k("GPS_OBS"),
     "FPL": h("AS1000_MFD_FPL_Push"),
     "DIRECT": h("AS1000_MFD_DIRECTTO"),
     "MENU": h("AS1000_MFD_MENU_Push"),
@@ -35,7 +54,6 @@ _UNIT = {
 }
 _UNIT_UNMAPPED = {
     "HOME": "the G1000 has no HOME key: free for your own mapping (docs/using/compatibility.md)",
-    "OBS": "softkeys are positional: a fixed softkey is OBS only at the PFD's top level",
     "VNAV": "the G1000 has no VNAV key: the autopilot's VNV key is the panel's VNV",
     "MSG": "softkeys are positional: a fixed softkey is ALERTS only at the PFD's top level",
     "NRST": "softkeys are positional: a fixed softkey is NRST only at the PFD's top level",
@@ -45,57 +63,30 @@ _UNIT_UNMAPPED = {
 }
 
 _DEVICE1 = {
-    # autopilot keys
-    "AP": b("AS1000_AUTOPILOT_AP_PFD_TOGGLE"),
-    "ALT": b("AS1000_AUTOPILOT_ALTITUDE_PFD_TOGGLE"),
-    "HDG": b("AS1000_AUTOPILOT_HEADING_PFD_TOGGLE"),
-    "FD": b("AS1000_AUTOPILOT_FD_PFD_TOGGLE"),
-    "VS": b("AS1000_AUTOPILOT_VERTICALSPEED_PFD_TOGGLE"),
-    "NAV": b("AS1000_AUTOPILOT_NAVIGATION_PFD_TOGGLE"),
-    "UP": b("AS1000_AUTOPILOT_VERTICALSPEED_UP_PFD_PUSH"),         # NOSE UP
-    "FLC": b("AS1000_AUTOPILOT_FLIGHTLEVELCHANGE_PFD_TOGGLE"),
-    "APR": b("AS1000_AUTOPILOT_APPROACH_PFD_TOGGLE"),
-    "DN": b("AS1000_AUTOPILOT_VERTICALSPEED_DOWN_PFD_PUSH"),       # NOSE DN
-    "VNV": b("AS1000_AUTOPILOT_VERTICAL_NAVIGATION_PFD_TOGGLE"),
-    "LVL": parts.LEVEL,
+    # the autopilot keys, NOSE UP and NOSE DN, the yaw damper, the ALT/HDG knob and STD (parts.py), with BC
+    **parts.GARMIN_SHARED,
+    "BC": k("AP_BC_HOLD"),
+    # the PFD's CRS knob and its push (CourseKnobInputHandler.ts): the course of the GPS's OBS or of the NAV radio
+    # the CDI shows, and its push centres it; and its BARO knob (Altimeter.tsx)
+    "CRS_CTR": h("AS1000_PFD_CRS_PUSH"),
+    "CRS_1_UP": h("AS1000_PFD_CRS_INC"),
+    "CRS_1_DN": h("AS1000_PFD_CRS_DEC"),
+    **parts.course_fast(_shows),
+    "BARO_UP": h("AS1000_PFD_BARO_INC"),
+    "BARO_DN": h("AS1000_PFD_BARO_DEC"),
     # audio (GMA 1347): the simulator's audio panel
     **parts.AUDIO,
-    # shifted keys
-    "CRS_CTR": b("AS1000_COURSE_PUSH_PFD_PUSH"),
-    "YD": k("YAW_DAMPER_TOGGLE"),
-    "S_VS": b("AS1000_AUTOPILOT_VERTICALSPEED_PFD_TOGGLE"),
-    "S_UP": b("AS1000_AUTOPILOT_VERTICALSPEED_UP_PFD_PUSH"),
-    "S_FLC": b("AS1000_AUTOPILOT_FLIGHTLEVELCHANGE_PFD_TOGGLE"),
-    "BC": b("AS1000_AUTOPILOT_BACKCOURSE_PFD_TOGGLE"),
-    "S_DN": b("AS1000_AUTOPILOT_VERTICALSPEED_DOWN_PFD_PUSH"),
-    "S_VNV": b("AS1000_AUTOPILOT_VERTICAL_NAVIGATION_PFD_TOGGLE"),
-    # ALT/HDG knob: the G1000's ALT knob (inner 100 ft, outer 1000 ft) and HDG knob; with SHIFT CRS/BARO
-    "ALT_100_UP": b("AS1000_ALTITUDE_INNER_PFD_Inc", 1),
-    "ALT_100_DN": b("AS1000_ALTITUDE_INNER_PFD_Dec", 1),
-    "ALT_1000_UP": b("AS1000_ALTITUDE_OUTER_PFD_Inc", 1),
-    "ALT_1000_DN": b("AS1000_ALTITUDE_OUTER_PFD_Dec", 1),
-    "HDG_1_UP": b("AS1000_HEADING_PFD_Inc", 1),
-    "HDG_1_DN": b("AS1000_HEADING_PFD_Dec", 1),
-    **parts.HEADING_FAST,
-    "HDG_SYNC": b("AS1000_HEADING_SYNC_PFD_PUSH"),
-    "CRS_1_UP": b("AS1000_COURSE_PFD_Inc", 1),
-    "CRS_1_DN": b("AS1000_COURSE_PFD_Dec", 1),
-    # the fast step sets what the PFD's CRS knob steps (CourseKnobInputHandler.ts): the GPS's OBS course or the
-    # course of the NAV radio the CDI shows
-    **parts.COURSE_FAST,
-    "BARO_UP": b("AS1000_BARO_PFD_Inc", 1),
-    "BARO_DN": b("AS1000_BARO_PFD_Dec", 1),
-    "BARO_STD": k("BAROMETRIC_STD_PRESSURE", 1),
-    # RANGE knob and joystick, on the MFD; clockwise zooms out, as on the G1000
-    "RANGE_CW": b("AS1000_RANGE_ZOOM_MFD_Inc", 1),
-    "RANGE_CCW": b("AS1000_RANGE_ZOOM_MFD_Dec", 1),
+    # RANGE knob and joystick, on the MFD; clockwise zooms out, as on the G1000: RANGE_INC steps the map to its next
+    # range (MFDNavMapPage.tsx)
+    "RANGE_CW": h("AS1000_MFD_RANGE_INC"),
+    "RANGE_CCW": h("AS1000_MFD_RANGE_DEC"),
     "PAN_UP": h("AS1000_MFD_JOYSTICK_UP"),
     "PAN_DN": h("AS1000_MFD_JOYSTICK_DOWN"),
     "PAN_LEFT": h("AS1000_MFD_JOYSTICK_LEFT"),
     "PAN_RIGHT": h("AS1000_MFD_JOYSTICK_RIGHT"),
     "PTR": h("AS1000_MFD_JOYSTICK_PUSH"),
-    "S_RANGE_CW": b("AS1000_RANGE_ZOOM_MFD_Inc", 1),
-    "S_RANGE_CCW": b("AS1000_RANGE_ZOOM_MFD_Dec", 1),
+    "S_RANGE_CW": h("AS1000_MFD_RANGE_INC"),
+    "S_RANGE_CCW": h("AS1000_MFD_RANGE_DEC"),
     "S_PAN_UP": h("AS1000_MFD_JOYSTICK_UP"),
     "S_PAN_DN": h("AS1000_MFD_JOYSTICK_DOWN"),
     "S_PAN_LEFT": h("AS1000_MFD_JOYSTICK_LEFT"),

@@ -1,6 +1,7 @@
 """The MobiFlight project (.mfproj) for one avionics family, for both joysticks.
 
-The format is MobiFlight 11's JSON project, schema "_version" 0.10, as MobiFlight 11.3.1 reads and writes it
+The format is MobiFlight's JSON project, schema "_version" 0.10 (MobiFlight 11.2 and newer; 11.1 reads 0.9 and
+loads a newer project unmigrated), as MobiFlight 11.3.1 reads and writes it
 (src/MobiFlightConnector/ in its repository: Base/Project.cs, Base/ConfigFile.cs, Base/ConfigItem.cs,
 Base/Controller.cs, MobiFlight/InputConfigItem.cs, MobiFlight/InputConfig/ButtonInputConfig.cs and
 MSFS2020CustomInputAction.cs; the shape is that of its Joysticks/wingflex/projects/msfs/*.mfproj). Every
@@ -36,7 +37,7 @@ ITEMS = uuid.uuid5(uuid.NAMESPACE_URL, "avionics-panel/mobiflight")
 SERIAL = re.compile(r"JS-[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}")
 BUTTON = re.compile(r"Button ([0-9]+)")
 EVENTS = {"press": "onPress", "release": "onRelease"}
-WRITES = re.compile(r"\(>[ABHK]:([^),]+)[^)]*\)")   # what a code sets: (>K:EVENT), (>A:VARIABLE, unit) and so on
+WRITES = re.compile(r"\(>[AHK]:([^),]+)[^)]*\)")    # what a code sets: (>K:EVENT), (>A:VARIABLE, unit) and so on
 
 
 def _load(name, path):

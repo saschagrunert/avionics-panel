@@ -108,8 +108,7 @@ UP and DN are keys, as on the G1000. They auto-repeat while held (first repeat a
 steps per second), so -1000 ft/min takes about 1.4 s. UP has a small raised bar at the back edge of its cap
 and DN one at the front edge, so they are told apart without looking.
 
-One laser-marked frame surrounds all keys and single lines split it into AUTOPILOT, AUDIO, RADIO and FMS
-(separate frames read as a double rule between AUTOPILOT and AUDIO).
+One laser-marked frame surrounds all keys and single lines split it into AUTOPILOT, AUDIO, RADIO and FMS.
 
 Audio and radio: AUDIO (left half) selects what you talk on (MIC) and listen to (COM; with SHIFT NAV 1, NAV 2,
 ADF, DME for station identifiers). It does not tune anything. RADIO (right half) holds the CDI key, the
@@ -219,5 +218,5 @@ and the KFC 150 both have CWS; it lets you hand-fly briefly without disengaging 
   marked.
 - The encoders are rated for 15,000 rotations and 20,000 pushes, the RANGE control's encoder for 15,000
   rotations, the keys for 100,000 presses. The spare board replaces a worn one; with hand-soldering it comes
-  bare, so it needs a second set of the through-hole parts ([Disassembly](../building/assembly.md#disassembly),
-  [Bring-up](../building/bring-up.md)).
+  without its keys, encoders and RANGE control, so it needs a second set of them
+  ([Disassembly](../building/assembly.md#disassembly), [Bring-up](../building/bring-up.md)).

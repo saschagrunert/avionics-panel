@@ -1,12 +1,12 @@
 # Avionics Panel [![Firmware test coverage](https://codecov.io/gh/saschagrunert/avionics-panel/graph/badge.svg)](https://codecov.io/gh/saschagrunert/avionics-panel)
 
-DIY desktop panel for GA avionics in flight sims ([G1000][g1000], [GTN 750][gtn750], [GNS 530/430][gns530],
-[GFC 500][gfc500] with the G3X Touch, [Bendix/King][bendixking] radios with the [KAP 140][kap140]): autopilot,
-audio, radio and FMS keys, three dual concentric knobs and a RANGE knob that tilts to pan. It shows up on the
-PC as two USB joysticks, mapped in [MobiFlight][mobiflight]; the
-[ready profiles](docs/using/mapping.md#generated-profiles) are for MSFS 2024 with MobiFlight 11 on Windows. Its
-[keyboard mode](docs/using/keyboard.md), not yet tried in MSFS, makes it a USB keyboard for MSFS on consoles
-and without MobiFlight.
+DIY desktop panel for GA avionics in flight sims ([G1000][g1000], [TDS GTN 750Xi/650Xi][gtnxi],
+[GNS 530/430][gns530], [GFC 500][gfc500] with the G3X Touch, [Bendix/King][bendixking] radios with the
+[KAP 140][kap140]): autopilot, audio, radio and FMS keys, three dual concentric knobs and a RANGE knob that
+tilts to pan. It shows up on the PC as two USB joysticks, mapped in [MobiFlight][mobiflight]; the
+[ready profiles](docs/using/mapping.md#generated-profiles) are for MSFS 2024 with MobiFlight 11.2 or newer on
+Windows. Its [keyboard mode](docs/using/keyboard.md), not yet tried in MSFS, makes it a USB keyboard for MSFS
+on consoles and without MobiFlight.
 
 [![Top view: autopilot keys and ALT/HDG and RANGE knobs left, audio, radio and FMS keys, FREQ and FMS knobs right](renders/2-top.png)](https://saschagrunert.de/avionics-panel/)
 
@@ -39,9 +39,9 @@ ordering to mapping.
 
 Using the panel:
 
+- [Mapping](docs/using/mapping.md): the ready MobiFlight profiles, and mapping the two joysticks by hand
 - [Controls](docs/using/controls.md): what each key and knob does
 - [Compatibility](docs/using/compatibility.md): what each control maps to per avionics family and aircraft
-- [Mapping](docs/using/mapping.md): the ready MobiFlight profiles, and mapping the two joysticks by hand
 - [Keyboard mode](docs/using/keyboard.md): the panel as a keyboard, for MSFS on Xbox and PS5 and without
   MobiFlight
 - [Simulator](docs/using/simulator.md): the panel on the PC before the hardware exists,
@@ -68,7 +68,7 @@ Working on the design:
 - [Generators](docs/architecture/generators.md): the scripts behind every file, and `./build.sh`
 
 [g1000]: https://www.garmin.com/en-US/p/588901/
-[gtn750]: https://www.garmin.com/en-US/p/67886/
+[gtnxi]: https://www.tdssim.com/tdsgtnxi
 [gns530]: https://www.garmin.com/en-US/p/8052/
 [gfc500]: https://www.garmin.com/en-US/p/604257/
 [bendixking]: https://en.wikipedia.org/wiki/Bendix/King

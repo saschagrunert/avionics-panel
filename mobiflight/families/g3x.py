@@ -8,7 +8,7 @@ Sources, in Working Title's msfs-avionics-mirror for MSFS 2024 (SU5): the G3X To
 Event List"; case-sensitive, UiInteractionMapper.ts) and the code that takes them (src/workingtitle-instruments-
 g3x-touch, src/garminsdk, src/sdk). The G3X Touch builds the GFC 500 from Garmin's autopilot (GarminAutopilot,
 GarminAPStateManager), which takes the sim's key events, so the autopilot keys send what the G3X's own AFCS page
-sends (MFD/Views/AfcsControlsView/AfcsControlsView.tsx) and the knobs what its PFD knobs send
+sends (MFD/Views/AfcsControlsView/AfcsControlsView.tsx, parts.GARMIN_SHARED) and the knobs what its PFD knobs send
 (GduDisplay/Gdu460/PfdInstruments/Gdu460PfdInstrumentsView.tsx). Key events and simulation variables as in the
 MSFS 2024 SDK. The radios, ADF, transponder, audio panel and cabin light are the parts the tables share (parts.py).
 """
@@ -38,68 +38,33 @@ def _gdu(index):
 # the one CDI, which the key switches between GPS and NAV 1 while the G3X flies its own flight plan
 # (ActiveNavSourceManager.ts), and the GPS's OBS mode, from both units
 _CDI = {"CDI": k("TOGGLE_GPS_DRIVES_NAV1"), "OBS": k("GPS_OBS")}
-# the GMC 507's nose up/down wheel sets the reference of the active vertical mode, as the G3X's own AFCS page does:
-# VS, then IAS (nose up slows it), then pitch; Working Title's directors set these A: flags
-# (APVSDirector.ts, APFLCDirector.ts, APPitchDirector.ts)
-_WHEEL = ("(A:AUTOPILOT VERTICAL HOLD, Bool) if{{ (>K:AP_VS_VAR_{0}) }} els{{ (A:AUTOPILOT FLIGHT LEVEL CHANGE, Bool) "
-          "if{{ (>K:AP_SPD_VAR_{1}) }} els{{ (A:AUTOPILOT PITCH HOLD, Bool) if{{ (>K:AP_PITCH_REF_INC_{2}) }} }} }}")
-_NOSE_UP = _WHEEL.format("INC", "DEC", "UP")
-_NOSE_DN = _WHEEL.format("DEC", "INC", "DN")
-_VS = k("AP_VS_HOLD")
-_IAS = k("FLIGHT_LEVEL_CHANGE")
-_VNV = h("AS1000_VNAV_TOGGLE")                      # GarminAPStateManager.ts toggles VNAV on this H event
-# CRS CTR: the course to the VOR, or the localizer's, on the NAV the CDI shows, as the G3X's Course knob push sets it
-_CENTRE = ("(A:NAV HAS LOCALIZER:#, Bool) if{ (A:NAV LOCALIZER:#, degrees) near dnor (>K:VOR#_SET) } "
-           "els{ (A:NAV HAS NAV:#, Bool) if{ (A:NAV RADIAL:#, degrees) 180 + near dnor (>K:VOR#_SET) } }")
 
 _AFCS = {
-    # autopilot keys
-    "AP": k("AP_MASTER"),
-    "ALT": k("AP_ALT_HOLD"),
-    "HDG": k("AP_HDG_HOLD"),
-    # the GMC 507's FD key does nothing while the autopilot is engaged
-    "FD": "(A:AUTOPILOT MASTER, Bool) ! if{ (>K:TOGGLE_FLIGHT_DIRECTOR) }",
-    "VS": _VS,
-    "NAV": k("AP_NAV1_HOLD"),
-    "UP": _NOSE_UP,
-    "FLC": _IAS,
-    "APR": k("AP_APR_HOLD"),
-    "DN": _NOSE_DN,
-    "VNV": _VNV,
-    "LVL": parts.LEVEL,
-    # shifted keys
-    "CRS_CTR": f"(A:GPS DRIVES NAV1, Bool) ! if{{ {parts.nav(_CENTRE)} }}",
-    "YD": k("YAW_DAMPER_TOGGLE"),
-    "S_VS": _VS,
-    "S_UP": _NOSE_UP,
-    "S_FLC": _IAS,
-    "S_DN": _NOSE_DN,
-    "S_VNV": _VNV,
-    # ALT/HDG knob: the selected altitude, 100 ft for a value up to 999 and 1000 ft above (AltitudeSelectManager.ts,
-    # GarminAutopilot.ts), and the heading bug, whose push syncs it to the heading as the G3X's knob does; with SHIFT
-    # the course of what the CDI shows and the altimeter of index 1, the G3X's (GduDefsConfig.ts)
-    "ALT_100_UP": k("AP_ALT_VAR_INC"),
-    "ALT_100_DN": k("AP_ALT_VAR_DEC"),
-    "ALT_1000_UP": k("AP_ALT_VAR_INC", 1000),
-    "ALT_1000_DN": k("AP_ALT_VAR_DEC", 1000),
-    "HDG_1_UP": k("HEADING_BUG_INC"),
-    "HDG_1_DN": k("HEADING_BUG_DEC"),
-    **parts.HEADING_FAST,
-    "HDG_SYNC": parts.SYNC,
-    # the G3X's GPS follows the sim's GPS OBS (use-sim-obs by default: FmsConfig.ts, GarminObsLNavModule.ts)
+    # the autopilot keys, the GMC 507's wheel as UP and DN, the yaw damper, the ALT/HDG knob, whose push syncs the
+    # heading bug as the G3X's knob does, and STD (parts.py)
+    **parts.GARMIN_SHARED,
+    # CRS CTR: the course to the VOR, or the localizer's, on the NAV the CDI shows, as the G3X's Course knob push
+    # sets it
+    "CRS_CTR": f"(A:GPS DRIVES NAV1, Bool) ! if{{ {parts.nav(parts.CENTRE)} }}",
+    # with SHIFT the course of what the CDI shows and the altimeter of index 1, the G3X's (GduDefsConfig.ts); the
+    # G3X's GPS follows the sim's GPS OBS (use-sim-obs by default: FmsConfig.ts, GarminObsLNavModule.ts)
     "CRS_1_UP": parts.cdi(k("GPS_OBS_INC"), k("VOR#_OBI_INC")),
     "CRS_1_DN": parts.cdi(k("GPS_OBS_DEC"), k("VOR#_OBI_DEC")),
-    **parts.COURSE_FAST,
+    **parts.course_fast(parts.cdi),
+    # KOHLSMAN_INC and _DEC with the altimeter's index, as the G3X's own knob sends them
+    # (Gdu460PfdInstrumentsView.tsx), though the SDK's Key Events list no parameter for them
     "BARO_UP": k("KOHLSMAN_INC", 1),
     "BARO_DN": k("KOHLSMAN_DEC", 1),
-    "BARO_STD": k("BAROMETRIC_STD_PRESSURE", 1),
 }
 
 _TOUCH = "a touchscreen function of the G3X Touch: its bezel has only D→, MENU, BACK (CLR), NRST and the knobs"
+_TOUCH_KEYS = ("FPL", "ENT", "S_ENT", "VNAV", "MSG", "TERR", "MAP")
+# what the G3X Touch has on its touchscreen only (docs/using/compatibility.md)
+TOUCHSCREEN = (*_TOUCH_KEYS, *parts.RANGE_KNOB)
 _UNIT_UNMAPPED = {
     "HOME": "the G3X Touch has no HOME key: free for your own mapping (docs/using/compatibility.md)",
     "PROC": "the G3X Touch is VFR only: it loads no procedures",
-    **dict.fromkeys(("FPL", "ENT", "S_ENT", "VNAV", "MSG", "TERR", "MAP"), _TOUCH),
+    **dict.fromkeys(_TOUCH_KEYS, _TOUCH),
     **parts.RADIO_UNMAPPED,
 }
 
