@@ -67,8 +67,20 @@ nothing else. MobiFlight knows a joystick by its GUID, so let it find them:
 
 Using it:
 
-- Open the project in MobiFlight as a project of its own, the one of the family you fly; do not merge it into
-  another one that maps the same buttons.
+- MobiFlight runs one project at a time, and all the profiles in it (its tabs) run together. To use the panel
+  beside other MobiFlight hardware, open that hardware's project, choose the + beside the tabs, From existing
+  project, pick the panel's project you saved, bound to your joysticks, and save the result under a name of
+  its own for that family (File, Save As). The added tab is a copy: to change the family or take a newer
+  profile, first remove the old tab, "Avionics Panel" in every family (the dots on the tab, Remove), then add
+  the new one. Never put two of this panel's profiles into one project: they map the same buttons.
+- To have MobiFlight switch with the aircraft, save a project for each family you fly. Start a flight in an
+  aircraft and open its project, then click the aircraft's name at the bottom of MobiFlight's window ("No
+  aircraft detected" before a flight) and choose Link current config; in the same menu, turn on Auto-load
+  linked config once. The link is to the name the sim reports, which can differ between liveries and
+  variants of one aircraft: link each one you fly. When the sim loads a linked aircraft, MobiFlight opens its
+  project (asking first to save unsaved changes) and stops running: choose Run again, or turn on Auto beside
+  Run to have it start by itself. The Aircraft list in a project's settings does not do this: it only limits
+  the presets MobiFlight offers.
 - On another PC, with a new board or on the [Pico bench](#update-mode-and-guids) the joysticks have other
   GUIDs and MobiFlight asks again. Bind the project's two joysticks to the new ones in Extras, Controller
   Bindings, and check them with the heading bug before you save (step 4 of the steps above): if it does not
