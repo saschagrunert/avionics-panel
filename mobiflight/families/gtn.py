@@ -5,35 +5,35 @@ integrations load them (the C172's attaches the bezels marcfsx-tdssim-gtnxi750u1
 TDS numbers the units per model: aircraft that load the 650Xi as unit 1, as Black Square's do, are not covered. What
 the profile does differently from the real units is in docs/using/mapping.md#tds-gtn-750xi-and-650xi.
 
-TDS takes only the GTNs' bezel from outside (TDS GTNXi manual, rev. 19, "Interfacing with Hardware"). The table
-sets the L: variables TDS's MSFS 2024 bezels write for their keys and knobs, as YourControls' FS2024
-TDS_GTNXi.yaml syncs them (TDSGTNXI750U1_HomeKey and so on): a key is 1 while held and 0 when let go, and a knob
-detent sets its variable to 1. The radios are tuned with the simulator's own key events, which the GTNs show; the
-rest is the parts the tables share (parts.py).
+TDS takes only the GTNs' bezel from outside, as the simulator's GPS key events with a value that names the unit
+(TDS GTNXi manual, revision 19, "Interfacing with Hardware"): a knob detent sends the unit's value, a key that
+value plus 2 when it goes down and plus 4 when it comes up. The radios are tuned with the simulator's own key
+events, which the GTNs show; the rest is the parts the tables share (parts.py).
 """
 from mobiflight.families import parts
-from mobiflight.families.rpn import lvar
+from mobiflight.families.rpn import k
 
 NAME = "GTN 750Xi/650Xi"
+GTN750_1, GTN650_2 = 0, 24       # the value of the GTN 750Xi unit 1 and of the GTN 650Xi unit 2 in the key events
+_DOWN, _UP = 2, 4                # added to it for a key: down, up
 
 
-def _held(variable):
+def _held(event, unit):
     """A bezel key, held as long as the panel's key or push"""
-    return {"press": lvar(variable, 1), "release": lvar(variable, 0)}
+    return {"press": k(event, unit + _DOWN), "release": k(event, unit + _UP)}
 
 
-def _bezel(model, unit):
-    """The bezel of TDS's GTNXi of this model ("750", "650") and unit: HOME, D→, the dual knob and its push, held
-    as long as the panel's key or push, so a held push flips the frequencies"""
-    p = f"TDSGTNXI{model}U{unit}_"
+def _bezel(unit):
+    """The bezel of the TDS GTNXi of this value: HOME, D→, the dual knob (outer GROUP, inner PAGE) and its push,
+    held as long as the panel's key or push, so a held push flips the frequencies"""
     return {
-        "HOME": _held(p + "HomeKey"),
-        "DIRECT": _held(p + "DTOKey"),
-        "FMS_OUTER_CW": lvar(p + "RKnobOuterInc", 1),
-        "FMS_OUTER_CCW": lvar(p + "RKnobOuterDec", 1),
-        "FMS_INNER_CW": lvar(p + "RKnobInnerInc", 1),
-        "FMS_INNER_CCW": lvar(p + "RKnobInnerDec", 1),
-        "FMS_CRSR": _held(p + "RKnobCRSR"),
+        "HOME": _held("GPS_MENU_BUTTON", unit),
+        "DIRECT": _held("GPS_DIRECTTO_BUTTON", unit),
+        "FMS_OUTER_CW": k("GPS_GROUP_KNOB_INC", unit),
+        "FMS_OUTER_CCW": k("GPS_GROUP_KNOB_DEC", unit),
+        "FMS_INNER_CW": k("GPS_PAGE_KNOB_INC", unit),
+        "FMS_INNER_CCW": k("GPS_PAGE_KNOB_DEC", unit),
+        "FMS_CRSR": _held("GPS_CURSOR_BUTTON", unit),
     }
 
 
@@ -45,8 +45,8 @@ _UNIT_UNMAPPED = {
 }
 
 DEVICE = {
-    1: {**parts.KAP140_COCKPIT, **_bezel("750", 1), **parts.RADIO[1], **parts.ADF},
-    2: {**_bezel("650", 2), **parts.RADIO[2], **parts.ADF},
+    1: {**parts.KAP140_COCKPIT, **_bezel(GTN750_1), **parts.RADIO[1], **parts.ADF},
+    2: {**_bezel(GTN650_2), **parts.RADIO[2], **parts.ADF},
 }
 UNMAPPED = {
     1: {

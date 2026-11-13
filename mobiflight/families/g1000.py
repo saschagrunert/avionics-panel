@@ -6,10 +6,11 @@ The autopilot keys, the PFD's knobs and the MFD's RANGE knob are the input event
 define (B:AS1000_*, which the sim also lists for binding in the aircraft's controls: AS1000_HEADING_PFD_INC and
 so on). The MFD's FMS keys, FMS knob and joystick are the H: events Working Title's G1000 NXi takes for them
 (MFDViewService.ts in microsoft/msfs-avionics-mirror, MSFS 2024 SU5); it takes no H: event for a long press of
-CLR. The rest is the simulator's own key events, which the NXi follows (it intercepts TOGGLE_GPS_DRIVES_NAV1 for
-the CDI and BAROMETRIC_STD_PRESSURE, and its autopilot the leveler events of LVL), with the radios, ADF,
-transponder and audio panel the parts the tables share (parts.py). The keys without an amber legend and the RANGE
-knob send the plain function with SHIFT too, so a stray SHIFT does no harm (docs/using/mapping.md#two-joysticks).
+CLR. The rest is the simulator's own key events and variables, which the NXi follows (it intercepts
+TOGGLE_GPS_DRIVES_NAV1 for the CDI and BAROMETRIC_STD_PRESSURE, and its autopilot the leveler events of LVL), with
+the radios, ADF, transponder and audio panel the parts the tables share (parts.py). The keys without an amber
+legend and the RANGE knob send the plain function with SHIFT too, so a stray SHIFT does no harm
+(docs/using/mapping.md#two-joysticks).
 """
 from mobiflight.families import parts
 from mobiflight.families.rpn import b, h, k
@@ -79,12 +80,12 @@ _DEVICE1 = {
     "HDG_SYNC": b("AS1000_HEADING_SYNC_PFD_PUSH"),
     "CRS_1_UP": b("AS1000_COURSE_PFD_Inc", 1),
     "CRS_1_DN": b("AS1000_COURSE_PFD_Dec", 1),
-    # 1° too: a faster step would set NAV 1's course whatever the CDI follows (GPS, NAV 1 or NAV 2)
-    "CRS_10_UP": b("AS1000_COURSE_PFD_Inc", 1),
-    "CRS_10_DN": b("AS1000_COURSE_PFD_Dec", 1),
+    # the fast step sets what the PFD's CRS knob steps (CourseKnobInputHandler.ts): the GPS's OBS course or the
+    # course of the NAV radio the CDI shows
+    **parts.COURSE_FAST,
     "BARO_UP": b("AS1000_BARO_PFD_Inc", 1),
     "BARO_DN": b("AS1000_BARO_PFD_Dec", 1),
-    "BARO_STD": k("BAROMETRIC_STD_PRESSURE"),
+    "BARO_STD": k("BAROMETRIC_STD_PRESSURE", 1),
     # RANGE knob and joystick, on the MFD; clockwise zooms out, as on the G1000
     "RANGE_CW": b("AS1000_RANGE_ZOOM_MFD_Inc", 1),
     "RANGE_CCW": b("AS1000_RANGE_ZOOM_MFD_Dec", 1),
@@ -116,7 +117,6 @@ UNMAPPED = {
         "ARM": "the GFC 700 has no ARM key",
         "GPSS": "the GFC 700 flies GPS steering in NAV mode",
         "HALF_BANK": "no G1000 NXi aircraft in MSFS has a low-bank key",
-        **parts.SQUAWK_UNMAPPED,
         **_UNIT_UNMAPPED,
         **parts.LIGHTS_UNMAPPED,
     },

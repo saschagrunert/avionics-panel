@@ -7,8 +7,8 @@ aircraft, so one panel drives every avionics family below. Keys without a counte
 unused.
 
 Covered families: G1000 and G1000 NXi, TDS GTN 750Xi, GNS 530/430, Bendix/King (KAP 140, KFC 150 + KAS 297B,
-KFC 225, KX 155/165, KR 87, KT 76, KMA 28), GTX 327, newer Garmin (GFC 500, G3X, G500 TXi). For some of them
-in MSFS 2024 the mapping comes ready as a [generated profile](mapping.md#generated-profiles).
+KFC 225, KX 155/165, KR 87, KT 76, KMA 28), GTX 327, newer Garmin (GFC 500, G3X Touch, G500 TXi). For some of
+them in MSFS 2024 the mapping comes ready as a [generated profile](mapping.md#generated-profiles).
 
 Checked against these reference aircraft:
 
@@ -54,33 +54,37 @@ G3000 and GFC 600 (labelled BANK there) have it.
 
 Navigators:
 
-| Panel | G1000 / NXi | GTN 750Xi (TDS) | GNS 530/430 |
-| --- | --- | --- | --- |
-| D→, MENU, CLR, ENT, FPL, PROC | Bezel keys | D→ is a key; the rest are on the touchscreen | Bezel keys |
-| HOME | None | HOME key | None |
-| MSG, NRST, VNAV, TERR, MAP (with SHIFT) | Softkeys / pages; hold CLR | Touchscreen | MSG key; NRST page; VNAV key (530); hold CLR |
-| CDI, OBS | Softkeys | Touchscreen | Bezel keys |
-| FMS knob, push CRSR | FMS knob | The GTN's dual knob (no cursor, see below) | Right knob, push CRSR |
-| RANGE, pan, push PTR | RANGE knob + joystick | Touchscreen; the inner knob zooms on the map page | RNG keys |
-| UNIT (SHIFT, HOME) | Radio 2 only; the FMS keys stay on the MFD | GTN / second unit | 530 / 430 |
+| Panel | G1000 / NXi | G3X Touch | GTN 750Xi (TDS) | GNS 530/430 |
+| --- | --- | --- | --- | --- |
+| D→, MENU, CLR, ENT, FPL, PROC | Bezel keys | D→, MENU and BACK (CLR) are keys; FPL and ENT are on the touchscreen; no procedures | D→ is a key; the rest are on the touchscreen | Bezel keys |
+| HOME | None | None | HOME key | None |
+| MSG, NRST, VNAV, TERR, MAP (with SHIFT) | Softkeys / pages; hold CLR | NRST key; the rest are on the touchscreen | Touchscreen | MSG key; NRST page; VNAV key (530); hold CLR |
+| CDI, OBS | Softkeys | Touchscreen, worked by the sim's events (see below) | Touchscreen | Bezel keys |
+| FMS knob, push CRSR | FMS knob | Right knob and its push | The GTN's dual knob (no cursor, see below) | Right knob, push CRSR |
+| RANGE, pan, push PTR | RANGE knob + joystick | Touchscreen; the inner knob zooms on the map page | Touchscreen; the inner knob zooms on the map page | RNG keys |
+| UNIT (SHIFT, HOME) | Radio 2 only; the FMS keys stay on the MFD | PFD / MFD, where there are two displays | GTN / second unit | 530 / 430 |
 
-On units without a HOME key (G1000, GNS) map HOME to whatever is used most there.
+On units without a HOME key (G1000, G3X Touch, GNS) map HOME to whatever is used most there.
 
 The TDS GTN 750Xi and 650Xi take only their bezel controls from outside: HOME, D→, the dual knob and its
 push, and the volume knob and its push. Their touchscreen functions (FPL, PROC, MENU, CLR, ENT, MSG, NRST,
 TERR, VNAV, MAP, CDI, OBS, the map's pan) have no event or variable, so these controls do nothing with a GTN:
 press HOME and touch the function on the screen.
 
+The G3X Touch has its CDI, OBS, radios, transponder and audio panel on the touchscreen too, but those are the
+sim's own, which the sim's events work from outside: these controls work with a G3X Touch. Its own functions
+(FPL, ENT, MSG, VNAV, TERR, MAP, the map's zoom and pan) stay on its screen.
+
 Radios, transponder, audio:
 
-| Panel | G1000 | GTN / GNS | Bendix/King |
-| --- | --- | --- | --- |
-| FREQ knob, push COM/NAV/ADF | COM and NAV knobs, ADF window | COM and NAV radios, shown on the unit | KX 155/165 knobs, KR 87 |
-| COM ⇆, NAV ⇆, ADF ⇆ | Flip-flops | Flip-flops (GTN: no key, see below) | Flip-flops, KR 87 FRQ |
-| 121.5 (SHIFT, COM ⇆) | Hold COM ⇆ | GNS: hold COM ⇆ (not in the Working Title GNS); GTN: hold the volume knob pushed for about 2 s | Sets COM to 121.5 |
-| UNIT for radio 2 | COM 2 / NAV 2 tuning box | Second unit | Second radio |
-| Squawk, XPDR mode, IDENT, VFR | GTX 345 | GTX 327 / GTN XPDR | KT 76 |
-| MIC / COM / NAV / ADF / DME audio | GMA 1347 | GMA 340 / GMA 35 | KMA 28 |
+| Panel | G1000 | G3X Touch | GTN / GNS | Bendix/King |
+| --- | --- | --- | --- | --- |
+| FREQ knob, push COM/NAV/ADF | COM and NAV knobs, ADF window | COM and NAV radios, shown on the data bar | COM and NAV radios, shown on the unit | KX 155/165 knobs, KR 87 |
+| COM ⇆, NAV ⇆, ADF ⇆ | Flip-flops | Flip-flops on the data bar | Flip-flops (GTN: no key, see below) | Flip-flops, KR 87 FRQ |
+| 121.5 (SHIFT, COM ⇆) | Hold COM ⇆ | Sets COM to 121.5 | GNS: hold COM ⇆ (not in the Working Title GNS); GTN: hold the volume knob pushed for about 2 s | Sets COM to 121.5 |
+| UNIT for radio 2 | COM 2 / NAV 2 tuning box | COM 2 / NAV 2 | Second unit | Second radio |
+| Squawk, XPDR mode, IDENT, VFR | GTX 345 | Transponder on the data bar | GTX 327 / GTN XPDR | KT 76 |
+| MIC / COM / NAV / ADF / DME audio | GMA 1347 | Audio panel on the data bar | GMA 340 / GMA 35 | KMA 28 |
 
 The GTN has one dual knob for the FREQ and FMS rows. Its push toggles tuning between COM and NAV (there is no
 cursor), pushing and holding it flips the active and standby frequency, and it returns from NAV to COM by

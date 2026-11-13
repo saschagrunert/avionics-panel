@@ -2,8 +2,8 @@
 (docs/using/controls.md, docs/using/compatibility.md), as in the Cessna 172 Skyhawk Classic. The GNS 530 is unit 1
 (COM 1, NAV 1) and the GNS 430 unit 2 (COM 2, NAV 2), beside the KAP 140, a KR 87 ADF, a KT 76 transponder and a
 KMA 28 audio panel. The same table drives KX 155/165 radios without a GNS: the radios are the simulator's, and the
-GNS events then do nothing. What the profile does differently from the real units is in
-docs/using/mapping.md#gns-530430.
+GNS events then do nothing. Two GNS of the same type are not covered: the table's events cannot tell the two
+apart. What the profile does differently from the real units is in docs/using/mapping.md#gns-530430.
 
 The GNS keys and knobs are the H: events Working Title's GNS takes (InteractionEvent.ts in
 microsoft/msfs-avionics-mirror, MSFS 2024 SU5), after the prefix of its template, AS530 or AS430 (WT530.tsx,
