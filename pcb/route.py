@@ -14,9 +14,6 @@ FREE, NONET = -1, -2
 
 THR = (B.CLEAR + B.TRACE_W / 2) / RES + 0.5          # trace centre keep distance (cells)
 THR_VIA = (B.CLEAR + B.VIA_D / 2) / RES + 0.5
-# via copper to any SMD pad, its own net included: no via in or at a pad, and a 0.13 mm strip of solder mask
-# (JLCPCB's black minimum) between the tented via and the pad's opening, 0.035 mm beyond the pad (check.py)
-VIA_PAD_CLEAR = 0.165
 LAYER_COST = (1.15, 1.0)    # no top pour on the 4-layer board
 VIA_COST = 60.0             # in cells
 
@@ -49,11 +46,20 @@ def stamp_capsule(arr, x1, y1, x2, y2, r, val):
     arr[iy0:iy1, ix0:ix1][m] = val
 
 
+def seed_cells(mask, layers, x1, y1, x2, y2, r):
+    """Marks in mask (2, NY, NX), on the given layers, the cells a path may end on round the line from (x1, y1) to
+    (x2, y2): those stamp_capsule takes for the radius r, up to r + RES / 2 from the line."""
+    tmp = np.zeros((NY, NX), np.int8)
+    stamp_capsule(tmp, x1, y1, x2, y2, r, 1)
+    for ly in layers:
+        mask[ly] |= tmp.astype(bool)
+
+
 def no_via_mask(pads):
-    """Grid points where no via may go: closer than VIA_PAD_CLEAR (copper to copper) to an SMD pad. The fan-out
-    breakout points (no mask opening, no paste) are routing points, not pads. Exact distances, worked out
+    """Grid points where no via may go: closer than board.VIA_PAD_CLEAR (copper to copper) to an SMD pad. The
+    fan-out breakout points (no mask opening, no paste) are routing points, not pads. Exact distances, worked out
     once per pad set and only in a window around each pad."""
-    r = B.VIA_D / 2 + VIA_PAD_CLEAR
+    r = B.VIA_D / 2 + B.VIA_PAD_CLEAR
     smd = [p for p in pads if not p.drill and len(p.layers) == 1 and (p.mask or p.paste)]
     key = tuple((p.x, p.y, p.w, p.h, p.shape) for p in smd)
     if key not in _NOVIA:
@@ -289,11 +295,12 @@ class Router:
             return True
 
         def add_pad(p):
+            # A pad's seed: the cells within max(r - 0.25, 0.1) of its spine (seed_cells). A path that ends on one
+            # lies with its round end inside a pad 0.7 mm wide or wider. On a narrower pad, down to the 0.3 mm
+            # breakout points, a cell may lie up to 0.075 mm beyond the copper's edge, where the end of a 0.25 mm
+            # path still overlaps the pad over 0.157 mm of width (check.py: thin contacts).
             x1, y1, x2, y2, r = p.capsule()
-            for ly in p.layers:
-                tmp = np.zeros((NY, NX), np.int8)
-                stamp_capsule(tmp, x1, y1, x2, y2, max(r - 0.25, 0.1), 1)
-                tree[L[ly]] |= tmp.astype(bool)
+            seed_cells(tree, [L[ly] for ly in p.layers], x1, y1, x2, y2, max(r - 0.25, 0.1))
 
         add_pad(pads[0])
         todo = list(pads[1:])

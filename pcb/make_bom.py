@@ -1,5 +1,5 @@
 """JLCPCB BOM + CPL (pick and place) for the rev 1 board, in two assembly variants, both Standard assembly
-orders (docs/building/ordering.md):
+orders (docs/building/ordering.md, hand-soldering.md):
 hand-soldering: BOM.csv / CPL.csv, the bottom side only (all SMD), plus THT-LCSC.csv, the through-hole parts
     from LCSC for hand soldering;
 full assembly: BOM-full.csv / CPL-full.csv, both sides: the SMD bottom and the through-hole parts on the top,

@@ -5,7 +5,8 @@ router and the checks work from that. This script draws the same netlist as four
 the drawing is looked up from a pad, nothing is typed in twice, and the script checks at the end that
 every pad of the netlist shows up exactly with its net (pins without a net get a no-connect cross).
 Skipped as duplicates: the RP2040's fan-out and via pads (U1.F*, U1.V*; the two SWD
-pads U1.F24 / U1.F25 are drawn as test points) and the vias the USB lines land on (R_DP.E, R_DM.E).
+pads U1.F24 / U1.F25 are drawn as test points) and the vias the USB lines land on (R_DP.E, R_DM.E). Skipped as no
+part's pins: the fiducials (FID.*).
 Pin names come from the datasheets (RP2040 table 2, W25Q16JV, XC6206, USB-C, SRV05-4, PEC11D, RKJXT).
 """
 import math
@@ -67,7 +68,8 @@ def spare_gpios():
 
 
 def skipped(ref, pin):
-    return ((ref in ("R_DP", "R_DM") and pin == "E")         # where the USB lines land
+    return (ref == "FID"                                    # the fiducials: copper dots, no part and no net
+            or (ref in ("R_DP", "R_DM") and pin == "E")      # where the USB lines land
             or (ref == "U1" and re.fullmatch(r"[FV]\d+", pin) is not None and pin not in ("F24", "F25")))
 
 

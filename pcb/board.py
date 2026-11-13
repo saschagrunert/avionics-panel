@@ -7,7 +7,7 @@ Top view (component side), mm, origin top-left, y down. Layer stack: F (signals)
 In2 = 3V3 plane, B (signals). Switches, knobs and the RANGE control (THT) sit on top; every SMD part (RP2040,
 flash, USB-C, regulator, diodes, passives, the two reverse-mount LEDs that shine up through cutouts in the board)
 is on the bottom, so JLCPCB assembles one SMD side. The through-hole parts are soldered by hand (hand-soldering)
-or fitted by JLCPCB from a top-side CPL (full assembly); docs/building/ordering.md has both.
+or fitted by JLCPCB from a top-side CPL (full assembly); docs/building/ordering.md and hand-soldering.md.
 
 Footprint sources:
   RP2040 QFN-56: RP2040 datasheet fig. 165 (pads 0.20 x 0.875, pitch 0.40, 7.75/6.00, EP 3.20)
@@ -106,14 +106,31 @@ LED_CATHODE_EAST = {"UNIT"}
 # The LEDs switched by a low-side N-FET from VBUS_F instead of driven from their GPIO (add_led_switch): the FET's
 # place, in the free band between key rows 1 and 2 above the LED, clear of the body's post and middle column
 LED_SWITCH = {"UNIT": (87.0, 31.5)}
-# The cutout under each LED: 2.2 mm along the pads by 2.4 mm across, R0.5 corners (a 1.0 mm router), round LiteOn's
-# 1.5 x 1.6 mm lens (LiteOn's land pattern: 2.1 x 2.3, sharp corners); in the Edge_Cuts layer. The pads stop
-# LED_CUT_CLEAR short of it, JLCPCB's copper-to-routed-edge minimum, and still reach 0.3 mm under the terminals on
-# the LED's face (0.75 to 1.6 mm off its centre; LiteOn's own pattern reaches 0.55 mm under them).
-LED_CUTOUT = (2.2, 2.4, 0.5)
+# The cutout under each LED: 2.2 mm along the pads by 2.6 mm across, R0.5 corners (a 1.0 mm router), round LiteOn's
+# 1.5 x 1.6 mm lens (LiteOn's land pattern: 2.1 x 2.3, sharp corners); in the Edge_Cuts layer. Across, where no pad
+# is in the way, it is wide enough for a lens at its tolerance on an LED placed off and turned 2 degrees
+# (mech/check_fit.py). The pads stop LED_CUT_CLEAR short of it, JLCPCB's copper-to-routed-edge minimum, and still
+# reach 0.3 mm under the terminals on the LED's face (0.75 to 1.6 mm off its centre; LiteOn's own pattern reaches
+# 0.55 mm under them).
+LED_CUTOUT = (2.2, 2.6, 0.5)
 LED_CUT_CLEAR = 0.2
 LED_PAD = (1.15, 1.6)                   # along, across; inner edge at LED_CUTOUT[0] / 2 + LED_CUT_CLEAR
 CUTOUTS = []                            # (x, y, w, h, r) of every cutout in the board, filled by build()
+# Solder mask: every opening is its pad grown by MASK_GROW per side (make.py writes them, check.py measures them).
+# Black mask needs dams of MASK_DAM (JLCPCB's minimum), and the closest pads (the RP2040's, the USB-C contacts, C_X2
+# and R_X) are 0.2 mm apart: 0.035 leaves 0.13 between them. JLCPCB's LDI exposure takes openings down to the pad
+# size (1:1) and aligns to +-0.02 mm on multilayer boards, so the mask stays off every pad (check.py:
+# MASK_MIN_GROW). A tented via keeps VIA_PAD_CLEAR of copper to every SMD pad, its own net's included: no via in
+# or at a pad, and a dam of mask between the via and the pad's opening.
+MASK_GROW, MASK_DAM = 0.035, 0.13
+VIA_PAD_CLEAR = MASK_DAM + MASK_GROW
+# Fiducials for JLCPCB's placement machines, on the bottom with the SMD parts: bare copper dots FID_D across in
+# mask openings FID_OPEN across (JLCPCB: 1 mm, the opening twice that), no net, no paste. Three of them, in three
+# corners, each at least 3.35 mm from the board edge with its opening (JLCPCB) and clear of the body's bosses, in
+# spots with no bottom copper within 2.6 mm of the centre. The router keeps all copper out of the openings
+# (keepouts()).
+FID_D, FID_OPEN = 1.0, 2.0
+FIDUCIALS = [(8.5, 8.5), (W - 8.5, 8.5), (W - 8.5, H - 8.5)]
 
 # GPIO plan (RP2040 GPIO number -> function)
 # matrix lines leave the RP2040 (pins 14..2, top to bottom on the mirrored chip) in the order the
@@ -145,7 +162,8 @@ RP[38], RP[39] = "GP26", "GP27"             # FMS outer ring
 
 
 class Pad:
-    def __init__(self, name, net, x, y, shape, w, h, layers, drill=None, slot=None, paste=True, mask=True, pip=False):
+    def __init__(self, name, net, x, y, shape, w, h, layers, drill=None, slot=None, paste=True, mask=True, pip=False,
+                 grow=MASK_GROW):
         self.name, self.net, self.x, self.y = name, net, x, y
         self.shape, self.w, self.h = shape, w, h            # circle | obround | rect
         self.layers, self.drill, self.slot, self.paste = layers, drill, slot, paste
@@ -154,6 +172,7 @@ class Pad:
         self.pip = pip
         # layers with a mask opening: True = all of the pad's layers, False = a routing point under the mask
         self.mask = layers if mask is True else (mask or "")
+        self.grow = grow                                    # the mask opening beyond the copper, per side
 
     def capsule(self):
         if self.shape == "circle":
@@ -239,11 +258,11 @@ def chip(pads, ref, x, y, net1, net2, value, lcsc, vertical=False, size="0603", 
     return (x - dx, y - dy), (x + dx, y + dy)
 
 
-def plane_via(pad_xy, net, dx, dy, d=VIA_D):
-    """Short stub from an SMD pad to a via into the GND / 3V3 plane."""
+def plane_via(pad_xy, net, dx, dy, small=False):
+    """Short stub from an SMD pad to a via into the GND / 3V3 plane, a small via (SVIA_D) where a pad is close."""
     x, y = pad_xy
     seg(x, y, x + dx, y + dy, net, "B", 0.3)
-    via(x + dx, y + dy, net, d)
+    via(x + dx, y + dy, net, *((SVIA_D, SVIA_DRILL) if small else (VIA_D, VIA_DRILL)))
 
 
 def add_diode(pads, name, x, y, anode, cathode):
@@ -503,15 +522,17 @@ def add_usb(pads):
     for s in (-1, 1):
         # shell pads 1.2 wide, as in JLC's footprint; pin-in-paste: paste over the whole pad on the bottom. That
         # is about 0.12 mm3 of solder for about 0.8 mm3 of slot, a bottom fillet at most: the four tabs, which
-        # take the plug's load, are soldered from the top by hand as well (docs/building/assembly.md). Each pad
-        # reaches 0.2 mm beyond the ends of its slot, JLCPCB's recommended ring (JLC's footprint: 0.15 at the rear
-        # pair).
+        # take the plug's load, are soldered from the top by hand as well (docs/building/hand-soldering.md). Each
+        # pad reaches 0.2 mm beyond the ends of its slot, JLCPCB's recommended ring (JLC's footprint: 0.15 at the
+        # rear pair).
         pads.append(Pad(f"J1.SH{s}a", "GND", cx + s * 4.325, 6.28, "obround", 1.2, 2.1, "FB",
                         drill=0.6, slot=(0.6, 1.7), pip=True))
         pads.append(Pad(f"J1.SH{s}b", "GND", cx + s * 4.325, 2.10, "obround", 1.2, 1.8, "FB",
                         drill=0.6, slot=(0.6, 1.4), pip=True))
         NPTH.append((cx + s * 2.89, 5.79, 0.6))
-    ye = yc + L / 2                     # 7.70: pad ends, the breakout starts here
+    ye = yc + L / 2                     # the pad ends (J1_PAD_END), the breakout starts here
+    if abs(ye - J1_PAD_END) > 1e-9:     # a plain raise: asserts vanish under -O
+        raise ValueError("J1_PAD_END is not the end of J1's contact pads")
     yv = VBUS_VIA_Y                     # small vias just below the pads
     plane_via((cx - 3.2, ye), "GND", 0, 0.82)
     # B1A12 shares C_IN's GND via (add_support): its own, below the pad, would sit on R_IN
@@ -557,13 +578,16 @@ ESD_PX, ESD_PY = 0.95, 1.2          # SOT-23-6: pad columns 0.95 apart, rows 2.4
 FUSE = (131.0, 12.05)               # F1 centre: its pin 1 under R_IN, clear of CC2 to the west
 R_IN = (129.55, 9.8)                # R_IN centre (0603, vertical): in B4A9's line, between its via and the fuse
 FUSE_PX = 1.5                       # pad centres east and west of FUSE (Bourns: 1.0 x 1.6 pads, 2.0 apart)
-# The two VBUS vias below J1's VBUS contacts: the one in B4A9's line keeps a 0.13 mm strip of solder mask to
-# R_IN's pad opening below it (check.py: tented vias), and both keep as much to the contacts' openings above
-VBUS_VIA_Y = 8.15
+# The rows of small vias below J1's contact pads, which end at J1_PAD_END. The two VBUS vias: the one in B4A9's line
+# keeps MASK_DAM of solder mask to R_IN's pad opening below it (check.py: tented vias), and both keep as much to
+# the contacts' openings above. A6's via, where that D+ contact changes to the top layer, 0.1 mm further down.
+J1_PAD_END = 7.70
+VBUS_VIA_Y = J1_PAD_END + 0.45
+A6_VIA_Y = VBUS_VIA_Y + 0.1
 
 
 def add_protection(pads):
-    cx, ye, yv = USB_X, 7.70, 8.25
+    cx, ye, ya = USB_X, J1_PAD_END, A6_VIA_Y
     ex, ey = ESD
     pins = {1: (ESD_PX, ESD_PY, "USB_DP_C"), 2: (0, ESD_PY, "GND"), 3: (-ESD_PX, ESD_PY, "USB_DN_C"),
             4: (-ESD_PX, -ESD_PY, "USB_DN_C"), 5: (0, -ESD_PY, "VBUS_F"), 6: (ESD_PX, -ESD_PY, "USB_DP_C")}
@@ -575,17 +599,17 @@ def add_protection(pads):
     # A6, boxed in by the D- contacts, joins it there over the top layer. Both cross under the body to the exits.
     path("USB_DN_C", [(cx - 0.75, ye), (xn, yi)])
     path("USB_DN_C", [(cx + 0.25, ye), (cx + 0.25, 8.8), (cx - 0.75, 8.8)])
-    yd = yv + 0.6                                   # the D+ via, on pin 6's column
+    yd = ya + 0.6                                   # the D+ via, on pin 6's column
     path("USB_DP_C", [(cx + 0.75, ye), (cx + 0.75, yd - (xp - cx - 0.75)), (xp, yd), (xp, yi)])
-    path("USB_DP_C", [(cx - 0.25, ye), (cx - 0.25, yv)])
-    via(cx - 0.25, yv, "USB_DP_C", SVIA_D, SVIA_DRILL)
-    path("USB_DP_C", [(cx - 0.25, yv), (xp - 0.6, yv), (xp, yd)], "F")
+    path("USB_DP_C", [(cx - 0.25, ye), (cx - 0.25, ya)])
+    via(cx - 0.25, ya, "USB_DP_C", SVIA_D, SVIA_DRILL)
+    path("USB_DP_C", [(cx - 0.25, ya), (xp - 0.6, ya), (xp, yd)], "F")
     via(xp, yd, "USB_DP_C", SVIA_D, SVIA_DRILL)
     for x, net in ((xn, "USB_DN_C"), (xp, "USB_DP_C")):
         path(net, [(x, yi), (x, yx)], w=0.2)
     # VCC: a small via between the lines, right above pin 5, and over the top layer east to a via on the VBUS_F
     # line from the fuse to the regulator (add_support: down from C_IN's pad row at 45 degrees to U3's VIN)
-    yc5 = yi - 0.6 - 0.165 - SVIA_D / 2             # 0.165 mm from pin 5's pad: 0.13 of mask to its opening
+    yc5 = yi - 0.6 - VIA_PAD_CLEAR - SVIA_D / 2     # VIA_PAD_CLEAR from pin 5's pad: MASK_DAM of mask to its opening
     via(ex, yc5, "VBUS_F", SVIA_D, SVIA_DRILL)
     path("VBUS_F", [(ex, yc5), (ex, yi)], w=0.3)
     vf = (FUSE[0] + FUSE_PX + 0.4, LDO[1] + 1.2)    # on that line, 0.275 mm from C_IN's pad
@@ -699,6 +723,9 @@ def build():
     add_flash(pads)
     add_support(pads)
     add_matrix_lanes(pads)
+    for k, (x, y) in enumerate(FIDUCIALS, start=1):
+        pads.append(Pad(f"FID.{k}", None, x, y, "circle", FID_D, FID_D, "B", paste=False,
+                        grow=(FID_OPEN - FID_D) / 2))
     return pads
 
 
@@ -758,7 +785,7 @@ def add_support(pads):
     # 0.15 to 0.7 ohm; its other assumptions and its peaks are in docs/architecture/electronics.md. 10 uF is
     # USB 2.0's limit for a device at attach, and the regulator's output capacitors add to it.
     a, b = chip(pads, "C_IN", lx - 2.5, ly + 0.8, "GND", "VBUS_F", "10uF", "C19702", vertical=True)
-    plane_via(a, "GND", -0.9, 0, SVIA_D)            # small: a 0.13 mm mask strip to C_IN's GND pad opening
+    plane_via(a, "GND", -0.9, 0, small=True)        # small: MASK_DAM of mask to C_IN's GND pad opening
     vx = lx - px                        # U3's VIN pad centre
     fx = FUSE[0] + FUSE_PX              # the fuse's VBUS_F pad
     path("VBUS_F", [b, (fx, b[1]), (vx, b[1] - (vx - fx)), (vx, ly)], w=0.4)
@@ -853,9 +880,11 @@ def add_core_caps(pads):
     # down, then clear of pin 46's fan-out
     path("1V1", [(x45, yo), (x45, yf - 0.25), (x45 + 0.25, yf), (c2, yf)], w=TRACE_W)
     for x in (c1, c2):  # GND vias right below the 0402 GND pads, small: 0.2 mm from R_DM's USB_DM pad
-        plane_via((x, yf + 1.15), "GND", 0, 0.75, SVIA_D)
-    # C_D2: 3V3 pad at y 29.1, GND pad at 30.7; its 3V3 pad 0.3 mm from C_1V2's 1V1 pad beside it, so a solder
-    # bridge between the two (core supply to 3.3 V) is no likelier than between any other pair of parts
+        plane_via((x, yf + 1.15), "GND", 0, 0.75, small=True)
+    # C_D2: 3V3 pad at y 29.1, GND pad at 30.7; its 3V3 pad 0.3 mm from C_1V2's 1V1 pad beside it. Closer 1V1 and
+    # 3V3 pads of two parts: C_1V1's and C_IO49's (below) at 0.25 mm, and pin 43's and C_1V0's at 0.275 mm; the
+    # RP2040's own 3V3 and 1V1 pins are 0.2 mm apart. A solder bridge between such a pair puts 3.3 V on the core
+    # supply.
     d2 = (x45 + 2.975, my + 4.9)
     # pin 42's outer end straight to C_D2's 3V3 pad, below pin 41's fan-out (pins 43 / 44 join through their via)
     x42, y42 = mx + 3.875, my + qfn_pad_xy(42)[0][1]
@@ -994,4 +1023,7 @@ def keepouts():
     for (x, y, w, h, _r) in CUTOUTS:
         e = LED_CUT_CLEAR + CLEAR
         k.append(("FB", "rect", (x - w / 2 - e, y - h / 2 - e, x + w / 2 + e, y + h / 2 + e)))
+    # the fiducials: no other copper on the bottom inside their mask openings
+    for (x, y) in FIDUCIALS:
+        k.append(("B", "circle", (x, y, FID_OPEN / 2)))
     return k

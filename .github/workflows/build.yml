@@ -72,7 +72,7 @@ jobs:
         env:
           REQUIRE_UHID: ${{ steps.uhid.outputs.require }}
       # build.sh reproduces every file: a changed, new or deleted output fails. On a Dependabot pull request
-      # the nixpkgs update then changes an output (STEP, STL, PDF and PNG files follow OpenCascade and
+      # the nixpkgs update then changes an output (STEP, PDF and PNG files follow OpenCascade and
       # matplotlib): run build.sh on its branch and commit the result.
       - name: Committed outputs are up to date
         run: |

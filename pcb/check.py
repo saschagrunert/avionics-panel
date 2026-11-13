@@ -1,43 +1,44 @@
 """Independent checks on the generated Gerbers:
-1. rasterise each Gerber file (own minimal parser)
-2. electrical check: shorts and opens per net, using the rasterised copper + drills; then again on the copper
-   as exact geometry (shapely): no shorts, and no contact or neck under NECK (a point contact is an open), and no
-   plane copper narrower than PLANE_NECK
+1. read each Gerber file (own minimal parser), as exact geometry (shapely) and as a 0.05 mm raster
+2. electrical check on the copper as exact geometry, the layers joined through the plated holes: no shorts, no
+   opens, no copper without a net, no contact or neck under NECK (a point contact is an open), and no plane
+   copper narrower than PLANE_NECK
 3. the outer copper Gerbers against the design primitives (the pads of board.py, the segments and vias of
    routed.json): every pad flashed in its place, shape and size, every via and trace as routed, and nothing
-   else; then the geometric clearance DRC on those primitives
+   else; then the geometric clearance DRC on those primitives, against JLCPCB's limits and the design's
 4. drills and annular rings against JLCPCB's limits, no hole at or in an SMD pad or a paste opening (bar a
    pin-in-paste hole in its own opening), paste on every assembled pad and nowhere else
 5. solder mask dams (between openings on the mask Gerbers) against JLCPCB's black minimum, every opening
    clear of its pad by the mask's registration, and the same minimum of mask between each tented via and the
-   openings beside it
+   openings beside it; the fiducials
 6. copper path from every RP2040 supply pin to its nearest decoupling capacitor, one capacitor of its own per
    IOVDD pin over the outer layers, and every decoupling capacitor with its own plane vias
 7. routed length of every net against its shortest tree (no detours), USB D+ / D- length and skew
 8. JLCPCB's footprint of every bottom-side part on our pads at its place and rotation in the CPL file (pad
-   numbers, positions; the cathode and anode of the diodes and LEDs by the pin names of JLC's symbol)
+   numbers, positions; the cathode and anode of the diodes and LEDs by the pin names of JLC's symbol), and the
+   net of every RP2040 pin against its name in JLC's symbol
 9. no copper on F or B within the keep-out of each mounting hole (plate boss, body boss), only the plane
    inside, and copper on every layer clear of the LED cutouts
 10. no exposed SMD pad of another net near a through-hole pad, and no two through-hole pads of different nets
     close together but the known pair (solder bridges where a pad is soldered by hand: J1's shell tabs after full
     assembly, every through-hole pad with the hand-soldering option)
 11. JLCPCB's footprint of every through-hole part at its top-side position and rotation in the CPL file (full
-   assembly) on our holes pin by pin, each hole within TH_DRILL_TOL of JLC's in size
+   assembly) on our holes pin by pin, each hole within TH_DRILL_TOL of JLC's in size and in its datasheet's band
 12. no copper on B under J1's shell but J1's own pads
 13. the legend clear of mask openings and holes, inside the board outline and outside the LED cutouts by
-   SILK_EDGE
+   SILK_EDGE, and none of its strokes under JLCPCB's narrowest line
 14. USB protection: the ESD array in line on D+ and D- right behind J1, the damping resistor and the fuse in
-    VBUS ahead of every load
+    VBUS ahead of every load, each net of that chain with its own pads only
 15. the drill files against the model: every pad hole, slot and via plated, the mounting holes and the parts'
     peg holes unplated, each in its place and size, and nothing else
 16. the Edge_Cuts Gerber against the model: the board outline and every LED cutout in its place, size and
     corner radius, and nothing else
 17. a cathode bar in the bottom legend at every diode and LED, beyond its cathode pad on the side away from the
-    anode
+    anode, and a pin 1 mark at U1 to U4 and Y1
 18. the BOM and CPL files as make_bom.py wrote them: JLCPCB's headers, each BOM line's designators in the CPL
-    with Quantity their count and the Comment and LCSC of board.py, the hand-soldering files the bottom side of
-    the full ones, every part of board.py on its side (8 and 11 read their parts from these files, and fail
-    unless they fit every part of their side)
+    with Quantity their count and the Comment and LCSC of board.py, each Comment the value of its LCSC part, the
+    hand-soldering files the bottom side of the full ones, every part of board.py on its side (8 and 11 read
+    their parts from these files, and fail unless they fit every part of their side)
 (precheck.py checks the placement before routing: fixed copper clearances, the bottom-side part bodies and the
 mounting holes' keep-outs.)
 """
@@ -55,6 +56,7 @@ from geom import (
     DETOUR_FACTOR,
     DETOUR_SLACK,
     SILK_EDGE,
+    SILK_VCUT,
     USB_MAX,
     USB_SKEW,
     bbox,
@@ -67,6 +69,8 @@ from geom import (
     pad_geom,
     pt_seg,
     rounded_rect,
+    stroke_width,
+    thin_parts,
     usb_lengths,
 )
 from matplotlib.path import Path
@@ -133,41 +137,41 @@ def pad_ops(pads):
     return [("flash", ({"rect": "R", "circle": "C"}.get(p.shape, "O"), p.w, p.h), (p.x, p.y)) for p in pads]
 
 
+def op_item(op):
+    """A flash or line operation of gerber_ops as a geometry item (geom.py): a rectangle aperture flashed is
+    ("rect", x0, y0, x1, y1, 0.0); a circle, an obround (a capsule along its longer side) and a drawn line are
+    ("cap", x1, y1, x2, y2, r)."""
+    k, a, b = op[1]
+    if op[0] == "line":
+        return ("cap", *op[2], *op[3], a / 2)
+    x, y = op[2]
+    if k == "R":
+        return ("rect", x - a / 2, y - b / 2, x + a / 2, y + b / 2, 0.0)
+    if k == "C" or a == b:
+        return ("cap", x, y, x, y, a / 2)
+    d = abs(a - b) / 2
+    return ("cap", x - d, y, x + d, y, b / 2) if a > b else ("cap", x, y - d, x, y + d, a / 2)
+
+
 def draw_ops(ops):
     img = Image.new("L", (WPX, HPX), 0)
     dr = ImageDraw.Draw(img)
     col = 255
 
-    def P(q):
-        return (q[0] / PX, q[1] / PX)
-
     for op in ops:
         if op[0] == "dark":
             col = 255 if op[1] else 0
         elif op[0] == "region":
-            dr.polygon([P(q) for q in op[1]], fill=col)
-        elif op[0] == "flash":
-            (k, a, b), p = op[1], P(op[2])
-            if k == "C":
-                r = a / 2 / PX
-                dr.ellipse([p[0] - r, p[1] - r, p[0] + r, p[1] + r], fill=col)
-            elif k == "R":
-                w, h = a / 2 / PX, b / 2 / PX
-                dr.rectangle([p[0] - w, p[1] - h, p[0] + w, p[1] + h], fill=col)
-            else:
-                w, h = a / PX, b / PX
-                r = min(w, h) / 2
-                if w >= h:
-                    q1, q2 = (p[0] - w / 2 + r, p[1]), (p[0] + w / 2 - r, p[1])
-                else:
-                    q1, q2 = (p[0], p[1] - h / 2 + r), (p[0], p[1] + h / 2 - r)
-                dr.line([q1, q2], fill=col, width=int(round(2 * r)))
-                for q in (q1, q2):
-                    dr.ellipse([q[0] - r, q[1] - r, q[0] + r, q[1] + r], fill=col)
+            dr.polygon([(x / PX, y / PX) for x, y in op[1]], fill=col)
         else:
-            r = op[1][1] / 2 / PX
-            p0, p1 = P(op[2]), P(op[3])
-            dr.line([p0, p1], fill=col, width=max(1, int(round(2 * r))))
+            kind, *g = op_item(op)
+            g = [v / PX for v in g]
+            if kind == "rect":
+                dr.rectangle(g[:4], fill=col)
+                continue
+            p0, p1, r = tuple(g[:2]), tuple(g[2:4]), g[4]
+            if p0 != p1:
+                dr.line([p0, p1], fill=col, width=max(1, int(round(2 * r))))
             for q in (p0, p1):
                 dr.ellipse([q[0] - r, q[1] - r, q[0] + r, q[1] + r], fill=col)
     return np.array(img) > 127
@@ -210,8 +214,11 @@ def read_drill(fname):
 # Every JLC pad must land on our pad of the same number, centres within FP_POS_TOL and every edge within
 # FP_EDGE_TOL, and our part may have no pad JLC's lacks. A wrong rotation or pin assignment puts a pad of
 # another number there or misses by a pitch (0.4 mm on the RP2040, 1.27 mm on the flash); the tolerances take
-# our own land sizes (diodes, SOT-23, 0603, 0402 differ from JLC's by up to 0.22 mm at an edge).
+# our own land sizes (diodes, SOT-23, 0603, 0402 differ from JLC's by up to 0.22 mm at an edge). On a narrow pad
+# both are FP_NARROW of JLC's pad's narrow side at most, FP_NARROW_MIN at least (0.06 mm on the RP2040's 0.2 mm
+# pads, 0.09 on J1's 0.3 mm contacts): a fine-pitch part moved by a fraction of its pitch fails too.
 FP_POS_TOL, FP_EDGE_TOL = 0.15, 0.25
+FP_NARROW, FP_NARROW_MIN = 0.3, 0.06
 # Our pad name -> JLC's pad number, where we name a pad JLC numbers: the RP2040's exposed pad and J1's shell tabs.
 FP_PIN = {"C2040": {"EP": "57"}, "C165948": {"SH1a": "1", "SH1b": "2", "SH-1b": "3", "SH-1a": "4"}}
 # The diodes and LEDs: our pads are K and A. Which of JLC's pads is the cathode is read from JLC's own symbol of
@@ -284,7 +291,11 @@ def footprint_fit(ref, lcsc, cx, cy, rot, ours):
             inner = edges.pop(int(cx > X) if abs(X - cx) > abs(Y - cy) else 2 + (cy > Y))
         e = max(edges)
         worst_c, worst_e, worst_i = max(worst_c, c), max(worst_e, e), max(worst_i, inner)
-        if c > pos_tol or e > FP_EDGE_TOL or inner > (inner_tol or 0.0):
+        # centre and edges may be off by FP_NARROW of the narrow side of JLC's pad at most (the LEDs: FP_TOL at the
+        # centre); a pad off by exactly its share fails
+        narrow = max(FP_NARROW_MIN, FP_NARROW * min(w, h)) - 1e-6
+        if (c > (pos_tol if inner_tol is not None else min(pos_tol, narrow)) or e > min(FP_EDGE_TOL, narrow)
+                or inner > (inner_tol or 0.0)):
             near = min((q for q in mine.values()), key=lambda q: math.hypot(q.x - X, q.y - Y))
             bad.append(f"JLC pad {num} lands at ({X:.2f}, {Y:.2f}), {c:.2f} mm from {p.name} ({p.net}), "
                        f"edges off by {e:.2f}" + (f", the inner edge by {inner:.2f}" if inner_tol else "")
@@ -308,12 +319,36 @@ def read_csv(fname, header):
         return list(r)
 
 
+def named_value(name):
+    """The value in the name of a chip resistor or capacitor, as ("R", ohms) or ("C", picofarads): Uniroyal's
+    resistors (0603WAF5101T5E: three digits and a multiplier, a power of ten or J, K, L for 0.1, 0.01, 0.001),
+    Samsung's CL and Yageo's CC capacitors (two digits and a power of ten, in pF). None for any other name."""
+    m = re.fullmatch(r"\d{4}W[A-Z]F(\d{3})([\dJKL])T\w+", name)
+    if m:
+        return "R", int(m.group(1)) * ({"J": 0.1, "K": 0.01, "L": 0.001}.get(m.group(2)) or 10 ** int(m.group(2)))
+    m = (re.match(r"CL\d\d[A-Z](\d\d)(\d)[A-Z]", name)
+         or re.fullmatch(r"CC\d{4}[A-Z]{2}\w{3}\d[A-Z]{2}(\d\d)(\d)", name))
+    return ("C", int(m.group(1)) * 10 ** int(m.group(2))) if m else None
+
+
+def stated_value(comment):
+    """A BOM Comment that states a resistance (5.1k, 75R) or a capacitance (100nF), as named_value() gives it;
+    None for any other Comment (a part name)."""
+    m = re.fullmatch(r"([\d.]+)(?:([Rk])|([pnu])F)", comment)
+    if not m:
+        return None
+    unit = m.group(2) or m.group(3)
+    return "R" if m.group(2) else "C", float(m.group(1)) * {"R": 1, "k": 1e3, "p": 1, "n": 1e3, "u": 1e6}[unit]
+
+
 def assembly_files():
     """The BOM and CPL files as uploaded to JLCPCB, read back: the parts of full assembly as {ref: (value, LCSC,
     x, y, rotation, layer)} (x, y in board mm, y down; from CPL-full.csv and BOM-full.csv), and how many problems
     it found between the files and with board.PARTS. Each BOM line's designators are CPL rows of its variant, Quantity
     their count, Comment and LCSC those of board.py; the hand-soldering CPL is the bottom rows of the full one;
-    every part of board.py is in the full files on its side, and nothing else."""
+    every part of board.py is in the full files on its side, and nothing else. JLCPCB places by the LCSC number,
+    so each Comment must also be that part's: a resistance or capacitance the value in the part's name
+    (footprints/<LCSC>.json, named_value), any other Comment the start of that name."""
     bad, cpl, bom = [], {}, {}
     for v in ("", "-full"):
         rows = read_csv(f"avionics-panel-rev1-CPL{v}.csv", CPL_HEADER)
@@ -340,6 +375,16 @@ def assembly_files():
     if lines != want:
         bad.append(f"BOM-full.csv's Comment or LCSC differs from board.py's for "
                    f"{sorted(r for r in lines.keys() | want.keys() if lines.get(r) != want.get(r))}")
+    for line in bom["-full"]:
+        comment, name = line["Comment"], jlc_footprint(line["LCSC Part #"])["title"]
+        stated, named = stated_value(comment), named_value(name)
+        if stated:
+            ok = named is not None and named[0] == stated[0] and math.isclose(named[1], stated[1], rel_tol=1e-6)
+        else:
+            ok = name.startswith(comment.split()[0])
+        if not ok:
+            bad.append(f"BOM-full.csv: {comment} ({line['Designator']}) is not the value of {line['LCSC Part #']}, "
+                       f"which is {name}")
     sides = {ref: {"top": "Top", "bottom": "Bottom"}[side] for ref, *_r, side in B.PARTS}
     if {ref: r["Layer"] for ref, r in full.items()} != sides:
         bad.append("CPL-full.csv does not place every part of board.py on its side (Layer Top or Bottom)")
@@ -350,7 +395,7 @@ def assembly_files():
     for p in bad:
         print("ASSEMBLY FILES:", p)
     print(f"assembly files: BOM-full and CPL-full {len(full)} parts, BOM and CPL {len(cpl[''])} (the bottom side), "
-          f"{len(bad)} problems")
+          f"{len(bom['-full'])} BOM lines, each Comment the value of its LCSC part; {len(bad)} problems")
     return parts, len(bad)
 
 
@@ -394,7 +439,75 @@ def footprints(pads, parts):
                    if lcsc in types)
     bad += fitted_all(types, "bottom")
     print(f"footprints: {len(types)} JLC footprints on {sum(len(t['refs']) for t in types.values())} bottom-side "
-          f"parts (tolerance {FP_POS_TOL} centre, {FP_EDGE_TOL} edge{leds}), {bad} problems")
+          f"parts (tolerance {FP_POS_TOL} centre, {FP_EDGE_TOL} edge, on a narrow pad {FP_NARROW} of its narrow side "
+          f"and {FP_NARROW_MIN} at least{leds}), {bad} problems")
+    return bad
+
+
+# The RP2040's pin table. board.RP gives each pin its net, a GPIO its number, and the footprint fit compares pad
+# geometry alone, so two swapped entries would route, fit and pass. Each pin's name in JLC's symbol of the part
+# (footprints/C2040.json) must be the net of our pad: GPIOn (GPIOn_ADCk) is GPn, the supply pins and RUN are on
+# 3V3, DVDD and VREG_VOUT on 1V1, TESTEN and the exposed pad on GND, SWD is SWDIO, any other name is the net's own.
+# The symbol's pin numbers must be exactly U1's pads, so a short or an empty pin list does not pass.
+MCU = "C2040"
+MCU_NET = {**dict.fromkeys(("IOVDD", "ADC_AVDD", "VREG_IN", "USB_VDD", "RUN"), "3V3"),
+           **dict.fromkeys(("DVDD", "VREG_VOUT"), "1V1"), "TESTEN": "GND", "SWD": "SWDIO"}
+
+
+def mcu_pins(pads):
+    ref = next(ref for ref, _v, lcsc, *_r in B.PARTS if lcsc == MCU)
+    net = {p.name: p.net for p in pads}
+    ours = {num: pin for pin, num in FP_PIN[MCU].items()}      # JLC's pad number -> our pin, where we name it
+    pins, bad = jlc_footprint(MCU)["pins"], 0
+    mine = {p.name.split(".", 1)[1] for p in pads if p.name.startswith(ref + ".")}
+    mine = {n for n in mine if n.isdigit() or n in FP_PIN[MCU]}     # the pins: not the breakout points and vias
+    named = {str(ours.get(num, num)) for num, _name in pins}
+    if mine != named:                                           # an empty or a short pin list must not pass
+        bad += 1
+        print(f"RP2040 PINS: JLC's symbol names {len(named)} pins, {ref} has {len(mine)} pads; in one of them only: "
+              f"{', '.join(sorted(mine ^ named)[:8])}")
+    for num, name in pins:
+        m = re.fullmatch(r"GPIO(\d+)(_ADC\d)?", name)
+        want = f"GP{m.group(1)}" if m else MCU_NET.get(name, name)
+        got = net.get(f"{ref}.{ours.get(num, num)}")
+        if got != want:
+            bad += 1; print(f"RP2040 PIN {num} ({name} in JLC's symbol) is on {got}, not on {want}")
+    print(f"RP2040 pins: the {len(pins)} pins of JLC's symbol of {MCU}, each on the net its name asks for; {bad} "
+          "problems")
+    return bad
+
+
+# The pin 1 marks that JLCPCB's placement preview is checked against (docs/building/ordering.md): a corner mark in
+# the bottom legend at U1, a dot at U2, U3, U4 and Y1. Each part has a mark (an end of a legend line, a dot) within
+# PIN1_REACH of its pin 1 pad and at least PIN1_LEAD nearer to it than to any other pad of the part. Y1's crystal is
+# on pins 1 and 3, diagonally opposite and alike, so its dot may mark either.
+PIN1_REACH, PIN1_LEAD = 1.5, 0.3
+PIN1 = {"U1": ("line", ("1",)), "U2": ("flash", ("1",)), "U3": ("flash", ("1",)), "U4": ("flash", ("1",)),
+        "Y1": ("flash", ("1", "3"))}
+
+
+def pin1_marks(pads):
+    marks = {"line": [], "flash": []}
+    for op in gerber_ops("avionics-B_Silkscreen.gbo"):
+        if op[0] in marks:
+            marks[op[0]] += op[2:]
+    bad, least = 0, (9.0, "none")
+    for ref, (kind, pins) in PIN1.items():
+        mine = {p.name.split(".", 1)[1]: pad_geom(p) for p in pads
+                if re.fullmatch(re.escape(ref) + r"\.\d+", p.name)}
+        lead = -9.0
+        for x, y in marks[kind]:
+            d = {pin: max(item_dist(g, ("cap", x, y, x, y, 0.0)), 0.0) for pin, g in mine.items()}
+            near = min(d[pin] for pin in pins)
+            if near <= PIN1_REACH:
+                lead = max(lead, min(v for pin, v in d.items() if pin not in pins) - near)
+        least = min(least, (lead, ref))
+        if lead < PIN1_LEAD - 1e-6:
+            bad += 1
+            print(f"NO PIN 1 MARK AT {ref}: no legend {'line end' if kind == 'line' else 'dot'} within {PIN1_REACH} "
+                  f"mm of pin {' or '.join(pins)} and {PIN1_LEAD} mm nearer to it than to the other pads")
+    print(f"pin 1 marks: {len(PIN1)} parts ({', '.join(PIN1)}), each with a mark in the bottom legend at pin 1; the "
+          f"least lead over another pad {least[0]:.2f} mm at {least[1]} (min {PIN1_LEAD}); {bad} problems")
     return bad
 
 
@@ -409,15 +522,7 @@ def flashes(fname):
             continue
         if op[0] != "flash":
             raise ValueError(f"{fname}: only flashes expected")
-        (k, a, b), (x, y) = op[1], op[2]
-        if k == "R":
-            out.append(("rect", x - a / 2, y - b / 2, x + a / 2, y + b / 2, 0.0))
-        elif k == "C":
-            out.append(("cap", x, y, x, y, a / 2))
-        elif a >= b:
-            out.append(("cap", x - (a - b) / 2, y, x + (a - b) / 2, y, b / 2))
-        else:
-            out.append(("cap", x, y - (b - a) / 2, x, y + (b - a) / 2, a / 2))
+        out.append(op_item(op))
     return out
 
 
@@ -431,8 +536,9 @@ COPPER_TOL = 2e-4
 
 
 def copper_model(pads, segments, vias):
-    """The flashes and lines of the F and B copper Gerbers against the pads, vias and segments, one for one."""
-    bad, counts = 0, []
+    """The flashes and lines of the F and B copper Gerbers against the pads, vias and segments, one for one, and
+    the narrowest trace on them against TRACK_MIN."""
+    bad, counts, narrow = 0, [], math.inf
     for layer, fname in (("F", "avionics-F_Cu.gtl"), ("B", "avionics-B_Cu.gbl")):
         want = [(("flash", {"rect": "R", "circle": "C"}.get(p.shape, "O")),
                  (p.w, p.w if p.shape == "circle" else p.h, p.x, p.y), f"pad {p.name}")
@@ -452,6 +558,7 @@ def copper_model(pads, segments, vias):
                 got.setdefault(("flash", k), []).append((a, a if k == "C" else b, x, y))
             elif op[0] == "line":
                 got.setdefault(("line", op[1][0]), []).append((op[1][1], *op[2], *op[3]))
+                narrow = min(narrow, op[1][1])
             elif op != ("dark", True):
                 bad += 1; print(f"COPPER {layer}: a {'region' if op[0] == 'region' else 'clear polarity'} on the "
                                 "Gerber, the model has none")
@@ -472,8 +579,11 @@ def copper_model(pads, segments, vias):
                       + " on the Gerber is not in the model")
         counts.append(f"{layer} {sum(k[0][0] == 'flash' for k in want)} flashes and "
                       f"{sum(k[0][0] == 'line' for k in want)} traces")
+    if narrow < TRACK_MIN - 1e-6:
+        bad += 1; print(f"TRACE {narrow:g} mm wide on the copper Gerbers (min {TRACK_MIN})")
     print(f"copper Gerbers against the model: {', '.join(counts)} (pads, vias, segments), compared one for one in "
-          f"place, shape and size (within {COPPER_TOL:g} mm); {bad} problems")
+          f"place, shape and size (within {COPPER_TOL:g} mm); narrowest trace {narrow:g} mm (min {TRACK_MIN}); {bad} "
+          "problems")
     return bad
 
 
@@ -520,8 +630,15 @@ def drill_model(pads, vias):
     return bad
 
 
-# JLCPCB keeps copper this far from a routed edge (the LED cutouts; the outline has its own EDGE_CLEAR)
-ROUTED_EDGE_CU = 0.2
+# JLCPCB's limits for copper on a four-layer board (its capabilities page), which the design values in board.py
+# may not go under: the narrowest trace and the least spacing (0.09 mm each, taken as 0.1); copper to the board
+# outline (0.4 mm from a V-cut line, which the edge with the rail is; 0.2 mm from a routed edge), to a routed
+# cutout and to an unplated hole; inner-layer copper to a hole of another net and to an unplated hole (0.3 mm to a
+# plated pad hole, 0.2 mm to a via, taken as 0.3 for all); copper of another net to a mask opening.
+TRACK_MIN, CLEAR_MIN = 0.1, 0.1
+EDGE_MIN, ROUTED_EDGE_CU, NPTH_CU = 0.4, 0.2, 0.2
+PLANE_MIN = 0.3
+MASK_CU = 0.09
 # JLCPCB standard process (no surcharge): 0.3 mm smallest plated drill, 0.5 mm smallest unplated hole,
 # via pad at least 0.15 mm over the drill (0.45 mm on 0.3), component pads with a wider ring
 MIN_DRILL, MIN_NPTH = 0.3, 0.5
@@ -633,7 +750,8 @@ def holes_and_paste(pads, vias, pth, npth):
 # The through-hole parts on the top are soldered by hand from the bottom, where the SMD parts sit: a solder
 # bridge from an iron-soldered pin to an SMD pad of another net is a short that is hard to see and to clear (a
 # through-hole LED's GND pad 0.28 mm from its resistor's GPIO pad was one). J1's four shell tabs (pin-in-paste)
-# are filled with solder by hand from the top too, and the excess comes out on the bottom (docs/building/assembly.md).
+# are filled with solder by hand from the top too, and the excess comes out on the bottom
+# (docs/building/hand-soldering.md).
 # Every exposed SMD pad of another net keeps HAND_SMD_MIN of copper from every hand-soldered pad: room for the
 # iron's tip and a fillet. Two hand-soldered pads of different nets keep HAND_PAIR_MIN (the 2.5 mm pin rows of the
 # encoders: 0.7 mm between their 1.8 mm pads, as 0.1 inch headers have), but for the pairs in HAND_PAIR_EXCEPT,
@@ -654,8 +772,8 @@ def hand_solder(pads):
     tht += [p for p in pads if p.pip and p.name.startswith("J1.SH")]     # the shell tabs
     smd = [p for p in pads if not p.drill and len(p.layers) == 1 and p.layers in p.mask]
     bad, near, near_pair, known = 0, (9.0, ""), (9.0, ""), []
-    for i, t in enumerate(tht):
-        tg = pad_geom(t)
+    geoms = [pad_geom(t) for t in tht]
+    for t, tg in zip(tht, geoms, strict=True):
         tb = bbox(tg)
         for p in smd:
             if p.net == t.net and p.net:
@@ -668,18 +786,19 @@ def hand_solder(pads):
             if d < HAND_SMD_MIN - 1e-6:
                 bad += 1
                 print(f"HAND-SOLDERED PAD {t.name} ({t.net}) {d:.3f} mm from SMD pad {p.name} ({p.net})")
-        for u in tht[i + 1:]:
-            if (u.net == t.net and u.net) or not boxes_near(bbox(pad_geom(u)), tb, HAND_PAIR_MIN + 0.5):
-                continue
-            d = item_dist(tg, pad_geom(u))
-            pair = f"{t.name} ({t.net}) to {u.name} ({u.net})"
-            if frozenset({t.name, u.name}) in HAND_PAIR_EXCEPT:
-                known.append(f"{pair} {d:.3f} mm")
-                continue
-            near_pair = min(near_pair, (d, pair))
-            if d < HAND_PAIR_MIN - 1e-6:
-                bad += 1
-                print(f"HAND-SOLDERED PADS {pair} {d:.3f} mm apart")
+    for i, j in near_pairs(geoms, HAND_PAIR_MIN + 0.5):
+        t, u = tht[i], tht[j]
+        if u.net == t.net and u.net:
+            continue
+        d = item_dist(geoms[i], geoms[j])
+        pair = f"{t.name} ({t.net}) to {u.name} ({u.net})"
+        if frozenset({t.name, u.name}) in HAND_PAIR_EXCEPT:
+            known.append(f"{pair} {d:.3f} mm")
+            continue
+        near_pair = min(near_pair, (d, pair))
+        if d < HAND_PAIR_MIN - 1e-6:
+            bad += 1
+            print(f"HAND-SOLDERED PADS {pair} {d:.3f} mm apart")
     print(f"hand soldering: {len(tht)} hand-soldered pads, closest SMD pad of another net {near[0]:.3f} mm "
           f"(min {HAND_SMD_MIN}), {near[1]}; closest hand-soldered pads of different nets {near_pair[0]:.3f} mm "
           f"(min {HAND_PAIR_MIN}), {near_pair[1]}; known exception: {', '.join(known) or 'none'}; {bad} problems")
@@ -699,6 +818,11 @@ def hand_solder(pads):
 # size JLC's own would. The pins differ by less (keys 1.0 against JLC's 1.2, PEC11D 1.2 against 1.1, RKJXT 1.1
 # against 1.2); a hole further off is a mistyped drill or a hole for another pin.
 TH_DRILL_TOL = 0.13 + 0.08
+# Each plated hole must also lie in the band its part's datasheet gives (least, most): a pin hole's drill, a lug
+# slot's width and length. TE 1-1825910-4: 0.99 +-0.05; Bourns PEC11D: pins 1.2 +0.1/-0, lug slots 1.5 x 2.6
+# +0.1/-0; Alps RKJXT1F42001: 1.0 +0.2/-0. (The RKJXT's unplated peg hole follows JLC's footprint: board.py.)
+TH_SHEET = {"C589907": ((0.94, 1.04),), "C19270361": ((1.2, 1.3), ((1.5, 1.6), (2.6, 2.7))),
+            "C160841": ((1.0, 1.2),)}
 TH_PIN = {                                  # JLC's pin number -> our pins it may land on
     # key: pins 1-2 and 3-4 are joined inside, so 0 and 180 are the same switch (the 6.5 x 4.5 pattern misses at 90)
     "C589907": dict.fromkeys("1234", ("A", "B", "C", "D")),
@@ -736,6 +860,11 @@ def cpl_fit(ref, lcsc, fp, cx, cy, rot, ours):
         elif max(abs(mine[0] - d), abs(mine[1] - slot)) > TH_DRILL_TOL + 1e-6:
             bad.append(f"{p.name} is drilled {mine[0]:g}" + (f" x {mine[1]:g}" if mine[1] else "") + f", JLC's pin "
                        f"{num} {d:g}" + (f" x {slot:g}" if slot else "") + f": over {TH_DRILL_TOL:g} mm apart")
+        else:
+            band = TH_SHEET[lcsc][1] if p.slot else (TH_SHEET[lcsc][0],)
+            if any(not lo - 1e-6 <= v <= hi + 1e-6 for v, (lo, hi) in zip(mine, band, strict=False)):
+                bad.append(f"{p.name} is drilled {mine[0]:g}" + (f" x {mine[1]:g}" if mine[1] else "") + ", the "
+                           "datasheet asks for " + " x ".join(f"{lo:g} to {hi:g}" for lo, hi in band))
         used.add(p.name)
     for hx, hy, d in fp["npth"]:
         dx, dy = jlc_top(hx, hy, rot)
@@ -784,8 +913,8 @@ def tht_footprints(pads, parts):
               f"{cpl}, origin {off} from the part (y down), pins within {t['cw']:.3f} mm")
     bad += fitted_all(types, "top")
     print(f"through-hole footprints: {len(types)} JLC footprints on {sum(len(t['refs']) for t in types.values())} "
-          f"top-side parts (tolerance {FP_POS_TOL}, hole sizes within {TH_DRILL_TOL:g} of JLC's), at the top-side "
-          f"CPL of full assembly, {bad} problems")
+          f"top-side parts (tolerance {FP_POS_TOL}, hole sizes within {TH_DRILL_TOL:g} of JLC's and in the "
+          f"datasheets' bands), at the top-side CPL of full assembly, {bad} problems")
     return bad
 
 
@@ -798,8 +927,37 @@ MASK_DAM = 0.13
 # the pads whole).
 MASK_MIN_GROW = 0.025
 # and at most JLCPCB's usual 0.05 mm per side: with the 0.15 mm copper clearance (board.CLEAR) an opening then stays
-# at least 0.10 mm from other copper, over their 0.09 mm opening-to-trace minimum
+# at least 0.10 mm from other copper, over their 0.09 mm opening-to-trace minimum (MASK_CU, held in the DRC)
 MASK_MAX_GROW = 0.05
+# A fiducial (JLCPCB: three or four of them, a bare copper dot 1 mm across, no net and no paste): its mask opening
+# is twice the dot across, and that opening keeps FID_EDGE to the board edge.
+FIDUCIAL = re.compile(r"FID\.\d+")
+FID_D, FID_EDGE = 1.0, 3.35
+
+
+def mask_grow(p):
+    """How far a pad's mask opening may reach beyond its copper, per side: (least, most)."""
+    return (p.w / 2, p.w / 2) if FIDUCIAL.fullmatch(p.name) else (MASK_MIN_GROW, MASK_MAX_GROW)
+
+
+def fiducials(pads):
+    """The fiducials (FIDUCIAL): at least three on the bottom, each a dot FID_D across without net or paste, its
+    opening FID_EDGE inside the board edge, and the three furthest apart well off one line. Their openings are
+    measured in mask_dams(), the copper round them in the DRC."""
+    fid = [p for p in pads if FIDUCIAL.fullmatch(p.name)]
+    bad = [f"{p.name} is not a bare {FID_D} mm dot on the bottom without a net" for p in fid
+           if (p.shape, p.w, p.layers, p.net, p.paste, p.drill) != ("circle", FID_D, "B", None, False, None)]
+    edge = min((min(p.x, p.y, B.W - p.x, B.H - p.y) - p.w / 2 - mask_grow(p)[1] for p in fid), default=0.0)
+    bad += [f"an opening is {edge:.2f} mm from the board edge (min {FID_EDGE})"] if edge < FID_EDGE - 1e-6 else []
+    # twice the area of the largest triangle of three fiducials: zero when all lie on one line
+    span = max((abs((b.x - a.x) * (c.y - a.y) - (c.x - a.x) * (b.y - a.y)) for a in fid for b in fid for c in fid),
+               default=0.0)
+    bad += [f"{len(fid)} fiducials, or all on one line (JLCPCB: three or four)"] if len(fid) < 3 or span < 100 else []
+    for b in bad:
+        print("FIDUCIALS:", b)
+    print(f"fiducials: {len(fid)} on the bottom, {FID_D} mm dots, their openings {edge:.2f} mm inside the board edge "
+          f"(min {FID_EDGE}); {len(bad)} problems")
+    return len(bad)
 
 
 def outline_pts(g, n=72):
@@ -829,8 +987,9 @@ MASK_EXCEPT = ((re.compile(r"U1\.F(?!2[45]$)\d+|R_D[MP]\.E"), ""), (re.compile(r
 def mask_dams(pads, vias):
     """Solder mask dams measured on the mask Gerbers: no two openings closer than MASK_DAM, and no openings of
     pads on different nets touching (one merged opening leaves no dam at all). Every opening reaches
-    MASK_MIN_GROW beyond its pad's copper all round, and every pad is open on its layers (MASK_EXCEPT aside).
-    Every tented via keeps MASK_DAM of mask to the openings beside it. Prints the count of dams at the minimum."""
+    MASK_MIN_GROW to MASK_MAX_GROW beyond its pad's copper all round (a fiducial's: mask_grow), and every pad is
+    open on its layers (MASK_EXCEPT aside). Every tented via keeps MASK_DAM of mask to the openings beside it.
+    Prints the count of dams at the minimum."""
     bad = 0
     for p in pads:
         want = next((m for rx, m in MASK_EXCEPT if rx.fullmatch(p.name)), p.layers)
@@ -850,10 +1009,9 @@ def mask_dams(pads, vias):
             opened.add(p.name)
             m = round(min(inset(g, x, y) for x, y in outline_pts(pad_geom(p))), 4) + 0   # + 0: no "-0.000"
             grow = min(grow, m)
-            if m < MASK_MIN_GROW - 1e-4:
-                bad += 1; print(f"MASK OPENING {m:.3f} mm OVER {p.name} on {layer} (min {MASK_MIN_GROW})")
-            if m > MASK_MAX_GROW + 1e-4:     # (m is the narrowest margin; an opening grown evenly has it all round)
-                bad += 1; print(f"MASK OPENING {m:.3f} mm OVER {p.name} on {layer} (max {MASK_MAX_GROW})")
+            lo, hi = mask_grow(p)            # (m is the narrowest margin; an opening grown evenly has it all round)
+            if not lo - 1e-4 <= m <= hi + 1e-4:
+                bad += 1; print(f"MASK OPENING {m:.3f} mm OVER {p.name} on {layer} ({lo:g} to {hi:g})")
         for p in pads:
             if layer in p.mask and p.name not in opened:
                 bad += 1; print(f"PAD WITHOUT MASK OPENING: {p.name} on {layer}")
@@ -877,8 +1035,9 @@ def mask_dams(pads, vias):
         strip, where = 1.0, "none within 1 mm"
         for x, y, net, d, _dr in vias:
             vg = ("cap", x, y, x, y, d / 2)
+            vb = bbox(vg)
             for g, b in zip(ops, bbs, strict=True):
-                if not boxes_near(b, bbox(vg), strip) or inset(g, x, y) >= 0:
+                if not boxes_near(b, vb, 1.0) or inset(g, x, y) >= 0:
                     continue
                 s = item_dist(vg, g)
                 if s < strip:
@@ -1150,15 +1309,14 @@ def j1_shell(ras_b, pads):
 #   no longer reach that line's 27R resistor (outer layers joined through the plated holes), so no copper runs
 #   past the array; and its pad on the line is at most ESD_MAX of copper from each of J1's contacts.
 # - The damping resistor R_IN and the fuse F1 are in series on VBUS ahead of every load, U4's clamp (VCC, pin 5)
-#   included: J1 -> R_IN -> F1 -> VBUS_F (C_IN, U3, U4's VCC, the UNIT light's resistor). Each net of the chain
-#   holds only the pads it should (VBUS_CHAIN), and with either part's pads cut out of the bottom copper, the
-#   copper on its input side (from J1, from R_IN) no longer reaches any pad on its output side, and no copper island
-#   touches the rims of both of its pads (nothing runs past or across it). So a shorted clamp, or U4 turned by 180
-#   degrees, sits behind both: R_IN burns open, the host's port and cable are protected.
+#   included: J1 -> R_IN -> F1 -> VBUS_F (C_IN, U3, U4's VCC, the UNIT light's resistor). Each part sits between
+#   the two nets it should and each net of the chain holds only the pads it should (VBUS_CHAIN, CHAIN_PADS, LOADS).
+#   Copper past or across either part would then join two of these nets: a short, which the electrical check
+#   finds. So a shorted clamp, or U4 turned by 180 degrees, sits behind both: R_IN burns open, the host's port
+#   and cable are protected.
 ESD_MAX = 5.0
 USB_PROT = {"D+": (("J1.A6", "J1.B6"), "U4.6", "R_DP.2"), "D-": (("J1.A7", "J1.B7"), "U4.4", "R_DM.2")}
-# part, net of its pin 1, net of its pin 2, a pad on its input side
-VBUS_CHAIN = (("R_IN", "VBUS", "VBUS_R", "J1.B4A9"), ("F1", "VBUS_R", "VBUS_F", "R_IN.2"))
+VBUS_CHAIN = (("R_IN", "VBUS", "VBUS_R"), ("F1", "VBUS_R", "VBUS_F"))      # part, net of its pin 1, of its pin 2
 CHAIN_PADS = {"VBUS": {"R_IN.1"}, "VBUS_R": {"R_IN.2", "F1.1"}}            # besides J1's contacts on VBUS
 LOADS = {"C_IN.2", "U3.3", "U4.5", "R_UNIT.1"}  # on VBUS_F, besides the fuse's pin 2 (R_UNIT: the UNIT light)
 
@@ -1203,18 +1361,6 @@ def reached(ras, pth, cut, pads, start):
     return {p.name for p in pads if home is not None and comp(p) == home}
 
 
-def bridged(ras, pth, a, b):
-    """True when, with pads a and b cut out of the bottom copper, one copper island touches the rims of both: copper
-    joining a part's own two pads, which cutting them alone would hide."""
-    lab, find = cut_islands(ras, pth, [a, b])
-
-    def rim(p):
-        m = ndimage.binary_dilation(draw_ops(pad_ops([p])))
-        ring = ndimage.binary_dilation(m, iterations=2) & ~m
-        return {find(("B", int(c))) for c in np.unique(lab["B"][ring]) if c}
-    return bool(rim(a) & rim(b))
-
-
 def usb_protection(ras, pth, pads, segments, vias):
     bad = 0
     by = {p.name: p for p in pads}
@@ -1231,18 +1377,12 @@ def usb_protection(ras, pth, pads, segments, vias):
     on = {n: {p.name for p in pads if p.net == n and not p.name.startswith("J1.")} for n in CHAIN_PADS}
     loads = {p.name for p in pads if p.net == "VBUS_F"} - {"F1.2"}
     wrong = [f"{n}: {', '.join(sorted(on[n]))}" for n in CHAIN_PADS if on[n] != CHAIN_PADS[n]]
-    wrong += [f"{ref} {by[ref + '.1'].net} -> {by[ref + '.2'].net}" for ref, n1, n2, _s in VBUS_CHAIN
+    wrong += [f"{ref} {by[ref + '.1'].net} -> {by[ref + '.2'].net}" for ref, n1, n2 in VBUS_CHAIN
               if (by[ref + ".1"].net, by[ref + ".2"].net) != (n1, n2)]
     wrong += [f"VBUS_F: {', '.join(sorted(loads))}"] if loads != LOADS else []
-    for k, (ref, _n1, _n2, start) in enumerate(VBUS_CHAIN):
-        after = {n2 for _r, _n1, n2, _s in VBUS_CHAIN[k:]}
-        beyond = {p.name for p in pads if p.net in after and not p.name.startswith(ref + ".")}
-        past = sorted(reached(ras, pth, [by[ref + ".1"], by[ref + ".2"]], pads, by[start]) & beyond)
-        wrong += [f"copper runs past {ref} to {', '.join(past)}"] if past else []
-        wrong += [f"copper joins {ref}'s pads"] if bridged(ras, pth, by[ref + ".1"], by[ref + ".2"]) else []
     bad += bool(wrong)
     print("  VBUS: J1 -> " + " -> ".join(ref for ref, *_n in VBUS_CHAIN) + f" -> {', '.join(sorted(LOADS))}, "
-          f"nothing past or across either part  {'OK' if not wrong else 'FAIL: ' + '; '.join(wrong)}")
+          f"each net with its own pads only  {'OK' if not wrong else 'FAIL: ' + '; '.join(wrong)}")
     print(f"USB protection: {bad} problems")
     return bad
 
@@ -1266,6 +1406,23 @@ def silk_clear(pth, npth):
             print(f"LEGEND ON A PAD OR HOLE on {side} at ({xs.mean() * PX:.2f}, {ys.mean() * PX:.2f}), "
                   f"{dist[lab == c].min():.2f} mm")
         print(f"legend {side}: closest to a mask opening or hole {dist[legend].min():.2f} mm (min {SILK_CLEAR})")
+    return bad
+
+
+# JLCPCB's narrowest legend line (6 mil; its capabilities page: 0.15 mm). Every stroke and neck of the legend, read
+# from its Gerber as exact geometry, is at least that wide (geom.thin_parts: eroded by half of it, every letter
+# keeps its pieces and counters, and a disc of that diameter reaches all of it bar corners and tips).
+SILK_LINE = 0.153
+
+
+def legend_strokes():
+    bad, width = 0, {}
+    for side, fname in (("F", "avionics-F_Silkscreen.gto"), ("B", "avionics-B_Silkscreen.gbo")):
+        legend = vector_copper(fname)
+        for x, y in thin_parts(legend, SILK_LINE):
+            bad += 1; print(f"LEGEND STROKE UNDER {SILK_LINE} mm on {side} at ({x:.2f}, {y:.2f})")
+        width[side] = stroke_width(legend, 2 * SILK_LINE, 1e-4)
+    print(f"legend strokes: thinnest F {width['F']:.3f} mm, B {width['B']:.3f} mm (min {SILK_LINE}); {bad} problems")
     return bad
 
 
@@ -1312,9 +1469,10 @@ def edge_cuts():
 
 def silk_edge():
     """Every legend shape inside the board outline (the Edge_Cuts Gerber) and outside each LED cutout by
-    SILK_EDGE. Measured on the Gerber vertices: the outline and the cutouts are convex, so a shape's closest point
-    to them is a vertex of a region, or an end of a line or a dot less its radius. Not on the raster, which ends at
-    the board edge and would not see legend beyond it."""
+    SILK_EDGE, and SILK_VCUT inside the edge with the rail (y = board.H). Measured on the Gerber vertices: the
+    outline and the cutouts are convex, so a shape's closest point to them is a vertex of a region, or an end of a
+    line or a dot less its radius. Not on the raster, which ends at the board edge and would not see legend beyond
+    it."""
     def width(c):
         return max(a[0] for a, _b in c) - min(a[0] for a, _b in c)
     cs = sorted(contours("avionics-Edge_Cuts.gko"), key=width, reverse=True)   # the outline, the widest, first
@@ -1325,7 +1483,7 @@ def silk_edge():
     for k, edge in enumerate(cs):
         ax, ay, bx, by = (np.array(v) for v in zip(*[(*a, *b) for a, b in edge], strict=True))
         loops.append((Path([a for a, _b in edge] + [edge[-1][1]]), ax, ay, bx - ax, by - ay, k == 0))
-    bad, worst = 0, {}
+    bad, worst, rail = 0, {}, {}
     for side, fname in (("F", "avionics-F_Silkscreen.gto"), ("B", "avionics-B_Silkscreen.gbo")):
         shapes, dark = [], True                    # (points, radius) of every dark legend shape
         for op in gerber_ops(fname):
@@ -1339,10 +1497,16 @@ def silk_edge():
                 shapes.append(([op[2], op[3]], op[1][1] / 2))
             elif op[0] == "flash":
                 shapes.append(([op[2]], math.hypot(op[1][1], op[1][2]) / 2 if op[1][0] == "R" else op[1][1] / 2))
-        worst[side] = math.inf
+        worst[side] = rail[side] = math.inf
         for pts, r in shapes:
             q = np.array(pts)
             px, py = q[:, :1], q[:, 1:]
+            off = B.H - float(py.max()) - r
+            rail[side] = min(rail[side], off)
+            if off < SILK_VCUT - 1e-6:
+                bad += 1
+                i = int(py.argmax())
+                print(f"LEGEND AT THE V-CUT EDGE on {side} at ({q[i, 0]:.2f}, {q[i, 1]:.2f}), {off:.2f} mm from it")
             for inside, ax, ay, ux, uy, outline in loops:
                 u = np.clip(((px - ax) * ux + (py - ay) * uy) / (ux * ux + uy * uy), 0, 1)
                 d = np.hypot(px - (ax + u * ux), py - (ay + u * uy)).min(axis=1)
@@ -1355,7 +1519,8 @@ def silk_edge():
                     where = "AT THE BOARD EDGE" if outline else "AT AN LED CUTOUT"
                     print(f"LEGEND {where} on {side} at ({q[i, 0]:.2f}, {q[i, 1]:.2f}), {d[i]:.2f} mm from it")
     print(f"legend to board outline and LED cutouts: closest F {worst['F']:.2f} mm, B {worst['B']:.2f} mm (min "
-          f"{SILK_EDGE}); {bad} problems")
+          f"{SILK_EDGE}), to the V-cut edge F {rail['F']:.2f} mm, B {rail['B']:.2f} mm (min {SILK_VCUT}); {bad} "
+          "problems")
     return bad
 
 
@@ -1398,14 +1563,17 @@ def ij(x, y):
     return int(round(y / PX)), int(round(x / PX))
 
 
-# Thin contacts. The electrical check labels the 0.05 mm raster, which joins copper that only touches: two round
-# trace ends exactly one width apart met at a single point (GP0 at the FMS push, an open once etched) and came out
-# as one piece. Here each copper layer is read from its Gerber as exact geometry (dark and clear in order), and
-# the nets are traced again through the plated holes: on that copper as drawn, no two nets may touch (copper
-# closer than TOUCH counts as touching), and on that copper eroded by NECK / 2 (shrunk on every edge, so any
-# contact or neck narrower than NECK comes apart) every net must still be one piece.
-NECK = 0.08
+# The electrical check. Each copper layer is read from its Gerber as exact geometry (dark and clear in order), and
+# the nets are traced through the plated holes. On that copper as drawn every probe (a pad, a via, a segment's
+# middle, a point of each plane) is on copper, no two nets touch (copper closer than TOUCH counts as touching),
+# every net is one piece and no copper is without a net (a piece of FLOATING mm2 and more that holds no probe).
+# Thin contacts: on that copper eroded by NECK / 2 (shrunk on every edge, so any contact or neck narrower than NECK
+# comes apart) every net must still be one piece. Two round trace ends exactly one width apart meet at a single
+# point, an open once etched. NECK is just under the narrowest trace (board.FAN_W, 0.16); JLCPCB's narrowest
+# copper is 0.09 mm.
+NECK = 0.15
 TOUCH = 1e-4                                # arcs are polygons inside the true circle: tangent edges read as apart
+FLOATING = 1e-3
 # And no strip of plane copper narrower than PLANE_NECK, where two clearances nearly meet: JLCPCB's narrowest
 # inner-layer copper is 0.09 mm, and a sliver can lift off; make.py clears what is under 0.2 mm (PLANE_MIN_W).
 # The 1e-3 mm2 floor below relies on that: a sharp 90 degree plane corner alone leaves 0.0012 mm2 after this
@@ -1416,7 +1584,8 @@ ARC = 16                                    # buffer segments per quarter circle
 
 
 def vector_copper(fname):
-    """A copper Gerber as one shapely geometry, board mm (y down), every aperture and region exact."""
+    """A Gerber file (a copper layer, a legend) as one shapely geometry, board mm (y down), every aperture and
+    region exact."""
     out, dark, run = Polygon(), True, []
 
     def flush():
@@ -1430,31 +1599,23 @@ def vector_copper(fname):
             if op[1] != dark:
                 flush()
                 dark = op[1]
-            continue
-        if op[0] == "region":
+        elif op[0] == "region":
             run.append(make_valid(Polygon(op[1])))
-            continue
-        (k, a, b) = op[1]
-        if op[0] == "line":
-            run.append(LineString([op[2], op[3]]).buffer(a / 2, quad_segs=ARC))
-        elif k == "C":
-            run.append(Point(op[2]).buffer(a / 2, quad_segs=ARC))
-        elif k == "R":
-            x, y = op[2]
-            run.append(shapely_box(x - a / 2, y - b / 2, x + a / 2, y + b / 2))
         else:
-            x, y = op[2]
-            d = abs(a - b) / 2
-            spine = LineString([(x - d, y), (x + d, y)] if a >= b else [(x, y - d), (x, y + d)])
-            run.append(spine.buffer(min(a, b) / 2, quad_segs=ARC) if d else Point(x, y).buffer(a / 2, quad_segs=ARC))
+            kind, *g = op_item(op)
+            if kind == "rect":
+                run.append(shapely_box(*g[:4]))
+            else:
+                spine = Point(g[:2]) if g[:2] == g[2:4] else LineString([g[:2], g[2:4]])
+                run.append(spine.buffer(g[4], quad_segs=ARC))
     flush()
     return out
 
 
 def vector_nets(copper, probes, joins, neck):
-    """{(layer, piece): set of nets} over every probe's piece, the pieces joined through the plated holes, and the
-    probes on no copper, for the copper of each layer eroded by neck / 2 (0: as drawn, pieces closer than TOUCH
-    joined)."""
+    """{(layer, piece): set of nets} over every probe's piece, the pieces joined through the plated holes, the
+    probes on no copper, and the pieces (layer, shape) that hold no probe, for the copper of each layer eroded by
+    neck / 2 (0: as drawn, pieces closer than TOUCH joined)."""
     pieces, trees = {}, {}
     for ly, g in copper.items():
         if neck:
@@ -1483,21 +1644,23 @@ def vector_nets(copper, probes, joins, neck):
             lost.append((net, ly, x, y))
         else:
             nets.setdefault(find((ly, k)), {}).setdefault(net, []).append((ly, x, y))
-    return nets, lost
+    free = [(ly, q) for ly, ps in pieces.items() for i, q in enumerate(ps) if find((ly, i)) not in nets]
+    return nets, lost, free
 
 
-def thin_contacts(layers, probes, joins):
+def electrical(copper, probes, joins):
+    """The nets on the copper layers `copper` ({layer: vector_copper()}), as drawn and eroded by NECK / 2, and the
+    planes' narrowest copper: how many problems."""
     bad = 0
-    copper = {ly: vector_copper(f) for ly, f in layers.items()}
     for neck in (0.0, NECK):
-        nets, lost = vector_nets(copper, probes, joins, neck)
+        nets, lost, free = vector_nets(copper, probes, joins, neck)
         what = f"eroded by {neck / 2:g} mm" if neck else "as drawn"
         for net, ly, x, y in lost:
-            bad += 1; print(f"VECTOR PROBE NOT ON COPPER ({what}): {net} on {ly} at ({x:.3f}, {y:.3f})")
+            bad += 1; print(f"PROBE NOT ON COPPER ({what}): {net} on {ly} at ({x:.3f}, {y:.3f})")
         pieces = {}
         for ns in nets.values():
             if len(ns) > 1 and not neck:
-                bad += 1; print("VECTOR SHORT between", sorted(ns))
+                bad += 1; print("SHORT between", sorted(ns))
             for n, pts in ns.items():
                 pieces.setdefault(n, []).append(pts)
         for n, ps in sorted(pieces.items()):
@@ -1506,8 +1669,17 @@ def thin_contacts(layers, probes, joins):
             bad += 1                            # where: the closest two probes of the first two pieces
             a, b = min(((a, b) for a in ps[0] for b in ps[1] if a[0] == b[0]),
                        key=lambda ab: math.dist(ab[0][1:], ab[1][1:]), default=(ps[0][0], ps[1][0]))
-            print(f"{'THIN CONTACT' if neck else 'VECTOR OPEN'} on net {n}: {len(ps)} pieces {what}, nearest "
+            print(f"{'THIN CONTACT' if neck else 'OPEN'} on net {n}: {len(ps)} pieces {what}, nearest "
                   f"probes on {a[0]} at ({a[1]:.3f}, {a[2]:.3f}) and ({b[1]:.3f}, {b[2]:.3f})")
+        if not neck:                            # copper that no pad, via or segment accounts for
+            for ly, q in free:
+                if q.area >= FLOATING:
+                    bad += 1
+                    c = q.representative_point()
+                    print(f"FLOATING copper on {ly}: {q.area:.3f} mm2 at ({c.x:.2f}, {c.y:.2f})")
+            print(f"electrical: the copper Gerbers as exact geometry, {len({p[0] for p in probes})} nets; no two "
+                  f"touching as drawn (closer than {TOUCH:g} mm), every net one piece, no copper without a net "
+                  f"({FLOATING:g} mm2 and more); {bad} problems")
     # the planes: no copper narrower than PLANE_NECK anywhere (make.py clears what is under PLANE_MIN_W there)
     for ly in B.PLANES:
         g = copper[ly]
@@ -1518,9 +1690,8 @@ def thin_contacts(layers, probes, joins):
                 c = q.representative_point()
                 print(f"PLANE SLIVER on {ly} at ({c.x:.2f}, {c.y:.2f}): {q.area:.4f} mm2 of copper narrower than "
                       f"{PLANE_NECK} mm")
-    print(f"thin contacts: the copper Gerbers as exact geometry, {len({p[0] for p in probes})} nets; no two nets "
-          f"touching as drawn (closer than {TOUCH:g} mm), every net one piece with each contact and neck at least "
-          f"{NECK} mm wide; no plane copper narrower than {PLANE_NECK} mm; {bad} problems")
+    print(f"thin contacts: every net one piece with each contact and neck at least {NECK} mm wide; no plane copper "
+          f"narrower than {PLANE_NECK} mm; {bad} problems in all")
     return bad
 
 
@@ -1534,11 +1705,8 @@ if __name__ == "__main__":
     with open("routed.json") as f:
         rd = json.load(f)
 
-    # --- electrical check ---
-    lab, ncomp = {}, {}
-    for ly, img in ras.items():
-        lab[ly], ncomp[ly] = ndimage.label(img)
-    find, union = union_find()
+    # --- electrical check: the nets on the copper as exact geometry ---
+    copper = {ly: vector_copper(f) for ly, f in LAYERS.items()}
     probes = []   # (net, layer, x, y)
     for p in pads:
         for ly in p.layers:
@@ -1550,62 +1718,24 @@ if __name__ == "__main__":
     for ly, net in B.PLANES.items():           # one probe in each plane (a quiet spot)
         probes.append((net, ly, 2.0, B.H / 2))
     slots = [(p.x, p.y) for p in pads if p.slot]
-    for (x, y, _d) in pth + [(sx, sy, 0) for sx, sy in slots]:   # plated holes join every layer they touch
-        hit = [(ly, lab[ly][ij(x, y)]) for ly in LAYERS if lab[ly][ij(x, y)]]
-        for h in hit[1:]:
-            union(hit[0], h)
-    bad = 0
-    comp_nets = {}
-    for net, ly, x, y in probes:
-        c = lab[ly][ij(x, y)]
-        if c == 0:                                  # thin diagonal lines: look one pixel around
-            i0, j0 = ij(x, y)
-            win = lab[ly][i0 - 1:i0 + 2, j0 - 1:j0 + 2]
-            c = int(win.max())
-        if c == 0:
-            print("PROBE NOT ON COPPER", net, ly, x, y); bad += 1; continue
-        comp_nets.setdefault(find((ly, c)), set()).add(net)
-    for nets in comp_nets.values():
-        if len(nets) > 1:
-            print("SHORT between", sorted(nets)); bad += 1
-    net_comps = {}
-    for comp, nets in comp_nets.items():
-        for n in nets:
-            net_comps.setdefault(n, set()).add(comp)
-    for n, cs in net_comps.items():
-        if len(cs) > 1 and not n.startswith("NC:"):
-            print("OPEN on net", n, len(cs), "pieces"); bad += 1
-    # copper islands nobody probes (floating plane pieces etc.)
-    floating = 0
-    for ly in LAYERS:
-        sizes = ndimage.sum(np.ones_like(lab[ly]), lab[ly], range(1, ncomp[ly] + 1))
-        for c in range(1, ncomp[ly] + 1):
-            if find((ly, c)) not in comp_nets and sizes[c - 1] * PX * PX > 0.5:
-                floating += 1
-                ys, xs = np.nonzero(lab[ly] == c)
-                print("FLOATING copper", ly, f"{sizes[c-1]*PX*PX:.1f} mm2 at",
-                      round(xs.mean() * PX, 1), round(ys.mean() * PX, 1))
-    print(f"electrical: {len(net_comps)} nets, {bad} problems, {floating} floating islands")
-    bad += thin_contacts(LAYERS, probes, [(x, y) for x, y, _d in pth] + slots)
+    bad = electrical(copper, probes, [(x, y) for x, y, _d in pth] + slots)   # plated holes join the layers
 
     # --- inner planes: every hole of another net (and every unplated hole) keeps clear of the plane copper.
-    # Measured on the Gerbers: the distance from each drill hole to the nearest plane pixel, minus its radius.
-    PLANE_MIN = 0.2                              # JLCPCB inner layer, hole to copper
+    # Measured on the copper as exact geometry: from each drill hole's centre to the plane, less its radius.
     owners = [(p.x, p.y, p.net) for p in pads if p.drill] + [(v[0], v[1], v[2]) for v in rd["vias"]]
 
     def hole_net(x, y):                          # the pad or via the hole belongs to (slots: their pad)
         return min(owners, key=lambda o: (o[0] - x) ** 2 + (o[1] - y) ** 2)[2]
 
     plane_worst, plane_bad = 9.9, 0
+    holes = [(x, y, d, hole_net(x, y)) for x, y, d in sorted(set(pth))] + [(x, y, d, None) for x, y, d in npth]
     for ly, pnet in B.PLANES.items():
-        dist = ndimage.distance_transform_edt(~ras[ly]) * PX
-        holes = [(x, y, d, hole_net(x, y)) for x, y, d in pth] + [(x, y, d, None) for x, y, d in npth]
         for x, y, d, hnet in holes:
             if hnet == pnet:
                 continue
-            gap = dist[ij(x, y)] - d / 2
+            gap = copper[ly].distance(Point(x, y)) - d / 2
             plane_worst = min(plane_worst, gap)
-            if gap < PLANE_MIN:
+            if gap < PLANE_MIN - 1e-3:           # the clearances' arcs are polygons, up to 0.001 inside the circle
                 plane_bad += 1
                 print(f"PLANE CLEARANCE {ly} ({pnet}): hole of {hnet} at ({x:.2f}, {y:.2f}) {gap:.3f} mm")
     print(f"inner planes: closest foreign hole {plane_worst:.3f} mm from plane copper (min {PLANE_MIN}), "
@@ -1618,9 +1748,9 @@ if __name__ == "__main__":
     ko, ko_bad = B.MOUNT_KEEPOUT, 0
     reach = ko + 3.0                             # look 3 mm past the keep-out to report the closest copper
     ko_near = dict.fromkeys(LAYERS, math.inf)
-    # the plane copper by its net (the electrical check above): every piece connected to the plane net
-    plane_px = {ly: np.isin(lab[ly], [c for c in range(1, ncomp[ly] + 1) if comp_nets.get(find((ly, c))) == {pnet}])
-                for ly, pnet in B.PLANES.items()}
+    # the plane copper: the piece of its layer that holds the plane's probe
+    plane_lab = {ly: ndimage.label(ras[ly])[0] for ly in B.PLANES}
+    plane_px = {ly: lab == lab[ij(2.0, B.H / 2)] for ly, lab in plane_lab.items()}
     r = int(reach / PX)
 
     def near_mm(v):
@@ -1679,27 +1809,32 @@ if __name__ == "__main__":
     bad += copper_model(pads, rd["segments"], rd["vias"])
     bad += drill_model(pads, rd["vias"])
     items = copper_items(pads, rd["segments"], rd["vias"])
+    # copper of two nets: the design's clearance, JLCPCB's at least, and MASK_CU beyond a pad's mask opening (taken
+    # as far out as the opening may reach, mask_grow)
+    clear, edge = max(B.CLEAR, CLEAR_MIN), max(B.EDGE_CLEAR, EDGE_MIN)
+    opening = {(ly, "pad:" + p.name): mask_grow(p)[1] + MASK_CU for p in pads for ly in p.mask}
     worst, viol = 9, 0
-    for i, j in near_pairs([it[1] for it in items], 0.5):
+    for i, j in near_pairs([it[1] for it in items], max(clear, *opening.values())):
         a, b = items[i], items[j]
         if a[0] != b[0] or a[2] == b[2]:
             continue
         dd = item_dist(a[1], b[1])
         worst = min(worst, dd)
-        if dd < B.CLEAR - 1e-6:
+        need = max(clear, opening.get((a[0], a[3]), 0.0), opening.get((b[0], b[3]), 0.0))
+        if dd < need - 1e-6:
             viol += 1
-            print("CLEARANCE", round(dd, 3), a[2], a[3], b[2], b[3], a[0])
+            print("CLEARANCE", round(dd, 3), f"(min {need:g})", a[2], a[3], b[2], b[3], a[0])
     for it in items:
         bb = bbox(it[1])
         # the board edge: bounding boxes against the outline's straight sides, exact on the primitives, so the
         # tolerance is rounding alone (as in precheck.py). At the rounded corners the corner holes' keep-outs
         # reach to within 0.11 mm of the outline, less than any trace is wide.
         e = min(bb[0], bb[1], B.W - bb[2], B.H - bb[3])
-        if e < B.EDGE_CLEAR - 1e-6:
+        if e < edge - 1e-6:
             viol += 1; print("NEAR EDGE", it[2], it[3], round(e, 3))
         for (x, y, dd) in B.NPTH:
             dist = item_dist(it[1], ("cap", x, y, x, y, dd / 2))
-            if dist < 0.15:
+            if dist < NPTH_CU - 1e-6:
                 viol += 1; print("NEAR NPTH", it[2], it[3], round(dist, 2))
         for (x, y, w, h, _r) in B.CUTOUTS:        # JLCPCB: copper 0.2 mm from a routed edge
             if not boxes_near(bb, (x - w / 2, y - h / 2, x + w / 2, y + h / 2), 1.0):
@@ -1735,9 +1870,12 @@ if __name__ == "__main__":
                 viol += 1; print("HOLES TOO CLOSE", ni, nj, (round(gi[1], 2), round(gi[2], 2)), round(gap, 3))
     print(f"holes: closest different nets {hmin[False][0]:.3f} mm (min 0.5), "
           f"same net {hmin[True][0]:.3f} mm (min 0.254)")
-    print(f"DRC: worst copper clearance {worst:.3f} mm, {viol} violations")
+    print(f"DRC: worst copper clearance {worst:.3f} mm (min {clear}), to the board edge at least {edge} mm, to an "
+          f"unplated hole {NPTH_CU}, to a cutout {ROUTED_EDGE_CU}, to another net's mask opening {MASK_CU}; {viol} "
+          "violations")
     hole_bad = holes_and_paste(pads, rd["vias"], pth, npth)
     hole_bad += mask_dams(pads, rd["vias"])
+    hole_bad += fiducials(pads)
     hole_bad += hand_solder(pads)
     hole_bad += decoupling(pads, rd["segments"], rd["vias"])
     hole_bad += cap_vias(pads, rd["vias"])
@@ -1745,10 +1883,13 @@ if __name__ == "__main__":
     hole_bad += j1_shell(ras["B"], pads)
     hole_bad += usb_protection(ras, pth, pads, rd["segments"], rd["vias"])
     hole_bad += silk_clear(pth, npth)
+    hole_bad += legend_strokes()
     hole_bad += edge_cuts()
     hole_bad += silk_edge()
     hole_bad += cathode_bars(pads)
+    hole_bad += pin1_marks(pads)
     parts, pin_bad = assembly_files()
     pin_bad += footprints(pads, parts)
+    pin_bad += mcu_pins(pads)
     pin_bad += tht_footprints(pads, parts)
-    sys.exit(1 if (bad or floating or viol or hole_bad or pin_bad) else 0)
+    sys.exit(1 if (bad or viol or hole_bad or pin_bad) else 0)

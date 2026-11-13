@@ -1,6 +1,7 @@
 """Front plate artwork for JLCCNC (1:1, mm): CNC outline + holes, laser marking, UV print.
 
-Writes avionics-panel-rev1-plate.dxf (R12, layers CUT / LASER / UV_AMBER) and a coloured SVG preview.
+Writes avionics-panel-rev1-plate.dxf (R12, layers CUT / LASER / UV_AMBER, each with its colour in the layer
+table) and a coloured SVG preview.
 The plate is black anodised aluminium. JLCCNC laser marking is single-tone (light grey on black), so the
 white legends and frame lines are LASER; the amber shift legends and knob functions are UV printed
 (UV_AMBER). Geometry follows pcb/board.py and the 3D view.
@@ -11,6 +12,9 @@ from pathlib import Path
 
 from matplotlib.font_manager import FontProperties
 from matplotlib.textpath import TextPath, TextToPath
+from shapely import STRtree
+from shapely.geometry import Polygon
+from shapely.ops import unary_union
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "pcb"))
 import board as B
@@ -54,8 +58,27 @@ def advance(ch, fp, em):
     return w * em / fp.get_size_in_points()
 
 
+def filled(polys):
+    """Closed contours filled even-odd, as the vendor fills them, as one shapely shape: a contour inside an odd
+    number of others is a hole (a letter's counter)."""
+    ps = [Polygon(p).buffer(0) for p in polys]
+    tree = STRtree(ps)
+    even, odd = [], []
+    for i, q in enumerate(ps):
+        inside = sum(1 for j in tree.query(q, predicate="within") if j != i)
+        (odd if inside % 2 else even).append(q)
+    return unary_union(even).difference(unary_union(odd))
+
+
+def contours(shape):
+    """The outlines of a shapely shape as closed contours: of each of its pieces the outside, then its holes."""
+    return [list(ring.coords)[:-1] for q in getattr(shape, "geoms", [shape])
+            for ring in (q.exterior, *q.interiors)]
+
+
 def glyph(ch, fp, em, x, y, rot):
-    """Outline polygons of one glyph, centred on (x, y) in y-down coordinates, rotated by rot (rad)."""
+    """Outline polygons of one glyph, centred on (x, y) in y-down coordinates, rotated by rot (rad); a glyph in
+    stack.PLATE_TEXT["thin"] grown all round until its thinnest stroke is PLATE_TEXT["stroke"] wide."""
     if ch == " ":
         return []
     w = advance(ch, fp, em)
@@ -68,7 +91,9 @@ def glyph(ch, fp, em, x, y, rot):
             lx, ly = gx - w / 2, -(gy - S.PLATE_TEXT["mid"] * em)   # centre the glyph, y down, middle of cap height
             pts.append((x + lx * c - ly * s, y + lx * s + ly * c))
         out.append(pts)
-    return out
+    thin = S.PLATE_TEXT["thin"].get(ch)
+    grow = max(0.0, (S.PLATE_TEXT["stroke"] - thin * em) / 2) if thin else 0.0
+    return contours(filled(out).buffer(grow, quad_segs=8)) if grow else out
 
 
 def text(layer, s, x, y, fp, em, track=0.0, align="center"):
@@ -195,6 +220,20 @@ for rI, y in enumerate(B.ROWS):
 # A minimal DXF HEADER: $INSUNITS 4 = millimetres (CAM reads it as the drawing unit; R12 readers that do not know
 # it skip it), $MEASUREMENT 1 = metric.
 DXF_HEADER = ["0", "SECTION", "2", "HEADER", "9", "$INSUNITS", "70", "4", "9", "$MEASUREMENT", "70", "1", "0", "ENDSEC"]
+# The layers' colours in a CAD program (AutoCAD colour index): CUT grey, LASER white, UV_AMBER orange.
+DXF_COLOUR = {"CUT": 8, "LASER": 7, "UV_AMBER": 30}
+
+
+def dxf_tables():
+    """The DXF TABLES section: the one line type and the layers with their colours."""
+    out = ["0", "SECTION", "2", "TABLES",
+           "0", "TABLE", "2", "LTYPE", "70", "1",
+           "0", "LTYPE", "2", "CONTINUOUS", "70", "0", "3", "Solid line", "72", "65", "73", "0", "40", "0.0",
+           "0", "ENDTAB",
+           "0", "TABLE", "2", "LAYER", "70", str(len(layers))]
+    for layer in layers:
+        out += ["0", "LAYER", "2", layer, "70", "0", "62", str(DXF_COLOUR[layer]), "6", "CONTINUOUS"]
+    return out + ["0", "ENDTAB", "0", "ENDSEC"]
 
 
 def dxf_layers():
@@ -205,7 +244,7 @@ def dxf_layers():
 
 def write_dxf(path):
     """R12 DXF of dxf_layers(): each polygon one closed POLYLINE on its layer, coordinates to 0.1 um."""
-    out = DXF_HEADER + ["0", "SECTION", "2", "ENTITIES"]
+    out = DXF_HEADER + dxf_tables() + ["0", "SECTION", "2", "ENTITIES"]
     for layer, polys in dxf_layers().items():
         for poly in polys:
             out += ["0", "POLYLINE", "8", layer, "66", "1", "70", "1"]

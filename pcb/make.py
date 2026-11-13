@@ -4,14 +4,14 @@ import math
 import os
 import shutil
 import zipfile
-from itertools import pairwise
 
 import board as B
 import numpy as np
-from geom import SILK_EDGE, bbox, boxes_near, item_dist, pad_geom, pt_seg, rounded_rect
+from geom import SILK_EDGE, SILK_VCUT, bbox, boxes_near, item_dist, pad_geom, pt_seg, rounded_rect, stroke_width
 from matplotlib.font_manager import FontProperties
 from matplotlib.path import Path
 from matplotlib.textpath import TextPath
+from shapely import make_valid
 from shapely.geometry import LineString, Point, Polygon
 from shapely.ops import unary_union
 
@@ -49,41 +49,42 @@ def text_polys(s, size, mirror=False):
 
 silk = {"F": [], "B": []}     # list of ("text", polys) or ("line", pts, width) or ("dot", x, y, diameter)
 # JLCPCB's legend minimum: characters 1.0 mm high, lines 0.153 mm (6 mil) wide. Measured on the font: a capital
-# letter (DejaVu Sans Bold caps are 0.73 of the size), the stem of an "I" (0.19 of the size), a lowercase letter
-# (the x-height, 0.55 of the size) and the stroke of a "/" (0.10 of the size, across it: its area over its length).
-# Each text is SILK (1.4) or the smallest size in 0.05 steps above it at which all of its characters pass:
-# 1.5 with a "/", 1.85 with lowercase letters.
+# letter (DejaVu Sans Bold caps are 0.73 of the size), a lowercase letter (the x-height, 0.55 of the size), and on
+# each text's own outlines its thinnest stroke or neck (geom.stroke_width). Each text is SILK (1.4) or the smallest
+# size in 0.05 steps above it at which it passes.
 SILK_MIN_H, SILK_MIN_LINE, SILK = 1.0, 0.153, 1.4
 CAP_H = TextPath((0, 0), "H", size=1.0, prop=FONT).get_extents().height
-STEM = TextPath((0, 0), "I", size=1.0, prop=FONT).get_extents().width
 X_H = TextPath((0, 0), "x", size=1.0, prop=FONT).get_extents().height
-_slash = Polygon(TextPath((0, 0), "/", size=1.0, prop=FONT).to_polygons()[0])
-SLASH = _slash.area / max(math.dist(a, b) for a, b in pairwise(_slash.exterior.coords))
+
+
+def text_shape(polys):
+    """The outlines of text_polys() as one shapely shape: the letters less their counters."""
+    out = Polygon()
+    for depth, p in polys:
+        g = make_valid(Polygon(p))
+        out = out.difference(g) if depth % 2 else out.union(g)
+    return out
 
 
 def legend_size(s):
-    """The size of the legend text s: SILK, or as much larger as its characters need, in 0.05 mm steps."""
-    need = [SILK, SILK_MIN_H / CAP_H, SILK_MIN_LINE / STEM]
-    need += [SILK_MIN_LINE / SLASH] if "/" in s else []
+    """The size of the legend text s: SILK, or as much larger as its height and its thinnest stroke need, in 0.05 mm
+    steps. The stroke is measured at size 1, to 0.0002 below its width, and grows with the size."""
+    need = [SILK, SILK_MIN_H / CAP_H, SILK_MIN_LINE / stroke_width(text_shape(text_polys(s, 1.0)), 0.3, 2e-4)]
     need += [SILK_MIN_H / X_H] if any(c.islower() for c in s) else []
     return math.ceil(max(need) * 20 - 1e-9) / 20
 # JLCPCB clips the legend off pads and holes (check.py: SILK_CLEAR, 0.15 mm on the Gerbers). Each text keeps
 # LEGEND_GAP between its bounding box and the mask openings on its side, every hole and the legend placed before
-# it, and geom.SILK_EDGE inside the board outline; where its spot is taken (a via the router put there), it moves
-# to the nearest free one, at most 3 mm sideways and 1 mm up or down. A line (a diode's cathode bar) is left out
-# for HOLE_GAP round a via instead. The checks are plain raises: asserts vanish under -O.
+# it, geom.SILK_EDGE inside the board outline and geom.SILK_VCUT inside its V-cut edge; where its spot is taken
+# (a via the router put there), it moves to the nearest free one, at most 3 mm sideways and 1 mm up or down. A
+# line (a diode's cathode bar) is left out for HOLE_GAP round a via instead. The checks are plain raises:
+# asserts vanish under -O.
 LEGEND_GAP, HOLE_GAP = 0.25, 0.2
 NUDGE = sorted(((0.25 * i, 0.25 * j) for i in range(-12, 13) for j in range(-4, 5)),
                key=lambda d: (math.hypot(d[0], 2 * d[1]), d))
 
 
-# Every mask opening is its pad grown by MASK_GROW per side. Black mask needs 0.13 mm dams (JLCPCB; check.py:
-# MASK_DAM), and the closest pads (the RP2040's, the USB-C contacts, C_X2 and R_X) are 0.2 mm apart: 0.035
-# leaves 0.13 between them. JLCPCB's LDI exposure takes openings down to the pad size (1:1) and aligns to
-# +-0.02 mm on multilayer boards, so the mask stays off every pad (check.py: MASK_MIN_GROW).
-MASK_GROW = 0.035
-
-
+# Every mask opening is its pad grown by the pad's `grow` per side: board.MASK_GROW, or what a fiducial's opening
+# takes.
 def grown(g, d):
     return g[:5] + (g[5] + d,) if g[0] == "cap" else ("rect", g[1] - d, g[2] - d, g[3] + d, g[4] + d, 0.0)
 
@@ -93,7 +94,7 @@ HOLES = ([("cap", x, y, x, y, dr / 2) for (x, y, _n, _d, dr) in vias]
          + [("cap", x, y, x, y, B.MOUNT_HOLE / 2) for (x, y) in B.MOUNTS]
          + [("rect", x - w / 2, y - h / 2, x + w / 2, y + h / 2, 0.0) for (x, y, w, h, _r) in B.CUTOUTS])
 HOLE_BOXES = [bbox(h) for h in HOLES]
-CLEAR = {ly: [grown(pad_geom(p), MASK_GROW) for p in pads if ly in p.mask] + HOLES for ly in "FB"}
+CLEAR = {ly: [grown(pad_geom(p), p.grow) for p in pads if ly in p.mask] + HOLES for ly in "FB"}
 
 
 OUTLINE = rounded_rect(0, 0, B.W, B.H, B.CORNER_R)    # the Edge_Cuts polygon (outline()): its corner chords count
@@ -113,7 +114,7 @@ def T(layer, s, x, y):
     for dx, dy in NUDGE:
         box = ("rect", x + dx + x0, y + dy + y0, x + dx + x1, y + dy + y1, 0.0)
         # the outline is convex: a box with its corners SILK_EDGE inside it is inside it by SILK_EDGE
-        if min(edge_dist(bx, by) for bx in box[1:4:2] for by in box[2:5:2]) < SILK_EDGE:
+        if min(edge_dist(bx, by) for bx in box[1:4:2] for by in box[2:5:2]) < SILK_EDGE or B.H - box[4] < SILK_VCUT:
             continue
         if all(item_dist(box, g) >= LEGEND_GAP for g in CLEAR[layer] if boxes_near(bbox(g), box[1:5], LEGEND_GAP)):
             CLEAR[layer].append(box)
@@ -178,7 +179,7 @@ def bar_clear(x, y, items, gap):
     return all(item_dist(g, h) >= gap - 1e-6 for h in items if boxes_near(bbox(h), bbox(g), gap))
 
 
-MASK_B = [grown(pad_geom(p), MASK_GROW) for p in pads if "B" in p.mask]
+MASK_B = [grown(pad_geom(p), p.grow) for p in pads if "B" in p.mask]
 for _name, x, y in B.DIODES:
     bx = x + BAR_X
     if not bar_clear(bx, y, HOLES, HOLE_GAP):
@@ -188,7 +189,7 @@ for _name, x, y in B.DIODES:
 # the LEDs' cathode bars on the cathode pad's outer side (away from the anode), between it and its GND via
 for name in B.LEDS:
     k, a = (next(p for p in pads if p.name == f"LED_{name}.{pin}") for pin in "KA")
-    bx = k.x + math.copysign(k.w / 2 + MASK_GROW + BAR_GAP + BAR_W / 2, k.x - a.x)
+    bx = k.x + math.copysign(k.w / 2 + k.grow + BAR_GAP + BAR_W / 2, k.x - a.x)
     line("B", [(bx, k.y - 0.75), (bx, k.y + 0.75)], BAR_W)
 mx, my = B.MCU
 # pin 1 corner, close to the chip: C_IO1 (pin 1's capacitor) sits further out
@@ -215,8 +216,9 @@ for ref, spots in NAME_SPOTS.items():
             if i == len(spots) - 1:
                 raise
 T("B", "Avionics Panel rev 1 - RP2040 - USB-C", (B.COLS[2] + B.COLS[3]) / 2, 2.6)
-T("B", "BOOT: bridge", B.BOOT[0], B.BOOT[1] + 2.4)
-T("B", "while plugging in", B.BOOT[0], B.BOOT[1] + 4.5)
+# two lines, each 2.0 mm high, between the BOOT pads and the board's V-cut edge
+T("B", "BOOT: bridge", B.BOOT[0], B.BOOT[1] + 2.2)
+T("B", "while plugging in", B.BOOT[0], B.BOOT[1] + 4.46)
 
 # ---------------- Gerber writer ----------------
 def fmt(v):
@@ -317,6 +319,7 @@ def copper(layer, fname, func):
 
 
 PLANE_CLEAR = 0.35      # copper-free ring around a foreign hole on an inner plane (beyond the drill)
+PLANE_CUT = (0.5, 0.4)  # plane copper back from an LED cutout's routed edge: along the pads, across
 THERMAL_GAP, THERMAL_RING, SPOKE = 0.30, 0.30, 0.40
 # Plane copper narrower than PLANE_MIN_W, where two clearances nearly meet (a sliver of 0.03 mm between the RANGE
 # control's ECOM thermal and its COM pin's clearance), and any piece of plane that only such necks held (a 0.5 mm2
@@ -376,9 +379,9 @@ def plane(layer, net, fname, func):
         clear_region(circle_pts(x, y, B.MOUNT_HOLE / 2 + 0.6))
     for (x, y, dd) in B.NPTH:
         clear_region(circle_pts(x, y, dd / 2 + 0.5))
-    for (x, y, w, h, r) in B.CUTOUTS:            # the LED cutouts: plane copper 0.5 mm back from the routed edge
-        e = 0.5
-        clear_region(rounded_rect(x - w / 2 - e, y - h / 2 - e, x + w / 2 + e, y + h / 2 + e, r + e))
+    for (x, y, w, h, r) in B.CUTOUTS:            # the LED cutouts: plane copper PLANE_CUT back from the routed edge
+        ex, ey = PLANE_CUT
+        clear_region(rounded_rect(x - w / 2 - ex, y - h / 2 - ey, x + w / 2 + ex, y + h / 2 + ey, r + ex))
     # what the clearances leave, opened by PLANE_MIN_W / 2: the plane is its largest piece, everything else of the
     # copper (slivers, the corners next to them, islands) is cleared too
     copper = Polygon(edge).difference(unary_union(clears))
@@ -386,9 +389,13 @@ def plane(layer, net, fname, func):
     main = max(getattr(opened, "geoms", [opened]), key=lambda q: q.area)
     cut = copper.difference(main)
     cut = [q for q in getattr(cut, "geoms", [cut]) if q.geom_type == "Polygon" and q.area > 1e-4]
+    own = [(x, y, dr) for (x, y, vnet, _d, dr) in vias if vnet == net]
     for q in cut:
         if q.interiors:                         # a plain raise: asserts vanish under -O
             raise ValueError(f"{layer}: a piece to clear with a hole at {q.representative_point()}")
+        for x, y, dr in own:                    # a via of the plane's net in it would lose its plane
+            if q.distance(Point(x, y)) < dr / 2:
+                raise ValueError(f"{layer}: the {net} via at ({x:.2f}, {y:.2f}) is in plane copper that is cleared")
         # 5 um larger, so it overlaps the flashed clearances round it, which the polygons above only approximate
         g.region(list(q.buffer(0.005, quad_segs=4).exterior.coords)[:-1])
     if cut:
@@ -430,7 +437,7 @@ def mask(layer, fname, func):
     g = Gerber(fname, func, "Negative")
     for p in pads:
         if layer in p.mask:          # breakout points of the fan-out and the 1V1 vias on the bottom stay under the mask
-            pad_flash(g, p, MASK_GROW)
+            pad_flash(g, p, p.grow)
     g.save()
 
 
@@ -505,8 +512,8 @@ def drill(fname, holes, plated, slots=()):
 
 
 copper("F", "avionics-F_Cu.gtl", "Copper,L1,Top")
-plane("In1", "GND", "avionics-In1_Cu.g2", "Copper,L2,Inr,Plane")
-plane("In2", "3V3", "avionics-In2_Cu.g3", "Copper,L3,Inr,Plane")
+plane("In1", "GND", "avionics-In1_Cu.g2", "Copper,L2,Inr")
+plane("In2", "3V3", "avionics-In2_Cu.g3", "Copper,L3,Inr")
 copper("B", "avionics-B_Cu.gbl", "Copper,L4,Bot")
 mask("F", "avionics-F_Mask.gts", "Soldermask,Top")
 mask("B", "avionics-B_Mask.gbs", "Soldermask,Bot")
