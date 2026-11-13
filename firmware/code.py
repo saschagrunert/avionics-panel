@@ -57,11 +57,13 @@ if PICO_TEST:
 PADS_BANK0 = 0x4001C000            # RP2040 pad control: one 32-bit register per GPIO, from offset 4
 DRIVE_12MA = 0x30                  # its DRIVE field, bits 5:4: 3 is 12 mA (reset 1, 4 mA)
 RETRY_MS, RETRY_MAX_MS = 1000, 8000      # after a failed send: wait before the next try, doubling up to this
+SEND_WAIT_MS = 2000                      # send_report waits this long for the host before it gives up
 WAKE_MS = 500                            # wait this long for a host asked to resume the bus: USB 2.0 needs 30 ms
                                          # (7.1.7.7), Linux holds the resume 40 ms, a sleeping host controller more
 DETENT_MS = 500                          # a ring between two detents at the start gets this long to reach one
-MAX_EVENTS = 256                         # each keypad's event queue: far more than fingers make in the 4.5 s it
-                                         # can go unread (docs/architecture/firmware.md, Keys and switch bounce)
+MAX_EVENTS = 320                         # each keypad's event queue: more than a switch that changes with every
+                                         # scan makes in the little over 5 s it can go unread
+                                         # (docs/architecture/firmware.md, Keys and switch bounce)
 TICKS_PERIOD = 1 << 29                   # supervisor.ticks_ms and Event.timestamp wrap after this many ms
 OUTPUTS = ()                             # (report, device) once code.py has found them: 0 the keyboard, 1 and 2
                                          # the joysticks
@@ -89,7 +91,7 @@ def ticks_diff(a, b):
 
 def now():
     """The loop's clock, brought up to date: ms since code.py started, counted on from supervisor.ticks_ms()
-    across its wrap. It stays a small integer for 12 days, so reading it allocates nothing
+    across its wrap. It stays a small integer for 2**30 ms (12.4 days), so reading it allocates nothing
     (time.monotonic_ns() returns a long integer)."""
     ticks = supervisor.ticks_ms()
     clock[0] += ticks_diff(ticks, clock[1])
@@ -105,16 +107,18 @@ def back_off(r):
 
 
 class Source:
-    """One keypad: passes its events to the panel. If events were lost (more than MAX_EVENTS between two loop
-    passes), every key of the keypad goes up at once, and the keypad, reset, reports the ones still held again,
-    as new presses."""
+    """One keypad, its events read one ahead into an Event of its own (get_into, which leaves nothing on the
+    heap). If events were lost (more than MAX_EVENTS between two loop passes), every key of the keypad goes up
+    at once, and the keypad, reset, reports the ones still held again, as new presses."""
 
     def __init__(self, keys, names):
         self.keys, self.names = keys, names
         self.down = set()          # key numbers the panel has as pressed
+        self.event = keypad.Event()
+        self.ready = False         # self.event holds an event not yet passed on
 
-    def poll(self, t, ticks):
-        """t: the pass's ms, ticks: supervisor.ticks_ms() read with it, to put the scan times on t's clock"""
+    def start(self, t):
+        """Reads the first event of this pass; t: the pass's ms"""
         events = self.keys.events
         if events.overflowed:
             events.clear()
@@ -122,18 +126,36 @@ class Source:
             for k in self.down:
                 panel.release(self.names[k], t)
             self.down.clear()
-        ev = events.get()
-        while ev:
-            k = ev.key_number
-            # Only what changes a key for the panel: a key held when the keypad started sends a release only, and
-            # a scan between the clear and the reset above reports a key that the reset reports again
-            if ev.pressed != (k in self.down):
-                if ev.pressed:
-                    self.down.add(k)
-                else:
-                    self.down.discard(k)
-                panel.key(self.names[k], ev.pressed, t, t + ticks_diff(ev.timestamp, ticks))
-            ev = events.get()
+        self.ready = events.get_into(self.event)
+
+    def next(self, t):
+        """Passes the event read to the panel, and reads the next"""
+        ev = self.event
+        k = ev.key_number
+        # Only what changes a key for the panel: a key held when the keypad started sends a release only, and a
+        # scan between the clear and the reset of an overflow reports a key that the reset reports again
+        if ev.pressed != (k in self.down):
+            if ev.pressed:
+                self.down.add(k)
+            else:
+                self.down.discard(k)
+            panel.key(self.names[k], ev.pressed, t, t + ticks_diff(ev.timestamp, clock[1]))
+        self.ready = self.keys.events.get_into(ev)
+
+
+def read_keys(t):
+    """Passes the events of both keypads to the panel in the order they were scanned (Event.timestamp), the
+    matrix first within a ms: a pass that waited for the host reads seconds of them at once, and a FREQ push
+    scanned before a SHIFT tap stays plain. clock[1] is supervisor.ticks_ms() at t, which puts the scan times on
+    t's clock."""
+    a, b = sources
+    a.start(t)
+    b.start(t)
+    while a.ready or b.ready:
+        if a.ready and not (b.ready and ticks_diff(b.event.timestamp, a.event.timestamp) < 0):
+            a.next(t)
+        else:
+            b.next(t)
 
 
 def make_encoders():
@@ -203,26 +225,61 @@ def show(level, unit):
             print("UNIT", 2 if unit else 1)
 
 
-def wake():
-    """Input while USB is down: asks a host that has suspended the bus to resume it, so the input reaches the PC
+def behind():
+    """Whether the host has something other than what the panel shows: a report that differs from the one last
+    sent, or in keyboard mode another function down (keyboard.fn keeps the host's while USB is down) or only
+    the modifiers of its shortcut. Not after a request the host refused, until the host has been back: then only
+    input asks again."""
+    if woke[1]:
+        return False
+    if KEYBOARD:
+        return panel.pressed() != keyboard.fn or (keyboard.fn is not None and not sent[0][2])
+    return reports[1] != sent[1] or reports[2] != sent[2]
+
+
+def asked(start):
+    """Whether a send_report that began at start and returned without an error asked the host to resume and
+    sent nothing: in CircuitPython 9.2.9 only one that waited out its 2 s and found the bus suspended does"""
+    return now() - start >= SEND_WAIT_MS
+
+
+def wake(t):
+    """Asks a host that has suspended the bus to resume it, so that what the panel has for it reaches the PC
     (docs/architecture/firmware.md, USB). CircuitPython has no call for it: send_report waits 2 s for the host,
     then asks a suspended one to resume and returns; with no host at all it raises OSError, and nothing was
-    asked. The input then waits until the host is back, up to WAKE_MS, so that a press still lasts its PRESS_MS
-    for the PC. A request that brings no host back is not repeated before a back-off, which the loop ends once
-    the host is back."""
+    asked. t: the pass's ms"""
     n, dev = OUTPUTS[0]
+    start = now()
     try:
-        # What goes out if the host is back within the 2 s: joystick 1's last report, or every key of the keyboard
-        # up, which is what a host that was away is taken to have (keys.Keyboard)
+        # What goes out if the host is back within the 2 s: the report the last pass worked out for joystick 1,
+        # or every key of the keyboard up, which is what a host that was away is taken to have (keys.Keyboard)
         dev.send_report(reports[n] if n else ZERO[n])
     except OSError:
-        back_off(woke)
-        return
-    end = now() + WAKE_MS
+        waited(t, False)
+    else:
+        waited(t, asked(start))
+
+
+def waited(t, suspended):
+    """After a request to resume: a send that asked a suspended host (suspended), one that found no host at
+    all, or one that went out to a host back meanwhile. Waits up to WAKE_MS for a suspended host, then stalls
+    the panel by the whole wait since t, so that the presses and gaps it shows start for the PC then, and a
+    press still lasts its PRESS_MS; the knob steps queued so far stay, as after any wait for the host. A request
+    that brings no host back is not repeated before a back-off, which the loop ends once the host is back. A
+    host that is back may have re-enumerated meanwhile, with no pass to see USB down: it gets the joysticks'
+    reports again. A keyboard's host that had suspended the bus kept its report: a shortcut still held goes on
+    from that report (sent[0]), and does not go down a second time."""
+    end = now() + (WAKE_MS if suspended else 0)
     while not supervisor.runtime.usb_connected and now() < end:
         time.sleep(0.001)
+    panel.stalled(now() - t)
+    panel.keep_steps()
     if not supervisor.runtime.usb_connected:
         back_off(woke)
+        return
+    unsent[1] = unsent[2] = True
+    if suspended:
+        unsent[0] = False
 
 
 # Whatever ends code.py must not leave a button held on the PC: an error, while it starts or in the loop,
@@ -248,7 +305,8 @@ try:
     OUTPUTS = ((0, usb_hid.devices[0]),) if KEYBOARD else ((1, usb_hid.devices[0]), (2, usb_hid.devices[1]))
     # sent[n]: the report the host has of device n, unless unsent[n]: then it has none of this panel's yet (at
     # the start), or USB was down since, after which a host assumes all released or still has an older one.
-    # again[n], read while unsent[n]: a late send asked for it since USB was last down (below)
+    # While USB is down, behind() compares it with the panel's. again[n], read while unsent[n]: a late send asked
+    # for it since USB was last down (below)
     sent = {n: bytearray(len(reports[n])) for n in reports}
     unsent = [True, True, True]
     again = [False, False, False]
@@ -300,12 +358,12 @@ try:
             unsent[0] = unsent[1] = unsent[2] = True
             again[1] = again[2] = False
             retry[0] = retry[1] = 0
-        # With USB down and no back-off running, input asks the host to resume, and so does a release that was
-        # read before USB went down and still waits out its bounce time (the PC would keep that button down).
-        # Only a pass that finds input waiting reads it: what comes in right after the check stays in the
-        # keypads and encoders for the next pass, which then asks.
+        # With USB down and no back-off running, the panel asks the host to resume when input waits or the host
+        # has something other than what the panel shows (behind()): a press, a step or a release that plays out
+        # after the host suspended the bus. Then only a pass that asks reads input: what comes in right after the
+        # check stays in the keypads and encoders for the next pass, which then asks.
         asking = not connected and t >= woke[0]
-        if not asking or input_waiting() or panel.releasing():
+        if not asking or input_waiting() or behind():
             if asking:
                 # wake() takes 2 s or more and the rest of the input is read after it. The lights go dark before
                 # it, not after. The knobs as they stand go to the panel first, at this pass's time, so a detent
@@ -313,11 +371,9 @@ try:
                 # turns back during the wait.
                 show(LIGHT_OFF, False)
                 turns(t)
-                wake()
-                panel.keep_steps()
+                wake(t)
                 t = now()
-            for src in sources:
-                src.poll(t, clock[1])
+            read_keys(t)
             turns(t)
         panel.tick(t)
         show(panel.shift_level(t), connected and panel.unit_light)   # the amber light pulses before SHIFT drops
@@ -325,21 +381,22 @@ try:
             rep = reports[n]
             if n:
                 panel.fill_report(n, rep)
-            else:
+            elif supervisor.runtime.usb_connected:
                 keyboard.fill(rep, None if unsent[0] else sent[0])
+            else:
+                continue                             # keyboard.fn keeps the function the host has (behind())
             # send_report waits up to 2 s for the host, so only while USB is connected, read anew for each send.
             # A host that has the panel mounted and never polls it fails every send after those 2 s: back off,
             # for both devices, so that the loop runs between the tries.
             changed = rep != sent[n]
             if (changed or unsent[n]) and t >= retry[0] and supervisor.runtime.usb_connected:
+                start = now()
                 try:
                     dev.send_report(rep)
                 except OSError:
                     back_off(retry)
                 else:
                     late = now() - t                 # since the time this pass worked the report out for
-                    # If the host suspended the bus during the send, send_report asked it to resume and sent
-                    # nothing: USB is down now, and the report goes out again once the host is back.
                     if supervisor.runtime.usb_connected:
                         if late > LATE_MS:
                             # The PC gets this report, and what the pass has yet to send, later than the
@@ -354,8 +411,13 @@ try:
                             sent[n][i] = rep[i]
                         unsent[n] = False
                         retry[0] = retry[1] = 0
+                    elif asked(start):
+                        # The host suspended the bus during the send: send_report waited out its 2 s, asked
+                        # the host to resume and sent nothing. That is the request: the panel waits for the host
+                        # as after wake(), and the report goes out again once the host is back.
+                        waited(t, True)
                     if late > LATE_MS:               # the other device's report in the next pass: the sends of
-                        break                        # one pass wait for the host once, 2 s at most
+                        break                        # one pass wait for the host once, 2.5 s at most
         time.sleep(0.001)
 except Exception as e:
     try:

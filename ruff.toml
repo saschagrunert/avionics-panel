@@ -1,6 +1,7 @@
-# Python lint for the generators (pcb/, mech/), the firmware and the simulator (sim/). `ruff check` in CI.
+# Python lint for every Python file of the repository (`ruff check .`, in CI), for Python 3.10, the oldest the
+# simulator runs on (docs/using/simulator.md).
 line-length = 120
-target-version = "py312"
+target-version = "py310"
 
 [lint]
 select = ["E", "W", "F", "I", "B", "UP", "SIM", "C4"]

@@ -92,9 +92,14 @@ def gpio(pin):
 
 
 class Event:
-    """keypad.Event"""
+    """keypad.Event. keypad.Event() in code.py makes one stamped with the board's supervisor.ticks_ms (Board's
+    keypad module; shared-bindings/keypad/Event.c:28-48)."""
 
-    def __init__(self, key_number, pressed, timestamp):
+    def __init__(self, key_number=0, pressed=True, timestamp=None):
+        if key_number < 0:
+            raise ValueError("key_number must be >= 0")
+        if not isinstance(timestamp, int):
+            raise TypeError("timestamp must be an int")
         self.key_number, self.pressed, self.timestamp = key_number, pressed, timestamp
 
 
@@ -116,6 +121,17 @@ class EventQueue:
 
     def get(self):
         return self.items.pop(0) if self.items else None
+
+    def get_into(self, event):
+        """Moves the next event into `event` and returns True, or returns False and leaves `event` as it is
+        (shared-bindings/keypad/EventQueue.c:61-67, shared-module/keypad/EventQueue.c:26-37)"""
+        if not isinstance(event, Event):
+            raise TypeError("event must be of type Event")
+        if not self.items:
+            return False
+        ev = self.items.pop(0)
+        event.key_number, event.pressed, event.timestamp = ev.key_number, ev.pressed, ev.timestamp
+        return True
 
     def clear(self):
         self.items, self.overflowed = [], False
@@ -362,7 +378,8 @@ class Board:
         pins = SimpleNamespace(**{f"GPIO{i}": f"GP{i}" for i in range(30)})
         self.modules = {
             "digitalio": SimpleNamespace(DigitalInOut=partial(DigitalInOut, self), Pull=Pull),
-            "keypad": SimpleNamespace(KeyMatrix=partial(KeyMatrix, self), Keys=partial(Keys, self)),
+            "keypad": SimpleNamespace(KeyMatrix=partial(KeyMatrix, self), Keys=partial(Keys, self),
+                                      Event=self.event),
             "memorymap": SimpleNamespace(AddressRange=partial(AddressRange, self)),
             "microcontroller": SimpleNamespace(pin=pins, nvm=self.nvm),
             "pwmio": SimpleNamespace(PWMOut=partial(PWMOut, self)),
@@ -481,6 +498,10 @@ class Board:
     def take(self, ms, device, report):
         """The host takes a report from a device at ms"""
         self.received.append((ms, device, report))
+
+    def event(self, key_number=0, pressed=True, timestamp=None):
+        """keypad.Event in code.py: without a timestamp, supervisor.ticks_ms now"""
+        return Event(key_number, pressed, self.ticks_ms() if timestamp is None else timestamp)
 
     def device(self, **kwargs):
         """usb_hid.Device in boot.py"""

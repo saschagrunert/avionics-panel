@@ -265,6 +265,24 @@ def test_event_queue_drops_the_newest_when_full():
     assert len(queue) == 64 and queue.overflowed and queue.items[-1].key_number == 63
 
 
+def test_get_into_moves_the_next_event_into_the_one_given():
+    # keypad.Event() made on the board is stamped with supervisor.ticks_ms; get_into fills it from the queue and
+    # leaves it as it is when the queue is empty; it takes nothing but an Event
+    board = Board()
+    event = board.modules["keypad"].Event()
+    assert (event.key_number, event.pressed, event.timestamp) == (0, True, board.ticks_ms())
+    queue = EventQueue()
+    queue.record(Event(5, False, 123))
+    assert queue.get_into(event) and (event.key_number, event.pressed, event.timestamp) == (5, False, 123)
+    assert not queue.get_into(event) and (event.key_number, event.pressed, event.timestamp) == (5, False, 123)
+    with pytest.raises(TypeError):
+        queue.get_into(None)
+    with pytest.raises(ValueError):
+        Event(-1, True, 0)
+    with pytest.raises(TypeError):
+        board.modules["keypad"].Event(0, True, "now")
+
+
 def test_the_clock_counts_from_power_up_and_wraps():
     # supervisor.ticks_ms starts 2**16 ms before its wrap at power-up, BOOT_MS before code.py starts, and wraps
     # to 0 at 2**29. The stand-in's time module has no monotonic_ns: on the board it returns a long integer,

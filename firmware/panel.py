@@ -51,7 +51,8 @@ class Panel:
         """solo: one button down at a time, for the keyboard mode (keys.py): a press waits until no other button
         is down, so each shortcut goes down with its own modifiers and no other key held"""
         self.solo = solo
-        self.dark = False            # code.py sets it while USB is down and the lights are off: SHIFT never applies
+        self.dark = False            # code.py sets it while USB is down and the lights are off: SHIFT never
+                                     # applies, and a held key or tilt does not repeat
         self.shift = None            # None, "any" (armed by the SHIFT key) or the knob that keeps it
         self.under = None            # with "any": the knob whose held push or tilt keeps its session under it
         self.shift_until = 0
@@ -114,19 +115,24 @@ class Panel:
         self.ring_keys.clear()
 
     def stalled(self, ms):
-        """A report reached the PC ms late, more than the LATE_MS that PRESS_MS and GAP_MS allow for (code.py: a
-        send that waited for the host). Every press and gap the PC is being shown starts that much later, so
-        one that begins with that report or after it still outlasts a poll for the PC, and the next press keeps
-        its distance."""
+        """The loop waited ms for the host (code.py: a send that waited, a request to resume), so a report
+        reached the PC later than the LATE_MS that PRESS_MS and GAP_MS allow for. Every press and gap the PC is
+        being shown starts that much later, so one that begins with that report or after it still outlasts a
+        poll for the PC, and the next press keeps its distance; the next repeat of a held key or tilt keeps its
+        delay. The end of SHIFT moves as well: the light stayed as it was during the wait, and a key pressed
+        then goes out as it showed."""
         for k in self.shown:
             if self.shown[k][1] is not None:
                 self.shown[k][1] += ms
+        for src in self.repeat:
+            self.repeat[src][1] += ms
         self.order_ms += ms
+        self.shift_until += ms
 
     def shift_active(self, t):
         """Whether SHIFT applies at time t, the one place that decides it: inputs, tick() and the light agree,
-        so a late detent after a stalled loop is plain, as the dark light says, and cannot revive the session.
-        Never while dark: the light is off then, and dark means plain."""
+        so a detent read after SHIFT ran out is plain, also before tick() has seen that, and cannot revive the
+        session. Never while dark: the light is off then, and dark means plain."""
         return not self.dark and self.shift is not None and t < self.shift_until
 
     def _expire(self, t):
@@ -343,8 +349,8 @@ class Panel:
                 if t - self.pending[name] >= BOUNCE_MS:
                     del self.pending[name]
                     self._apply(name, False, t)
-        if self.repeat:
-            self._repeat(t)
+        if self.repeat and not self.dark:                  # no repeats for a host that is away: they would wake
+            self._repeat(t)                                # it; one missed comes once it is back
         self._show(t)
         if self.order and t >= self.order_ms:
             self._next(t)
@@ -403,14 +409,6 @@ class Panel:
     def buttons(self, dev):
         """Button numbers currently pressed on one device (for tests on the PC: code.py uses fill_report)"""
         return {b for (d, b), e in self.shown.items() if d == dev and e[0]}
-
-    def releasing(self):
-        """Whether a release that still waits out BOUNCE_MS will change what the PC sees: it lets a held button
-        go, or it is the RANGE centre's, which sends PTR. (code.py: worth asking a suspended host to resume.)"""
-        for name in self.pending:
-            if name in self.held or (name == "RANGE_COM" and not self.range_tilted):
-                return True
-        return False
 
     def pressed(self):
         """A (device, button) pressed now, or None; solo keeps it to one (no set or view: called every pass)"""

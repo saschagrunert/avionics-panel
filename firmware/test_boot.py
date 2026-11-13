@@ -39,7 +39,7 @@ def test_shift_held_keeps_the_drive_and_console():
 def test_usb_name_and_interfaces():
     # in both modes the joysticks carry the name "Avionics Panel" (what joy.cpl and MobiFlight show) and MIDI
     # is off: only the drive and the console differ between the modes (they shift the joysticks' interface
-    # number, so Windows may see new controllers in SHIFT mode; docs/using/mapping.md)
+    # number, so Windows may see new controllers in update mode; docs/using/mapping.md)
     for shift in (False, True):
         board = boot(shift=shift)
         assert board.calls.count(("set_usb_identification", "DIY", "Avionics Panel")) == 1
@@ -47,7 +47,7 @@ def test_usb_name_and_interfaces():
 
 
 def test_hid_interface_carries_the_name():
-    # on a composite device (SHIFT mode) Windows names the joysticks after the HID interface, not the product:
+    # on a composite device (update mode) Windows names the joysticks after the HID interface, not the product:
     # without this they would show as "CircuitPython HID". CircuitPython reads it when USB starts, after boot.py
     for shift in (False, True):
         board = boot(shift=shift)
