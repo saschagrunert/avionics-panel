@@ -12,17 +12,20 @@ default browser once it is served.
 The API, under /sim/:
 
 - GET events: one Server-Sent Events stream per page. `hello` first, with the page's client ID (a secret: only
-  the page can read it) and the firmware names of the caps and knobs geometry.js draws (inputs()), then `state`
-  whenever the lights or the buttons change (the lights are read every POLL_S, so the SHIFT light's 125 ms pulse
-  keeps its rhythm; in keyboard mode the buttons are the keyboard's, with the shortcut), and `fault` for an error
-  in code.py's loop, which then reloads (not `error`: EventSource has an event of that name).
+  the page can read it), the firmware names of the caps and knobs geometry.js draws (inputs()) and the numbers the
+  page keeps to (the detents of a knob's turn, TURN_MAX, ACTS_MAX and BEAT_S in ms), then `state` whenever the
+  lights or the buttons change (the lights are read every POLL_S, so the SHIFT light's 125 ms pulse keeps its
+  rhythm; in keyboard mode the buttons are the keyboard's, with the shortcut), and `fault` for an error in
+  code.py's loop, which then reloads (not `error`: EventSource has an event of that name).
 - POST act?client=ID: actions, one per line, run at once and in order: `press NAME`, `release NAME` (a key, push
   or RANGE switch) and `turn RING DETENTS` (all in the same ms, sim.live.TURN_MAX at most). Nothing paces them: a
   fast wheel is a fast turn. An empty one only says that the page is still there. 204, or 400 with the reason
   (nothing runs), 409 for a client that has gone, 413 for a body over BODY_MAX.
 
 A page that goes lets go of what it holds, unless another page holds it too: when its stream closes, and when it
-has not posted for LEASE_S (a tablet that drops off the network closes nothing; the page posts every second).
+has not posted for LEASE_S (a tablet that drops off the network closes nothing; the page posts every BEAT_S).
+A browser asks before it reuses a file it has kept (Cache-Control: no-cache) and always gets the file, never a
+304, so the page it shows is the one this program serves. A connection that stalls for TIMEOUT_S is closed.
 Only this server's own page drives the panel: a request with a Host other than an IP address or localhost with
 the server's port (DNS rebinding), from another Origin, or from another site (Sec-Fetch-Site) gets 403, except a
 link to the page itself from another site; no other site may frame the page (clickjacking), and none can read a
@@ -32,6 +35,7 @@ A fatal error of the live panel ends the program with its traceback; the page th
 """
 import argparse
 import contextlib
+import errno
 import ipaddress
 import json
 import os
@@ -49,7 +53,7 @@ from urllib.parse import parse_qs, urlsplit
 
 from sim import BM, FUNCTIONS, LIGHTS, TILT, key_name
 from sim.hardware import make_keys
-from sim.live import USAGE, Live, parse
+from sim.live import DETENTS, TURN_MAX, USAGE, Live, parse
 from sim.sendinput import SendInput
 from sim.uhid import Uhid
 from sim.vjoy import VJoy
@@ -57,10 +61,23 @@ from sim.vjoy import VJoy
 VIEWER = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "viewer")
 GEOMETRY = os.path.join(VIEWER, "geometry.js")
 POLL_S = 0.01        # the stream reads the lights and the reports this often
-LEASE_S = 3          # a page that has not posted for this long has gone
+LEASE_S = 3          # a page that has not posted for this long has gone ...
+BEAT_S = 1           # ... so it posts this often, an empty request if it has nothing else
+TIMEOUT_S = 10       # a request or a stream's event that takes longer ends its connection
 BODY_MAX = 65536     # bytes of an act request at most
 ACTS_MAX = 64        # actions in one request at most: a page sends a few, so none can queue minutes of changes
 ACTS = {"press": USAGE["press"], "release": USAGE["release"], "turn": "turn RING DETENTS"}   # what act takes
+WSAEACCES = 10013    # OSError.winerror (with errno 13) for a port Windows gives to no one: another program has it
+                     # to itself, or it lies in a range that Windows keeps, as for Hyper-V and WSL
+PORT_MAX = 65535
+
+
+def port(text):
+    """--port's value: 0, for any free port, to PORT_MAX"""
+    number = int(text)
+    if not 0 <= number <= PORT_MAX:
+        raise ValueError(text)
+    return number
 
 
 def inputs(path=GEOMETRY):
@@ -199,13 +216,28 @@ class Page(ThreadingHTTPServer):
 
 
 class Handler(SimpleHTTPRequestHandler):
+    timeout = TIMEOUT_S
+
     def log_request(self, *args):
         pass
+
+    def log_error(self, format, *args):
+        if not format.startswith("Request timed out"):           # a connection closed after TIMEOUT_S is no news
+            super().log_error(format, *args)
 
     def end_headers(self):
         self.send_header("X-Frame-Options", "DENY")              # no other site frames the page (clickjacking)
         self.send_header("Content-Security-Policy", "frame-ancestors 'none'")
+        # a browser asks before it reuses a file. Left to itself it reuses one for a tenth of its age, which is days
+        # for the files of a zip (they have the commit's time): an older simulator's page against this program
+        self.send_header("Cache-Control", "no-cache")
         super().end_headers()
+
+    def send_head(self):
+        # a browser that asks gets the file, never a 304: the copy it has kept can be another simulator's and
+        # still be the newer one by its time (an older zip unpacked after a newer one, a zip after a checkout)
+        del self.headers["If-Modified-Since"]
+        return super().send_head()
 
     def foreign(self):
         """Sends 403 to a request that does not come from this server's own page. Another site may link to the
@@ -218,7 +250,8 @@ class Handler(SimpleHTTPRequestHandler):
         if (local(host, self.server.server_address[1]) and origin in (None, f"http://{host}")
                 and (link or h.get("Sec-Fetch-Site") not in ("cross-site", "same-site"))):
             return False
-        self.send_error(403, explain="open the page by this computer's IP address or localhost, as sim.page prints it")
+        self.send_error(403, explain="open the page by this computer's IP address or localhost, as the simulator "
+                                     "prints it")
         return True
 
     def do_HEAD(self):
@@ -267,12 +300,12 @@ class Handler(SimpleHTTPRequestHandler):
         page, live = self.server, self.server.live
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream; charset=utf-8")
-        self.send_header("Cache-Control", "no-store")
         self.end_headers()
         client, state, error = page.connect(), None, live.printed[-1] if live.printed else None
         try:
             self.wfile.write(b"retry: 1000\n\n")
-            self.event("hello", {"client": client, "inputs": page.inputs})
+            self.event("hello", {"client": client, "inputs": page.inputs, "detents": DETENTS, "turn_max": TURN_MAX,
+                                 "acts_max": ACTS_MAX, "beat_ms": 1000 * BEAT_S})
             while not page.closing.is_set() and live.thread.is_alive() and not page.gone(client):
                 if (new := page.state()) != state:
                     self.event("state", state := new)
@@ -291,7 +324,7 @@ class Handler(SimpleHTTPRequestHandler):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="python3 -m sim.page", description=__doc__.split("\n\n")[0])
-    parser.add_argument("--port", type=int, default=8000, help="the port to serve on (default 8000)")
+    parser.add_argument("--port", type=port, default=8000, help="the port to serve on (default 8000)")
     parser.add_argument("--host", default="127.0.0.1",
                         help="the address to serve on (default 127.0.0.1; 0.0.0.0 for a tablet on the network)")
     parser.add_argument("--keyboard", action="store_true", help="the keyboard mode: a keyboard, no joysticks")
@@ -310,6 +343,14 @@ def main(argv=None):
     except OSError as e:
         if out:
             out.close()
+        if e.errno == errno.EADDRINUSE:
+            other = args.port + 1 if args.port < PORT_MAX else args.port - 1
+            sys.exit(f"sim.page: port {args.port} is in use: close the other simulator window, or add --port {other}")
+        if getattr(e, "winerror", None) == WSAEACCES:
+            sys.exit(f"sim.page: Windows gives port {args.port} to no one: another program has it to itself, or it "
+                     "is in a range that Windows keeps, as for Hyper-V and WSL (netsh interface ipv4 show "
+                     "excludedportrange protocol=tcp lists them). Close that program, or add --port with a port "
+                     "outside those ranges")
         sys.exit(f"sim.page: {e}")
     live.start(page.output)
     threading.Thread(target=page.serve_forever, name="page", daemon=True).start()

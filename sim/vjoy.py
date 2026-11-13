@@ -71,6 +71,23 @@ class VJoyError(OSError):
     pass
 
 
+def on_console_close(close, kernel32):
+    """Makes Windows call close() on Ctrl-Break and when the console window closes, where Python runs no finally
+    (Windows waits up to about 5 s for it); Ctrl-C goes on to Python. kernel32: Windows' kernel32, or None for no
+    handler. Returns the handler, for the caller to keep: Windows calls it after Python would have freed it."""
+    if kernel32 is None:
+        return None
+
+    def console(event):                   # in a thread of its own
+        if event in (CTRL_BREAK_EVENT, CTRL_CLOSE_EVENT):
+            close()
+        return int(event == CTRL_CLOSE_EVENT)   # Ctrl-Break: Windows' default handler then ends the process
+
+    handler = CONSOLE_HANDLER(console)
+    kernel32.SetConsoleCtrlHandler(handler, True)
+    return handler
+
+
 def load(path=None):
     """vJoyInterface.dll (path, else VJOY_DLL, else vJoy's default folder) with the signatures of SIGNATURES"""
     if path is None and sys.platform != "win32":
@@ -120,7 +137,8 @@ class VJoy:
                 raise VJoyError(f"vJoy device {n} is not configured: {SETUP}")
             if status == VJD_STAT_BUSY:
                 raise VJoyError(f"vJoy device {n} is in use by another program (process {self.dll.GetOwnerPid(n)}): "
-                                "close it; in MobiFlight, remove the profile's vJoy outputs")
+                                "close it (another simulator window?); in MobiFlight, remove the profile's vJoy "
+                                "outputs")
             if status not in (VJD_STAT_OWN, VJD_STAT_FREE):
                 raise VJoyError(f"vJoy device {n} is in an unknown state ({status})")
             if (have := self.dll.GetVJDButtonNumber(n)) < buttons:
@@ -135,17 +153,7 @@ class VJoy:
             raise
         if kernel32 is None and sys.platform == "win32":
             kernel32 = ctypes.WinDLL("kernel32")
-        self.handler = None
-        if kernel32 is not None:          # kept: Windows calls it after Python would have freed it
-            self.handler = CONSOLE_HANDLER(self.console)
-            kernel32.SetConsoleCtrlHandler(self.handler, True)
-
-    def console(self, event):
-        """Windows' console handler, in a thread of its own: lets go on Ctrl-Break and when the window closes
-        (Windows waits up to about 5 s for it); Ctrl-C goes on to Python"""
-        if event in (CTRL_BREAK_EVENT, CTRL_CLOSE_EVENT):
-            self.close()
-        return int(event == CTRL_CLOSE_EVENT)   # Ctrl-Break: Windows' default handler then ends the process
+        self.handler = on_console_close(self.close, kernel32)
 
     def send(self, device, report):
         """A report as one UpdateVJD; nothing once closed"""

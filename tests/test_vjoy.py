@@ -1,6 +1,6 @@
 """The vJoy output (sim/vjoy.py) without Windows: its struct against vJoy 2.2.2.0's header, the report of every
 button of both joysticks against the firmware's descriptor and buttonmap.py, and its calls into a stand-in for
-vJoyInterface.dll. The DLL itself, vJoy's driver and what MobiFlight sees are tested on Windows."""
+vJoyInterface.dll. The DLL itself, vJoy's driver and what MobiFlight sees are tested on a Windows PC."""
 import ctypes
 import io
 import os
@@ -9,6 +9,7 @@ import sys
 import pytest
 
 import sim.vjoy
+from conftest import hid_parser
 from sim import BM, Sim
 from sim.hardware import FIRMWARE, Board
 from sim.vjoy import (
@@ -65,7 +66,7 @@ def documented():
 def test_every_button_of_both_joysticks_is_its_vjoy_button():
     # each bit of each report, read with boot.py's descriptor (hid-tools' parser), is vJoy's button of the same
     # number on the device of the same number, alone; for the buttons buttonmap.py names, BUTTONS.md's number
-    hid = pytest.importorskip("hidtools.hid", reason="hid-tools missing (build.sh provides it)")
+    hid = hid_parser()
     rdesc = hid.ReportDescriptor.from_bytes(list(b"".join(d.report_descriptor for d in Board().boot().devices)))
     numbers = documented()
     for device, report_id in REPORT_ID.items():
@@ -145,7 +146,8 @@ def test_a_device_this_program_owns_already_is_taken_again():
     (Dll(enabled=False), "the vJoy driver is not enabled"),
     (Dll(status={1: VJD_STAT_FREE}), "vJoy device 2 is not configured: run vjoy-setup.bat as administrator"),
     (Dll(status={1: VJD_STAT_BUSY, 2: VJD_STAT_FREE}),
-     r"vJoy device 1 is in use by another program \(process 4711\): close it; in MobiFlight, remove the profile's"),
+     r"vJoy device 1 is in use by another program \(process 4711\): close it \(another simulator window\?\); in "
+     "MobiFlight, remove the profile's vJoy outputs"),
     (Dll(status={1: VJD_STAT_FREE, 2: VJD_STAT_UNKN}), r"vJoy device 2 is in an unknown state \(4\)"),
     (Dll(buttons={1: 128, 2: 32}), "vJoy device 2 has 32 buttons, not 64: run vjoy-setup.bat as administrator"),
 ])

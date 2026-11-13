@@ -42,7 +42,8 @@ USAGE = {"press": "press NAME", "release": "release NAME", "tap": "tap NAME [HOL
          "tilt": "tilt UP|DN|LEFT|RIGHT [HOLD_MS]", "turn": "turn RING DETENTS [EVERY_MS]", "wait": "wait MS"}
 # the names each field takes, and what they are
 NAMES = {"NAME": ("switch", SWITCHES), "RING": ("ring", RINGS), "UP|DN|LEFT|RIGHT": ("tilt", TILT)}
-TURN_MAX = 30        # detents in one action at most: a turn of the knob
+DETENTS = 30         # a turn of a knob, on both encoder types (the PEC11D's are mech/stack.py's ENC_DETENTS)
+TURN_MAX = DETENTS   # detents in one action at most: a turn of the knob
 PRESS_MIN_MS = 50    # more than two key scans (panel.KEY_SCAN_MS 20)
 BEHIND_S = 0.005     # further behind the wall clock than this (a stall): go on from now, without a burst that would
                      # squeeze the pulses below a poll of the PC
@@ -192,7 +193,7 @@ class Live(Board):
 
     # ---------------- code.py's thread ----------------
     def main(self):
-        self.start_s = time.monotonic()            # code.py's 0 ms
+        self.start_s = time.perf_counter()         # code.py's 0 ms, by the clock with the finest steps
         try:
             while not self.stopping.is_set():      # a reload starts code.py again, which makes its own keypads
                 self.keypads, self.encoders, self.leds = [], [], []
@@ -203,7 +204,7 @@ class Live(Board):
     def hand(self):
         if self.stopping.is_set():
             raise Stop
-        ahead = self.start_s + self.t / 1000 / self.speed - time.monotonic()
+        ahead = self.start_s + self.t / 1000 / self.speed - time.perf_counter()
         if ahead > 0:
             time.sleep(ahead)
         elif ahead < -BEHIND_S:

@@ -289,10 +289,12 @@ both joysticks and maps only the first 80 buttons of device 1, so `evtest` sees 
 ([Linux](../using/mapping.md#linux)). `python3 -m sim.uhid --keyboard` makes the keyboard of the keyboard
 mode instead, which the desktop takes like any keyboard. The USB layer (enumeration, interfaces, the drive in
 update mode) is not simulated. `tests/test_uhid.py` runs where `/dev/uhid` and the new hidraw node are
-accessible and skips elsewhere, CI included: the hosted runners' kernel has `uhid` only in an extra modules
-package. `REQUIRE_UHID=1` turns the skips into failures. Without a kernel, `tests/test_descriptor.py` parses
-the descriptors with the parser of [hid-tools](https://gitlab.freedesktop.org/libevdev/hid-tools) (the
-firmware shell provides it on Linux) and reads the simulator's reports with them.
+accessible and skips elsewhere. `REQUIRE_UHID=1` turns the skips into failures: the `build` workflow sets it
+once it has loaded the `uhid` module and opened both up; it installs the extra modules package of the runner's
+kernel if the module is missing. Without a kernel, `tests/test_descriptor.py` parses the descriptors with the
+parser of [hid-tools](https://gitlab.freedesktop.org/libevdev/hid-tools) and reads the simulator's reports
+with them; the firmware shell provides it on Linux and sets `REQUIRE_HID_TOOLS=1`, which makes a missing
+parser fail those tests.
 
 ### The panel page
 
@@ -322,9 +324,9 @@ they exist with enough buttons and that no other program owns them. At the end i
 of the devices: after Ctrl-C, and through a console handler also on Ctrl-Break and when the window closes,
 where Python runs no `finally`. A kill from Task Manager leaves the last buttons down until the next start,
 whose first reports clear them. `python -m sim.vjoy` reads actions from stdin like `sim.uhid`, and
-`python -m sim.page --vjoy` feeds vJoy from the page. `tests/test_vjoy.py` checks it on Linux against the
-header's layout, `boot.py`'s descriptor, BUTTONS.md and stand-ins for the DLL and the console; the DLL itself
-and MobiFlight are tested on Windows.
+`python -m sim.page --vjoy` feeds vJoy from the page. `tests/test_vjoy.py` checks it against the header's
+layout, `boot.py`'s descriptor (where hid-tools is), BUTTONS.md and stand-ins for the DLL and the console, on
+Linux and, in the `build` workflow, on Windows; the DLL itself and MobiFlight are tested on a Windows PC.
 
 ### Keystrokes on Windows
 
@@ -334,14 +336,19 @@ before, by their scan codes (Microsoft's table of HID usages and scan codes), so
 takes them as a keyboard's. Windows gives them to the window in front, so the page is played from another
 device ([Simulator](../using/simulator.md#keyboard-mode)). At the end it lets go of every key, through a
 console handler as vJoy's also on Ctrl-Break and when the window closes, and sends nothing after that. Windows
-takes no keystrokes while a UAC prompt or the lock screen is up: a report it does not take in full ends the
-run with an error, and the end lets go of that report's keys too, and of every modifier.
+takes no keystrokes while a UAC prompt or the lock screen is up. A report it does not take in full is said in
+one line, and every key Windows may hold and every modifier is let go, again every half second and before
+each report until Windows takes that; the next report goes out in full. The end lets go of those keys too.
 `tests/test_sendinput.py` checks its structs against `winuser.h`'s 64-bit layout and its keystrokes against
-a stand-in for `user32.dll`; Windows and the sim are tested on Windows.
+a stand-in for `user32.dll`, on Linux and, in the `build` workflow, on Windows; Windows' own `SendInput` and
+the sim are tested on a Windows PC.
 
 [windows/make_zip.py](../../windows/make_zip.py) builds the zip the [Simulator](../using/simulator.md) page
 describes, on Linux: Python's embeddable package for Windows (amd64, pinned by version and SHA-256), whose
 `._pth` file gets the zip's folder, with `firmware/`, `sim/`, `viewer/` and the batch files in `windows/`.
-The `windows` workflow builds it for every pull request and push to main, keeps it as an artifact of the run
-and attaches it to every published release. Pushes to main also replace the zip of the `rolling` pre-release,
-which the Simulator page links, so it is from a recent commit on main, which the release names.
+The `build` workflow builds it for every pull request and push to main, keeps it as an artifact of the run
+and attaches it to every published release. Its `windows` job runs `tests/test_page.py`,
+`tests/test_sendinput.py`, `tests/test_vjoy.py` and `tests/test_windows_zip.py` on Windows, on the zip's minor
+version of Python. A push to main also replaces the zip of the `rolling` pre-release, which the Simulator page
+links, once the build's checks and those tests have passed: the zip is from a recent commit on main, which the
+release names.

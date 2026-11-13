@@ -8,13 +8,12 @@
 //     not move, not even a quarter detent round the knob, pushes it; anything else a finger does on a knob does
 //     nothing. One finger per knob at a time: a second one takes the knob over if the first has not moved.
 //   the pan arrows round RANGE: held, RANGE tilts that way
-// Everything the page holds is let go when it is hidden or loses the focus; the program lets go of it when the
-// page goes, also when the page stops telling it that it is still there (a tablet off the network).
+// Over any of these the mouse pointer is a hand. Everything the page holds is let go when it is hidden or loses
+// the focus; the program lets go of it when the page goes, also when the page stops telling it that it is still
+// there (a tablet off the network).
 window.playPanel = function playPanel(V) {
   const { G, camera, controls, canvas, assembly, go, invalidate } = V;
   const RANGE = V.knobs.range, KNOBS = Object.values(V.knobs);
-  const DETENT = 2 * Math.PI / 30;     // 30 detents a turn (both encoders)
-  const TURN_MAX = 30;                 // detents in one action at most (sim.live.TURN_MAX)
   const MOVE_PX = 8;                   // a finger that moves this far from where it touched is no tap
   const TAP_MS = 400;                  // ... nor one that stays longer than this
   const AXIS_MM = 2.5;                 // closer to the axis than this the angle round it is a finger's jitter
@@ -24,11 +23,8 @@ window.playPanel = function playPanel(V) {
   const FOV = 10;                      // degrees: from about straight above everywhere, so the knobs lean little
   const SPIN_TAU_MS = 25;              // a ring eases to its detent: most of the way in about 80 ms (3 of these)
   const SPIN_DONE = 0.001;             // radians from the target: there
-  const REDUCE = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const TRAVEL = 1;                    // mm a pressed cap or pushed knob goes down
   const PRESSED = 0x505050;            // the glow of a pressed cap's legend face
-  const LEASE_MS = 1000;               // the page tells the program it is still there this often (sim/page.py)
-  const ACTS_MAX = 64;                 // actions in one request at most (sim/page.py)
   const FADE_MS = 1000;                // a button stays in the list, dimmed, this long after it went
   const ALERT_MS = 10000;              // a firmware error shows this long
   const Z = G.plate.z1, R_IN = G.inner_knob.d / 2 + 0.5;    // the inner knob, with its edge leaning out a little
@@ -39,14 +35,17 @@ window.playPanel = function playPanel(V) {
   // ---------------- what the page shows ----------------
   const style = document.createElement('style');
   style.textContent = `
-    body.play .bar, body.play .legend, body.play #dims { display: none; }
+    body.play .bar, body.play .legend, body.play #dims, body.play .links { display: none; }
+    /* the lines can lie over the plate and the banner over the top keys: a ground of their own, and no taps taken */
     .sim { position: fixed; left: max(16px, env(safe-area-inset-left, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px));
-           font: 14px var(--mono); color: var(--fg); pointer-events: none; line-height: 1.5; max-width: calc(100% - 32px); }
+           font: 14px var(--mono); color: var(--panel-fg); pointer-events: none; line-height: 1.5; max-width: calc(100% - 32px);
+           background: var(--panel); padding: 4px 8px; border-radius: 8px; box-sizing: border-box; }
     .sim .gone { opacity: .45; }
     /* under the name and the hint line */
     .sim-alert { position: fixed; top: 76px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 32px);
-                 padding: 8px 14px; border-radius: 9px; background: var(--on); color: var(--on-fg); font: 500 14px var(--font); }
-    .sim-alert:empty { display: none; }`;
+                 padding: 8px 14px; border-radius: 9px; background: var(--on); color: var(--on-fg); font: 500 14px var(--font);
+                 pointer-events: none; }
+    .sim:empty, .sim-alert:empty { display: none; }`;
   document.head.appendChild(style);
   document.body.classList.add('play');
   const strip = document.createElement('div'), alert = document.createElement('div');
@@ -58,6 +57,7 @@ window.playPanel = function playPanel(V) {
     'tap a key · move round a knob to turn the ring you touched · tap the middle of a knob to push · hold an arrow round RANGE to tilt';
   for (const L of V.lights) if (L.name === 'UNIT') L.lens.color.setHex(0x1d1e21).convertSRGBToLinear();   // dark when off
   controls.enableRotate = controls.enableZoom = controls.enablePan = false;
+  V.ground.visible = false;            // from above its shadow is a grey slab beside the panel
   canvas.addEventListener('contextmenu', e => e.preventDefault());
   camera.fov = FOV;                    // (the next frame updates the projection)
   controls.maxDistance = Infinity;     // the narrow view stands further off than the zoom limit of the others
@@ -91,7 +91,8 @@ window.playPanel = function playPanel(V) {
   function update(state) {
     const now = performance.now();
     for (const [device, names] of Object.entries(buttons)) {
-      for (const n of names) if (!state.buttons[device]?.includes(n)) (went[device] ||= {})[n] = now;
+      const still = state.buttons[device] || [];
+      for (const n of names) if (!still.includes(n)) (went[device] = went[device] || {})[n] = now;
     }
     ({ lights, buttons } = state);
     for (const L of V.lights) L.lens.emissiveIntensity = lights[L.name];
@@ -104,26 +105,36 @@ window.playPanel = function playPanel(V) {
   clear();
 
   // ---------------- the program ----------------
-  let events, client = null, inputs = null, busy = false, beat = false;
+  // hello names this page (client), the firmware's inputs under the caps and knobs, and the program's numbers: the
+  // angle of a detent, the detents one action takes and the actions one request takes at most, and how often the
+  // page tells the program that it is still there
+  let events, client = null, inputs = null, busy = false, beat = false, beatTimer;
+  let DETENT, TURN_MAX, ACTS_MAX, BEAT_MS;
   const queue = [];
   function connect() {
     say('connecting…');
     events = new EventSource('sim/events');
-    events.addEventListener('hello', e => { ({ client, inputs } = JSON.parse(e.data)); say(''); });
+    events.addEventListener('hello', e => {
+      const hello = JSON.parse(e.data);
+      ({ client, inputs, turn_max: TURN_MAX, acts_max: ACTS_MAX, beat_ms: BEAT_MS } = hello);
+      DETENT = 2 * Math.PI / hello.detents;
+      clearInterval(beatTimer);
+      beatTimer = setInterval(() => { beat = true; flush(); }, BEAT_MS);
+      say('');
+    });
     events.addEventListener('state', e => update(JSON.parse(e.data)));
     events.addEventListener('fault', e => say(`Firmware error, code.py reloaded: ${JSON.parse(e.data).message}`, ALERT_MS));
-    events.onerror = () => { drop(); say('disconnected: start python3 -m sim.page again'); };
+    events.onerror = () => { drop(); say('disconnected: start the simulator again'); };
   }
   // the program lets go of what this page held: forget it here too
-  function drop() { letGo(); queue.length = 0; client = null; clear(); }
-  function disconnect() { events.close(); drop(); }
-  connect();
+  function drop() { letGo(); clearInterval(beatTimer); queue.length = 0; client = null; canvas.style.cursor = ''; clear(); }
+  function disconnect() { if (events) events.close(); drop(); }
+  if (!document.hidden) connect();     // (a page that loads hidden connects once it shows)
   // one request at a time, so the actions arrive in order; what comes up meanwhile goes in the next ones, ACTS_MAX
-  // each. An empty one every LEASE_MS says that the page is still there. A request that is refused, lost or hangs
+  // each. An empty one every BEAT_MS says that the page is still there. A request that is refused, lost or hangs
   // (given up after two of those) may have dropped a release, so the page starts again as a new client: closing
   // its stream makes the program let go of everything the old one held, and what still arrives for it is refused.
   function send(...lines) { queue.push(...lines); flush(); }
-  setInterval(() => { beat = true; flush(); }, LEASE_MS);
   function restart(from) {
     if (from !== client) return;       // (already started again)
     disconnect();
@@ -133,11 +144,13 @@ window.playPanel = function playPanel(V) {
     if (busy || client === null || !(queue.length || beat)) return;
     busy = true; beat = false;
     const body = queue.splice(0, ACTS_MAX).join('\n'), from = client;
+    // (not AbortSignal.timeout: the browsers of older tablets lack it)
+    const abort = new AbortController(), timer = setTimeout(() => abort.abort(), 2 * BEAT_MS);
     try {
-      const r = await fetch(`sim/act?client=${from}`, { method: 'POST', body, signal: AbortSignal.timeout(2 * LEASE_MS) });
+      const r = await fetch(`sim/act?client=${from}`, { method: 'POST', body, signal: abort.signal });
       if (!r.ok && r.status !== 409) console.warn('sim.page:', r.status, await r.text());
       if (!r.ok) restart(from);
-    } catch (e) { restart(from); }
+    } catch (e) { restart(from); } finally { clearTimeout(timer); }
     busy = false; flush();
   }
 
@@ -172,6 +185,11 @@ window.playPanel = function playPanel(V) {
     const hit = ray.intersectObjects(caps, false)[0];
     return hit && hit.object.userData.sim;
   }
+  // a mouse pointer is a hand over what a click would operate. That is a hit test per move and no frame drawn; a
+  // finger has no pointer to show.
+  canvas.addEventListener('pointermove', e => {
+    if (e.pointerType !== 'touch') canvas.style.cursor = client && pick(e) ? 'pointer' : '';
+  });
 
   // ---------------- pressing, turning ----------------
   // a switch or a part held by two fingers at once goes down once and up when both have let go
@@ -206,7 +224,7 @@ window.playPanel = function playPanel(V) {
     const meshes = knob.rings[ring];
     if (!spins.has(meshes)) spins.set(meshes, { target: meshes[0].rotation.y, drawn: meshes[0].rotation.y });
     spins.get(meshes).target -= n * DETENT;                          // clockwise seen from above
-    if (REDUCE) spin(Infinity);
+    if (V.reduce) spin(Infinity);
     else if (spinAt === null) { spinAt = performance.now(); requestAnimationFrame(spinFrame); }
   }
   function spin(dt) {                  // the drawn angles dt ms on, closer to their targets; true while one moves
@@ -289,7 +307,7 @@ window.playPanel = function playPanel(V) {
   }, { passive: false });
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) disconnect();
-    else if (events.readyState === EventSource.CLOSED) connect();
+    else if (!events || events.readyState === EventSource.CLOSED) connect();
   });
   window.addEventListener('blur', letGo);
 };

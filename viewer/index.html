@@ -12,7 +12,7 @@
   :root {
     --bg: #e3e5e9; --fg: #1c1e22; --muted: #5c6169;
     --panel: rgba(255,255,255,.88); --panel-fg: #1c1e22; --on: #1c1e22; --on-fg: #ffffff;
-    --accent: #c9952f;
+    --accent: #8a6418;
     --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
   }
@@ -31,6 +31,7 @@
          pointer-events: none; display: flex; flex-direction: column; gap: 3px; }
   .hdr b { font-size: 17px; font-weight: 600; letter-spacing: .01em; text-wrap: balance; }
   .hdr span { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .hdr a { color: inherit; pointer-events: auto; }
   .bar { position: fixed; left: 50%; transform: translateX(-50%);
          bottom: calc(16px + env(safe-area-inset-bottom, 0px)); display: flex; gap: 4px;
          background: var(--panel); padding: 5px; border-radius: 12px;
@@ -53,15 +54,17 @@
   @media (pointer: coarse), (max-width: 560px) { .bar button { min-height: 44px; padding: 8px 12px; } }
   /* the five buttons fit a 320 px window */
   @media (max-width: 380px) { .bar button { padding: 8px; } }
-  /* a short window has no room for the lines under the name: they would lie over the model */
-  @media (max-height: 480px) { .hdr span { display: none; } }
+  /* a short window has room for one line under the name, the links: more would lie over the model */
+  @media (max-height: 480px) { .hdr span:not(.links) { display: none; } }
 </style>
-<canvas id="c"></canvas>
+<canvas id="c" role="img" aria-label="3D model of the Avionics Panel"></canvas>
 <div class="hdr">
   <b>Avionics Panel</b>
   <span id="dims"></span>
   <span class="mouse">drag to rotate · scroll to zoom · right-drag to pan</span>
   <span class="touch">drag to rotate · pinch to zoom · drag with two fingers to pan</span>
+  <span class="links"><a href="https://github.com/saschagrunert/avionics-panel">Docs and source on GitHub</a> ·
+    <a href="https://github.com/saschagrunert/avionics-panel/releases/download/rolling/avionics-panel-sim-windows.zip">Simulator for Windows (zip)</a></span>
 </div>
 <div class="bar" role="group" aria-label="View">
   <button id="vA" class="on" type="button" aria-pressed="true">Seated</button>
@@ -494,7 +497,6 @@ async function main() {
   // ---------------- front plate (anodised aluminium, laser-marked and UV-printed legends) ----------------
   const plateG = new THREE.Group(); assembly.add(plateG);
   const pipeG = new THREE.Group(); assembly.add(pipeG);
-  let plate;
   {
     const ppm = 12;
     const c = document.createElement('canvas');
@@ -587,7 +589,7 @@ async function main() {
     for (const L of LIGHTS) s.holes.push(circlePath(px(L.x), -pz(L.y), L.r + bs));
     const geo = new THREE.ExtrudeGeometry(s, { depth: PLATE_Z1 - PLATE_Z0 - 2 * bs, bevelEnabled: true, bevelThickness: bs, bevelSize: bs, bevelOffset: 0, bevelSegments: 2, curveSegments: 16 });
     geo.rotateX(-Math.PI / 2); geo.translate(0, PLATE_Z0 + bs, 0); plainBottom(geo, 1);
-    plate = new THREE.Mesh(geo, [topMat, plateSide]); plate.castShadow = true; plate.receiveShadow = true;
+    const plate = new THREE.Mesh(geo, [topMat, plateSide]); plate.castShadow = true; plate.receiveShadow = true;
     plateG.add(plate);
     // the tongue on the plate's back edge, down into the body's slot over the USB-C socket
     const TG = G.plate.tongue;
@@ -606,7 +608,7 @@ async function main() {
       const rr = L.r - PP.clear / 2;                                       // slip fit in its hole
       const lens = new THREE.Mesh(new THREE.CylinderGeometry(rr, rr, SKIN, 32), lensMat);   // the lit top of the pipe
       lens.position.set(px(L.x), PIPE_Z0 + PP.len - SKIN / 2, pz(L.y)); pipeG.add(lens);
-      const pipeMat = M({ color: 0xdfe6ea, roughness: 0.15, transparent: true, opacity: 0.55 });   // clear resin
+      const pipeMat = M({ color: 0xdfe6ea, roughness: 0.9, transparent: true, opacity: 0.85 });   // translucent resin, frosted as printed
       const rod = new THREE.Mesh(new THREE.CylinderGeometry(rr, rr, PP.len - PP.base_len - SKIN, 24), pipeMat);
       rod.position.set(px(L.x), PIPE_Z0 + (PP.base_len + PP.len - SKIN) / 2, pz(L.y)); pipeG.add(rod);
       const base = new THREE.Mesh(new THREE.CylinderGeometry(PP.base_d / 2, PP.base_d / 2, PP.base_len, 24), pipeMat);
@@ -747,7 +749,8 @@ async function main() {
   const playAt = playBox.getCenter(new THREE.Vector3());
   views.P = { ...view(new THREE.Vector3(0, 330, 28).setLength(1).add(playAt).toArray(), playAt.toArray()), box: playBox };
   const buttons = [...document.querySelectorAll('.bar button')];   // one per view, its id v and the view's key
-  let cur = views.A, t = 1, step = 1, shot = false, plan = false, queued = false;
+  const VIEW_MS = 600;            // a view change takes this long, at any frame rate
+  let cur = views.A, t = 1, t0 = 0, shot = false, plan = false, queued = false;   // t: the change's share done, since t0
   const from = { pos: new THREE.Vector3(), tgt: new THREE.Vector3(), explode: 0, flip: 0 }, state = { explode: 0, flip: 0 };
   const invalidate = () => { if (!queued) { queued = true; requestAnimationFrame(frame); } };   // draw one frame
 
@@ -783,7 +786,7 @@ async function main() {
     // without damping the update applies what is left of a drag at once, so the view lands exactly on its target
     controls.enabled = controls.enableDamping = false; controls.update();
     from.pos.copy(camera.position); from.tgt.copy(controls.target); from.explode = state.explode; from.flip = state.flip;
-    cur = views[key]; fit(cur); t = 0; step = jump || reduce ? 1 : 0.028;
+    cur = views[key]; fit(cur); t = 0; t0 = jump || reduce ? -Infinity : performance.now();
     for (const b of buttons) {
       b.classList.toggle('on', b.id === 'v' + key); b.setAttribute('aria-pressed', String(b.id === 'v' + key));
     }
@@ -799,6 +802,8 @@ async function main() {
   }
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
 
+  // python3 -m sim.page serves this page with ?sim: the panel then plays, its firmware run by that program (sim.js)
+  const play = new URLSearchParams(location.search).has('sim');
   // clean stills for the renders: #shot-h, -c, -e, -a and -b hide the page UI and show the hero close-up, the plan
   // view (on a transparent background, without the ground shadow), the exploded, the seated and the bottom view
   function readHash() {
@@ -808,7 +813,7 @@ async function main() {
     camera.fov = plan ? 2.1 : 32; ground.visible = !plan;
     applyTheme(); resize(); go(shot ? m[1].toUpperCase() : 'A', true);
   }
-  window.addEventListener('hashchange', readHash);
+  if (!play) window.addEventListener('hashchange', readHash);   // the panel page keeps its one view
   window.addEventListener('resize', resize);
   canvas.addEventListener('webglcontextrestored', invalidate);
 
@@ -831,10 +836,10 @@ async function main() {
   // Frames are drawn on demand: while a view change runs, while the camera moves (the controls report it, also
   // while a drag coasts out) and after a resize, a colour scheme or a hash change.
   const ease = u => u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;
-  function frame() {
+  function frame(now) {
     queued = false;
     if (t < 1) {
-      t = Math.min(1, t + step); const e = ease(t);
+      t = Math.min(1, Math.max(t, (now - t0) / VIEW_MS)); const e = ease(t);   // (a frame's time can be from before go())
       camera.position.lerpVectors(from.pos, cur.pos, e);
       controls.target.lerpVectors(from.tgt, cur.tgt, e);
       pose(state.explode = from.explode + (cur.exploded - from.explode) * e, state.flip = from.flip + (cur.flipped - from.flip) * e);
@@ -848,11 +853,10 @@ async function main() {
     window.removeEventListener('error', onError);          // the view is up: a later error is not about loading it
   }
   readHash();
-  // python3 -m sim.page serves this page with ?sim: the panel then plays, its firmware run by that program (sim.js)
-  if (new URLSearchParams(location.search).has('sim')) {
+  if (play) {
     const s = document.createElement('script');
     s.src = 'sim.js';
-    s.onload = () => window.playPanel({ G, camera, controls, canvas, assembly, go, invalidate, keys: keyList, knobs: KNOBS, lights: LIGHTS, px, pz });
+    s.onload = () => window.playPanel({ G, camera, controls, canvas, assembly, ground, go, invalidate, reduce, keys: keyList, knobs: KNOBS, lights: LIGHTS, px, pz });
     document.head.appendChild(s);
   }
 }

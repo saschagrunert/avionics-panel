@@ -3,6 +3,7 @@ server on a free port, actions posted and the event stream read as the page does
 for times. The stream reads the panel every 10 ms, which at SPEED can miss a 56 ms pulse: the tests read the pulses
 from every report (page.sent) and from the stream only states that last."""
 import contextlib
+import errno
 import json
 import os
 import queue
@@ -15,9 +16,10 @@ import urllib.request
 import pytest
 
 import sim.page
+from conftest import load
 from sim import BM, TILT, key_name
 from sim.hardware import RINGS, SWITCHES, keys, make_keys
-from sim.live import Live
+from sim.live import DETENTS, TURN_MAX, Live
 from sim.page import VIEWER, Page, inputs
 
 SPEED = 25
@@ -34,9 +36,9 @@ class Stream:
         self.events, self.file = queue.Queue(), self.sock.makefile("rb")
         assert self.file.readline().split()[1] == b"200"
         threading.Thread(target=self.read, daemon=True).start()
-        name, hello = self.next()
+        name, self.hello = self.next()
         assert name == "hello"
-        self.client = hello["client"]
+        self.client = self.hello["client"]
 
     def read(self):
         name = None
@@ -123,6 +125,56 @@ def test_the_viewer_names_the_rings_as_the_table():
     assert rings == {ring for knob in inputs()["knobs"].values() for ring in knob if ring not in ("push", "tilt")}
 
 
+def viewer(name):
+    with open(os.path.join(VIEWER, name), encoding="utf-8") as f:
+        return f.read()
+
+
+def test_the_page_gets_the_programs_numbers_with_hello(page):
+    # sim.js copies none of them: it reads each by its name
+    hello = Stream(page).hello
+    assert {k: v for k, v in hello.items() if k not in ("client", "inputs")} == {
+        "detents": DETENTS, "turn_max": TURN_MAX, "acts_max": sim.page.ACTS_MAX, "beat_ms": 1000}
+    assert all(re.search(rf"\b{key}\b", viewer("sim.js")) for key in hello)
+    assert DETENTS == load("_page_stack", "mech/stack.py").ENC_DETENTS     # a turn of the knob, as built
+    assert 2 * sim.page.BEAT_S < sim.page.LEASE_S                          # a beat may be lost
+
+
+def test_the_page_asks_for_nothing_that_older_tablets_lack():
+    # the newest a script of the page could take for granted: AbortSignal.timeout (Safari 16, Chrome 103), without
+    # which no request of the page leaves, and the operators ||=, &&= and ??= (Safari 14, Chrome 85) and ?. and ??
+    # (Safari 13.1, Chrome 80), each a syntax error there that stops the whole script
+    scripts = viewer("sim.js") + viewer("index.html")
+    assert not re.findall(r"AbortSignal\.timeout\(|\?\.(?!\d)|\?\?|\|\|=|&&=", scripts)
+
+
+def test_the_focus_ring_stands_out_and_the_view_has_a_name():
+    # WCAG 2.2 asks 3:1 between a focus indicator and what it lies on, here the view buttons' bar and the page
+    # behind it, in the light and in the dark colours
+    def luminance(colour):
+        linear = [c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4 for c in (v / 255 for v in colour)]
+        return sum(w * c for w, c in zip((0.2126, 0.7152, 0.0722), linear, strict=True))
+
+    def rgb(colour):
+        return [int(colour[i:i + 2], 16) for i in (1, 3, 5)]
+    page = viewer("index.html")
+    schemes = re.findall(r"--bg: (#\w{6});.*?--panel: rgba\((\d+),(\d+),(\d+),([.\d]+)\);.*?--accent: (#\w{6});", page,
+                         re.S)
+    assert len(schemes) == 2
+    for bg, r, g, b, alpha, accent in schemes:
+        bar = [float(alpha) * int(c) + (1 - float(alpha)) * under for c, under in zip((r, g, b), rgb(bg), strict=True)]
+        for ground in (rgb(bg), bar):
+            lighter, darker = sorted((luminance(rgb(accent)), luminance(ground)), reverse=True)
+            assert (lighter + 0.05) / (darker + 0.05) >= 3, (accent, ground)
+    assert '<canvas id="c" role="img" aria-label="3D model of the Avionics Panel">' in page
+
+
+def test_the_view_links_to_the_repository_and_to_the_zip_the_docs_give():
+    with open(os.path.join(os.path.dirname(VIEWER), "docs", "using", "simulator.md"), encoding="utf-8") as f:
+        [zip_link] = re.findall(r"^\[sim-zip\]: (\S+)$", f.read(), re.M)
+    assert re.findall(r'<a href="([^"]+)"', viewer("index.html")) == [zip_link.split("/releases/")[0], zip_link]
+
+
 def test_the_page_and_its_files_are_served(page):
     base = f"http://127.0.0.1:{page.server_address[1]}"
     with urllib.request.urlopen(base + "/", timeout=TIMEOUT_S) as r:     # follows the redirect
@@ -130,6 +182,30 @@ def test_the_page_and_its_files_are_served(page):
     for path in ("/geometry.js", "/sim.js"):
         with urllib.request.urlopen(base + path, timeout=TIMEOUT_S) as r:
             assert r.status == 200
+
+
+def test_a_browser_asks_before_it_reuses_a_file_and_gets_it(page):
+    # without Cache-Control it reuses a file for a tenth of its age: days for a zip's files, so the page of an
+    # older zip would run against this program. Asked, it gets the file, also when the copy it has kept is the
+    # newer one by its time, as after an older zip was unpacked over a newer one's page
+    base = f"http://127.0.0.1:{page.server_address[1]}"
+    for path in ("/?sim", "/index.html", "/geometry.js", "/sim.js", "/vendor/three.min.js"):
+        for kept in ({}, {"If-Modified-Since": "Fri, 01 Jan 2100 00:00:00 GMT"}):
+            with urllib.request.urlopen(urllib.request.Request(base + path, headers=kept), timeout=TIMEOUT_S) as r:
+                assert r.status == 200 and r.headers.get_all("Cache-Control") == ["no-cache"] and r.read(), path
+
+
+def test_a_request_that_stalls_is_closed_without_a_word(page, monkeypatch, capsys):
+    # half a request would hold its thread of the server for good; a browser's spare connection is one of these
+    assert sim.page.Handler.timeout == sim.page.TIMEOUT_S == 10
+    monkeypatch.setattr(sim.page.Handler, "timeout", 0.2)      # sooner, for the test
+    host = f"Host: 127.0.0.1:{page.server_address[1]}\r\n"
+    for request in ("", "GET /sim.js HTTP/1.1\r\n",
+                    f"POST /sim/act?client=x HTTP/1.1\r\n{host}Content-Length: 9\r\n\r\npress"):
+        with socket.create_connection(page.server_address[:2], TIMEOUT_S) as sock:
+            sock.sendall(request.encode())
+            assert sock.recv(4096) == b""                  # closed, with no answer
+    assert capsys.readouterr().err == ""
 
 
 def test_keys_and_knobs_reach_the_reports_and_the_lights(page):
@@ -186,6 +262,42 @@ def test_keyboard_mode_shows_the_lights_taking_turns_and_the_shortcut_down():
 def test_an_output_the_mode_has_not_is_refused(args, message):
     with pytest.raises(SystemExit, match=f"sim.page: {message}"):
         sim.page.main([*args, "--port", "0"])
+
+
+def test_a_port_that_is_taken_is_named_with_the_ways_out(page, monkeypatch):
+    # another program listens on it, or a simulator that feeds no vJoy device (a second one stops at vJoy first)
+    port = page.server_address[1]
+    with pytest.raises(SystemExit, match=f"sim.page: port {port} is in use: close the other simulator window, or "
+                                         f"add --port {port + 1}$"):
+        sim.page.main(["--port", str(port)])
+
+    def refuse(error, winerror=None):
+        def page(*args):
+            if winerror:
+                error.winerror = winerror
+            raise error
+        monkeypatch.setattr(sim.page, "Page", page)
+    refuse(OSError(errno.EADDRINUSE, "Address already in use"))    # no port follows 65535
+    with pytest.raises(SystemExit, match="sim.page: port 65535 is in use: .*, or add --port 65534$"):
+        sim.page.main(["--port", "65535"])
+    # Windows' errno 13 with winerror 10013: a port that a program has to itself, or one in a range Windows keeps,
+    # where the next port is no way out
+    refuse(PermissionError(13, "An attempt was made to access a socket in a way forbidden"), 10013)
+    with pytest.raises(SystemExit, match="sim.page: Windows gives port 8000 to no one: another program has it to "
+                                         "itself, or it is in a range that Windows keeps, .* add --port with a port "
+                                         "outside those ranges$"):
+        sim.page.main([])
+    refuse(PermissionError(13, "Permission denied"))               # a port under 1024 on Linux
+    with pytest.raises(SystemExit, match=r"sim.page: \[Errno 13\] Permission denied$"):
+        sim.page.main(["--port", "80"])
+
+
+@pytest.mark.parametrize("port", ["65536", "70000", "-1", "8000.5", "http"])
+def test_a_port_that_is_none_is_refused_before_anything_starts(port, capsys):
+    # by argparse (exit status 2), with its usage: no output is acquired yet
+    with pytest.raises(SystemExit) as refused:
+        sim.page.main(["--vjoy", "--port", port])
+    assert refused.value.code == 2 and f"argument --port: invalid port value: '{port}'" in capsys.readouterr().err
 
 
 def test_the_shift_light_pulses_in_its_last_second():
