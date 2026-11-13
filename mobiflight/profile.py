@@ -37,7 +37,7 @@ ITEMS = uuid.uuid5(uuid.NAMESPACE_URL, "avionics-panel/mobiflight")
 SERIAL = re.compile(r"JS-[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}")
 BUTTON = re.compile(r"Button ([0-9]+)")
 EVENTS = {"press": "onPress", "release": "onRelease"}
-WRITES = re.compile(r"\(>[AHK]:([^),]+)[^)]*\)")    # what a code sets: (>K:EVENT), (>A:VARIABLE, unit) and so on
+WRITES = re.compile(r"\(>[AHKL]:([^),]+)[^)]*\)")   # what a code sets: (>K:EVENT), (>A:VARIABLE, unit) and so on
 
 
 def _load(name, path):

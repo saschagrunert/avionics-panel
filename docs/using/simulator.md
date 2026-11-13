@@ -52,7 +52,8 @@ everything that can be operated:
 - RANGE turns and pushes like the other knobs; holding one of the four arrows round it tilts it that way.
 - The SHIFT and UNIT lights follow the firmware. The lines at the bottom left say the same in words and show
   the buttons each joystick reports, by their [BUTTONS.md](../../firmware/BUTTONS.md) names; a button that
-  went off stays there dimmed for a second. A firmware error shows its message; when the program stops, the
+  went off stays there dimmed for a second. In a low window, as a phone turned sideways, they are one line
+  across the bottom, the joysticks as 1 and 2. A firmware error shows its message; when the program stops, the
   page says it is disconnected and reconnects once it runs again. If the program then serves another version
   of the page, as a newer zip can, the page reloads.
 
@@ -62,7 +63,7 @@ does not announce the lines at the bottom left.
 Clicking the page takes the keyboard focus from the sim, so run the sim in a window or borderless, not in
 exclusive full screen.
 
-For a tablet in landscape beside the sim (a phone is too small), serve the page to the network. On Windows,
+For a tablet or a phone in landscape beside the sim, serve the page to the network. On Windows,
 close the `start.bat` window, open a command prompt in the folder (type `cmd` in Explorer's address bar,
 Enter) and run `start.bat --host 0.0.0.0`; on Linux, add `--host 0.0.0.0` to the command in [Linux](#linux).
 Open the address it prints on the tablet, by its IP address, not a host name. If that is 127.0.0.1 or a VPN

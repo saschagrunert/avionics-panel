@@ -747,7 +747,7 @@ async function main() {
     C: view([0, 2400, 0.01], [0, 0, 0]) };       // stills only: plan view from far above (nearly orthographic)
   // the panel page only (sim.js): from the top view's direction, as close as the plate and its knobs allow
   const playAt = playBox.getCenter(new THREE.Vector3());
-  // (sim.js sets its margins: what it shows round the panel)
+  // (sim.js sets its margins and gap: what it shows round the panel)
   views.P = { ...view(new THREE.Vector3(0, 330, 28).setLength(1).add(playAt).toArray(), playAt.toArray()), box: playBox, aim: playAt };
   const buttons = [...document.querySelectorAll('.bar button')];   // one per view, its id v and the view's key
   const VIEW_MS = 600;            // a view change takes this long, at any frame rate
@@ -767,8 +767,11 @@ async function main() {
     let best = null;
     for (const [top, rgt, bottom, left, box] of v.margins ? v.margins() : [[0, 0, 0, 0]]) {
       const b = box || v.box || boxes[v.exploded][v.flipped], aim = box ? b.getCenter(new THREE.Vector3()) : v.aim || v.tgt;
-      const th = 0.94 * tan * camera.aspect * Math.max(0.3, 1 - (left + rgt) / w);   // a small margin
-      const tv = 0.94 * tan * Math.max(0.3, 1 - (top + bottom) / h);
+      // a small margin: 6 %, or a view's own, but at least 8 px on each side of the space inside the margins
+      const rw = Math.max(1, w - left - rgt), rh = Math.max(1, h - top - bottom);
+      const gw = v.gap ? Math.min(v.gap, 1 - 16 / rw) : 0.94, gh = v.gap ? Math.min(v.gap, 1 - 16 / rh) : 0.94;
+      const th = gw * tan * camera.aspect * Math.max(0.3, 1 - (left + rgt) / w);
+      const tv = gh * tan * Math.max(0.3, 1 - (top + bottom) / h);
       let dist = near;
       if (!shot) for (let i = 0; i < 8; i++) {
         p.set(i & 1 ? b.max.x : b.min.x, i & 2 ? b.max.y : b.min.y, i & 4 ? b.max.z : b.min.z).sub(aim);
@@ -831,6 +834,8 @@ async function main() {
   }
   if (!play) window.addEventListener('hashchange', readHash);   // the panel page keeps its one view
   window.addEventListener('resize', resize);
+  // and once the canvas has its new size: a phone that turns may send the resize before its layout settles
+  if (window.ResizeObserver) new ResizeObserver(resize).observe(canvas);
   canvas.addEventListener('webglcontextrestored', invalidate);
 
   // The point the camera turns about stays on a part, so panning cannot lose the model: it is held inside the

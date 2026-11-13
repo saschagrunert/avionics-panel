@@ -22,6 +22,8 @@ steps below follow MobiFlight 11.3. The families, with the profile to download:
 - [GNS 530/430](#gns-530430) with the KAP 140, also for KX 155/165 radios without a GNS:
   [avionics-panel-gns.mfproj][gns]
 - [TDS GTN 750Xi and 650Xi](#tds-gtn-750xi-and-650xi) with the KAP 140: [avionics-panel-gtn.mfproj][gtn]
+- [KFC 150 (Black Square)](#kfc-150-black-square), the KFC 150 and KAS 297B with a GNS 530/430 or a GTN
+  750/650: [avionics-panel-kfc150.mfproj][kfc150]
 
 The downloads are on the release [Latest build][rolling]. To use one:
 
@@ -55,14 +57,14 @@ nothing else. MobiFlight knows a joystick by its GUID, so let it find them:
    [python.org](https://www.python.org/downloads/).
 4. Open the folder that holds `mobiflight` (Extract All puts it one level down, in `avionics-panel-main`),
    right-click an empty spot and choose Open in Terminal. There, generate the project of your family
-   (`--family g1000`, `g3x`, `gns` or `gtn`), here the G1000 (into `g1000.mfproj`). On Windows:
+   (`--family g1000`, `g3x`, `gns`, `gtn` or `kfc150`), here the G1000 (into `g1000.mfproj`). On Windows:
 
    ```bat
    py -m mobiflight --family g1000 --from "C:\path\to\guids.mfproj"
    ```
 
    On Linux and macOS, `python3` instead of `py`. Without `--from` it makes the profile of the download.
-   `--vfr 7000` makes the VFR key squawk 7000, or any other code of four digits from 0 to 7.
+   `--vfr 1200` makes the VFR key squawk 1200 (US), or any other code of four digits from 0 to 7.
 5. Open the new project in MobiFlight (File, Open).
 
 Using it:
@@ -94,14 +96,15 @@ Using it:
 Every family tunes the radios directly, COM 1 / NAV 1 in unit 1 and COM 2 / NAV 2 in unit 2, whatever the
 avionics' own tuning box or cursor is on. The ADF mode's turns tune the active ADF frequency, and ADF ⇆ swaps
 it with the standby. 121.5 (SHIFT, COM ⇆) sets the active frequency of the unit's COM radio to 121.5. VFR
-squawks 1200; for another VFR code, 7000 in much of Europe, change the `0x1200` in the code of the row
-"VFR: XPNDR_SET" in MobiFlight, or generate the profile with `--vfr 7000` (above). The XPDR mode push (SHIFT,
+squawks 7000, the VFR code of EASA; for another, 1200 in the US, change the `0x7000` in the code of the row
+"VFR: XPNDR_SET" in MobiFlight, or generate the profile with `--vfr 1200` (above). The XPDR mode push (SHIFT,
 FREQ push) switches the simulator's transponder between standby and ALT. MobiFlight shows the commands as
 custom code.
 
 Does nothing in every profile: the FREQ push (it only switches the FREQ knob between COM, NAV and ADF; it
-sends nothing to the sim) and the dimmers (they differ by aircraft). Each family below lists what else does
-nothing, mostly the keys its avionics lack ([Compatibility](compatibility.md)).
+sends nothing to the sim). Each family below lists what else does nothing, mostly the keys its avionics lack
+([Compatibility](compatibility.md)), and the dimmers where the profile does not know the aircraft's (they
+differ by aircraft).
 
 ### G1000 NXi
 
@@ -109,15 +112,30 @@ The Working Title G1000 NXi, as in the Cessna 172 Skyhawk G1000. The autopilot, 
 Working Title's source of the NXi. The NXi itself turns ALT's 100 ft steps into 1000 ft steps from the 11th
 step of a quick turn (steps less than 0.3 s apart, one way). Differences from the real G1000:
 
-- The FMS keys and knob, RANGE, pan and PTR work the MFD, in both units.
+- Unit 1 is the MFD with COM 1 / NAV 1, unit 2 the PFD with COM 2 / NAV 2: the FMS keys and knob work the MFD
+  in unit 1 and the PFD in unit 2 (SHIFT, HOME), and while you edit on the PFD the FREQ knob tunes radio 2.
+- RANGE, pan and PTR work the MFD's map. With SHIFT they work the PFD's inset map, while the PFD shows it.
+- HOME opens the MFD's engine menu (its ENGINE softkey) and, pressed again, goes back (BACK). After the menu
+  is left another way, or a new flight starts after an odd number of HOME presses, the next HOME press presses
+  the MFD's 11th softkey instead (Charts on the map page), and the one after opens the engine menu again.
+- On the MFD's map page, MAP (SHIFT, CLR) toggles Charts, the second softkey from the right, TERR (SHIFT,
+  PROC) presses Checklist, the rightmost, and VNAV (SHIFT, FPL) Detail, the third from the right, which steps
+  through the map's four declutter levels and back to the first. The NXi takes no long CLR press from outside,
+  so MAP cannot return to the default map page.
+- At the top level of the PFD's softkeys, MSG (SHIFT, D→) toggles the Alerts window (the rightmost softkey),
+  NRST (SHIFT, MENU) the Nearest window (the second from the right; in PFD Opt it is Back) and ARM (SHIFT,
+  ALT) the Tmr/Ref window, where the minimums are set (the third from the right).
+- The BARO push (STD) sets standard pressure. With the altimeter within half a hPa of 29.92 inHg (1013 hPa),
+  as in STD, it presses PFD Opt, then STD Baro on the PFD instead, which toggle STD and, leaving it, return to
+  the setting before; STD Baro then returns the softkeys to their top level. That works from the top level of
+  the PFD's softkeys only; from another of their menus, press STD Baro there.
 - CDI steps through GPS, NAV 1 and NAV 2 as the CDI softkey does, and OBS switches the GPS's OBS mode, from
   both units. In SUSP, OBS switches to OBS mode instead of resuming the sequence as the softkey does.
 - UP and DN step the VS, IAS or pitch reference, as NOSE UP and NOSE DN do, but not the altitude in ALT hold.
 - LVL engages the autopilot in its wings-level and pitch-level modes, also in aircraft without a LVL key.
 
-Does nothing in this profile: TEST, ARM, GPSS and ½ BANK (MSFS's GFC 700 has no such keys; it flies GPS
-steering in NAV), HOME, VNAV and TERR (the G1000 has no such keys; the autopilot's VNV key works), MSG and
-NRST (softkeys, which change with the menu), MAP (SHIFT, CLR; the NXi takes no long CLR press from outside).
+Does nothing in this profile: TEST, GPSS and ½ BANK (MSFS's GFC 700 has no such keys; it flies GPS steering
+in NAV), the dimmers.
 
 ### GFC 500 and G3X Touch
 
@@ -137,7 +155,7 @@ G3X gets nothing from this profile. Differences from the real units:
 
 Does nothing in this profile: TEST, ARM, GPSS, BC and ½ BANK (the GFC 500 has no such keys), HOME (the G3X
 has none), FPL, ENT, MSG, VNAV, TERR, MAP, RANGE, the map's pan and PTR (on the touchscreen; the map zooms
-with the inner FMS knob on the map page), PROC (the G3X loads no procedures).
+with the inner FMS knob on the map page), PROC (the G3X loads no procedures), the dimmers.
 
 ### GNS 530/430
 
@@ -152,21 +170,23 @@ real units:
   as on the G1000. With SHIFT it sets the course of NAV 1 and the altimeter, not the KAP 140's own BARO.
 - CRS CTR (SHIFT, HDG) sets the course of NAV 1 to its VOR or localizer; the KAP 140 cockpit's CDI has no
   such push.
-- RANGE is the GNS 530's RNG key, in both units.
+- RANGE is the GNS 530's RNG key, and SHIFT, RANGE the GNS 430's, in both units.
 - The XPDR mode push turns the KT 76's mode knob: to ALT from OFF or SBY, to SBY from any other position.
 
 Does nothing in this profile: TEST, FD, YD, VS, FLC, VNV, LVL, GPSS and ½ BANK (the KAP 140 has none of these
 keys; it engages in VS, and UP and DN set the rate), ARM (the sim's KAP 140 does nothing on it), HOME (the GNS
 has none), NRST and TERR (the GNS has pages for them, not keys), the map's pan and PTR (the GNS has no
-joystick), VNAV in unit 2 (the GNS 430 has none).
+joystick), VNAV in unit 2 (the GNS 430 has none), the dimmers.
 
 ### TDS GTN 750Xi and 650Xi
 
 The KAP 140 cockpit of the [GNS profile](#gns-530430) with TDS's GTN 750Xi as unit 1 and GTN 650Xi as unit 2.
 Aircraft that load the 650Xi as unit 1, as Black Square's do, are not covered: there the 650Xi's bezel does
-nothing in unit 2. TDS takes only the bezel from outside, so the profile sends HOME, D→, the FMS knob and its
-push; held, the push flips the frequencies. The map zooms on the touchscreen or with the inner FMS knob on the
-map page.
+nothing in unit 2; the [KFC 150 profile](#kfc-150-black-square) covers the Bonanza's. TDS takes only the bezel
+from outside, so the profile sends HOME, D→, the FMS knob and its push; held, the push flips the frequencies.
+The map zooms on the touchscreen or with the inner FMS knob on the map page. SHIFT with the RANGE knob works
+the GTN 750Xi's volume knob: turned, the volume; pushed, squelch. The panel sends the RANGE push as a tap, so
+holding it does not tune 121.5: SHIFT, COM ⇆ (121.5) does.
 
 COM ⇆ and NAV ⇆ are the sim's flip-flops, as the GTN has no such keys. TDS says the GTNs control the sim's COM
 and NAV radios; if a frequency set with the FREQ knob does not show on the GTN, tune it there with the FMS
@@ -174,8 +194,43 @@ knob, whose push toggles between COM and NAV. The XPDR mode push works the cockp
 simulator's variable; a transponder that the GTN runs itself may not follow it.
 
 Does nothing in this profile: TEST, FD, YD, VS, FLC, VNV, LVL, GPSS, ½ BANK and ARM (as in the GNS profile),
-FPL, PROC, MENU, CLR, ENT, MSG, NRST, TERR, VNAV, MAP, CDI, OBS, RANGE, the map's pan and PTR (on the
-touchscreen).
+FPL, PROC, MENU, CLR, ENT, MSG, NRST, TERR, VNAV, MAP, CDI, OBS, RANGE without SHIFT, PTR without SHIFT, the
+map's pan (on the touchscreen), the dimmers.
+
+### KFC 150 (Black Square)
+
+The Bendix/King KFC 150 with the KAS 297B altitude selector in Black Square's aircraft, as in the Bonanza, by
+the inputs Black Square's guide lists for home cockpits. Unit 1 is the first navigator, a GNS 530 or a GTN
+750, with COM 1 / NAV 1, unit 2 the second, a GNS 430 or a GTN 650, with COM 2 / NAV 2. HOME, D→, the FMS knob
+and its push send the inputs of the Working Title GNS, of TDS's GTN and of pms50's GTN at once, as Black
+Square names them (the GNS's as in the GNS profile); each navigator takes only its own, so the profile works
+with whichever the aircraft has. The other FMS keys, RANGE and VNAV send the GNS's only. With a GTN, of the
+FMS keys and knobs only HOME, D→, the FMS knob and its push and the volume knob (SHIFT with the RANGE knob)
+work, the rest is on its touchscreen; with a GNS, HOME and SHIFT with the RANGE knob do nothing. Differences
+from the real units:
+
+- The ALT/HDG knob sets the KAS 297B's altitude (or its rate while its knob is pulled in the cockpit) and the
+  heading bug, and its push syncs the bug to the heading. With SHIFT it sets the course of NAV 1 and the
+  altimeter.
+- VS and ALT ARM (SHIFT, ALT) are the KAS 297B's VS ENG and ALT ARM keys. TEST starts the KFC 150's self-test.
+- UP and DN step the altitude held in ALT, the rate in VS and the pitch in pitch mode, as the KFC 150's rocker
+  does. Black Square lists no event for the rocker or for FD, so they send the simulator's, which the aircraft
+  may ignore.
+- CDI switches the GNS 530 or the HSI between GPS and VLOC; in unit 2 it is the GNS 430's CDI key.
+- RANGE is the GNS 530's RNG key. SHIFT with the RANGE knob works the GTN 750's volume knob: turned, the
+  volume; pushed, squelch.
+- YD sends the simulator's yaw damper event, for the aircraft that have one.
+- MIC 1 and MIC 2 send the simulator's transmitter events and the cabin light push its cabin light event, as
+  in the other profiles. Black Square's guide lists its transmit selector and its reading lights only as L:
+  variables whose values it does not explain, so the aircraft's selector and reading lights may not follow
+  them.
+- The XPDR mode push presses the GTX 327's ALT key from OFF or SBY, its STBY key from any other mode.
+- The dimmers are the instrument lights (outer ring) and the glareshield flood lights (inner ring), in steps
+  of 5 %. They light only with their switches on.
+
+Does nothing in this profile: FLC, VNV, LVL, ½ BANK and GPSS (the KFC 150 has none of these keys), PTR without
+SHIFT, the map's pan (the GNS has no joystick, the GTN pans its map on its touchscreen), NRST and TERR
+(neither the GNS nor the GTN has such keys), VNAV in unit 2 (the GNS 430 and the GTN have none).
 
 ## Two joysticks
 
@@ -194,8 +249,9 @@ MobiFlight show them.
   tilt and the RANGE push (PTR): map them "on press".
 - Shifted functions are buttons of their own. The keys without an amber legend (VS, UP, FLC, DN, VNV, ENT)
   and the RANGE knob (turn, tilt, push) still send a shifted button of their own: these are free for your own
-  mappings. Map the ones you do not use to the same function as the plain control, so a stray SHIFT before DN
-  or ENT does no harm.
+  mappings. Map the keys you do not use to the same function as the plain control, so a stray SHIFT before DN
+  or ENT does no harm. The generated profiles use SHIFT with the RANGE knob for a second map or a GTN's volume
+  knob, where the family has one.
 - The cockpit lighting (SHIFT, FMS knob) stays on device 1 whatever unit is selected.
 - The button numbers stay fixed: new buttons only go at the end of a device, and retired ones keep their slot,
   so mappings survive firmware updates.
@@ -206,8 +262,8 @@ MobiFlight show them.
   until the next push, and the panel has no light for it. Map each mode to its radio (COM and NAV 1 or 2 by
   unit, and the one ADF), as the [generated profiles](#generated-profiles) do; a GNS shows the frequencies
   whichever field its cursor is on; for a GTN see [TDS GTN 750Xi and 650Xi](#tds-gtn-750xi-and-650xi).
-- G1000: map the FMS keys and knob of both devices to the MFD
-  ([why](controls.md#keys-label-shift-legend-in-parentheses)).
+- G1000: map the FMS keys and knob of device 1 to the MFD and of device 2 to the PFD, as the generated profile
+  does ([why](controls.md#keys-label-shift-legend-in-parentheses)).
 - GNS 430 as unit 2 has its own CDI and OBS, so they are on device 2 too.
 - In unit 2, CDI, OBS, HOME, ADF ⇆ and the ADF mode's turns come from device 2. Where the aircraft has only
   one of them (the G1000's CDI and OBS softkeys, a single ADF), map device 2's buttons the same as device 1's,
@@ -275,4 +331,5 @@ tap as that input is lost; [why](../architecture/firmware.md#usb)). Set its `pow
 [g3x]: https://github.com/saschagrunert/avionics-panel/releases/download/rolling/avionics-panel-g3x.mfproj
 [gns]: https://github.com/saschagrunert/avionics-panel/releases/download/rolling/avionics-panel-gns.mfproj
 [gtn]: https://github.com/saschagrunert/avionics-panel/releases/download/rolling/avionics-panel-gtn.mfproj
+[kfc150]: https://github.com/saschagrunert/avionics-panel/releases/download/rolling/avionics-panel-kfc150.mfproj
 [rolling]: https://github.com/saschagrunert/avionics-panel/releases/tag/rolling

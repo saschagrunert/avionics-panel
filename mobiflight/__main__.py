@@ -1,4 +1,4 @@
-"""py -m mobiflight --family g1000 [--vfr 7000] [--from guids.mfproj]   (python3 -m mobiflight ... on Linux and macOS)
+"""py -m mobiflight --family g1000 [--vfr 1200] [--from guids.mfproj]   (python3 -m mobiflight ... on Linux and macOS)
 
 Writes the MobiFlight project of one avionics family for both joysticks. Without --from or --serials, MobiFlight
 asks for the two joysticks once when it opens the project (docs/using/mapping.md). With them, the project is
@@ -25,8 +25,8 @@ def main(argv=None):
     parser = argparse.ArgumentParser(prog="mobiflight", description=__doc__.split("\n\n")[1])
     parser.add_argument("--family", required=True, choices=sorted(FAMILIES))
     parser.add_argument("--vfr", metavar="CODE",
-                        help=f"the squawk the VFR key sets (default: the family's, {parts.VFR}; 7000 in much of "
-                             "Europe)")
+                        help=f"the squawk the VFR key sets (default: the family's, {parts.VFR} as in EASA's "
+                             "airspace; 1200 in the US)")
     joysticks = parser.add_mutually_exclusive_group()
     joysticks.add_argument("--from", dest="saved", metavar="GUIDS.mfproj",
                            help="a project saved in MobiFlight with ENT bound in unit 1 and in unit 2")
