@@ -4,45 +4,11 @@ The panel is two USB joysticks, mapped in MobiFlight, which reads every button; 
 may stop short of a joystick's 128 buttons. Every state (SHIFT, UNIT, the FREQ knob's mode) lives in the
 firmware and comes out as fixed joystick buttons, so a mapping never needs variables or preconditions and
 cannot get out of sync with the panel. What each control is meant to do is in [Controls](controls.md), and
-what it maps to per aircraft in [Compatibility](compatibility.md). For the families under
-[Generated profiles](#generated-profiles), download the ready profile instead of mapping by hand. For MSFS
-without MobiFlight, and on Xbox and PS5, there is the [keyboard mode](keyboard.md), not yet tried in MSFS.
+what it maps to per aircraft in [Compatibility](compatibility.md). For MSFS without MobiFlight, and on Xbox
+and PS5, there is the [keyboard mode](keyboard.md).
 
-## Two joysticks
-
-| Device | Buttons | Carries |
-| --- | --- | --- |
-| 1 | 117 of 128 | Everything, with unit 1 |
-| 2 | 39 of 64 | The unit 2 copies of the FMS keys, FMS knob, CDI and OBS, flip-flops and FREQ knob, sent while unit 2 is selected (SHIFT, HOME) |
-
-[BUTTONS.md](../../firmware/BUTTONS.md) lists every button with what sends it, numbered as Windows and
-MobiFlight show them.
-
-- Both devices are named "Avionics Panel", and MobiFlight keys them by their GUID (the ID Windows gives a game
-  controller). Tell them apart by their button count (128 on device 1, 64 on device 2) or with MobiFlight's
-  input scan: a plain AP press comes from device 1, ENT in unit 2 from device 2.
-- Every knob detent is a short press, and so is every step of a held UP or DN, every pan step of a RANGE
-  tilt and the RANGE push (PTR): map them "on press".
-- Shifted functions are buttons of their own. The keys without an amber legend (VS, UP, FLC, DN, VNV, ENT)
-  and the RANGE knob (turn, tilt, push) still send a shifted button of their own: these are free for your own
-  mappings. Map the ones you do not use to the same function as the plain control, so a stray SHIFT before DN
-  or ENT does no harm.
-- The cockpit lighting (SHIFT, FMS knob) stays on device 1 whatever unit is selected.
-- The button numbers stay fixed: new buttons only go at the end of a device, and retired ones keep their slot,
-  so mappings survive firmware updates.
-
-## Per avionics
-
-- FREQ knob: its push cycles COM, NAV and ADF, and each mode sends turn buttons of its own. The mode stays
-  until the next push, and the panel has no light for it. Map each mode to its radio (COM and NAV 1 or 2 by
-  unit, and the one ADF), as the [generated profiles](#generated-profiles) do; a GNS or GTN shows the
-  frequencies whichever field its cursor is on.
-- G1000: UNIT selects radio 2 only, so map the FMS keys and knob of both devices to the MFD
-  ([why](controls.md#keys-label-shift-legend-in-parentheses)).
-- GNS 430 as unit 2 has its own CDI and OBS, so they are on device 2 too.
-- In unit 2, CDI, OBS, HOME, ADF ⇆ and the ADF mode's turns come from device 2. Where the aircraft has only
-  one of them (the G1000's CDI and OBS softkeys, a single ADF), map device 2's buttons the same as device 1's,
-  or they do nothing in unit 2.
+For the avionics families below, download the ready profile. For any other aircraft, map the buttons by
+hand: [Two joysticks](#two-joysticks) and [Per avionics](#per-avionics).
 
 ## Generated profiles
 
@@ -50,10 +16,11 @@ Ready MobiFlight 11 projects for MSFS 2024 map both joysticks, one avionics fami
 radios directly, COM 1 / NAV 1 in unit 1 and COM 2 / NAV 2 in unit 2, whatever the avionics' own tuning box or
 cursor is on: the FREQ push only changes the panel's mode. The ADF mode's turns tune the active ADF frequency,
 and ADF ⇆ swaps it with the standby. 121.5 (SHIFT, COM ⇆) sets the active frequency of the unit's COM radio
-to 121.5. In every family the XPDR mode push and the panel and flood dimmers do nothing (the sim has no event
-that steps the mode, and the dimmers differ by aircraft), nor do the keys the avionics lacks
-([Compatibility](compatibility.md)). Each family below says what else does nothing. The families, with the
-profile to download:
+to 121.5. VFR squawks 1200; for another VFR code, 7000 in much of Europe, change the `0x1200` in the VFR row's
+code in MobiFlight, or generate the profile with `--vfr 7000` (below). The XPDR mode push (SHIFT, FREQ push)
+switches the simulator's transponder between standby and ALT. In every family the panel and flood dimmers do
+nothing (they differ by aircraft), nor do the keys the avionics lack ([Compatibility](compatibility.md)). Each
+family below says what else does nothing. The families, with the profile to download:
 
 - [G1000 NXi](#g1000-nxi): [avionics-panel-g1000.mfproj][g1000]
 - [GFC 500 and G3X Touch](#gfc-500-and-g3x-touch): [avionics-panel-g3x.mfproj][g3x]
@@ -93,14 +60,16 @@ nothing else. MobiFlight knows a joystick by its GUID, so let it find them:
    ```
 
    On Linux and macOS, `python3` instead of `py`. Without `--from` it makes the profile of the download.
+   `--vfr 7000` makes the VFR key squawk 7000, or any other code of four digits from 0 to 7.
 
 Using it:
 
 - Open the project in MobiFlight as a project of its own, the one of the family you fly; do not merge it into
   another one that maps the same buttons.
 - On another PC, with a new board or on the [Pico bench](#update-mode-and-guids) the joysticks have other
-  GUIDs and MobiFlight asks again: bind them in Extras, Controller Bindings and check with AP, as above, or
-  generate the profile again with a new `guids.mfproj`.
+  GUIDs and MobiFlight asks again. Bind the project's two joysticks to the new ones in Extras, Controller
+  Bindings, and check with AP before you save: if the autopilot does not engage, open the project again
+  without saving and bind them the other way. Or generate the profile again with a new `guids.mfproj`.
 - `--serials JS-<guid> JS-<guid>` instead of `--from` takes the GUIDs of device 1 and device 2 as MobiFlight
   writes them, and names both joysticks "Avionics Panel"; for the [simulator](simulator.md)'s vJoy devices use
   `--from`, which keeps their names. The project is a text file: replacing its two serials also moves it to
@@ -115,7 +84,6 @@ The Working Title G1000 NXi. Differences from the real G1000:
 - The FMS keys and knob, RANGE, pan and PTR work the MFD, in both units.
 - OBS, MSG, NRST, VNAV and TERR do nothing: they are softkeys or pages on the G1000.
 - MAP (SHIFT, CLR) does nothing: the G1000 NXi takes no long CLR press from outside.
-- CRS has no fast step.
 
 ### GFC 500 and G3X Touch
 
@@ -131,19 +99,24 @@ procedures. A GNS or GTN beside the G3X gets nothing from this profile. Differen
 - CRS sets the course of what the CDI shows. CRS CTR (SHIFT, HDG) centres a VOR or localizer course and does
   nothing on GPS.
 - UP and DN step the VS, IAS or pitch reference, as the GMC 507's wheel does, but not the altitude in ALT hold.
+- Where the G3X manages the transponder's ground mode by itself, it turns the ALT of the XPDR mode push into
+  that mode on the ground.
 
 ### GNS 530/430
 
 The Working Title GNS 530 as unit 1 and GNS 430 as unit 2 in the KAP 140 cockpit: the KAP 140 with a KR 87
 ADF, a KT 76 transponder and a KMA 28 audio panel, as in the Cessna 172 Skyhawk Classic. The same profile
 drives KX 155/165 radios without a GNS; the FMS keys, CDI, OBS and RANGE then do nothing. With another
-autopilot the autopilot keys do nothing: map them in the project by hand. Differences from the real units:
+autopilot the autopilot keys do nothing: map them in the project by hand. Two GNS of the same type, two
+GNS 430 for example, are not covered: the profile's events cannot tell the two apart. Differences from the
+real units:
 
 - The ALT/HDG knob sets the KAP 140's altitude and the heading bug, and its push syncs the bug to the heading,
   as on the G1000. With SHIFT it sets the course of NAV 1 and the altimeter, not the KAP 140's own BARO.
 - ARM (SHIFT, ALT) does nothing: the sim's KAP 140 does nothing on it.
 - RANGE is the GNS 530's RNG key, in both units, and the RANGE knob's pan and PTR do nothing.
 - NRST and TERR do nothing: the GNS has pages for them, not keys.
+- The XPDR mode push turns the KT 76's mode knob: to ALT from OFF or SBY, to SBY from any other position.
 
 ### TDS GTN 750Xi and 650Xi
 
@@ -153,7 +126,61 @@ are not covered. If HOME in unit 2 does nothing on the 650Xi, the aircraft loads
 the bezel from outside, so the profile sends HOME, D→, the FMS knob and its push (held, it flips the
 frequencies). The other FMS keys, CDI, OBS, RANGE, the map's pan and PTR do nothing: they are on the
 touchscreen, and the map zooms there or with the inner FMS knob on the map page. COM ⇆ and NAV ⇆ are the sim's
-flip-flops, as the GTN has no such keys.
+flip-flops, as the GTN has no such keys. The XPDR mode push works the cockpit's KT 76 through the simulator's
+variable; a transponder that the GTN runs itself may not follow it.
+
+## Two joysticks
+
+| Device | Buttons | Carries |
+| --- | --- | --- |
+| 1 | 117 of 128 | Everything, with unit 1 |
+| 2 | 39 of 64 | The unit 2 copies of the FMS keys, FMS knob, CDI and OBS, flip-flops and FREQ knob, sent while unit 2 is selected (SHIFT, HOME) |
+
+[BUTTONS.md](../../firmware/BUTTONS.md) lists every button with what sends it, numbered as Windows and
+MobiFlight show them.
+
+- Both devices are named "Avionics Panel", and MobiFlight keys them by their GUID (the ID Windows gives a game
+  controller). Tell them apart by their button count (128 on device 1, 64 on device 2) or with MobiFlight's
+  input scan: a plain AP press comes from device 1, ENT in unit 2 from device 2.
+- Every knob detent is a short press, and so is every step of a held UP or DN, every pan step of a RANGE
+  tilt and the RANGE push (PTR): map them "on press".
+- Shifted functions are buttons of their own. The keys without an amber legend (VS, UP, FLC, DN, VNV, ENT)
+  and the RANGE knob (turn, tilt, push) still send a shifted button of their own: these are free for your own
+  mappings. Map the ones you do not use to the same function as the plain control, so a stray SHIFT before DN
+  or ENT does no harm.
+- The cockpit lighting (SHIFT, FMS knob) stays on device 1 whatever unit is selected.
+- The button numbers stay fixed: new buttons only go at the end of a device, and retired ones keep their slot,
+  so mappings survive firmware updates.
+
+## Per avionics
+
+- FREQ knob: its push cycles COM, NAV and ADF, and each mode sends turn buttons of its own. The mode stays
+  until the next push, and the panel has no light for it. Map each mode to its radio (COM and NAV 1 or 2 by
+  unit, and the one ADF), as the [generated profiles](#generated-profiles) do; a GNS or GTN shows the
+  frequencies whichever field its cursor is on.
+- G1000: map the FMS keys and knob of both devices to the MFD
+  ([why](controls.md#keys-label-shift-legend-in-parentheses)).
+- GNS 430 as unit 2 has its own CDI and OBS, so they are on device 2 too.
+- In unit 2, CDI, OBS, HOME, ADF ⇆ and the ADF mode's turns come from device 2. Where the aircraft has only
+  one of them (the G1000's CDI and OBS softkeys, a single ADF), map device 2's buttons the same as device 1's,
+  or they do nothing in unit 2.
+
+## Knob timing
+
+MobiFlight must count every detent of a quick turn ([why](../architecture/firmware.md#knob-steps)). To check
+it once, with a sim running:
+
+1. In a new MobiFlight project, map `FMS_INNER_CW` of both devices (Button 95 on device 1, Button 22 on
+   device 2) to a counter you can read in the sim, for example heading bug +1.
+2. Spin the FMS inner ring 8 detents quickly: the bug must move by 8°.
+3. Repeat in unit 2 (SHIFT, HOME) while UP is held: the FMS knob is on device 2 there, and UP repeats on
+   device 1.
+4. In unit 2, turn the FMS inner ring and the ALT/HDG outer ring 4 quick detents each at the same time
+   (ALT/HDG is on device 1): the bug must move by 4°. No more than 4 each: the firmware keeps at most 8
+   detents waiting, all rings together, and drops the rest.
+
+If steps go missing, tune `PRESS_MS`, `GAP_MS` and `MAX_QUEUE` in [panel.py](../../firmware/panel.py) (a
+step longer than the 120 ms tilt repeat slows a held tilt down).
 
 ## Update mode and GUIDs
 
@@ -193,7 +220,8 @@ enumerates the panel but never reads it makes the firmware [back off](../archite
 the lights and timers stutter.
 
 With USB autosuspend on for the panel (`power/control` at `auto`, which powertop sets), Linux suspends it after
-a few idle seconds: both lights go dark and the next input reaches the PC about 2 s late
+a few idle seconds: both lights go dark, SHIFT ends, and the next input reaches the PC about 2 s late (a SHIFT
+tap as that input is lost), as does a key let go just before the suspend
 ([why](../architecture/firmware.md#usb)). Set its `power/control` to `on`.
 
 [g1000]: https://github.com/saschagrunert/avionics-panel/releases/download/rolling/avionics-panel-g1000.mfproj

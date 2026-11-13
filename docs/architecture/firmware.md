@@ -137,7 +137,7 @@ What the queue does:
   character they dialled), or changed what the ring does: after a SHIFT tap, UNIT or a FREQ push the step back
   belongs to another function, and the steps of the one before all go out.
 
-The [first-board check](../building/bring-up.md#first-board) measures whether MobiFlight counts every detent.
+The [knob timing check](../using/mapping.md#knob-timing) measures whether MobiFlight counts every detent.
 
 ## Keys and switch bounce
 

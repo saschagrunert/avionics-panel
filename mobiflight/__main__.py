@@ -1,4 +1,4 @@
-"""py -m mobiflight --family g1000 [--from guids.mfproj]   (python3 -m mobiflight ... on Linux and macOS)
+"""py -m mobiflight --family g1000 [--vfr 7000] [--from guids.mfproj]   (python3 -m mobiflight ... on Linux and macOS)
 
 Writes the MobiFlight project of one avionics family for both joysticks. Without --from or --serials, MobiFlight
 asks for the two joysticks once when it opens the project (docs/using/mapping.md). With them, the project is
@@ -10,7 +10,7 @@ import argparse
 import sys
 
 from mobiflight import profile
-from mobiflight.families import FAMILIES
+from mobiflight.families import FAMILIES, parts
 
 
 def unmapped(family, device):
@@ -24,6 +24,9 @@ def unmapped(family, device):
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="mobiflight", description=__doc__.split("\n\n")[1])
     parser.add_argument("--family", required=True, choices=sorted(FAMILIES))
+    parser.add_argument("--vfr", metavar="CODE",
+                        help=f"the squawk the VFR key sets (default: the family's, {parts.VFR}; 7000 in much of "
+                             "Europe)")
     joysticks = parser.add_mutually_exclusive_group()
     joysticks.add_argument("--from", dest="saved", metavar="GUIDS.mfproj",
                            help="a project saved in MobiFlight with ENT bound in unit 1 and in unit 2")
@@ -42,11 +45,12 @@ def main(argv=None):
                 raise ValueError("device 1 and device 2 need different serials")
         else:
             controllers = profile.UNBOUND
+        project = profile.build(family, controllers, args.vfr)
     except (OSError, ValueError) as e:
         parser.error(str(e))
     output = args.output or f"{args.family}.mfproj"
     with open(output, "w", encoding="utf-8", newline="\n") as f:
-        f.write(profile.dumps(profile.build(family, controllers)))
+        f.write(profile.dumps(project))
     for device in (1, 2):
         name, serial = controllers[device]
         print(f"device {device} ({name}, {serial}): {len(family.DEVICE[device])} buttons mapped", file=sys.stderr)

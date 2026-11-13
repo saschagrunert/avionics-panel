@@ -2,10 +2,15 @@
 unmapped, joined into a table's DEVICE and UNMAPPED dicts (__init__.py).
 
 The radios, ADF, transponder, audio panel and the instruments around the KAP 140 take the simulator's own key
-events (the MSFS 2024 SDK's Key Events), which act the same in every aircraft and whatever unit shows them; the
-KAP 140 takes the H: events of the one MSFS ships, the ones its instrument (KAP140.js) handles.
+events (the MSFS 2024 SDK's Key Events) and, for the transponder's mode, its simulation variable, which act the
+same in every aircraft and whatever unit shows them; the KAP 140 takes the H: events of the one MSFS ships, the
+ones its instrument (KAP140.js) handles.
 """
+import re
+
 from mobiflight.families.rpn import h, k, turn
+
+VFR = "1200"                     # the squawk the VFR key sets, unless a profile is made with another (--vfr)
 
 
 def transmit(com):
@@ -17,6 +22,18 @@ def transmit(com):
 def receive(com):
     """COM: listen to COM 1 or 2, or stop (the SDK's COMn_RECEIVE_SELECT, set to the opposite of COM RECEIVE EX1)"""
     return f"(A:COM RECEIVE EX1:{com}, bool) ! (>K:COM{com}_RECEIVE_SELECT)"
+
+
+def vfr(code=VFR):
+    """VFR: squawk this code, four digits of 0 to 7, in any aircraft (XPNDR_SET takes BCO16: the digits as hex)"""
+    if not re.fullmatch("[0-7]{4}", str(code)):
+        raise ValueError(f"not a squawk code (four digits, each 0 to 7): {code!r}")
+    return k("XPNDR_SET", f"0x{code}")
+
+
+def is_squawk(entry):
+    """Whether a table entry is a squawk code as vfr() makes one: the row --vfr replaces"""
+    return isinstance(entry, str) and re.fullmatch("0x[0-7]{4} " + re.escape(k("XPNDR_SET")), entry) is not None
 
 
 # ---------------- the simulator's radios, tuned directly ----------------
@@ -63,7 +80,11 @@ ADF = {
     "ADF_10_UP": k("ADF_10_INC"),
     "ADF_10_DN": k("ADF_10_DEC"),
 }
-# the transponder (device 1): squawk, digit 1 is the thousands
+# the transponder (device 1): squawk, digit 1 is the thousands. XPDR mode switches between standby and ALT through
+# the simulator's TRANSPONDER STATE:1 (the SDK: settable, 0 off, 1 standby, 2 test, 3 on, 4 ALT, 5 ground), which
+# holds the mode of Working Title's units (XPDR.ts) and of the KT 76, whose knob sets it and turns with it
+# (ASOBO_Transponder_Knob_Setting_Template in the SDK's Asobo\Transponder\Transponder.xml, with this statement):
+# standby or off goes to ALT, any other mode to standby
 SQUAWK = {
     "SQK_D1_UP": k("XPNDR_1000_INC"),
     "SQK_D1_DN": k("XPNDR_1000_DEC"),
@@ -74,10 +95,8 @@ SQUAWK = {
     "SQK_D4_UP": k("XPNDR_1_INC"),
     "SQK_D4_DN": k("XPNDR_1_DEC"),
     "IDENT": k("XPNDR_IDENT_ON"),
-    "VFR": k("XPNDR_SET", "0x1200"),          # squawk 1200, in any aircraft: XPNDR_SET takes BCO16
-}
-SQUAWK_UNMAPPED = {
-    "XPDR_MODE": "the simulator has no key event that steps the transponder mode",
+    "VFR": vfr(),
+    "XPDR_MODE": "(A:TRANSPONDER STATE:1, Enum) 1 > if{ 1 } els{ 4 } (>A:TRANSPONDER STATE:1, Enum)",
 }
 # the cockpit lighting (device 1)
 LIGHTS = {
@@ -100,6 +119,26 @@ HEADING_FAST = {
     "HDG_10_DN": turn(HEADING, "HEADING_BUG_SET", -10),
 }
 SYNC = "(A:HEADING INDICATOR:1, degrees) near dnor (>K:HEADING_BUG_SET)"         # the bug to the heading shown
+
+
+def nav(code):
+    """The code for the NAV radio the CDI shows, # for its number. Working Title's units keep GPS DRIVES NAV1 and
+    AUTOPILOT NAV SELECTED on their CDI: the G1000 NXi (NavProcessor.ts) and, with an autopilot, the G3X Touch
+    (its ActiveNavSourceManager.ts)."""
+    return f"(A:AUTOPILOT NAV SELECTED, Number) 2 == if{{ {code.replace('#', '2')} }} els{{ {code.replace('#', '1')} }}"
+
+
+def cdi(gps, radio):
+    """The code for what the CDI shows: gps for the unit's GPS, radio for a NAV radio (# for its number)"""
+    return f"(A:GPS DRIVES NAV1, Bool) if{{ {gps} }} els{{ {nav(radio)} }}"
+
+
+# the fast step of the course, 10°, on what the CDI shows: the GPS's OBS course, which these units take from the
+# simulator's (LNavObsManager.ts, GarminObsLNavModule.ts), or the course of the NAV radio
+COURSE_FAST = {
+    "CRS_10_UP": cdi(turn("GPS OBS VALUE", "GPS_OBS_SET", 10), turn("NAV OBS:#", "VOR#_SET", 10)),
+    "CRS_10_DN": cdi(turn("GPS OBS VALUE", "GPS_OBS_SET", -10), turn("NAV OBS:#", "VOR#_SET", -10)),
+}
 # LVL engages the autopilot in level lateral and vertical modes, as the GMC 507's and GFC 700's LVL keys; Garmin's
 # autopilot takes both leveler events (GarminAPStateManager.ts)
 LEVEL = "(>K:AP_WING_LEVELER_ON) (>K:AP_PITCH_LEVELER_ON) (>K:AUTOPILOT_ON)"
@@ -134,7 +173,7 @@ KAP140 = {
     "CRS_10_DN": turn(COURSE, "VOR1_SET", -10),
     "BARO_UP": k("KOHLSMAN_INC"),
     "BARO_DN": k("KOHLSMAN_DEC"),
-    "BARO_STD": k("BAROMETRIC_STD_PRESSURE"),
+    "BARO_STD": k("BAROMETRIC_STD_PRESSURE", 1),      # the altimeter of index 1
 }
 _VS = "the KAP 140 has no VS key: it engages in VS, and UP and DN set the rate"
 _FLC = "the KAP 140 has no FLC mode"
@@ -168,4 +207,4 @@ AUDIO = {
 }
 # everything on device 1 but the units and the RANGE knob
 KAP140_COCKPIT = {**KAP140, **AUDIO, **SQUAWK, **LIGHTS}
-KAP140_COCKPIT_UNMAPPED = {**KAP140_UNMAPPED, **SQUAWK_UNMAPPED, **LIGHTS_UNMAPPED}
+KAP140_COCKPIT_UNMAPPED = {**KAP140_UNMAPPED, **LIGHTS_UNMAPPED}

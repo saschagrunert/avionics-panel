@@ -13,7 +13,7 @@ sends (MFD/Views/AfcsControlsView/AfcsControlsView.tsx) and the knobs what its P
 MSFS 2024 SDK. The radios, ADF, transponder, audio panel and cabin light are the parts the tables share (parts.py).
 """
 from mobiflight.families import parts
-from mobiflight.families.rpn import h, k, turn
+from mobiflight.families.rpn import h, k
 
 NAME = "GFC 500 and G3X Touch"
 
@@ -33,17 +33,6 @@ def _gdu(index):
         "FMS_INNER_CCW": h(p + "Knob_Inner_R_DEC"),
         "FMS_CRSR": h(p + "Knob_Inner_R_PUSH"),
     }
-
-
-def _nav(code):
-    """The code for the NAV radio the CDI shows, # for its number. With an autopilot the G3X keeps GPS DRIVES NAV1
-    and AUTOPILOT NAV SELECTED on its CDI (ActiveNavSourceManager.ts)."""
-    return f"(A:AUTOPILOT NAV SELECTED, Number) 2 == if{{ {code.replace('#', '2')} }} els{{ {code.replace('#', '1')} }}"
-
-
-def _cdi(gps, nav):
-    """The code for what the CDI shows: gps for the G3X's GPS, nav for a NAV radio"""
-    return f"(A:GPS DRIVES NAV1, Bool) if{{ {gps} }} els{{ {_nav(nav)} }}"
 
 
 # the one CDI, which the key switches between GPS and NAV 1 while the G3X flies its own flight plan
@@ -79,7 +68,7 @@ _AFCS = {
     "VNV": _VNV,
     "LVL": parts.LEVEL,
     # shifted keys
-    "CRS_CTR": f"(A:GPS DRIVES NAV1, Bool) ! if{{ {_nav(_CENTRE)} }}",
+    "CRS_CTR": f"(A:GPS DRIVES NAV1, Bool) ! if{{ {parts.nav(_CENTRE)} }}",
     "YD": k("YAW_DAMPER_TOGGLE"),
     "S_VS": _VS,
     "S_UP": _NOSE_UP,
@@ -98,10 +87,9 @@ _AFCS = {
     **parts.HEADING_FAST,
     "HDG_SYNC": parts.SYNC,
     # the G3X's GPS follows the sim's GPS OBS (use-sim-obs by default: FmsConfig.ts, GarminObsLNavModule.ts)
-    "CRS_1_UP": _cdi(k("GPS_OBS_INC"), k("VOR#_OBI_INC")),
-    "CRS_1_DN": _cdi(k("GPS_OBS_DEC"), k("VOR#_OBI_DEC")),
-    "CRS_10_UP": _cdi(turn("GPS OBS VALUE", "GPS_OBS_SET", 10), turn("NAV OBS:#", "VOR#_SET", 10)),
-    "CRS_10_DN": _cdi(turn("GPS OBS VALUE", "GPS_OBS_SET", -10), turn("NAV OBS:#", "VOR#_SET", -10)),
+    "CRS_1_UP": parts.cdi(k("GPS_OBS_INC"), k("VOR#_OBI_INC")),
+    "CRS_1_DN": parts.cdi(k("GPS_OBS_DEC"), k("VOR#_OBI_DEC")),
+    **parts.COURSE_FAST,
     "BARO_UP": k("KOHLSMAN_INC", 1),
     "BARO_DN": k("KOHLSMAN_DEC", 1),
     "BARO_STD": k("BAROMETRIC_STD_PRESSURE", 1),
@@ -138,7 +126,6 @@ UNMAPPED = {
         "HALF_BANK": "the GFC 500 has no low-bank key",
         **dict.fromkeys(parts.RANGE_KNOB, "the G3X Touch zooms its map with the inner FMS knob on the map page and "
                                           "pans it on the touchscreen"),
-        **parts.SQUAWK_UNMAPPED,
         **_UNIT_UNMAPPED,
         **parts.LIGHTS_UNMAPPED,
     },

@@ -24,6 +24,8 @@ import os
 import re
 import uuid
 
+from mobiflight.families import parts
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 SCHEMA = "0.10"
 NAME = "Avionics Panel"          # both joysticks' DirectInput instance name (boot.py)
@@ -34,7 +36,7 @@ ITEMS = uuid.uuid5(uuid.NAMESPACE_URL, "avionics-panel/mobiflight")
 SERIAL = re.compile(r"JS-[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}")
 BUTTON = re.compile(r"Button ([0-9]+)")
 EVENTS = {"press": "onPress", "release": "onRelease"}
-WRITES = re.compile(r"\(>[BHKL]:([^),]+)\)")    # what a code sets: (>K:EVENT), (>L:VARIABLE) and so on
+WRITES = re.compile(r"\(>[ABHK]:([^),]+)[^)]*\)")   # what a code sets: (>K:EVENT), (>A:VARIABLE, unit) and so on
 
 
 def _load(name, path):
@@ -70,13 +72,20 @@ def serial(text):
     return out
 
 
-def build(family, controllers=UNBOUND):
+def build(family, controllers=UNBOUND, vfr=None):
     """The project as a dict. controllers: {1: (name, serial), 2: (name, serial)}, the user's joysticks or
-    UNBOUND."""
+    UNBOUND. vfr: the squawk the VFR key sets, in place of the one in the family's table (None: that one);
+    ValueError for a code that is none, or for a family whose VFR key sets no squawk."""
+    tables = {1: dict(family.DEVICE[1]), 2: family.DEVICE[2]}
+    if vfr is not None:
+        squawk = parts.vfr(vfr)
+        if not parts.is_squawk(tables[1].get("VFR")):
+            raise ValueError(f"the VFR key of {family.NAME} sets no squawk")
+        tables[1]["VFR"] = squawk
     items = []
     for device in (1, 2):
         name, joystick = controllers[device]
-        for button, entry in sorted(family.DEVICE[device].items(), key=lambda kv: BM.BUTTON[device][kv[0]]):
+        for button, entry in sorted(tables[device].items(), key=lambda kv: BM.BUTTON[device][kv[0]]):
             acts = actions(entry)
             first = acts.get("onPress", acts.get("onRelease"))
             button_config = dict.fromkeys(("onPress", "onRelease", "onLongRelease", "onHold"))

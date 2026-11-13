@@ -1,10 +1,12 @@
 # Avionics Panel [![Firmware test coverage](https://codecov.io/gh/saschagrunert/avionics-panel/graph/badge.svg)](https://codecov.io/gh/saschagrunert/avionics-panel)
 
 DIY desktop panel for GA avionics in flight sims ([G1000][g1000], [GTN 750][gtn750], [GNS 530/430][gns530],
-[GFC 500][gfc500], [Bendix/King][bendixking] radios with the [KAP 140][kap140]): autopilot, audio, radio and
-FMS keys, three dual concentric knobs and a RANGE knob that tilts to pan. It shows up on the PC as two USB
-joysticks, mapped in [MobiFlight][mobiflight]. Its [keyboard mode](docs/using/keyboard.md), not yet tried in
-MSFS, makes it a USB keyboard for MSFS on consoles and without MobiFlight.
+[GFC 500][gfc500] with the G3X Touch, [Bendix/King][bendixking] radios with the [KAP 140][kap140]): autopilot,
+audio, radio and FMS keys, three dual concentric knobs and a RANGE knob that tilts to pan. It shows up on the
+PC as two USB joysticks, mapped in [MobiFlight][mobiflight]; the
+[ready profiles](docs/using/mapping.md#generated-profiles) are for MSFS 2024 with MobiFlight 11 on Windows. Its
+[keyboard mode](docs/using/keyboard.md), not yet tried in MSFS, makes it a USB keyboard for MSFS on consoles
+and without MobiFlight.
 
 [![Top view: autopilot keys and ALT/HDG and RANGE knobs left, audio, radio and FMS keys, FREQ and FMS knobs right](renders/2-top.png)](https://saschagrunert.de/avionics-panel/)
 
@@ -37,17 +39,13 @@ screws and knobs. Hand-soldering the keys, encoders and RANGE control is an opti
 
 Using the panel:
 
-- [Controls](docs/using/controls.md): what each key and knob does, [SHIFT](docs/using/controls.md#shift),
-  workflows, [knobs](docs/using/controls.md#knobs),
-  [keys](docs/using/controls.md#keys-label-shift-legend-in-parentheses), [care](docs/using/controls.md#care)
-- [Compatibility](docs/using/compatibility.md): what each control does on the G1000, GFC 500, GTN, GNS,
-  Bendix/King radios and KAP 140, by aircraft
-- [Mapping](docs/using/mapping.md): the two joysticks,
-  [generated profiles](docs/using/mapping.md#generated-profiles), update mode and GUIDs, the device name
-- [Keyboard mode](docs/using/keyboard.md): the panel as a keyboard for MSFS on Xbox and PS5 and without
-  MobiFlight, every function a shortcut bound in the sim (not yet tried in MSFS)
-- [Simulator](docs/using/simulator.md): the panel on the PC before the hardware exists, in the browser and as
-  two virtual joysticks (vJoy) for MobiFlight, [download for Windows][sim-zip]
+- [Controls](docs/using/controls.md): what each key and knob does
+- [Compatibility](docs/using/compatibility.md): what each control maps to per avionics family and aircraft
+- [Mapping](docs/using/mapping.md): the ready MobiFlight profiles, and mapping the two joysticks by hand
+- [Keyboard mode](docs/using/keyboard.md): the panel as a keyboard, for MSFS on Xbox and PS5 and without
+  MobiFlight
+- [Simulator](docs/using/simulator.md): the panel on the PC before the hardware exists,
+  [download for Windows][sim-zip]
 
 Building one, in build order:
 
@@ -60,16 +58,14 @@ Building one, in build order:
 
 How it works:
 
-- [Electronics](docs/architecture/electronics.md): RP2040 board, USB protection, GPIO map, lights,
+- [Electronics](docs/architecture/electronics.md): the RP2040 board, with its
   [schematic](docs/architecture/avionics-panel-rev1-schematic.pdf)
-- [Firmware](docs/architecture/firmware.md): state, knob timing, switch bounce, USB, keyboard mode, tests
-- [Mechanics](docs/architecture/mechanics.md): stack, fastening, plate and body, caps, light pipes, knobs,
-  [fits](docs/architecture/mechanics.md#fits), [dimensions](docs/architecture/mechanics.md#dimensions)
+- [Firmware](docs/architecture/firmware.md): from keys and knobs to joystick buttons
+- [Mechanics](docs/architecture/mechanics.md): plate, body, caps, light pipes and knobs, and their fits
 
 Working on the design:
 
-- [Generators](docs/architecture/generators.md): the directories, `./build.sh`, the scripts one by one, the
-  locked Nix environment
+- [Generators](docs/architecture/generators.md): the scripts behind every file, and `./build.sh`
 
 [g1000]: https://www.garmin.com/en-US/p/588901/
 [gtn750]: https://www.garmin.com/en-US/p/67886/
