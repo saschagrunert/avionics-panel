@@ -475,6 +475,6 @@ describes, on Linux: Python's embeddable package for Windows (amd64, pinned by v
 The `build` workflow builds it for every pull request and push to main, keeps it as an artifact of the run
 and attaches it to every published release. Its `windows` job runs `tests/test_page.py`,
 `tests/test_sendinput.py`, `tests/test_vjoy.py` and `tests/test_windows_zip.py` on Windows, on the zip's minor
-version of Python. A push to main also replaces the zip of the `rolling` pre-release, which the Simulator page
-links, once the build's checks and those tests have passed: the zip is from a recent commit on main, which the
-release names.
+version of Python. A push to main also replaces the zip of the latest build (the release on the tag
+`rolling`), which the Simulator page links, once the build's checks and those tests have passed: the zip is
+from a recent commit on main, which the release names and its tag points to.

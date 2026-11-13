@@ -2,9 +2,9 @@ name: build
 # Runs ./build.sh, which regenerates every output and runs every check, and fails when a committed output is
 # not current. Builds the simulator for Windows and the MobiFlight profiles and runs the simulator's Windows
 # tests. A push to main publishes the 3D view once build.sh and its checks pass. Once the Windows tests and
-# both files' jobs pass too, it replaces the files of the rolling pre-release, at the links the docs give; a
-# release that is published gets the same files attached. build.sh takes its tools from the nixpkgs locked in
-# flake.lock; the zip and the profiles are made with the runner's python3.
+# both files' jobs pass too, it replaces the files of the latest build (the release on the tag rolling), at the
+# links the docs give; a release that is published gets the same files attached. build.sh takes its tools from
+# the nixpkgs locked in flake.lock; the zip and the profiles are made with the runner's python3.
 on:
   push:
     branches:
@@ -235,11 +235,12 @@ jobs:
           gh release upload "$TAG" avionics-panel-sim-windows.zip avionics-panel-*.mfproj \
             --repo "$GITHUB_REPOSITORY" --clobber
   # Keeps the files of the newest commit on main that passed at releases/download/rolling/<file>. The first run
-  # makes the rolling pre-release and its tag, which stays at that commit; each run replaces the files and names
-  # its commit in their labels and the notes. Needs immutable releases off. Updates run one at a time, a newer
-  # one waiting for the one in progress. A re-run repairs a failed update.
+  # makes the release "Latest build" and its tag rolling; each run replaces the files, names its commit in their
+  # labels and the notes, and moves the tag to it, so the release's source code is the commit the files were
+  # built from. Needs immutable releases off. Updates run one at a time, a newer one waiting for the one in
+  # progress. A re-run repairs a failed update.
   rolling:
-    name: update the rolling pre-release
+    name: update the latest build
     needs: [build, windows, zip, profiles]
     if: github.repository == 'saschagrunert/avionics-panel' && github.event_name == 'push'
     runs-on: ubuntu-24.04
@@ -248,7 +249,7 @@ jobs:
       group: rolling-release
       cancel-in-progress: false
     permissions:
-      contents: write # replace the files, edit the notes
+      contents: write # replace the files, move the tag, edit the release
     steps:
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
@@ -262,21 +263,25 @@ jobs:
         run: |
           tip=$(gh api "repos/$GH_REPO/git/ref/heads/main" --jq .object.sha)
           if [ "$tip" != "$GITHUB_SHA" ]; then
-            echo "::notice::main moved on to $tip: leaving the rolling pre-release as it is"
+            echo "::notice::main moved on to $tip: leaving the latest build as it is"
             exit 0
           fi
           short=${GITHUB_SHA:0:7}
           url=$GITHUB_SERVER_URL/$GH_REPO
           docs=$url/blob/main/docs/using
-          notes="Built from [$short]($url/commit/$GITHUB_SHA) on main; each push to main replaces the files."
-          notes+=" The tag and its source code stay at the first build's commit."
+          notes="Built from [$short]($url/commit/$GITHUB_SHA) on main; each push to main replaces the files"
+          notes+=" and moves the tag, so the source code here is that commit."
           notes+=" [Simulator]($docs/simulator.md) and [Mapping]($docs/mapping.md#generated-profiles) have the steps."
           gh release view rolling >/dev/null 2>&1 ||
-            gh release create rolling --prerelease --target "$GITHUB_SHA" --title "Rolling build" --notes "$notes"
+            gh release create rolling --latest --target "$GITHUB_SHA" --title "Latest build" --notes "$notes"
+          # the tag goes first, right after the check that this commit is the tip: this token may only move it there,
+          # and a ref it moves starts no workflow
+          gh api -X PATCH "repos/$GH_REPO/git/refs/tags/rolling" -f sha="$GITHUB_SHA" -F force=true >/dev/null
           # every file to download, built in this workflow, goes up in this one call, labelled with the commit
           files=()
           for file in avionics-panel-sim-windows.zip avionics-panel-*.mfproj; do
             files+=("$file#$file ($short)")
           done
           gh release upload rolling --clobber "${files[@]}"
-          gh release edit rolling --notes "$notes" >/dev/null
+          gh release edit rolling --title "Latest build" --prerelease=false --latest --target "$GITHUB_SHA" \
+            --notes "$notes" >/dev/null
