@@ -151,7 +151,7 @@ const AMBER = G.amber, WHITE_ENGR = 'rgba(228,230,234,0.92)', PLATE_BASE = '#2d2
 const backH = PLATE_Z1 - Z_BOT + SLOPE * HO;
 document.getElementById('dims').textContent =
   `${WO.toFixed(0)} × ${HO.toFixed(0)} mm · ${(PLATE_Z1 - Z_BOT).toFixed(0)} mm at the front, ${backH.toFixed(0)} mm at the back · ` +
-  `caps ${(G.keys.cap_base + G.keys.cap_height - PLATE_Z1).toFixed(1)} mm proud`;
+  `caps ${(G.keys.cap_base + G.keys.cap_height - PLATE_Z1).toFixed(2)} mm proud`;
 document.querySelector('.legend').innerHTML =
   `anodised aluminium plate · MJF nylon wedge body, ${G.body.tilt_deg}°<br>` +
   `${KEYS.flat().length} keys · ${Object.values(KNOBS).filter(k => k.kind === 'dual').length} dual knobs · range/pan`;
@@ -747,7 +747,8 @@ async function main() {
     C: view([0, 2400, 0.01], [0, 0, 0]) };       // stills only: plan view from far above (nearly orthographic)
   // the panel page only (sim.js): from the top view's direction, as close as the plate and its knobs allow
   const playAt = playBox.getCenter(new THREE.Vector3());
-  views.P = { ...view(new THREE.Vector3(0, 330, 28).setLength(1).add(playAt).toArray(), playAt.toArray()), box: playBox };
+  // (sim.js sets its margins: what it shows round the panel)
+  views.P = { ...view(new THREE.Vector3(0, 330, 28).setLength(1).add(playAt).toArray(), playAt.toArray()), box: playBox, aim: playAt };
   const buttons = [...document.querySelectorAll('.bar button')];   // one per view, its id v and the view's key
   const VIEW_MS = 600;            // a view change takes this long, at any frame rate
   let cur = views.A, t = 1, t0 = 0, shot = false, plan = false, queued = false;   // t: the change's share done, since t0
@@ -755,15 +756,30 @@ async function main() {
   const invalidate = () => { if (!queued) { queued = true; requestAnimationFrame(frame); } };   // draw one frame
 
   // A view keeps its direction and backs off until the box round its model is inside the window, so a portrait
-  // phone shows the whole panel too. It never comes closer than drawn, and the stills keep their framing.
+  // phone shows the whole panel too. It never comes closer than drawn, and the stills keep their framing. A view
+  // with margins (sets of [top, right, bottom, left] px to keep free round a box) fits the box of each set inside
+  // its margins, off the window's middle by half their differences, and takes the set that shows it largest.
   const up = new THREE.Vector3(0, 1, 0), fwd = new THREE.Vector3(), right = new THREE.Vector3(), upw = new THREE.Vector3(), p = new THREE.Vector3();
   function fit(v) {
-    let dist = fwd.subVectors(v.pos0, v.tgt).length();
+    const w = canvas.clientWidth || 1, h = canvas.clientHeight || 1, tan = Math.tan(camera.fov * Math.PI / 360);
+    const near = fwd.subVectors(v.pos0, v.aim || v.tgt).length();
     fwd.normalize(); right.crossVectors(up, fwd).normalize(); upw.crossVectors(fwd, right);
-    const tv = 0.94 * Math.tan(camera.fov * Math.PI / 360), th = tv * camera.aspect, b = v.box || boxes[v.exploded][v.flipped];   // a small margin
-    if (!shot) for (let i = 0; i < 8; i++) {
-      p.set(i & 1 ? b.max.x : b.min.x, i & 2 ? b.max.y : b.min.y, i & 4 ? b.max.z : b.min.z).sub(v.tgt);
-      dist = Math.max(dist, p.dot(fwd) + Math.max(Math.abs(p.dot(right)) / th, Math.abs(p.dot(upw)) / tv));
+    let best = null;
+    for (const [top, rgt, bottom, left, box] of v.margins ? v.margins() : [[0, 0, 0, 0]]) {
+      const b = box || v.box || boxes[v.exploded][v.flipped], aim = box ? b.getCenter(new THREE.Vector3()) : v.aim || v.tgt;
+      const th = 0.94 * tan * camera.aspect * Math.max(0.3, 1 - (left + rgt) / w);   // a small margin
+      const tv = 0.94 * tan * Math.max(0.3, 1 - (top + bottom) / h);
+      let dist = near;
+      if (!shot) for (let i = 0; i < 8; i++) {
+        p.set(i & 1 ? b.max.x : b.min.x, i & 2 ? b.max.y : b.min.y, i & 4 ? b.max.z : b.min.z).sub(aim);
+        dist = Math.max(dist, p.dot(fwd) + Math.max(Math.abs(p.dot(right)) / th, Math.abs(p.dot(upw)) / tv));
+      }
+      if (!best || dist < best[0]) best = [dist, top, rgt, bottom, left, aim];
+    }
+    const [dist, top, rgt, bottom, left, aim] = best;
+    if (v.margins) {
+      v.tgt.copy(aim).addScaledVector(upw, (top - bottom) / h * dist * tan)
+        .addScaledVector(right, (rgt - left) / w * dist * tan * camera.aspect);
     }
     v.pos.copy(v.tgt).addScaledVector(fwd, dist);
     return dist;
@@ -856,7 +872,7 @@ async function main() {
   if (play) {
     const s = document.createElement('script');
     s.src = 'sim.js';
-    s.onload = () => window.playPanel({ G, camera, controls, canvas, assembly, ground, go, invalidate, reduce, keys: keyList, knobs: KNOBS, lights: LIGHTS, px, pz });
+    s.onload = () => window.playPanel({ G, camera, controls, canvas, assembly, ground, go, invalidate, reduce, view: views.P, keys: keyList, knobs: KNOBS, lights: LIGHTS, px, pz });
     document.head.appendChild(s);
   }
 }

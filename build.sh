@@ -5,8 +5,8 @@
 # (read through nix/nixpkgs.nix, so without the flakes feature).
 # The independent sections run in parallel. Each one stops at its first failed step. Their outputs are printed
 # in the order the sections are listed below, each in one piece once it and the ones before it have ended. The
-# build fails (exit 1) if any section failed, after all of them have finished. Ctrl-C stops the sections and
-# exits 1.
+# build fails (exit 1) if any section failed, after all of them have finished. Ctrl-C (or SIGTERM, SIGHUP,
+# SIGQUIT) stops the routing and the sections and exits 1.
 set -euo pipefail
 cd "$(dirname "$0")"
 case "${1:-}" in
@@ -16,6 +16,11 @@ case "${1:-}" in
     exit 2
     ;;
 esac
+if ! command -v nix-instantiate >/dev/null; then
+  echo "build.sh needs Nix (https://nixos.org/download). The tests (with pytest), the simulator, the MobiFlight" \
+    "profiles and the simulator's zip run on python3 alone: docs/architecture/generators.md#scripts" >&2
+  exit 1
+fi
 export PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 # no __pycache__ races between the sections
 # every Nix package comes from the locked nixpkgs: nix/shells.nix imports it, and nix-shell takes its bash
 # from <nixpkgs>
@@ -25,40 +30,25 @@ SHELLS=$PWD/nix/shells.nix # the environments
 # start clean: an output a generator no longer writes must not survive into production/
 rm -rf pcb/avionics-panel-rev1-* mech/avionics-panel-rev1-* # (make.py clears pcb/gerbers itself)
 gen() { (cd "$1" && nix-shell "$SHELLS" -A gen --run "$2"); }
-# gen without OpenCascade's STEP writer statistics; stderr through the same pipe, so it stays in order
-occ() { gen "$@" 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | { grep -v '^\s*$\|\*\*\|Step File\|Transfer\|WorkSession' || true; }; }
+# gen without OpenCascade's STEP writer statistics (its lines that start with ** and its "Step File Name" line)
+# and blank lines; stderr through the same pipe, so it stays in order
+occ() { gen "$@" 2>&1 | sed 's/\x1b\[[0-9;]*m//g' | { grep -v '^\s*$\|^\*\*\|^ Step File Name : ' || true; }; }
 
-# Routing goes first and shows its progress: it takes a few minutes, and the board section reads its
-# routed.json.
-# Nothing else reads the routing (the other sections import board.py, which does not).
-BOARD="python3 make.py >/dev/null && python3 make_bom.py >/dev/null && python3 check.py && python3 render.py >/dev/null && python3 make_schematic.py"
-if [ "${1:-}" = --route ]; then
-  echo "== placement check and routing"
-  gen pcb "python3 precheck.py && python3 run_route.py 1"
-else
-  BOARD="python3 precheck.py && $BOARD"
-fi
-
-# section NAME COMMAND...: runs the command in the background, its output in a log of its own. Job control gives
-# each section a process group of its own, which stop() below ends as a whole.
-LOGS=$(mktemp -d)
-trap 'rm -rf "$LOGS"' EXIT
-NAMES=()
+# job COMMAND...: runs the command in the background. Job control gives each job a process group of its own,
+# which stop() below ends as a whole. A job may write to the terminal also where `stty tostop` would stop it.
 PIDS=()
-section() {
-  local i=${#NAMES[@]}
-  NAMES+=("$1")
-  shift
+job() {
   set -m
   (
-    set +m # and everything the section starts stays in its group
+    set +m # and everything the job starts stays in its group
+    trap '' TTOU
     "$@"
-  ) </dev/null >"$LOGS/$i.log" 2>&1 &
+  ) </dev/null &
   PIDS+=("$!")
   set +m
 }
-# The sections are not in the terminal's process group, so Ctrl-C reaches only this shell: it ends every
-# section's group and waits for them. Nothing outside the build is signalled, so a calling script goes on.
+# The jobs are not in the terminal's process group, so Ctrl-C reaches only this shell: it ends every job's
+# group and waits for them. Nothing outside the build is signalled, so a calling script goes on.
 stop() {
   trap '' INT TERM HUP QUIT
   local pid
@@ -68,6 +58,30 @@ stop() {
   exit 1
 }
 trap stop INT TERM HUP QUIT
+
+# Routing goes first and shows its progress: it takes a few minutes, and the board section reads its
+# routed.json.
+# Nothing else reads the routing (the other sections import board.py, which does not).
+BOARD="python3 make.py >/dev/null && python3 make_bom.py >/dev/null && python3 check.py && python3 render.py >/dev/null && python3 make_schematic.py"
+if [ "${1:-}" = --route ]; then
+  echo "== placement check and routing"
+  job gen pcb "python3 precheck.py && python3 run_route.py 1"
+  wait "${PIDS[0]}" # a job, so that a signal reaches stop() at once
+  PIDS=()
+else
+  BOARD="python3 precheck.py && $BOARD"
+fi
+
+# section NAME COMMAND...: the command as a job, its output in a log of its own
+LOGS=$(mktemp -d)
+trap 'rm -rf "$LOGS"' EXIT
+NAMES=()
+section() {
+  local i=${#NAMES[@]}
+  NAMES+=("$1")
+  shift
+  job "$@" >"$LOGS/$i.log" 2>&1
+}
 # Which generator reads which output: check_fit.py reads the knobs and the light pipes (make_knobs.py), the caps
 # (make_caps.py) and the body's STL and STEP (make_mech.py), builds the plate and the plate's legends itself (it
 # imports their generators) and writes the fits table of docs/architecture/mechanics.md; check.py reads the Gerbers

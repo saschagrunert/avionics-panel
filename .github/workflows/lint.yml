@@ -1,7 +1,7 @@
 name: lint
 # Python (ruff.toml), shell (shellcheck, shfmt with .editorconfig), Markdown (.markdownlint-cli2.yaml), dead
-# relative links and anchors (lychee), spelling (.typos.toml), the workflows (actionlint) and their security
-# (zizmor). Every tool comes from the lint shell of nix/shells.nix, like locally.
+# relative links and anchors (lychee), spelling (.typos.toml), the workflows (actionlint, .github/actionlint.yaml)
+# and their security (zizmor). Every tool comes from the lint shell of nix/shells.nix, like locally.
 on:
   push:
     branches:

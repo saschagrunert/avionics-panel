@@ -134,10 +134,24 @@ def test_the_page_gets_the_programs_numbers_with_hello(page):
     # sim.js copies none of them: it reads each by its name
     hello = Stream(page).hello
     assert {k: v for k, v in hello.items() if k not in ("client", "inputs")} == {
-        "detents": DETENTS, "turn_max": TURN_MAX, "acts_max": sim.page.ACTS_MAX, "beat_ms": 1000}
+        "build": sim.page.build(), "detents": DETENTS, "turn_max": TURN_MAX, "acts_max": sim.page.ACTS_MAX,
+        "beat_ms": 1000}
     assert all(re.search(rf"\b{key}\b", viewer("sim.js")) for key in hello)
     assert DETENTS == load("_page_stack", "mech/stack.py").ENC_DETENTS     # a turn of the knob, as built
     assert 2 * sim.page.BEAT_S < sim.page.LEASE_S                          # a beat may be lost
+
+
+def test_the_build_names_the_files_the_page_gets(tmp_path):
+    # an open page that reconnects to a program serving other files, as after a newer zip was unpacked, reloads
+    # when hello names another build (sim.js); the same files are the same build
+    (tmp_path / "sim.js").write_text("a")
+    builds = [sim.page.build(tmp_path), sim.page.build(tmp_path)]
+    (tmp_path / "sim.js").write_text("b")
+    builds.append(sim.page.build(tmp_path))
+    (tmp_path / "vendor").mkdir()
+    (tmp_path / "vendor" / "three.min.js").write_text("")
+    builds.append(sim.page.build(tmp_path))
+    assert builds[0] == builds[1] and len(set(builds)) == 3
 
 
 def test_the_page_asks_for_nothing_that_older_tablets_lack():
@@ -292,6 +306,65 @@ def test_a_port_that_is_taken_is_named_with_the_ways_out(page, monkeypatch):
         sim.page.main(["--port", "80"])
 
 
+def test_a_second_ctrl_c_while_it_ends_still_lets_go_of_the_output(monkeypatch):
+    # the first Ctrl-C ends the wait, a second one comes while the page stops: the panel stops all the same, and
+    # then the output lets go, so nothing is sent to it after that
+    lives, closed = [], []
+
+    class Output:
+        name = "an output"
+
+        def __init__(self, live):
+            pass
+
+        def send(self, device, report):
+            pass
+
+        def close(self):
+            closed.append(lives[0].thread.is_alive())          # whether the panel still runs
+
+    class Interrupted(Live):
+        def start(self, output):
+            super().start(output)
+            lives.append(self)
+            join = self.thread.join
+
+            def ctrl_c(*_):                    # the first, while main() waits
+                self.thread.join = join
+                raise KeyboardInterrupt
+            self.thread.join = ctrl_c
+
+    stop = Page.stop
+
+    def stopping(page):                        # the second
+        stop(page)
+        raise KeyboardInterrupt
+    monkeypatch.setattr(sim.page, "VJoy", Output)
+    monkeypatch.setattr(sim.page, "Live", Interrupted)
+    monkeypatch.setattr(Page, "stop", stopping)
+    try:
+        with pytest.raises(KeyboardInterrupt):
+            sim.page.main(["--vjoy", "--port", "0"])
+    finally:
+        lives[0].stop()
+    assert closed == [False]
+
+
+def test_an_answer_the_page_gave_up_on_goes_without_a_traceback(page, capsys):
+    # a request the page gave up on while this program stalled: its answer finds the connection closed
+    def fail(error):
+        try:
+            raise error
+        except Exception:
+            page.handle_error(None, ("127.0.0.1", 1))
+    fail(BrokenPipeError(errno.EPIPE, "Broken pipe"))
+    fail(ConnectionResetError(errno.ECONNRESET, "Connection reset by peer"))
+    assert capsys.readouterr().err == ""
+    for error in (OSError(errno.EBADF, "Bad file descriptor"), ValueError("a bug")):     # anything else is one
+        fail(error)
+        assert f"{type(error).__name__}: " in capsys.readouterr().err
+
+
 @pytest.mark.parametrize("port", ["65536", "70000", "-1", "8000.5", "http"])
 def test_a_port_that_is_none_is_refused_before_anything_starts(port, capsys):
     # by argparse (exit status 2), with its usage: no output is acquired yet
@@ -435,6 +508,8 @@ def test_a_page_that_stops_posting_lets_go_too(page, monkeypatch):
 
 def test_a_firmware_error_is_reported_and_code_py_reloads(page):
     stream = Stream(page)
+    # code.py's loop runs, so its panel is there: on a busy PC the stream can be up before code.py has made it
+    stream.until(lambda s: s["buttons"].keys() == {"1", "2"})
 
     def bug(board):                            # this run's panel fails on the next detent
         def turn(*_):

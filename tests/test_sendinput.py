@@ -12,9 +12,11 @@ import sim.sendinput
 from sim import BM, FUNCTIONS, Sim
 from sim.hardware import Board, keys
 from sim.live import Live
-from sim.sendinput import INPUT, KEYBDINPUT, KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP, KEYEVENTF_SCANCODE, SCAN, SendInput
+from sim.sendinput import INPUT, KEYBDINPUT, SCAN, SendInput
 
 pytestmark = pytest.mark.skipif(ctypes.sizeof(ctypes.c_void_p) != 8, reason="the layout of 64-bit Windows")
+# winuser.h's values, which the stand-in below reads the keystrokes by: not sim.sendinput's own
+INPUT_KEYBOARD, KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP, KEYEVENTF_SCANCODE = 1, 0x0001, 0x0002, 0x0008
 
 
 class User32:
@@ -27,7 +29,7 @@ class User32:
         user32 = self
 
         def send(n, inputs, size):
-            assert size == ctypes.sizeof(INPUT) and all(inputs[i].type == 1 for i in range(n))
+            assert size == ctypes.sizeof(INPUT) and all(inputs[i].type == INPUT_KEYBOARD for i in range(n))
             assert all(inputs[i].ki.dwFlags & KEYEVENTF_SCANCODE and not inputs[i].ki.wVk for i in range(n))
             ki = [inputs[i].ki for i in range(n)]
             user32.overlapped |= user32.inside > 0

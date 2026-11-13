@@ -17,7 +17,8 @@ updates:
         patterns: ["*"]
   # nixpkgs, locked in flake.lock (the only flake input, so one pull request at a time): every package
   # build.sh and the linters use. Its build checks that the update leaves every output as it is; one that moves
-  # OpenCascade or matplotlib does not, and needs ./build.sh run on its branch.
+  # OpenCascade, matplotlib, shapely or librsvg can change outputs (viewer/geometry.js and the fits table of
+  # mechanics.md too), and then needs ./build.sh run on its branch.
   - package-ecosystem: nix
     directory: /
     schedule:

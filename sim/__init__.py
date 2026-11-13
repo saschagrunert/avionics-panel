@@ -1,5 +1,5 @@
-"""The panel without the hardware: the firmware's own files (boot.py, code.py, panel.py, buttonmap.py) on the
-stand-in hardware of sim/hardware.py, on virtual time.
+"""The panel without the hardware: the firmware's own files (boot.py, code.py, panel.py, buttonmap.py, keys.py) on
+the stand-in hardware of sim/hardware.py, on virtual time.
 
 A Sim is a scenario. Each action happens at the scenario's current ms, `now`, which starts at START_MS after
 code.py's start and only moves on, with wait() and with the actions that take time. Reading what the PC saw runs
@@ -27,7 +27,8 @@ START_MS = 107       # the scenario starts this long after code.py, off the keyp
 PATTERN_MS = 960     # ... and this much later in keyboard mode, after its start pattern (keys.START, 6 x 152 ms
                      # here): a multiple of the 3 ms pass, so it meets the passes in the same phase (the 19.5 ms
                      # key scans in another, which no workflow depends on)
-PASS_MS = 3          # a loop pass: its 1 ms sleep plus its own run time (a few ms, docs/using/controls.md)
+PASS_MS = 3          # a loop pass: its 1 ms sleep plus 2 ms of its own run time (the board's own shows only on a
+                     # board: docs/architecture/firmware.md, Loop pass time)
 TAP_MS = 100         # a tap holds a key or push this long ...
 PAUSE_MS = 300       # ... and the next action follows this long after its release
 DETENT_MS = 150      # a slow turn: time between detents (the coarse step needs less than panel.FAST_MS)

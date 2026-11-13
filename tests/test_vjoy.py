@@ -4,6 +4,7 @@ vJoyInterface.dll. The DLL itself, vJoy's driver and what MobiFlight sees are te
 import ctypes
 import io
 import os
+import re
 import sys
 
 import pytest
@@ -251,11 +252,22 @@ def test_the_dll_is_looked_for_on_windows_only(monkeypatch, tmp_path):
     with pytest.raises(VJoyError, match="vJoy runs on Windows only"):
         load()
     dll = tmp_path / "vJoyInterface.dll"
-    with pytest.raises(VJoyError, match="vJoy is not installed: there is no .*vJoyInterface.dll"):
+    # (start.bat always asks for vJoy: the message names the way to the page without it)
+    with pytest.raises(VJoyError, match=r"vJoy is not installed: there is no .*vJoyInterface.dll\. .*without vJoy, "
+                                        r".* run python\\python\.exe -m sim\.page --open$"):
         load(str(dll))
     dll.write_bytes(b"MZ")
     with pytest.raises(VJoyError, match="vJoyInterface.dll does not load: "):
         load(str(dll))
+
+
+def test_vjoy_setup_makes_the_devices_vjoy_asks_for():
+    # windows/vjoy-setup.bat's button counts are the ones VJoy checks (a smaller one stops the simulator at the
+    # start), and sim/vjoy.py's docstring gives the same commands
+    with open(os.path.join(os.path.dirname(FIRMWARE), "windows", "vjoy-setup.bat"), encoding="utf-8") as f:
+        setup = [(int(n), int(b)) for n, b in re.findall(r'^"%VJOYCONFIG%" (\d) -f -a -b (\d+)$', f.read(), re.M)]
+    docstring = [(int(n), int(b)) for n, b in re.findall(r"^ +vJoyConfig (\d) -f -a -b (\d+)$", sim.vjoy.__doc__, re.M)]
+    assert setup == docstring == sorted(VJoy(Board().boot(), Dll()).devices.values()) == [(1, 128), (2, 64)]
 
 
 def test_the_buttons_vjoy_gets_are_the_ones_the_firmware_sends():

@@ -96,7 +96,8 @@ def load(path=None):
         os.environ.get("PROGRAMFILES", r"C:\Program Files"), "vJoy", "x64", "vJoyInterface.dll")
     if not os.path.isfile(path):
         raise VJoyError(f"vJoy is not installed: there is no {path}. Install vJoy 2.2.2.0, or set VJOY_DLL to "
-                        "its vJoyInterface.dll")
+                        "its vJoyInterface.dll. To try the page without vJoy, open a command prompt in the "
+                        r"simulator's folder and run python\python.exe -m sim.page --open")
     try:
         dll = ctypes.CDLL(path)
     except OSError as e:

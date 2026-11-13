@@ -18,8 +18,14 @@ window.playPanel = function playPanel(V) {
   const TAP_MS = 400;                  // ... nor one that stays longer than this
   const AXIS_MM = 2.5;                 // closer to the axis than this the angle round it is a finger's jitter
   const AXIS_OUT_MM = 1;               // ... and a finger leaves that middle this much further out
-  const WHEEL_PX = 100;                // a wheel notch in pixels (Chrome's; Firefox counts lines, a touchpad sums up)
   const WHEEL_GAP_MS = 300;            // a wheel event this long after the last starts a new spin: a notch at least
+  const NOTCH_MIN_PX = 20;             // a spin whose first event is this large is a mouse's; a smaller one is a
+                                       // touchpad's ...
+  const WHEEL_PX = 100;                // ... which sums up to a notch this large (and Firefox's lines count as one)
+  const LINE_PX = 21;                  // a line at the bottom left: 14 px type, 1.5 high ...
+  const LINES_W_PX = 324;              // ... their width at most: three buttons a line ...
+  const KEYS_W_PX = 480;               // ... in keyboard mode the longest shortcut's line. A longer line ends in an
+                                       // ellipsis: they never wrap, so the panel does not move for them.
   const FOV = 10;                      // degrees: from about straight above everywhere, so the knobs lean little
   const SPIN_TAU_MS = 25;              // a ring eases to its detent: most of the way in about 80 ms (3 of these)
   const SPIN_DONE = 0.001;             // radians from the target: there
@@ -38,10 +44,12 @@ window.playPanel = function playPanel(V) {
     body.play .bar, body.play .legend, body.play #dims, body.play .links { display: none; }
     /* the lines can lie over the plate and the banner over the top keys: a ground of their own, and no taps taken */
     .sim { position: fixed; left: max(16px, env(safe-area-inset-left, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px));
-           font: 14px var(--mono); color: var(--panel-fg); pointer-events: none; line-height: 1.5; max-width: calc(100% - 32px);
+           font: 14px var(--mono); color: var(--panel-fg); pointer-events: none; line-height: 1.5;
+           max-width: min(calc(100% - 32px), ${LINES_W_PX}px);
            background: var(--panel); padding: 4px 8px; border-radius: 8px; box-sizing: border-box; }
+    .sim > div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .sim .gone { opacity: .45; }
-    /* under the name and the hint line */
+    /* under the name and the hint line (place() sets its top) */
     .sim-alert { position: fixed; top: 76px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 32px);
                  padding: 8px 14px; border-radius: 9px; background: var(--on); color: var(--on-fg); font: 500 14px var(--font);
                  pointer-events: none; }
@@ -54,14 +62,35 @@ window.playPanel = function playPanel(V) {
   document.querySelector('.mouse').textContent =
     'click a key or knob · the wheel on a knob turns the ring under the pointer · hold an arrow round RANGE to tilt';
   document.querySelector('.touch').textContent =
-    'tap a key · move round a knob to turn the ring you touched · tap the middle of a knob to push · hold an arrow round RANGE to tilt';
+    'tap a key · move round a knob to turn the ring you touched · tap a knob to push · hold an arrow round RANGE to tilt';
   for (const L of V.lights) if (L.name === 'UNIT') L.lens.color.setHex(0x1d1e21).convertSRGBToLinear();   // dark when off
   controls.enableRotate = controls.enableZoom = controls.enablePan = false;
   V.ground.visible = false;            // from above its shadow is a grey slab beside the panel
   canvas.addEventListener('contextmenu', e => e.preventDefault());
   camera.fov = FOV;                    // (the next frame updates the projection)
   controls.maxDistance = Infinity;     // the narrow view stands further off than the zoom limit of the others
-  go('P', true);
+  // The panel goes under the name and the hint, and beside the lines at the bottom left or with all it operates
+  // above them, whichever shows it larger (beside them in a wide, short window); the lines may lie over the plate's
+  // edge below the RANGE arrows. The alert goes under the name and the hint. Again after a resize, and when the
+  // number of lines changes.
+  const header = document.querySelector('.hdr');
+  let lines = 3, width = LINES_W_PX;   // the lines: UNIT and each joystick's buttons, or UNIT and the keyboard's
+  assembly.updateMatrixWorld();
+  const operated = new THREE.Box3();   // round the caps, the knobs and the arrows round RANGE
+  for (const m of [...V.keys.flatMap(k => k.meshes), ...KNOBS.flatMap(k => Object.values(k.rings).flat())]) operated.expandByObject(m);
+  for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+    operated.expandByPoint(assembly.localToWorld(new THREE.Vector3(V.px(RANGE.x + dx * ARROWS[1]), Z, V.pz(RANGE.y + dy * ARROWS[1]))));
+  }
+  const above = V.view.box.clone();    // the panel's box, its side towards the pilot (+z, the bottom) at the arrows
+  above.max.z = operated.max.z;
+  V.view.margins = () => {             // [top, right, bottom, left] px kept free round a box, each way (fit() adds a gap)
+    const css = getComputedStyle(strip), top = header.getBoundingClientRect().bottom;
+    const bottom = parseFloat(css.bottom), left = parseFloat(css.left) + width;
+    return [[top, 0, bottom + lines * LINE_PX + 8, 0, above], [top, 0, bottom, left, V.view.box]];   // (8: their padding)
+  };
+  function place() { alert.style.top = `${header.getBoundingClientRect().bottom + 8}px`; go('P', true); }
+  window.addEventListener('resize', place);
+  place();
   let alertTimer;
   const say = (text, ms) => { clearTimeout(alertTimer); alert.textContent = text; if (ms) alertTimer = setTimeout(() => say(''), ms); };
 
@@ -84,7 +113,7 @@ window.playPanel = function playPanel(V) {
         const s = document.createElement('span'); s.textContent = n; s.className = cls;
         return i ? [' · ', s] : [s];
       });
-      line(device === 'keyboard' ? 'keyboard mode: ' : `joystick ${device}: `, ...(parts.length ? parts : ['none']));
+      line(device === 'keyboard' ? 'keyboard: ' : `joystick ${device}: `, ...(parts.length ? parts : ['none']));
     }
     if (next < Infinity) fadeTimer = setTimeout(render, Math.ceil(next) + 1);
   }
@@ -95,20 +124,26 @@ window.playPanel = function playPanel(V) {
       for (const n of names) if (!still.includes(n)) (went[device] = went[device] || {})[n] = now;
     }
     ({ lights, buttons } = state);
+    const count = 1 + Object.keys(buttons).length;
+    if (count > 1 && count !== lines) {          // the mode is known: the lines' number and width
+      lines = count; width = buttons.keyboard ? KEYS_W_PX : LINES_W_PX;
+      strip.style.maxWidth = `min(calc(100% - 32px), ${width}px)`; go('P', true);
+    }
     for (const L of V.lights) L.lens.emissiveIntensity = lights[L.name];
     render(); invalidate();
   }
   function clear() {
-    went = {};
+    went = {}; buttons = {};
     update({ lights: { SHIFT: 0, UNIT: 0 }, buttons: {} });
   }
   clear();
 
   // ---------------- the program ----------------
-  // hello names this page (client), the firmware's inputs under the caps and knobs, and the program's numbers: the
-  // angle of a detent, the detents one action takes and the actions one request takes at most, and how often the
-  // page tells the program that it is still there
-  let events, client = null, inputs = null, busy = false, beat = false, beatTimer;
+  // hello names this page (client), the build of the files the program serves, the firmware's inputs under the caps
+  // and knobs, and the program's numbers: the angle of a detent, the detents one action takes and the actions one
+  // request takes at most, and how often the page tells the program that it is still there. A page that reconnects
+  // to another build, as after a newer simulator was unpacked and started, reloads: its files go with the old one.
+  let events, client = null, build = null, inputs = null, busy = false, beat = false, beatTimer;
   let DETENT, TURN_MAX, ACTS_MAX, BEAT_MS;
   const queue = [];
   function connect() {
@@ -116,7 +151,8 @@ window.playPanel = function playPanel(V) {
     events = new EventSource('sim/events');
     events.addEventListener('hello', e => {
       const hello = JSON.parse(e.data);
-      ({ client, inputs, turn_max: TURN_MAX, acts_max: ACTS_MAX, beat_ms: BEAT_MS } = hello);
+      if (build !== null && hello.build !== build) { events.close(); location.reload(); return; }
+      ({ client, build, inputs, turn_max: TURN_MAX, acts_max: ACTS_MAX, beat_ms: BEAT_MS } = hello);
       DETENT = 2 * Math.PI / hello.detents;
       clearInterval(beatTimer);
       beatTimer = setInterval(() => { beat = true; flush(); }, BEAT_MS);
@@ -274,6 +310,8 @@ window.playPanel = function playPanel(V) {
   const still = (g, e) => !g.moved && Math.hypot(e.clientX - g.x, e.clientY - g.y) < MOVE_PX;
   canvas.addEventListener('pointermove', e => {
     const g = gestures.get(e.pointerId);
+    // the left button let go while another is down: no pointerup comes until that one goes up too
+    if (g && e.pointerType === 'mouse' && !(e.buttons & 1)) return up(e);
     if (!g || !g.ring || g.held) return;
     if (!still(g, e)) g.moved = true;
     aim(e);
@@ -294,16 +332,28 @@ window.playPanel = function playPanel(V) {
   };
   canvas.addEventListener('pointerup', up);
   canvas.addEventListener('pointercancel', up);
-  let wheel = 0, wheelAt = -Infinity;
+  // A detent per notch of the wheel, a spin's first event a notch at least. A mouse sends whole notches, of any
+  // pixels (the page's zoom, the system's settings), one or several in an event: its notch is the smallest event
+  // of the spin, and every event is a whole number of them. A spin whose first event is under NOTCH_MIN_PX, or
+  // whose events stop being whole notches, is a touchpad's: a detent per WHEEL_PX, counting the first as one.
+  const whole = (a, b) => a / b > 0.9 && Math.abs(a / b - Math.round(a / b)) < 0.1;   // a is a whole number of b
+  let wheel = null;                    // the spin: { at: its last event, mouse, notch px, total px, sent detents }
   canvas.addEventListener('wheel', e => {
     e.preventDefault();                // no zoom, of the view or the page
     const at = client && pick(e);
-    if (!at || !at.ring) return;
-    const dy = e.deltaMode ? Math.sign(e.deltaY) * WHEEL_PX : e.deltaY;
-    wheel = e.timeStamp - wheelAt > WHEEL_GAP_MS ? Math.sign(dy) * Math.max(WHEEL_PX, Math.abs(dy)) : wheel + dy;
-    wheelAt = e.timeStamp;
-    const n = Math.max(-TURN_MAX, Math.min(TURN_MAX, Math.trunc(wheel / WHEEL_PX)));
-    if (n) { turn(at.knob, at.ring, -n); wheel -= n * WHEEL_PX; }       // up: clockwise
+    const dy = e.deltaMode ? Math.sign(e.deltaY) * WHEEL_PX : e.deltaY, size = Math.abs(dy);
+    if (!at || !at.ring || !dy) return;
+    if (!wheel || e.timeStamp - wheel.at > WHEEL_GAP_MS) {
+      const mouse = size >= NOTCH_MIN_PX;
+      wheel = { mouse, notch: mouse ? size : WHEEL_PX, total: mouse ? dy : Math.sign(dy) * WHEEL_PX, sent: 0 };
+    } else if (!wheel.mouse) wheel.total += dy;
+    else if (size >= NOTCH_MIN_PX && whole(wheel.notch, size)) { wheel.notch = size; wheel.total += dy; }   // a smaller notch
+    else if (whole(size, wheel.notch)) wheel.total += dy;
+    else Object.assign(wheel, { mouse: false, notch: WHEEL_PX, total: wheel.sent * WHEEL_PX + dy });
+    wheel.at = e.timeStamp;
+    const notches = wheel.total / wheel.notch;                         // (a hair more: a sum of fractions is whole)
+    const n = Math.max(-TURN_MAX, Math.min(TURN_MAX, Math.trunc(notches + Math.sign(notches) * 1e-9) - wheel.sent));
+    if (n) { wheel.sent += n; turn(at.knob, at.ring, -n); }           // up: clockwise
   }, { passive: false });
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) disconnect();
