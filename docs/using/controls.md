@@ -31,7 +31,7 @@ shortcuts instead. To try them without a panel, the firmware runs on the PC and 
 | Position | Part | Turn | Push | With SHIFT |
 | --- | --- | --- | --- | --- |
 | Left top | Dual encoder, Ø17 / Ø12 knobs | Outer ALT, inner HDG | HDG SYNC | Outer BARO, inner CRS, push STD |
-| Left bottom | Multi-control: turn, tilt 4 ways, push | RANGE | Map pointer | Own buttons, free for your own mappings |
+| Left bottom | Multi-control: turn, tilt 4 ways, push | RANGE | Map pointer | Own buttons: a second map or a GTN's volume knob in the generated profiles, else free for your own mappings |
 | Right top | Dual encoder, Ø17 / Ø12 knobs | Frequency: outer MHz, inner kHz (ADF: outer 100s, inner 1s) | Cycles COM, NAV, ADF (without an ADF in the aircraft, the ADF mode's turns do nothing) | Squawk: outer selects the digit, inner sets it; push XPDR mode |
 | Right bottom | Dual encoder, Ø17 / Ø12 knobs | Outer page group, inner page | Cursor | Lighting: outer panel lights, inner glareshield flood, push cabin light |
 
@@ -121,8 +121,8 @@ transponder key and the flip-flops next to the FREQ knob:
 | MIC 2 (DME) | COM 2 (NAV 2) | VFR (IDENT) | NAV ⇆ (ADF ⇆) |
 
 - VFR squawks the VFR code. It is the plain function because squawking VFR is the common case in VFR flying;
-  IDENT is SHIFT, VFR. The [generated profiles](mapping.md#generated-profiles) set 1200, or the code a profile
-  is made for (7000 in much of Europe).
+  IDENT is SHIFT, VFR. The [generated profiles](mapping.md#generated-profiles) set 7000 (EASA), or the code a
+  profile is made for (1200 in the US).
 - 121.5 tunes the emergency frequency, like holding the COM flip-flop for two seconds on the G1000 and GNS, or
   the volume knob on the GTN.
 - ADF ⇆ is the ADF flip-flop (FRQ on the KR 87). MIC 1 (ADF) is different: it only listens to the ADF.
@@ -137,15 +137,16 @@ FMS, D→ / MENU / CLR / ENT next to the FMS knob as on the G1000:
 | HOME (UNIT) | FPL (VNAV) | D→ (MSG) | MENU (NRST) |
 | SHIFT, light below | PROC (TERR) | CLR (MAP) | ENT |
 
-MAP returns to the default map page, like holding CLR on the G1000 and GNS 530/430.
+MAP returns to the default map page, like holding CLR on the G1000 and GNS 530/430 (the G1000 profile toggles
+Charts instead, [Mapping](mapping.md#g1000-nxi)).
 
 28 keys. UNIT (SHIFT, HOME) switches between unit 1 and unit 2 for the FMS keys and knob (GTN or GNS 530 /
 second unit), for CDI and OBS, and for the radio the FREQ knob and flip-flops tune (COM 1 / NAV 1 or
 COM 2 / NAV 2). A white light beside the amber UNIT legend is on while unit 2 is selected. There is no
 automatic return to unit 1, because a timeout would interrupt long flight plan edits.
 
-On the G1000 UNIT selects radio 2 only and the FMS keys always drive the MFD: the PFD and MFD share the
-radios, so coupling them would tune COM 2 while editing on the PFD.
+On the G1000 unit 1 is the MFD with radio 1 and unit 2 the PFD with radio 2: UNIT switches the display and
+the radio together, so while you edit on the PFD the FREQ knob tunes COM 2 / NAV 2.
 
 ```mermaid
 stateDiagram-v2

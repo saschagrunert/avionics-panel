@@ -2,11 +2,11 @@
 
 DIY desktop panel for GA avionics in flight sims ([G1000][g1000], [TDS GTN 750Xi/650Xi][gtnxi],
 [GNS 530/430][gns530], [GFC 500][gfc500] with the G3X Touch, [Bendix/King][bendixking] radios with the
-[KAP 140][kap140]): autopilot, audio, radio and FMS keys, three dual concentric knobs and a RANGE knob that
-tilts to pan. It shows up on the PC as two USB joysticks, mapped in [MobiFlight][mobiflight]; the
-[ready profiles](docs/using/mapping.md#generated-profiles) are for MSFS 2024 with MobiFlight 11.2 or newer on
-Windows. Its [keyboard mode](docs/using/keyboard.md), not yet tried in MSFS, makes it a USB keyboard for MSFS
-on consoles and without MobiFlight.
+[KAP 140][kap140] or, in Black Square's aircraft, the KFC 150): autopilot, audio, radio and FMS keys, three
+dual concentric knobs and a RANGE knob that tilts to pan. It shows up on the PC as two USB joysticks, mapped
+in [MobiFlight][mobiflight]; the [ready profiles](docs/using/mapping.md#generated-profiles) are for MSFS 2024
+with MobiFlight 11.2 or newer on Windows. Its [keyboard mode](docs/using/keyboard.md), not yet tried in MSFS,
+makes it a USB keyboard for MSFS on consoles and without MobiFlight.
 
 [![Top view: autopilot keys and ALT/HDG and RANGE knobs left, audio, radio and FMS keys, FREQ and FMS knobs right](renders/2-top.png)](https://saschagrunert.de/avionics-panel/)
 

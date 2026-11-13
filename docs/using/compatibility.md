@@ -8,8 +8,9 @@ unused.
 
 Covered families: G1000 and G1000 NXi, TDS GTN 750Xi and 650Xi, GNS 530/430, Bendix/King (KAP 140, KFC 150 +
 KAS 297B, KFC 225, KX 155/165, KR 87, KT 76, KMA 28), GTX 327, newer Garmin (GFC 500, G3X Touch). For MSFS 2024,
-[generated profiles](mapping.md#generated-profiles) cover the G1000 NXi, the GFC 500 with the G3X Touch, and
-the GNS 530/430 and TDS GTN 750Xi and 650Xi with the KAP 140; the others are mapped by hand.
+[generated profiles](mapping.md#generated-profiles) cover the G1000 NXi, the GFC 500 with the G3X Touch, the
+GNS 530/430 and TDS GTN 750Xi and 650Xi with the KAP 140, and Black Square's KFC 150 with the KAS 297B; the
+others are mapped by hand.
 
 Compared with the documentation of these reference aircraft, with the profile that fits each:
 
@@ -18,7 +19,8 @@ Compared with the documentation of these reference aircraft, with the profile th
 - Cessna 172 Skyhawk Classic (KAP 140, GNS 530/430): GNS profile; with TDS's GTN 750Xi and 650Xi: GTN profile
 - COWS DA40 (Working Title G1000 with its own autopilot): G1000 profile; its autopilot keys may need the
   aircraft's own events
-- Black Square Bonanza (KFC 150 + KAS 297B, KX 155B, KR 87, GTX 327, GNS 530/430 or GTN 750/650): by hand
+- Black Square Bonanza (KFC 150 + KAS 297B, KX 155B, KR 87, GTX 327, GNS 530/430 or GTN 750/650): KFC 150
+  profile
 - Black Square TBM 850 (KFC 325, KAS 297B), Caravan, Duke and King Air: by hand
 - A2A Comanche 250 (S-TEC 30, Narco radios, NSD-360A HSI): by hand
 - A2A Aerostar 600 (Century IV, Collins Microline radios: VHF-251, VIR-351, ADF-650, TDR-950, AMR-350): by hand
@@ -37,7 +39,7 @@ Autopilots:
 | GPSS (SHIFT, NAV) | None (NAV flies GPS steering) | None (NAV flies GPS steering) | None (NAV follows the CDI) | None | None |
 | ½ BANK (SHIFT, LVL) | None in MSFS's G1000 aircraft | None | None | None | None |
 | FD, YD (SHIFT, FD) | Yes | Yes | None | FD, YD switch | YD if installed |
-| ARM (SHIFT, ALT) | None | None | ARM | ARM on the KAS 297B | ARM |
+| ARM (SHIFT, ALT) | None (Tmr/Ref softkey in the profile) | None | ARM | ARM on the KAS 297B | ARM |
 | UP / DN | NOSE UP / DN | Wheel | UP / DN | Vertical trim rocker | UP / DN |
 | ALT knob | ALT knob | ALT SEL knob | Altitude select knob | KAS 297B knob | Altitude select knob |
 | HDG knob, push SYNC | HDG, push sync | HDG, push sync | HDG bug (KI 525), no sync | HSI heading bug, no sync | HDG bug, no sync |
@@ -64,21 +66,24 @@ Navigators:
 | Panel | G1000 / NXi | G3X Touch | GTN 750Xi (TDS) | GNS 530/430 |
 | --- | --- | --- | --- | --- |
 | D→, MENU, CLR, ENT, FPL, PROC | Bezel keys | D→, MENU and BACK (CLR) are keys; FPL and ENT are on the touchscreen; no procedures | D→ is a key; the rest are on the touchscreen | Bezel keys |
-| HOME | None | None | HOME key | None |
-| MSG, NRST, VNAV, TERR, MAP (with SHIFT) | Softkeys / pages; hold CLR (the NXi takes no long press from outside) | NRST key; the rest are on the touchscreen | Touchscreen | MSG key; NRST page; VNAV key (530); hold CLR |
+| HOME | None (ENGINE softkey and back in the profile) | None | HOME key | None |
+| MSG, NRST, VNAV, TERR, MAP (with SHIFT) | Softkeys; in the profile MSG and NRST press the PFD's Alerts and Nearest, MAP, TERR and VNAV the MFD's Charts, Checklist and Detail | NRST key; the rest are on the touchscreen | Touchscreen | MSG key; NRST page; VNAV key (530); hold CLR |
 | CDI, OBS | Softkeys | Touchscreen, worked by the sim's events (see below) | Touchscreen | Bezel keys |
 | FMS knob, push CRSR | FMS knob | Right knob and its push | The GTN's dual knob (no cursor, see below) | Right knob, push CRSR |
-| RANGE, pan, push PTR | RANGE knob + joystick | Touchscreen; the inner knob zooms on the map page | Touchscreen; the inner knob zooms on the map page | RNG keys |
-| UNIT (SHIFT, HOME) | Radio 2 only; the FMS keys stay on the MFD | PFD / MFD, where there are two displays | GTN / second unit | 530 / 430 |
+| RANGE, pan, push PTR | MFD RANGE knob + joystick; with SHIFT the PFD's | Touchscreen; the inner knob zooms on the map page | Touchscreen; the inner knob zooms on the map page; with SHIFT the volume knob | RNG keys; with SHIFT the second unit's |
+| UNIT (SHIFT, HOME) | MFD with radio 1 / PFD with radio 2 | PFD / MFD, where there are two displays | GTN / second unit | 530 / 430 |
 
-On units without a HOME key (G1000, G3X Touch, GNS) map HOME to whatever is used most there.
+On units without a HOME key (G1000, G3X Touch, GNS) map HOME to whatever is used most there; the G1000
+profile makes it the MFD's ENGINE softkey and back.
 
-The TDS GTN 750Xi and 650Xi take only their bezel controls from outside: HOME, D→, the dual knob and its
-push, and the volume knob and its push. Their touchscreen functions have no event or variable, so these
-controls do nothing with a GTN: FPL, PROC, MENU, CLR, ENT, MSG, NRST, TERR, VNAV, MAP, CDI, OBS, RANGE, the
-map's pan and PTR. Press HOME and touch the function on the screen; the map also zooms with the inner FMS knob
-on the map page. The pms50 GTN 750 takes other events: the [generated profile](mapping.md#generated-profiles)
-for TDS's GTNs does not work with it.
+The TDS GTN 750Xi and 650Xi take only their bezel controls from outside: HOME, D→, the dual knob and its push,
+and the volume knob and its push. Their touchscreen functions have no event or variable, so these controls do
+nothing with a GTN: FPL, PROC, MENU, CLR, ENT, MSG, NRST, TERR, VNAV, MAP, CDI, OBS, RANGE without SHIFT, PTR
+without SHIFT, the map's pan. Press HOME and touch the function on the screen; the map also zooms with the
+inner FMS knob on the map page. The GTN and KFC 150 profiles put the GTN 750's volume knob on SHIFT with the
+RANGE knob. The pms50 GTN 750 takes other events: the [generated profile](mapping.md#generated-profiles) for
+TDS's GTNs does not work with it, the [KFC 150 profile](mapping.md#kfc-150-black-square) in Black Square's
+Bonanza does.
 
 The G3X Touch has its CDI, OBS, radios, transponder and audio panel on the touchscreen too, but those are the
 sim's own, which the sim's events work from outside. Its own functions stay on its screen, so these controls
@@ -107,6 +112,7 @@ Cockpit lighting (SHIFT, FMS knob) maps to the aircraft's panel and flood light 
 dome light, where the sim or the aircraft exposes them as events or variables; aircraft with one dimmer
 for everything use the outer ring only.
 
-Deliberately not on the panel: volume and squelch, the G1000 softkeys, the KR 87 timer, the KN 62 DME
-mode switch and the Collins IND-450 DME, marker audio (MKR), COM 3, KNS 81 RNAV waypoint entry,
+Deliberately not on the panel: volume and squelch (except the GTN 750's, on SHIFT with the RANGE knob in the
+GTN and KFC 150 profiles), the G1000 softkeys (except the ones the G1000 profile presses), the KR 87 timer,
+the KN 62 DME mode switch and the Collins IND-450 DME, marker audio (MKR), COM 3, KNS 81 RNAV waypoint entry,
 weather radar controls (RDR 1150XL), soft ride, autothrottle and the G3000 touch controllers.

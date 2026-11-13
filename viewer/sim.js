@@ -26,6 +26,7 @@ window.playPanel = function playPanel(V) {
   const LINES_W_PX = 324;              // ... their width at most: three buttons a line ...
   const KEYS_W_PX = 480;               // ... in keyboard mode the longest shortcut's line. A longer line ends in an
                                        // ellipsis: they never wrap, so the panel does not move for them.
+  const SHORT_PX = 500;                // a window lower than this (a phone turned sideways) has them on one line
   const FOV = 10;                      // degrees: from about straight above everywhere, so the knobs lean little
   const SPIN_TAU_MS = 25;              // a ring eases to its detent: most of the way in about 80 ms (3 of these)
   const SPIN_DONE = 0.001;             // radians from the target: there
@@ -41,7 +42,7 @@ window.playPanel = function playPanel(V) {
   // ---------------- what the page shows ----------------
   const style = document.createElement('style');
   style.textContent = `
-    body.play .bar, body.play .legend, body.play #dims, body.play .links { display: none; }
+    body.play .bar, body.play .legend, body.play .hdr { display: none; }
     /* the lines can lie over the plate and the banner over the top keys: a ground of their own, and no taps taken */
     .sim { position: fixed; left: max(16px, env(safe-area-inset-left, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px));
            font: 14px var(--mono); color: var(--panel-fg); pointer-events: none; line-height: 1.5;
@@ -49,8 +50,8 @@ window.playPanel = function playPanel(V) {
            background: var(--panel); padding: 4px 8px; border-radius: 8px; box-sizing: border-box; }
     .sim > div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .sim .gone { opacity: .45; }
-    /* under the name and the hint line (place() sets its top) */
-    .sim-alert { position: fixed; top: 76px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 32px);
+    /* at the top, where the 3D view has its name */
+    .sim-alert { position: fixed; top: calc(16px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%); max-width: calc(100% - 32px);
                  padding: 8px 14px; border-radius: 9px; background: var(--on); color: var(--on-fg); font: 500 14px var(--font);
                  pointer-events: none; }
     .sim:empty, .sim-alert:empty { display: none; }`;
@@ -59,50 +60,77 @@ window.playPanel = function playPanel(V) {
   const strip = document.createElement('div'), alert = document.createElement('div');
   strip.className = 'sim'; alert.className = 'sim-alert'; alert.setAttribute('role', 'alert');
   document.body.append(strip, alert);
-  document.querySelector('.mouse').textContent =
-    'click a key or knob · the wheel on a knob turns the ring under the pointer · hold an arrow round RANGE to tilt';
-  document.querySelector('.touch').textContent =
-    'tap a key · move round a knob to turn the ring you touched · tap a knob to push · hold an arrow round RANGE to tilt';
   for (const L of V.lights) if (L.name === 'UNIT') L.lens.color.setHex(0x1d1e21).convertSRGBToLinear();   // dark when off
   controls.enableRotate = controls.enableZoom = controls.enablePan = false;
   V.ground.visible = false;            // from above its shadow is a grey slab beside the panel
   canvas.addEventListener('contextmenu', e => e.preventDefault());
   camera.fov = FOV;                    // (the next frame updates the projection)
   controls.maxDistance = Infinity;     // the narrow view stands further off than the zoom limit of the others
-  // The panel goes under the name and the hint, and beside the lines at the bottom left or with all it operates
-  // above them, whichever shows it larger (beside them in a wide, short window); the lines may lie over the plate's
-  // edge below the RANGE arrows. The alert goes under the name and the hint. Again after a resize, and when the
-  // number of lines changes.
-  const header = document.querySelector('.hdr');
+  // The page shows neither name nor hint (docs/using/simulator.md says how to play it). The panel goes beside the
+  // lines at the bottom left or with all it operates above them, whichever shows it larger; in a window lower than
+  // SHORT_PX the lines are one line across it, with the panel above. The lines may lie over the plate's edge below
+  // the RANGE arrows, the alert over the top keys. Again after a resize, and when the number of lines changes.
   let lines = 3, width = LINES_W_PX;   // the lines: UNIT and each joystick's buttons, or UNIT and the keyboard's
+  let short = false;                   // all of them on one line, across the window
+  const rows = () => short ? 1 : lines;
+  const SIDES = 'max(16px, env(safe-area-inset-left, 0px)) - max(16px, env(safe-area-inset-right, 0px))';
+  const fitStrip = () => { strip.style.maxWidth = `min(calc(100% - ${SIDES}), ${short ? 100000 : width}px)`; };
+  // the screen's safe areas (a phone's notch and rounded corners), read through a hidden element: [top, right,
+  // bottom, left] px
+  const probe = document.createElement('div');
+  probe.style.cssText = 'position: fixed; visibility: hidden; pointer-events: none; padding: env(safe-area-inset-top, 0px) '
+    + 'env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px)';
+  document.body.appendChild(probe);
+  const insets = () => { const c = getComputedStyle(probe); return [c.paddingTop, c.paddingRight, c.paddingBottom, c.paddingLeft].map(parseFloat); };
   assembly.updateMatrixWorld();
   const operated = new THREE.Box3();   // round the caps, the knobs and the arrows round RANGE
   for (const m of [...V.keys.flatMap(k => k.meshes), ...KNOBS.flatMap(k => Object.values(k.rings).flat())]) operated.expandByObject(m);
   for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
     operated.expandByPoint(assembly.localToWorld(new THREE.Vector3(V.px(RANGE.x + dx * ARROWS[1]), Z, V.pz(RANGE.y + dy * ARROWS[1]))));
   }
-  const above = V.view.box.clone();    // the panel's box, its side towards the pilot (+z, the bottom) at the arrows
+  // the panel's footprint: its box, cut at the plate's top, as the knobs, seen from about straight above, stand
+  // inside it (their tops, nearer the camera, would push the edges out); and the same with its side towards the
+  // pilot (+z, the bottom) at the arrows
+  const flat = V.view.box.clone();
+  flat.max.y = assembly.localToWorld(new THREE.Vector3(0, Z, 0)).y;
+  const above = flat.clone();
   above.max.z = operated.max.z;
+  V.view.gap = 0.99;                   // fit() leaves 0.5 % free on each side inside the margins, at least 8 px
   V.view.margins = () => {             // [top, right, bottom, left] px kept free round a box, each way (fit() adds a gap)
-    const css = getComputedStyle(strip), top = header.getBoundingClientRect().bottom;
-    const bottom = parseFloat(css.bottom), left = parseFloat(css.left) + width;
-    return [[top, 0, bottom + lines * LINE_PX + 8, 0, above], [top, 0, bottom, left, V.view.box]];   // (8: their padding)
+    // clear of the safe areas, the same on both sides so the panel stays in the middle
+    const css = getComputedStyle(strip), [top, right, , left] = insets(), side = Math.max(left, right);
+    const bottom = parseFloat(css.bottom), beside = parseFloat(css.left) + width;
+    const below = [top, side, bottom + rows() * LINE_PX + 8, side, above];                    // (8: their padding)
+    return short ? [below] : [below, [top, side, bottom, beside, flat]];   // one line across the window: below only
   };
-  function place() { alert.style.top = `${header.getBoundingClientRect().bottom + 8}px`; go('P', true); }
+  // the lights and each device's buttons as the program last sent them (update()), and when each button went
+  let lights = {}, buttons = {}, fadeTimer;
+  let went = {};                       // device: { button: when it went }
+  function place() {
+    const was = short;
+    short = window.innerHeight < SHORT_PX;
+    if (short !== was) { fitStrip(); render(); }
+    go('P', true);
+  }
   window.addEventListener('resize', place);
+  if (window.ResizeObserver) new ResizeObserver(place).observe(canvas);   // after index.html's: the camera's size first
   place();
   let alertTimer;
   const say = (text, ms) => { clearTimeout(alertTimer); alert.textContent = text; if (ms) alertTimer = setTimeout(() => say(''), ms); };
 
   // the lights in words, and each joystick's buttons (in keyboard mode the keyboard's function and shortcut); one
   // that went stays a while, dimmed
-  let lights = {}, buttons = {}, fadeTimer;
-  let went = {};                       // device: { button: when it went }
   function render() {
     clearTimeout(fadeTimer);
     strip.textContent = '';
     if (!Object.keys(buttons).length) return;
-    const line = (...parts) => { const d = document.createElement('div'); d.append(...parts); strip.appendChild(d); };
+    // a line each, or in a short window one line for all, the parts apart by a bar
+    const one = short && document.createElement('div');
+    if (one) strip.appendChild(one);
+    const line = (...parts) => {
+      if (one) { one.append(...(one.childNodes.length ? [' | '] : []), ...parts); return; }
+      const d = document.createElement('div'); d.append(...parts); strip.appendChild(d);
+    };
     line(`UNIT ${lights.UNIT ? 2 : 1}${lights.SHIFT ? ' · SHIFT' : ''}`);
     const now = performance.now();
     let next = Infinity;
@@ -113,7 +141,8 @@ window.playPanel = function playPanel(V) {
         const s = document.createElement('span'); s.textContent = n; s.className = cls;
         return i ? [' · ', s] : [s];
       });
-      line(device === 'keyboard' ? 'keyboard: ' : `joystick ${device}: `, ...(parts.length ? parts : ['none']));
+      const name = device === 'keyboard' ? 'keyboard' : short ? device : `joystick ${device}`;
+      line(`${name}: `, ...(parts.length ? parts : ['none']));
     }
     if (next < Infinity) fadeTimer = setTimeout(render, Math.ceil(next) + 1);
   }
@@ -127,7 +156,7 @@ window.playPanel = function playPanel(V) {
     const count = 1 + Object.keys(buttons).length;
     if (count > 1 && count !== lines) {          // the mode is known: the lines' number and width
       lines = count; width = buttons.keyboard ? KEYS_W_PX : LINES_W_PX;
-      strip.style.maxWidth = `min(calc(100% - 32px), ${width}px)`; go('P', true);
+      fitStrip(); go('P', true);
     }
     for (const L of V.lights) L.lens.emissiveIntensity = lights[L.name];
     render(); invalidate();

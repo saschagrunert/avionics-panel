@@ -1,9 +1,9 @@
 """The parts several family tables share: {button: code} rows, and {button: reason} for the buttons a part leaves
 unmapped, joined into a table's DEVICE and UNMAPPED dicts (__init__.py).
 
-The radios, ADF, transponder, audio panel and the instruments around the KAP 140 take the simulator's own key
-events (the MSFS 2024 SDK's Key Events) and, for the transponder's mode, its simulation variable, which act the
-same in every aircraft and whatever unit shows them; the KAP 140 takes the H: events of the one MSFS ships, the
+The radios, ADF, transponder, audio panel and the instruments around a Bendix/King autopilot take the simulator's
+own key events (the MSFS 2024 SDK's Key Events) and, for the transponder's mode, its simulation variable, which act
+the same in every aircraft and whatever unit shows them; the KAP 140 takes the H: events of the one MSFS ships, the
 ones its instrument (KAP140.js) handles. Garmin's autopilot, as Working Title's G1000 NXi and G3X Touch build it,
 takes the simulator's autopilot key events (GARMIN_SHARED).
 """
@@ -11,7 +11,7 @@ import re
 
 from mobiflight.families.rpn import h, k, turn
 
-VFR = "1200"                     # the squawk the VFR key sets, unless a profile is made with another (--vfr)
+VFR = "7000"                     # the squawk the VFR key sets (EASA), unless a profile is made with another (--vfr)
 
 
 def transmit(com):
@@ -200,6 +200,25 @@ GARMIN_SHARED = {
     "BARO_STD": k("BAROMETRIC_STD_PRESSURE", 1),
 }
 
+# ---------------- the instruments round a Bendix/King autopilot (device 1) ----------------
+# the heading bug, which the push syncs to the heading as on the G1000, and with SHIFT the course of NAV 1 and the
+# altimeter (KOHLSMAN_INC and _DEC without an index, as the SDK's Key Events list them; STD names the first
+# altimeter), as the simulator's key events; CRS CTR centres the course of NAV 1
+NAV1_KNOBS = {
+    "CRS_CTR": CENTRE.replace("#", "1"),
+    "HDG_1_UP": k("HEADING_BUG_INC"),
+    "HDG_1_DN": k("HEADING_BUG_DEC"),
+    **HEADING_FAST,
+    "HDG_SYNC": SYNC,
+    "CRS_1_UP": k("VOR1_OBI_INC"),
+    "CRS_1_DN": k("VOR1_OBI_DEC"),
+    "CRS_10_UP": turn(COURSE, "VOR1_SET", 10),
+    "CRS_10_DN": turn(COURSE, "VOR1_SET", -10),
+    "BARO_UP": k("KOHLSMAN_INC"),
+    "BARO_DN": k("KOHLSMAN_DEC"),
+    "BARO_STD": k("BAROMETRIC_STD_PRESSURE", 1),      # the altimeter of index 1
+}
+
 # ---------------- the KAP 140 cockpit around a navigator (device 1) ----------------
 KAP140 = {
     # autopilot keys
@@ -214,25 +233,13 @@ KAP140 = {
     "S_UP": h("KAP140_Push_UP"),
     "BC": h("KAP140_Push_REV"),
     "S_DN": h("KAP140_Push_DN"),
-    "CRS_CTR": CENTRE.replace("#", "1"),             # NAV 1, whose course the knob sets
-    # ALT/HDG knob: the KAP 140's altitude knob (inner 100 ft, outer 1000 ft) and the heading bug, which the push
-    # syncs to the heading as on the G1000; with SHIFT the course of NAV 1 and the altimeter (KOHLSMAN_INC and _DEC
-    # without an index, as the SDK's Key Events list them; STD names the first altimeter)
+    # ALT/HDG knob: the KAP 140's altitude knob (inner 100 ft, outer 1000 ft), the heading bug, the course and the
+    # altimeter
     "ALT_100_UP": h("KAP140_Knob_Inner_INC"),
     "ALT_100_DN": h("KAP140_Knob_Inner_DEC"),
     "ALT_1000_UP": h("KAP140_Knob_Outer_INC"),
     "ALT_1000_DN": h("KAP140_Knob_Outer_DEC"),
-    "HDG_1_UP": k("HEADING_BUG_INC"),
-    "HDG_1_DN": k("HEADING_BUG_DEC"),
-    **HEADING_FAST,
-    "HDG_SYNC": SYNC,
-    "CRS_1_UP": k("VOR1_OBI_INC"),
-    "CRS_1_DN": k("VOR1_OBI_DEC"),
-    "CRS_10_UP": turn(COURSE, "VOR1_SET", 10),
-    "CRS_10_DN": turn(COURSE, "VOR1_SET", -10),
-    "BARO_UP": k("KOHLSMAN_INC"),
-    "BARO_DN": k("KOHLSMAN_DEC"),
-    "BARO_STD": k("BAROMETRIC_STD_PRESSURE", 1),      # the altimeter of index 1
+    **NAV1_KNOBS,
 }
 _VS = "the KAP 140 has no VS key: it engages in VS, and UP and DN set the rate"
 _FLC = "the KAP 140 has no FLC mode"
