@@ -1,18 +1,10 @@
-# code.py - Avionics Panel rev 1 (CircuitPython on the panel's RP2040).
-# Flash the CircuitPython 9.2.9 "Raspberry Pi Pico" build (docs/building/bring-up.md, Flash and test, step 3; same
-# chip, 2 MB flash, 12 MHz crystal), then copy boot.py, code.py, panel.py, buttonmap.py and keys.py to CIRCUITPY and
-# replug.
-# From then on boot.py hides CIRCUITPY and the serial console unless SHIFT is held from plugging in until
-# CIRCUITPY appears (about 2 s; boot.py runs up to 1 s after power-up, docs/building/bring-up.md).
-# Logic: panel.py. Button numbers: buttonmap.py / BUTTONS.md. Pins: pcb/board.py.
-# The Pico build drives GP25 as its status LED, push-pull at 12 mA: high in blinks in the first second after
-# power-up, after code.py stops with an error and in safe mode. On this board GP25 is the FREQ outer encoder's B
-# line, which the encoder can close to GND: the 1 k resistor in series on the board limits that to 3.3 mA, and
-# boot.py turns the LED's brightness to 0, so after boot.py its blinks drive the pin low (high only for an instant
-# as each starts). While code.py runs the pin belongs to rotaryio.
+# code.py - Avionics Panel rev 1 (CircuitPython 9.2.9 on the panel's RP2040).
+# Installing and updating: docs/building/bring-up.md. How it works: docs/architecture/firmware.md.
+# Logic: panel.py. Button numbers: buttonmap.py / BUTTONS.md. Keyboard mode: keys.py. Pins: pcb/board.py.
 import time
 import traceback
 
+import digitalio
 import keypad
 import microcontroller
 import pwmio
@@ -20,42 +12,37 @@ import rotaryio
 import supervisor
 import usb_hid
 
-try:                               # the pads' drive strength (drive_12ma below); a build without it still runs
+try:                               # the pad's drive strength (drive_12ma below); a build without it still runs
     import memorymap
 except ImportError:
     memorymap = None
 
 P = microcontroller.pin            # GPIO names work on any RP2040 build (the Pico board renames some)
 
-# Bench test on a plain Raspberry Pi Pico: GP23, GP24, GP25 and GP29 are not on its header. With
-# PICO_TEST the FREQ knob moves to GP12/13 (outer) and GP14/15 (inner), its push to GP22, the SHIFT light
-# to the onboard LED (GP25) and the UNIT light is printed instead. Keys, RANGE tilt / push (matrix row GP0),
-# ALT/HDG and FMS use their real pins. The RANGE encoder stays on GP28/GP29, so the bench still runs all 7
-# PIO encoders; it can't be turned there: GP29 is the Pico's VSYS / 3 divider, not on the header (about
-# 1.6 V through 67 k; with rotaryio's pull-up about 2.4 V, a steady high, so it counts nothing).
+# The bench on a plain Raspberry Pi Pico (docs/building/bring-up.md, Pico bench): the FREQ knob moves to GP12/13
+# (outer) and GP14/15 (inner), its push to GP22 and the SHIFT light to the onboard LED (GP25); the UNIT light is
+# printed instead. RANGE stays on GP28/GP29, so the bench runs all 7 PIO encoders, but GP29 is not on the header.
 PICO_TEST = False
 
-# The keypad drives one row low at a time; CircuitPython sets a pad to 12 mA whenever it makes it an output, so
-# the rows drive 12 mA and a held key reads a diode drop above GND, also with all keys of its row held.
+# The key matrix, rows and columns as in buttonmap.MATRIX (docs/architecture/electronics.md, GPIO map)
 ROW_PINS = (P.GPIO11, P.GPIO8, P.GPIO5, P.GPIO2, P.GPIO0)
 COL_PINS = (P.GPIO1, P.GPIO3, P.GPIO4, P.GPIO6, P.GPIO7, P.GPIO9, P.GPIO10)
+# The keypad reports the changes of one scan row by row, in the order it is given the pins. SHIFT's row and
+# column go first, so SHIFT comes before a key pressed in the same scan: the key is shifted.
+SCAN_ROWS, SCAN_COLS = (3, 0, 1, 2, 4), (3, 0, 1, 2, 4, 5, 6)
 FREQ_PUSH = P.GPIO13               # direct input, switch to GND
 SHIFT_LED, UNIT_LED = P.GPIO12, P.GPIO15
-LED_GPIOS = (12, 15)               # their GPIO numbers: both pads drive 12 mA (drive_12ma below); GP15 only
-                                   # drives Q_UNIT's gate, so its strength does not matter
-# SHIFT (amber), UNIT (white) brightness, 0..0xFFFF. At full duty the amber LED takes about 13.5 mA from GP12
-# through 75 R, its pad at 12 mA drive. The white one runs from VBUS_F through 390 R and Q_UNIT, a 2N7002 that GP15
-# switches: about 5 mA, whatever its forward voltage bin. These duties, about 28 and 33 % of full, leave three to
-# three and a half times that up to full duty for tuning on the first board (docs/architecture/electronics.md).
+SHIFT_LED_GPIO = 12                # its GPIO number, for drive_12ma
+# SHIFT (amber), UNIT (white) brightness, 0..0xFFFF: about 28 and 33 % of full, with room to tune both ways on
+# the first board (docs/architecture/electronics.md, Lights)
 LED_DUTY = (0x4800, 0x5500)
-# SHIFT light duty per panel level (off, dim, full). Dim starts at 1/4 of full: the eye is not linear, so it
-# looks like about half the brightness, a clear pulse that should stay visible through the light pipe in
-# daylight. Tune it on the first board with the amber LED behind its pipe: in PICO_TEST the SHIFT light is
-# the Pico's green onboard LED, which says nothing about the real one.
+# SHIFT light duty per panel level (off, dim, full). Dim is 1/4 of full: the eye is not linear, so it looks like
+# about half the brightness.
 SHIFT_DUTY = (0, LED_DUTY[0] // 4, LED_DUTY[0])
 
 # (ring, pin A, pin B, reverse). Ring 1 of a dual encoder = pins A/B/C, ring 2 = A'/B'/C'. If outer and
 # inner are swapped on the first board, swap the two ring names; if a direction is wrong, flip reverse.
+# GP25 is also the Pico build's status LED (docs/architecture/firmware.md, Pins).
 RINGS = (
     ("ALTHDG_OUTER", P.GPIO18, P.GPIO19, False), ("ALTHDG_INNER", P.GPIO20, P.GPIO21, False),
     ("FREQ_OUTER", P.GPIO24, P.GPIO25, False), ("FREQ_INNER", P.GPIO22, P.GPIO23, False),
@@ -72,16 +59,19 @@ DRIVE_12MA = 0x30                  # its DRIVE field, bits 5:4: 3 is 12 mA (rese
 RETRY_MS, RETRY_MAX_MS = 1000, 8000      # after a failed send: wait before the next try, doubling up to this
 WAKE_MS = 500                            # wait this long for a host asked to resume the bus: USB 2.0 needs 30 ms
                                          # (7.1.7.7), Linux holds the resume 40 ms, a sleeping host controller more
+DETENT_MS = 500                          # a ring between two detents at the start gets this long to reach one
+MAX_EVENTS = 256                         # each keypad's event queue: far more than fingers make in the 4.5 s it
+                                         # can go unread (docs/architecture/firmware.md, Keys and switch bounce)
 TICKS_PERIOD = 1 << 29                   # supervisor.ticks_ms and Event.timestamp wrap after this many ms
 OUTPUTS = ()                             # (report, device) once code.py has found them: 0 the keyboard, 1 and 2
                                          # the joysticks
+clock = [0, supervisor.ticks_ms()]       # ms since code.py started, and supervisor.ticks_ms() then (now())
 
 
 def drive_12ma(gpio):
-    """The pad's drive strength to 12 mA, so the series resistor, not the pad, sets the LED current. CircuitPython
-    has no call for it: memorymap writes the RP2040's pad register (32-bit, read, modify, write). After PWMOut, which
-    leaves the drive field alone. If it fails the SHIFT light stays at the 4 mA drive, dimmer; GP15 only switches
-    Q_UNIT's gate (docs/architecture/firmware.md)."""
+    """The pad's drive strength to 12 mA, so the series resistor, not the pad, sets the SHIFT light's current.
+    CircuitPython has no call for it: memorymap writes the RP2040's pad register (32-bit, read, modify, write).
+    After PWMOut, which leaves the drive field alone. If it fails the light stays at the 4 mA drive, dimmer."""
     if memorymap is None:
         print("LED drive strength not set: no memorymap in this build")
         return
@@ -97,50 +87,76 @@ def ticks_diff(a, b):
     return ((a - b + TICKS_PERIOD // 2) & (TICKS_PERIOD - 1)) - TICKS_PERIOD // 2
 
 
+def now():
+    """The loop's clock, brought up to date: ms since code.py started, counted on from supervisor.ticks_ms()
+    across its wrap. It stays a small integer for 12 days, so reading it allocates nothing
+    (time.monotonic_ns() returns a long integer)."""
+    ticks = supervisor.ticks_ms()
+    clock[0] += ticks_diff(ticks, clock[1])
+    clock[1] = ticks
+    return clock[0]
+
+
 def back_off(r):
     """r: [no try before this ms, the last wait]: the next try waits RETRY_MS from now, then twice as long each time,
     up to RETRY_MAX_MS. From now: the try that failed took 2 s."""
     wait = min(2 * r[1], RETRY_MAX_MS) if r[1] else RETRY_MS
-    r[0], r[1] = time.monotonic_ns() // 1_000_000 + wait, wait
+    r[0], r[1] = now() + wait, wait
 
 
 class Source:
-    """One keypad: passes its events to the panel and recovers from lost ones. After an overflow the keypad
-    is reset and reports every key still held as a fresh press. A key the panel already has down keeps its
-    press (no release and second press for the PC, which would toggle AP off again); a key it has down but
-    that is not reported again within RESYNC_MS lost its release, and only that one is released, at once (no
-    bounce: a real press right after it is a new press)."""
+    """One keypad: passes its events to the panel. If events were lost (more than MAX_EVENTS between two loop
+    passes), every key of the keypad goes up at once, and the keypad, reset, reports the ones still held again,
+    as new presses."""
 
     def __init__(self, keys, names):
         self.keys, self.names = keys, names
         self.down = set()          # key numbers the panel has as pressed
-        self.resync = None         # after an overflow: (end ms, key numbers reported again)
 
     def poll(self, t, ticks):
         """t: the pass's ms, ticks: supervisor.ticks_ms() read with it, to put the scan times on t's clock"""
-        if self.keys.events.overflowed:
-            self.keys.events.clear()
+        events = self.keys.events
+        if events.overflowed:
+            events.clear()
             self.keys.reset()
-            self.resync = (t + RESYNC_MS, set())
-        ev = self.keys.events.get()
+            for k in self.down:
+                panel.release(self.names[k], t)
+            self.down.clear()
+        ev = events.get()
         while ev:
             k = ev.key_number
-            at = t + ticks_diff(ev.timestamp, ticks)
-            if not ev.pressed:
-                if k in self.down:                   # a key held when the keypad started sends a release only
+            # Only what changes a key for the panel: a key held when the keypad started sends a release only, and
+            # a scan between the clear and the reset above reports a key that the reset reports again
+            if ev.pressed != (k in self.down):
+                if ev.pressed:
+                    self.down.add(k)
+                else:
                     self.down.discard(k)
-                    panel.key(self.names[k], False, t, at)
-            elif self.resync and k in self.down:
-                self.resync[1].add(k)
-            else:
-                self.down.add(k)
-                panel.key(self.names[k], True, t, at)
-            ev = self.keys.events.get()
-        if self.resync and t >= self.resync[0]:
-            for k in [k for k in self.down if k not in self.resync[1]]:
-                self.down.discard(k)
-                panel.release(self.names[k], t)
-            self.resync = None
+                panel.key(self.names[k], ev.pressed, t, t + ticks_diff(ev.timestamp, ticks))
+            ev = events.get()
+
+
+def make_encoders():
+    """One rotaryio encoder per ring, counting a detent every two edges (divisor 2: 30 detents and 15 pulses per
+    turn). rotaryio counts from the state it starts in, and started between two detents it would lose the first
+    detent after every reversal. So each encoder is made while its ring rests on a detent, where its A and B
+    contacts read alike, after waiting for that, up to DETENT_MS for all rings together."""
+    ios = [digitalio.DigitalInOut(pin) for ring in RINGS for pin in ring[1:3]]
+    for io in ios:
+        io.switch_to_input(pull=digitalio.Pull.UP)
+    time.sleep(0.001)                                # the pull-ups charge the lines
+    end = now() + DETENT_MS
+    out = []
+    for i in range(len(RINGS)):
+        a, b = ios[2 * i], ios[2 * i + 1]
+        while a.value != b.value and now() < end:
+            time.sleep(0.001)
+        if a.value != b.value:
+            print(RINGS[i][0], "is between two detents: it loses a detent when it turns back, until the next start")
+        a.deinit()                                   # free the pins for rotaryio
+        b.deinit()
+        out.append(rotaryio.IncrementalEncoder(RINGS[i][1], RINGS[i][2], divisor=2))
+    return out
 
 
 def release_all():
@@ -148,7 +164,7 @@ def release_all():
     if not supervisor.runtime.usb_connected:
         return
     for n, dev in OUTPUTS:
-        try:                                     # noqa: SIM105 (CircuitPython has no contextlib)
+        try:
             dev.send_report(ZERO[n])
         except OSError:
             pass
@@ -159,86 +175,107 @@ def input_waiting():
     for src in sources:
         if src.keys.events:
             return True
-    for i in range(len(RINGS)):                  # noqa: SIM110 (any() would allocate a generator)
+    for i in range(len(RINGS)):
         if encoders[i].position != last[i]:
             return True
     return False
 
 
+def turns(t):
+    """Passes the detents each ring has turned since the last call to the panel"""
+    for i in range(len(RINGS)):                      # no enumerate(): it allocates in every pass
+        d = encoders[i].position - last[i]
+        if d:
+            last[i] += d
+            panel.turn(RINGS[i][0], -d if RINGS[i][3] else d, t)
+
+
+def show(level, unit):
+    """The SHIFT light at a level of panel.py and the UNIT light on or off, each written only on a change"""
+    if level != shown[0]:
+        shown[0] = level
+        leds[0].duty_cycle = SHIFT_DUTY[level]
+    if unit != shown[1]:
+        shown[1] = unit
+        if leds[1]:
+            leds[1].duty_cycle = LED_DUTY[1] if unit else 0
+        else:
+            print("UNIT", 2 if unit else 1)
+
+
 def wake():
-    """Input while USB is down: asks a host that has suspended the bus to resume it, so the input reaches the PC.
-    CircuitPython has no call for it: send_report waits 2 s for the host, then asks a suspended one to resume and
-    returns (remote wakeup, which a host enables before it suspends an idle device; a sleeping PC decides itself
-    whether the panel may wake it); with no host at all it raises OSError. The input then waits until the host is
-    back, up to WAKE_MS, so that a press still lasts its PRESS_MS for the PC. A request that brings no host back
-    is not repeated before a back-off, as for a failed send; the loop ends the back-off once the host is back,
-    whether this request or the host itself brought it back."""
-    n, dev = OUTPUTS[0]                          # joystick 1, or the keyboard
-    try:                                         # noqa: SIM105 (CircuitPython has no contextlib)
-        dev.send_report(reports[n])              # the last pass's: goes out if the host is back within the 2 s
+    """Input while USB is down: asks a host that has suspended the bus to resume it, so the input reaches the PC
+    (docs/architecture/firmware.md, USB). CircuitPython has no call for it: send_report waits 2 s for the host,
+    then asks a suspended one to resume and returns; with no host at all it raises OSError, and nothing was
+    asked. The input then waits until the host is back, up to WAKE_MS, so that a press still lasts its PRESS_MS
+    for the PC. A request that brings no host back is not repeated before a back-off, which the loop ends once
+    the host is back."""
+    n, dev = OUTPUTS[0]
+    try:
+        # What goes out if the host is back within the 2 s: joystick 1's last report, or every key of the keyboard
+        # up, which is what a host that was away is taken to have (keys.Keyboard)
+        dev.send_report(reports[n] if n else ZERO[n])
     except OSError:
-        pass
-    end = time.monotonic_ns() // 1_000_000 + WAKE_MS
-    while not supervisor.runtime.usb_connected and time.monotonic_ns() // 1_000_000 < end:
+        back_off(woke)
+        return
+    end = now() + WAKE_MS
+    while not supervisor.runtime.usb_connected and now() < end:
         time.sleep(0.001)
     if not supervisor.runtime.usb_connected:
         back_off(woke)
 
 
-# Anything that raises, while code.py starts (a file it imports, the devices boot.py makes, the pins) or in the
-# loop, must not leave a button held on the PC, nor leave the panel dead until it is replugged: release
-# everything, then restart code.py (a reload keeps USB up, boot.py does not run again). The traceback comes after
-# the release and may fail on its own (a MemoryError leaves little room to format it): neither may keep the panel
-# from reloading. The pause before it lets Ctrl-C on the serial console (SHIFT held at plug-in) stop the loop and
-# reach the REPL; an error that a reload cannot fix ("joysticks missing" or "keyboard missing" before boot.py has
-# run) shows again every 2 s. No watchdog: every wait in the loop is bounded (send_report gives up after 2 s),
-# and a watchdog reset is a hard reset that drops the devices off USB and runs boot.py again, which would also
-# hide the drive in the middle of an update.
+# Whatever ends code.py must not leave a button held on the PC: an error, while it starts or in the loop,
+# releases everything and restarts code.py after 2 s (docs/architecture/firmware.md, Errors).
 try:
-    import buttonmap as BM
-    from panel import KEY_SCAN_MS, LIGHT_OFF, Panel
+    # The mode follows the devices boot.py made: the two joysticks, or one keyboard and nothing else (keys.py).
+    # Before boot.py has run, CircuitPython has a keyboard of its own, with a mouse and consumer control.
+    kinds = [(d.usage_page, d.usage) for d in usb_hid.devices]
+    KEYBOARD = kinds == [(0x01, 0x06)]
+    if not KEYBOARD and kinds != [(0x01, 0x04), (0x01, 0x04)]:
+        raise RuntimeError("joysticks missing: copy boot.py and replug the panel")
 
-    # keyboard mode (keys.py): boot.py made one keyboard instead of the joysticks. keys.py's mode byte, read here,
-    # so that keys.py is imported in keyboard mode only and the joysticks keep its RAM (test_code.py checks they
-    # agree)
-    KEYBOARD = microcontroller.nvm[0] == 0x4B
-    devices = [d for d in usb_hid.devices if d.usage_page == 0x01 and d.usage == (0x06 if KEYBOARD else 0x04)]
-    if len(devices) < (1 if KEYBOARD else 2):
-        raise RuntimeError(("keyboard" if KEYBOARD else "joysticks") + " missing: copy boot.py and replug the panel")
+    import buttonmap as BM
+    from panel import KEY_SCAN_MS, LATE_MS, LIGHT_OFF, Panel
+
     ZERO = {1: bytes(BM.SIZE[1] // 8), 2: bytes(BM.SIZE[2] // 8)}   # made now: release_all may run out of memory
     reports = {1: bytearray(BM.SIZE[1] // 8), 2: bytearray(BM.SIZE[2] // 8)}
     if KEYBOARD:                         # report 0: the keyboard's, filled by keys.Keyboard
-        import keys
+        import keys  # only in keyboard mode: the joysticks keep its RAM
         ZERO[0], reports[0] = bytes(keys.REPORT), bytearray(keys.REPORT)
-    # made once: the loop and release_all allocate nothing for them
-    OUTPUTS = ((0, devices[0]),) if KEYBOARD else ((1, devices[0]), (2, devices[1]))
+    # Made once, as everything the loop needs: a pass that only keeps time leaves nothing on the heap, which
+    # fills, and is collected, only as keys, knobs and repeats change buttons.
+    OUTPUTS = ((0, usb_hid.devices[0]),) if KEYBOARD else ((1, usb_hid.devices[0]), (2, usb_hid.devices[1]))
+    # sent[n]: the report the host has of device n, unless unsent[n]: then it has none of this panel's yet (at
+    # the start), or USB was down since, after which a host assumes all released or still has an older one.
+    # again[n], read while unsent[n]: a late send asked for it since USB was last down (below)
+    sent = {n: bytearray(len(reports[n])) for n in reports}
+    unsent = [True, True, True]
+    again = [False, False, False]
 
-    # Both keypads scan every KEY_SCAN s (panel.KEY_SCAN_MS: the panel's bounce window follows it), and RESYNC_MS
-    # below follows it too. debounce_threshold stays at its default (1), so a press reaches the PC on the first
-    # scan that reads it, and reset() reports the keys still held at once, from a scan of its own; a higher
-    # threshold delays both by one scan per step (RESYNC_MS would have to grow with it). A bounce longer than a
-    # scan is caught in panel.py, by the scan times of the events (Event.timestamp, on the supervisor.ticks_ms
-    # clock).
+    # Both keypads scan every KEY_SCAN s (docs/architecture/firmware.md, Keys and switch bounce).
+    # debounce_threshold stays at its default (1): a press reaches the PC on the first scan that reads it, and
+    # panel.py takes care of a bounce by the scan times of the events (Event.timestamp, on the
+    # supervisor.ticks_ms clock).
     KEY_SCAN = KEY_SCAN_MS / 1000
-    matrix = keypad.KeyMatrix(ROW_PINS, COL_PINS, columns_to_anodes=True, interval=KEY_SCAN)   # anodes on columns
-    direct = keypad.Keys((FREQ_PUSH,), value_when_pressed=False, pull=True, interval=KEY_SCAN)
-    encoders = [rotaryio.IncrementalEncoder(a, b, divisor=2) for _, a, b, _ in RINGS]   # 30 detents / 15 pulses
-    last = [e.position for e in encoders]
+    matrix = keypad.KeyMatrix([ROW_PINS[r] for r in SCAN_ROWS], [COL_PINS[c] for c in SCAN_COLS],
+                              columns_to_anodes=True, interval=KEY_SCAN, max_events=MAX_EVENTS)
+    direct = keypad.Keys((FREQ_PUSH,), value_when_pressed=False, pull=True, interval=KEY_SCAN,
+                         max_events=MAX_EVENTS)
+    encoders = make_encoders()
+    last = [e.position for e in encoders]    # each ring's position as the panel has it
     leds = [pwmio.PWMOut(SHIFT_LED, frequency=1000),
             pwmio.PWMOut(UNIT_LED, frequency=1000) if UNIT_LED else None]
     if not PICO_TEST:              # the Pico's onboard LED has a resistor of its own
-        for gp in LED_GPIOS:
-            drive_12ma(gp)
-    unit_shown = None
-    shift_shown = None
+        drive_12ma(SHIFT_LED_GPIO)
+    shown = [None, None]                 # the SHIFT light's level and the UNIT light as last written (show())
     panel = Panel(solo=KEYBOARD)         # keyboard mode: one shortcut at a time (keys.py)
     if KEYBOARD:
         keyboard = keys.Keyboard(panel)
-    RESYNC_MS = 3 * KEY_SCAN_MS          # three scans, to spare: reset() reports the keys still held at once
 
     # each keypad on its own: an overflow on one leaves the keys held on the other alone
-    sources = (Source(matrix, [n for row in BM.MATRIX for n in row]), Source(direct, ["FREQ_PUSH"]))
-    sent = {0: None, 1: None, 2: None}
+    sources = (Source(matrix, [BM.MATRIX[r][c] for r in SCAN_ROWS for c in SCAN_COLS]),
+               Source(direct, ["FREQ_PUSH"]))
     # [no send before this ms, current back-off ms], one for both devices: they share one USB HID interface, and
     # send_report waits for that interface, so a host that doesn't poll fails both alike
     retry = [0, 0]
@@ -252,79 +289,85 @@ try:
                     leds[i].duty_cycle = LED_DUTY[i] if i == on else 0
             time.sleep(keys.BLINK_S)
     while True:
-        t = time.monotonic_ns() // 1_000_000
-        if t >= woke[0] and not supervisor.runtime.usb_connected and input_waiting():
-            # wake() takes 2 s or more and the input is read after it. The knobs as they stood before it go to the
-            # panel first, at this pass's time, so a detent turned before a key pressed during the wait comes first
-            # (a list only on this path: the loop allocates nothing otherwise)
-            before = [e.position for e in encoders]
-            wake()
-            for i in range(len(RINGS)):
-                d = before[i] - last[i]
-                if d:
-                    last[i] = before[i]
-                    panel.turn(RINGS[i][0], -d if RINGS[i][3] else d, t)
-            t = time.monotonic_ns() // 1_000_000
-        ticks = supervisor.ticks_ms()
-        for src in sources:
-            src.poll(t, ticks)
-        for i in range(len(RINGS)):                  # no enumerate(): it allocates in every pass
-            pos = encoders[i].position
-            if pos != last[i]:
-                d = pos - last[i]
-                last[i] = pos
-                panel.turn(RINGS[i][0], -d if RINGS[i][3] else d, t)
-        panel.tick(t)
-        # USB connected: mounted and not suspended. The lights stay dark while it is not (the PC asleep, booting or
-        # off, a charger) and show the panel's state again once it is; the panel itself runs on.
+        t = now()
+        # USB connected: mounted and not suspended. While it is not (the PC asleep, booting or off, a charger)
+        # the lights stay dark and SHIFT does not apply (dark means plain); the panel itself runs on.
         connected = supervisor.runtime.usb_connected
-        level = panel.shift_level(t) if connected else LIGHT_OFF     # pulses before SHIFT drops
-        if level != shift_shown:                                     # only writes on a change
-            shift_shown = level
-            leds[0].duty_cycle = SHIFT_DUTY[level]
-        unit = connected and panel.unit_light
-        if unit != unit_shown:                                       # also only on a change
-            unit_shown = unit
-            if leds[1]:
-                leds[1].duty_cycle = LED_DUTY[1] if unit_shown else 0
-            else:
-                print("UNIT", 2 if unit_shown else 1)
-        # send_report waits up to 2 s for the host: only send while USB is connected, or the loop, the light and
-        # every timer would stall
-        if not connected:
-            sent[0] = sent[1] = sent[2] = None       # a host that comes back assumes all released: resend
-            retry[0] = retry[1] = 0
-        else:                                        # the host is back, by a wake request or by itself
+        panel.dark = not connected
+        if connected:                                # the host is back, by a wake request or by itself
             woke[0] = woke[1] = 0
+        else:                                        # a host that comes back gets every report again
+            unsent[0] = unsent[1] = unsent[2] = True
+            again[1] = again[2] = False
+            retry[0] = retry[1] = 0
+        # With USB down and no back-off running, input asks the host to resume, and so does a release that was
+        # read before USB went down and still waits out its bounce time (the PC would keep that button down).
+        # Only a pass that finds input waiting reads it: what comes in right after the check stays in the
+        # keypads and encoders for the next pass, which then asks.
+        asking = not connected and t >= woke[0]
+        if not asking or input_waiting() or panel.releasing():
+            if asking:
+                # wake() takes 2 s or more and the rest of the input is read after it. The lights go dark before
+                # it, not after. The knobs as they stand go to the panel first, at this pass's time, so a detent
+                # turned before a key pressed during the wait comes first; and those steps stay if the knob
+                # turns back during the wait.
+                show(LIGHT_OFF, False)
+                turns(t)
+                wake()
+                panel.keep_steps()
+                t = now()
+            for src in sources:
+                src.poll(t, clock[1])
+            turns(t)
+        panel.tick(t)
+        show(panel.shift_level(t), connected and panel.unit_light)   # the amber light pulses before SHIFT drops
         for n, dev in OUTPUTS:
             rep = reports[n]
             if n:
                 panel.fill_report(n, rep)
             else:
-                keyboard.fill(rep)
-            if connected and rep != sent[n] and t >= retry[0]:
-                # A host can enumerate the panel and never poll it (Linux with nothing reading the joystick):
-                # then every send blocks for 2 s and fails. Back off, so the loop runs between the tries. The
-                # back-off is shared, so after a failure the other device waits too and one pass never stalls
-                # for more than 2 s.
+                keyboard.fill(rep, None if unsent[0] else sent[0])
+            # send_report waits up to 2 s for the host, so only while USB is connected, read anew for each send.
+            # A host that has the panel mounted and never polls it fails every send after those 2 s: back off,
+            # for both devices, so that the loop runs between the tries.
+            changed = rep != sent[n]
+            if (changed or unsent[n]) and t >= retry[0] and supervisor.runtime.usb_connected:
                 try:
                     dev.send_report(rep)
-                    sent[n] = bytes(rep)
-                    retry[0] = retry[1] = 0
                 except OSError:
                     back_off(retry)
+                else:
+                    late = now() - t                 # since the time this pass worked the report out for
+                    # If the host suspended the bus during the send, send_report asked it to resume and sent
+                    # nothing: USB is down now, and the report goes out again once the host is back.
+                    if supervisor.runtime.usb_connected:
+                        if late > LATE_MS:
+                            # The PC gets this report, and what the pass has yet to send, later than the
+                            # presses and gaps allow for: they start anew for the PC. And the host may have
+                            # gone and come back anew meanwhile, with no pass to see it: it gets the other
+                            # joystick's report again. Not after a report that itself only went out again for
+                            # that reason: a host that takes every report late would get them without end.
+                            panel.stalled(late)
+                            if changed or not again[n]:
+                                unsent[1] = unsent[2] = again[1] = again[2] = True
+                        for i in range(len(rep)):
+                            sent[n][i] = rep[i]
+                        unsent[n] = False
+                        retry[0] = retry[1] = 0
+                    if late > LATE_MS:               # the other device's report in the next pass: the sends of
+                        break                        # one pass wait for the host once, 2 s at most
         time.sleep(0.001)
 except Exception as e:
-    try:                                     # noqa: SIM105 (CircuitPython has no contextlib)
+    try:
         release_all()
     except Exception:
         pass
-    try:                                     # noqa: SIM105
+    try:
         traceback.print_exception(e)
     except Exception:
         pass
     time.sleep(2)
     supervisor.reload()
-except KeyboardInterrupt:                    # Ctrl-C to the REPL: nothing left held either
-    release_all()
+except BaseException:                        # Ctrl-C to the REPL, and CircuitPython's reload after a file was saved
+    release_all()                            # to CIRCUITPY (ReloadException): nothing left held either
     raise

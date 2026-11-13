@@ -39,7 +39,8 @@ def main():
     print("[keyboard mode](../docs/using/keyboard.md). Ctrl, Shift and Alt are the left keys. Unit 2 shows a")
     print("shortcut only where it differs. Contains names the functions whose shortcut is part of the row's: the")
     print("same key with only some of its modifiers. If you bind one of them, bind the row too")
-    print("([why](../docs/using/keyboard.md#binding)). The shortcuts are frozen: new functions get new ones.\n")
+    print("([why](../docs/using/keyboard.md#binding)). The shortcuts are frozen once the table has been tested")
+    print("on hardware: from then on new functions get new ones.\n")
     print("| Name | Control | Shortcut | Unit 2 | Contains |")
     print("| --- | --- | --- | --- | --- |")
     for n in DEVICE[1]:

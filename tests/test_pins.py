@@ -1,11 +1,11 @@
 """Every GPIO the firmware uses against the board: code.py and boot.py (CircuitPython, no access to pcb/) name
 their pins themselves; these tests run them on the simulator's stand-in hardware (sim/hardware.py) and compare
-with the nets in pcb/board.py."""
+with the nets in pcb/board.py. The stand-in's own wiring is compared with them too."""
 import buttonmap as BM
 import test_boot
 
 from conftest import load
-from sim.hardware import RINGS, Board
+from sim.hardware import COL_PINS, CONTACTS, RING_PINS, RINGS, ROW_PINS, Board
 
 PICO = [("\nPICO_TEST = False\n", "\nPICO_TEST = True\n")]   # code.py edited for the Pico bench
 B = load("_pins_board", "pcb/board.py")
@@ -40,16 +40,38 @@ def all_pins(hw):
 
 
 def test_matrix_rows_and_columns():
+    # code.py names the rows and columns in buttonmap.MATRIX's order, as the board has them, and hands the
+    # keypad every one of them, in its scan order
     hw, _ = firmware()
-    assert list(hw.matrix.rows) == B.ROW_GP and list(hw.matrix.cols) == B.COL_GP
+    assert list(hw.code["ROW_PINS"]) == B.ROW_GP and list(hw.code["COL_PINS"]) == B.COL_GP
+    assert sorted(hw.matrix.rows) == sorted(B.ROW_GP) and sorted(hw.matrix.cols) == sorted(B.COL_GP)
     assert hw.matrix.columns_to_anodes is True
+
+
+def test_the_keypad_scans_shift_first():
+    # the keypad reports the changes of one scan in the order of its key numbers. SHIFT is key 0, so it comes
+    # before a key pressed in the same scan, and each RANGE direction comes before "com" (panel.py tells a tilt
+    # from a centre push by that). Each key number is the switch code.py takes it for
+    hw, _ = firmware()
+    names = hw.code["sources"][0].names
+    assert names[0] == "SHIFT" and sorted(names) == sorted(n for row in BM.MATRIX for n in row)
+    assert all(names.index(d) < names.index("RANGE_COM") for d in ("RANGE_A", "RANGE_B", "RANGE_C", "RANGE_D"))
+    assert [CONTACTS[n] for n in names] == hw.matrix.contacts
+
+
+def test_the_simulator_is_wired_as_the_board():
+    # the stand-in hardware closes its switches and turns its rings on the board's pins, whatever code.py
+    # names, so a wrong pin or a swapped pair in code.py fails the firmware's tests
+    assert list(ROW_PINS) == B.ROW_GP and list(COL_PINS) == B.COL_GP
+    assert CONTACTS["FREQ_PUSH"] == NET["ENC_FREQ.E"]
+    assert {ring: ring_nets(ring) for ring in RINGS} == RING_PINS
 
 
 def test_every_matrix_key_sits_on_its_row_and_column():
     # keys: switch on the row line, diode from the column (anode) to the switch; row 4: the RANGE switches,
     # ALT/HDG and FMS pushes, each with its common on the row line and its diode from its column
     hw, _ = firmware()
-    rows, cols = hw.matrix.rows, hw.matrix.cols
+    rows, cols = hw.code["ROW_PINS"], hw.code["COL_PINS"]
     for r, row in enumerate(BM.MATRIX[:4]):
         for c, _name in enumerate(row):
             assert NET[f"K{r}{c}.A"] == NET[f"K{r}{c}.B"] == rows[r]
@@ -68,13 +90,21 @@ def test_freq_push_and_lights():
     hw, _ = firmware()
     assert hw.direct.pins == (NET["ENC_FREQ.E"],) and NET["ENC_FREQ.D"] == "GND"
     assert hw.direct.value_when_pressed is False and hw.direct.pull is True
-    assert [led.pin for led in hw.leds] == [B.LEDS["SHIFT"][1], B.LEDS["UNIT"][1]]
+    shift, unit = (led.pin for led in hw.leds)
+    assert (shift, unit) == (B.LEDS["SHIFT"][1], B.LEDS["UNIT"][1])
+    # SHIFT: the pin through R_SHIFT to the LED's anode, the cathode on GND
+    assert {NET["R_SHIFT.1"], NET["R_SHIFT.2"]} == {shift, NET["LED_SHIFT.A"]} and NET["LED_SHIFT.K"] == "GND"
+    # UNIT: the pin on Q_UNIT's gate (pad 1 of JLC's footprint) and on its pull-down; the source (pad 2) on GND,
+    # the drain (pad 3) on the LED's cathode, and the anode through R_UNIT on VBUS_F
+    assert NET["Q_UNIT.1"] == unit and {NET["R_UNIT_PD.1"], NET["R_UNIT_PD.2"]} == {"GND", unit}
+    assert NET["Q_UNIT.2"] == "GND" and NET["Q_UNIT.3"] == NET["LED_UNIT.K"] != "GND"
+    assert {NET["R_UNIT.1"], NET["R_UNIT.2"]} == {"VBUS_F", NET["LED_UNIT.A"]}
 
 
 def test_encoder_rings():
     _, rings = firmware()
     for ring, enc in rings.items():
-        assert enc.pins == ring_nets(ring), ring
+        assert enc.pins == ring_nets(ring), ring                 # A, then B: swapped, the ring counts backwards
         assert abs(int(enc.pins[0][2:]) - int(enc.pins[1][2:])) == 1, ring   # rotaryio on RP2040: sequential
     for ref in ("ENC_ALTHDG", "ENC_FREQ", "ENC_FMS"):
         assert NET[ref + ".C"] == NET[ref + ".C2"] == "GND"

@@ -8,31 +8,20 @@ Knobs) and docs/architecture/firmware.md.
 import buttonmap as BM
 
 SHIFT_MS = 3000          # SHIFT cancels itself, and a shifted knob returns to normal, after this
-SHIFT_WARN_MS = 1000     # the amber light pulses for this long before SHIFT drops out ...
-SHIFT_PULSE_MS = 125     # ... dim and bright this long each (4 Hz): starts dim, ends bright
+SHIFT_PULSE_MS = 125     # before SHIFT drops out the amber light pulses, dim and bright this long each (4 Hz) ...
+SHIFT_WARN_MS = 8 * SHIFT_PULSE_MS   # ... for this long: whole pairs, so it starts dim and ends bright
 LIGHT_OFF, LIGHT_DIM, LIGHT_FULL = 0, 1, 2   # levels of the amber light; code.py maps them to PWM duties
 FAST_MS = 60             # detents closer than this (same ring, same direction) take the coarse step
-# MobiFlight polls the joysticks from a 20 ms timer that Windows' 15.6 ms clock stretches to about 31 ms, and
-# reads snapshots (nothing buffered): a press and a gap must both outlast one poll, or detents merge or vanish.
-# The host fetches reports every 8 ms (the HID endpoint's bInterval), and both joysticks share that endpoint:
-# with a report still pending from the last pass and both devices changing in this one, an edge can reach the
-# PC up to three frames late, so a 50 ms gap can arrive as 26 ms, shorter than a poll.
-# Keys and pushes follow the same rule: a quick tap stays pressed for PRESS_MS, and a second press of the same
-# button waits until it was released for GAP_MS, so a fast double tap reaches MobiFlight as two presses.
-# code.py scans the keys every KEY_SCAN_MS and passes each change on (debounce_threshold 1), with the time the
-# keypad scanned it (keypad.Event.timestamp), so a loop pass that waits for a HID frame doesn't stretch it. A
-# switch that bounces for longer than a scan shows up as a release and a new press one scan later. So a release
-# of a key or push waits BOUNCE_MS (from its scan): a new press of it in that time was a bounce and the press goes
-# on, as if never released, so a bad switch never sends a press twice, toggles AP off again, changes SHIFT, UNIT
-# or the frequency mode twice, or cuts a held press, its repeats or its SHIFT session short. Every release reaches
-# the PC BOUNCE_MS late. A finger lifts and comes back in no less than about 60 ms (tapping as fast as one can is
-# about 7 taps a second), so a real double tap stays two presses.
+# Every press and every gap must outlast a MobiFlight poll after losing three HID frames, and the bounce window
+# must take a bounce one key scan long, with half a scan to spare (docs/architecture/firmware.md, Knob steps and
+# Keys and switch bounce).
 POLL_MS = 32             # MobiFlight's poll, 31.25 ms rounded up
 HID_FRAME_MS = 8         # the host's report interval
-KEY_SCAN_MS = 20         # code.py's keypad scan interval
-BOUNCE_MS = 30           # a press this soon after its own release (scan times) is a bounce: 1.5 scans
-PRESS_MS = 56            # one knob detent = a button held this long, and a key or push at least this long ...
-GAP_MS = 56              # ... then released this long before its next one: 112 ms, about 9 steps per second
+LATE_MS = 3 * HID_FRAME_MS                # 24: an edge may reach the PC this late: three frames
+KEY_SCAN_MS = 20         # code.py's keypad scan interval: 20 ticks of 1/1024 s, 19.5 ms
+BOUNCE_MS = KEY_SCAN_MS * 3 // 2          # 30: a press this soon after its own release (scan times) is a bounce
+PRESS_MS = POLL_MS + LATE_MS              # 56: one knob detent = a button held this long, a key or push at least ...
+GAP_MS = PRESS_MS                         # ... then released this long before its next one: about 9 steps a second
 MAX_QUEUE = 8            # detents waiting, all rings together, and presses owed per button: a fast spin runs
                          # on, and a key waits behind it, for at most about 8 x 112 = 896 ms
 REPEAT_DELAY_MS = 400    # UP / DN: first repeat ...
@@ -41,31 +30,20 @@ PAN_DELAY_MS = 300       # RANGE tilt: first repeat ...
 PAN_MS = 120             # ... then this often (both: no faster than the steps go through, see tick())
 # RANGE tilt switches -> pan direction: a tilt away closes A, left B, towards the user C, right D (Alps drawing)
 PAN_DIRS = {"RANGE_A": "UP", "RANGE_B": "LEFT", "RANGE_C": "DN", "RANGE_D": "RIGHT"}
-FREQ_MODES = ("COM", "NAV", "ADF")
+# The sources that repeat while held, in a fixed order: repeats due in the same pass queue in it (the second one
+# may find the queue full), and CircuitPython's dicts keep no insertion order
+REPEAT_SOURCES = tuple(sorted(BM.REPEAT_KEYS + tuple(PAN_DIRS)))
+# The FREQ knob's modes, in the order its push cycles them: the outer ring's step, the inner ring's and the inner
+# ring's coarse step
+FREQ_MODES = (("COM_MHZ", "COM_KHZ", None), ("NAV_MHZ", "NAV_KHZ", None), ("ADF_100", "ADF_1", "ADF_10"))
 
 
-def pulse_timing_ok(warn_ms, pulse_ms, shift_ms):
-    """The warning must be whole dim/bright pairs, so it starts dim exactly warn_ms before the drop and its
-    last phase is bright, and shorter than SHIFT itself, so a fresh SHIFT shows steady before it pulses."""
-    return 0 < warn_ms < shift_ms and pulse_ms > 0 and warn_ms % (2 * pulse_ms) == 0
-
-
-def check_timing():
-    """Raises on timing that breaks the rules above (a plain raise: asserts vanish under -O). Press and gap, of a
-    detent and of a key tap alike, must outlast a poll after losing three HID frames. The bounce window must
-    take a bounce one scan long, with half a scan to spare: CircuitPython 9.2 scans the keys from its 1/1024 s
-    tick interrupt, so the scans of a bounce are 20 ticks (19.5 ms) apart, read in whole ms, plus however long
-    the second scan's tick was held off (code that runs with interrupts off). The scan times come with the
-    events, so the loop pass doesn't count."""
-    if not pulse_timing_ok(SHIFT_WARN_MS, SHIFT_PULSE_MS, SHIFT_MS):
-        raise ValueError("SHIFT_WARN_MS must be below SHIFT_MS and a multiple of 2 * SHIFT_PULSE_MS")
-    if min(PRESS_MS, GAP_MS) < POLL_MS + 3 * HID_FRAME_MS:
-        raise ValueError("PRESS_MS and GAP_MS must each be at least POLL_MS + 3 * HID_FRAME_MS")
-    if BOUNCE_MS < KEY_SCAN_MS * 3 // 2:
-        raise ValueError("BOUNCE_MS must be at least 1.5 * KEY_SCAN_MS")
-
-
-check_timing()
+def _has_value(d, value):
+    """value in d.values(), without making the view: tick() asks in every pass"""
+    for k in d:
+        if d[k] == value:
+            return True
+    return False
 
 
 class Panel:
@@ -73,6 +51,7 @@ class Panel:
         """solo: one button down at a time, for the keyboard mode (keys.py): a press waits until no other button
         is down, so each shortcut goes down with its own modifiers and no other key held"""
         self.solo = solo
+        self.dark = False            # code.py sets it while USB is down and the lights are off: SHIFT never applies
         self.shift = None            # None, "any" (armed by the SHIFT key) or the knob that keeps it
         self.under = None            # with "any": the knob whose held push or tilt keeps its session under it
         self.shift_until = 0
@@ -85,10 +64,10 @@ class Panel:
                                      # button the PC sees down, in its gap or still owed a press
         self.order = []              # the owed presses (shown keys), in the order they came: steps and keys
         self.order_ms = 0            # the head of order waits until then: PRESS_MS after the last press sent
-        self.repeat = {}             # source -> [device, button, next_ms, every_ms]
+        self.repeat = {}             # source -> [(device, button), next_ms, every_ms]
         self.last_detent = {}        # ring -> (ms, direction)
         self.ring_keys = {}          # ring -> shown keys its detents went to since its last reversal
-        self.holds = {}              # source -> knob: a push or tilt held in that knob's shifted session
+        self.sessions = {}           # source -> knob: a push or tilt held in that knob's shifted session
         self.last_tick = None        # ms of the last tick(): the previous loop pass
         self.range_dirs = set()
         self.range_tilted = False    # a direction closed during this RANGE "com" press
@@ -114,10 +93,10 @@ class Panel:
         self.held[src] = k
         self._owe(k)
 
-    def _queue(self, dev, name, n=1):
-        """n detents or repeats of a button, while fewer than MAX_QUEUE presses wait in order, so nothing waits
+    def _queue(self, k, n=1):
+        """n detents or repeats of button k, while fewer than MAX_QUEUE presses wait in order, so nothing waits
         behind them for long. Keys, pushes and the first step of a hold are never dropped (_owe)."""
-        return self._owe(self._btn(dev, name), min(n, MAX_QUEUE - len(self.order)))
+        return self._owe(k, min(n, MAX_QUEUE - len(self.order)))
 
     def _reverse(self, ring):
         """The ring turned the other way: drop the detents it still has queued in the old direction, so the knob
@@ -128,15 +107,32 @@ class Panel:
         while self.order and self.order[-1] in keys:
             self.shown[self.order.pop()][2] -= 1
 
+    def keep_steps(self):
+        """The steps queued so far stay: a ring that turns back later no longer drops them. For where something
+        came between that ends a turn: a key or push, which may have changed what the ring does (SHIFT, UNIT,
+        the FREQ push), and code.py's wait for a host, in which no step could go out."""
+        self.ring_keys.clear()
+
+    def stalled(self, ms):
+        """A report reached the PC ms late, more than the LATE_MS that PRESS_MS and GAP_MS allow for (code.py: a
+        send that waited for the host). Every press and gap the PC is being shown starts that much later, so
+        one that begins with that report or after it still outlasts a poll for the PC, and the next press keeps
+        its distance."""
+        for k in self.shown:
+            if self.shown[k][1] is not None:
+                self.shown[k][1] += ms
+        self.order_ms += ms
+
     def shift_active(self, t):
         """Whether SHIFT applies at time t, the one place that decides it: inputs, tick() and the light agree,
-        so a late detent after a stalled loop is plain, as the dark light says, and cannot revive the session."""
-        return self.shift is not None and t < self.shift_until
+        so a late detent after a stalled loop is plain, as the dark light says, and cannot revive the session.
+        Never while dark: the light is off then, and dark means plain."""
+        return not self.dark and self.shift is not None and t < self.shift_until
 
     def _expire(self, t):
         """Ends SHIFT once it ran out. A shifted push or tilt still held keeps its session, the 3 s start at its
         release: extended first, so a loop pass that stalled for 3 s or more doesn't end it under the hand."""
-        if self._held() is not None:
+        if self._held_session() is not None:
             self.shift_until = t + SHIFT_MS
         if not self.shift_active(t):
             self.shift = self.under = None
@@ -145,15 +141,12 @@ class Panel:
         """The knob whose session SHIFT is: the armed "any" keeps the one a held control was in."""
         return self.under if self.shift == "any" else self.shift
 
-    def _held(self):
+    def _held_session(self):
         """The knob whose session a shifted push or tilt still held keeps, or None. Keys never end that
         session, SHIFT taps and the key a tap armed included; another knob does (_knob_shift). A release still
         waiting out BOUNCE_MS counts as held: it may be a bounce (docs/architecture/firmware.md)."""
         knob = self._kept()
-        for src in self.holds:                             # not in values(): no view per tick
-            if self.holds[src] == knob:
-                return knob
-        return None
+        return knob if _has_value(self.sessions, knob) else None
 
     def _knob_shift(self, knob, t):
         """SHIFT for a knob action: armed SHIFT or this knob's own shifted session. Starts/extends it."""
@@ -183,10 +176,6 @@ class Panel:
     def unit_light(self):
         return self.unit == 2
 
-    @property
-    def freq_mode_name(self):
-        return FREQ_MODES[self.freq_mode]
-
     # ---------------- inputs ----------------
     def key(self, name, pressed, t, at=None):
         """A key or push went down or up; at: the ms the keypad scanned it (default t), for BOUNCE_MS. A release
@@ -206,12 +195,14 @@ class Panel:
         self._apply(name, True, t)
 
     def release(self, name, t):
-        """A release that is no bounce (code.py's resync after a keypad overflow, for a key whose release event
-        was lost, so none is pending): applied at once, and a press right after it is a new press."""
+        """A release that is no bounce (code.py lets go of every key after a keypad overflow): applied at once,
+        and a press right after it is a new press."""
         self._expire(t)
         self._apply(name, False, t)
 
     def _apply(self, name, pressed, t):
+        if pressed:
+            self.keep_steps()
         if name.startswith("RANGE_"):
             return self._range_key(name, pressed, t)
         if name in ("ALTHDG_PUSH", "FMS_PUSH", "FREQ_PUSH"):
@@ -220,7 +211,7 @@ class Panel:
             self.held.pop(name, None)
             self.repeat.pop(name, None)
             return
-        held = self._held()
+        held = self._held_session()
         if name == "SHIFT":
             if self.shift == "any":                      # a second tap cancels SHIFT, except for a held control
                 self.shift, self.under = held, None
@@ -232,30 +223,29 @@ class Panel:
         if name == "HOME" and shifted:                    # UNIT: firmware state, white light
             self.unit = 2 if self.unit == 1 else 1
             return
-        dev = self.unit if name in BM.UNIT_KEYS else 1
-        button = BM.shifted(name) if shifted else name
+        k = self._btn(self.unit if name in BM.UNIT_KEYS else 1, BM.shifted(name) if shifted else name)
         if name in BM.REPEAT_KEYS:
-            self._owe(self._btn(dev, button))
-            self.repeat[name] = [dev, button, t + REPEAT_DELAY_MS, REPEAT_MS]
+            self._owe(k)
+            self.repeat[name] = [k, t + REPEAT_DELAY_MS, REPEAT_MS]
         else:
-            self._hold(name, self._btn(dev, button))
+            self._hold(name, k)
 
     def _push(self, name, pressed, t):
         if not pressed:
             self.held.pop(name, None)
-            self.holds.pop(name, None)
+            self.sessions.pop(name, None)
             return
         knob = name[:-5]                                   # ALTHDG, FMS, FREQ
         shifted = self._knob_shift(knob, t)
         if shifted:
-            self.holds[name] = knob
+            self.sessions[name] = knob
         if name == "ALTHDG_PUSH":
             k = self._btn(1, "BARO_STD" if shifted else "HDG_SYNC")
         elif name == "FMS_PUSH":
             k = self._btn(1, "CABIN_LT") if shifted else self._btn(self.unit, "FMS_CRSR")
         elif shifted:
             k = self._btn(1, "XPDR_MODE")
-        else:                                              # FREQ push: next mode, and C/V for GNS / GTN
+        else:                                              # FREQ push: next mode
             self.freq_mode = (self.freq_mode + 1) % len(FREQ_MODES)
             k = self._btn(self.unit, "FREQ_PUSH")
         self._hold(name, k)
@@ -297,12 +287,9 @@ class Panel:
             slow = "PANEL_LT" if ring == "FMS_OUTER" else "FLOOD_LT"
         elif knob == "FREQ":
             dev = self.unit
-            mode = FREQ_MODES[self.freq_mode]
+            outer, slow, quick = FREQ_MODES[self.freq_mode]
             if ring == "FREQ_OUTER":
-                slow = {"COM": "COM_MHZ", "NAV": "NAV_MHZ", "ADF": "ADF_100"}[mode]
-            else:
-                slow = {"COM": "COM_KHZ", "NAV": "NAV_KHZ", "ADF": "ADF_1"}[mode]
-                quick = "ADF_10" if mode == "ADF" else None
+                slow, quick = outer, None
         else:                                               # FMS, RANGE: exactly one step per detent
             dev = self.unit if knob == "FMS" else 1
             name = ("S_" if shifted else "") + ring + ("_CW" if up else "_CCW")   # shifted: only RANGE gets here
@@ -318,17 +305,17 @@ class Panel:
         keys = self.ring_keys.get(ring)
         if keys is None:
             keys = self.ring_keys[ring] = set()
-        keys.add(self._queue(dev, name, abs(steps)))
+        keys.add(self._queue(self._btn(dev, name), abs(steps)))
 
     def _range_key(self, name, pressed, t):
         """A tilt closes its direction and "com"; the centre push closes "com" alone. "com" can close well
         before the direction on a slow tilt, so PTR is sent on release, and only if no direction closed. SHIFT is
         decided at the press, as for a push: S_PTR or PTR as the light showed when the centre went down."""
-        shifted = name in self.holds                       # the release: was it pressed in a shifted session?
+        shifted = name in self.sessions                    # the release: was it pressed in a shifted session?
         if not pressed:
-            self.holds.pop(name, None)
+            self.sessions.pop(name, None)
         elif self._knob_shift("RANGE", t):                 # "com" too
-            self.holds[name] = "RANGE"
+            self.sessions[name] = "RANGE"
         if name == "RANGE_COM":
             if pressed:
                 self.range_tilted = bool(self.range_dirs)
@@ -340,9 +327,9 @@ class Panel:
         if pressed:
             self.range_dirs.add(name)
             self.range_tilted = True
-            button = ("S_PAN_" if name in self.holds else "PAN_") + PAN_DIRS[name]
-            self._owe(self._btn(1, button))
-            self.repeat[name] = [1, button, t + PAN_DELAY_MS, PAN_MS]
+            k = self._btn(1, ("S_PAN_" if name in self.sessions else "PAN_") + PAN_DIRS[name])
+            self._owe(k)
+            self.repeat[name] = [k, t + PAN_DELAY_MS, PAN_MS]
         else:
             self.range_dirs.discard(name)
             self.repeat.pop(name, None)
@@ -363,12 +350,11 @@ class Panel:
             self._next(t)
 
     def _repeat(self, t):
-        # in a fixed order, by source name, not the dict's: CircuitPython's dicts keep no insertion order, and
-        # repeats due in the same pass queue in this order (the second one may find the queue full)
-        for src in sorted(self.repeat):                    # a copy: a session that ended drops its entry
-            r = self.repeat[src]
-            dev, button, nxt, every = r
-            if src in self.holds and self._kept() != self.holds[src]:
+        for src in REPEAT_SOURCES:
+            r = self.repeat.get(src)
+            if r is None:
+                continue
+            if src in self.sessions and self._kept() != self.sessions[src]:
                 del self.repeat[src]                       # its shifted session ended, maybe for another knob: stop
                 continue
             if src in self.pending:                        # released, maybe: a repeat due now waits for a bounce
@@ -376,20 +362,21 @@ class Panel:
             # A repeat waits until the last step of its button is through (press and gap), so at any pass time a
             # hold sends nothing after its release but its step in order or on the way. Held back by that, a
             # bounce or a slow pass: keep the cadence, but send a missed repeat once, not in a burst
-            if t >= nxt and self._btn(dev, button) not in self.shown:
-                self._queue(dev, button)
-                r[2] = nxt + every if t - nxt < every else t + every
+            k, due, every = r
+            if t >= due and k not in self.shown:
+                self._queue(k)
+                r[1] = due + every if t - due < every else t + every
 
     def _next(self, t):
         """Presses the head of order PRESS_MS after the last press it sent, so MobiFlight has seen that one first
         (another button may go down in its gap), and once the head's own last press and gap are over; solo, also
         once no button is down (a held key holds the next one back)."""
-        k = self.order[0]
-        e = self.shown[k]
-        if e[0] or (e[1] is not None and t - e[1] < GAP_MS) or (self.solo and self.pressed() is not None):
+        e = self.shown[self.order[0]]
+        down, since, owed = e
+        if down or (since is not None and t - since < GAP_MS) or (self.solo and self.pressed() is not None):
             return
         self.order.pop(0)
-        e[0], e[1], e[2] = True, t, e[2] - 1
+        e[0], e[1], e[2] = True, t, owed - 1
         self.order_ms = t + PRESS_MS
 
     def _show(self, t):
@@ -398,11 +385,11 @@ class Panel:
         if not self.shown:                                 # nothing pressed lately: skip the work below
             return
         done = None                                        # a list only when an entry goes (no copy per tick)
-        for k in self.shown:                               # no items() or values() view: no allocation per tick
+        for k in self.shown:                               # no items() or values() view left on the heap per tick
             e = self.shown[k]
             down, since, owed = e
             if down:
-                if t - since >= PRESS_MS and (owed or not self._is_held(k)):
+                if t - since >= PRESS_MS and (owed or not _has_value(self.held, k)):
                     e[0], e[1] = False, t
             elif not owed and (since is None or t - since >= GAP_MS):
                 if done is None:
@@ -413,27 +400,28 @@ class Panel:
             for k in done:
                 del self.shown[k]
 
-    def _is_held(self, k):
-        """Whether a source holds button k (k in self.held.values(), without the view)"""
-        for src in self.held:                              # noqa: SIM110 (any() would allocate a generator)
-            if self.held[src] == k:
+    def buttons(self, dev):
+        """Button numbers currently pressed on one device (for tests on the PC: code.py uses fill_report)"""
+        return {b for (d, b), e in self.shown.items() if d == dev and e[0]}
+
+    def releasing(self):
+        """Whether a release that still waits out BOUNCE_MS will change what the PC sees: it lets a held button
+        go, or it is the RANGE centre's, which sends PTR. (code.py: worth asking a suspended host to resume.)"""
+        for name in self.pending:
+            if name in self.held or (name == "RANGE_COM" and not self.range_tilted):
                 return True
         return False
 
-    def buttons(self, dev):
-        """Button numbers currently pressed on one device."""
-        return {b for (d, b), e in self.shown.items() if d == dev and e[0]}
-
     def pressed(self):
         """A (device, button) pressed now, or None; solo keeps it to one (no set or view: called every pass)"""
-        for k in self.shown:                               # noqa: SIM110 (next() would allocate a generator)
+        for k in self.shown:
             if self.shown[k][0]:
                 return k
         return None
 
     def fill_report(self, dev, report):
-        """One device's HID report, in place: a bit per button, set while it is pressed (buttons(), without a set
-        or a view: code.py calls this for both devices in every pass)"""
+        """One device's HID report, in place: a bit per button, set while it is pressed (no set or view: code.py
+        calls this for both devices in every pass)"""
         for i in range(len(report)):
             report[i] = 0
         for k in self.shown:
