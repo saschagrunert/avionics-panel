@@ -73,7 +73,7 @@ def joystick(report_id, buttons):
                           report_ids=(report_id,), in_report_lengths=(buttons // 8,), out_report_lengths=(0,))
 
 
-# Windows names a joystick on a composite USB device (SHIFT mode: drive, console and HID) after its HID
+# Windows names a joystick on a composite USB device (update mode: drive, console and HID) after its HID
 # interface, which CircuitPython calls "CircuitPython HID" unless told otherwise, and keeps the first name
 # it saw (docs/using/mapping.md, Device name)
 usb_hid.set_interface_name("Avionics Panel")

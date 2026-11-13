@@ -620,6 +620,14 @@ def test_a_turn_back_during_a_wake_request_keeps_the_step_before_it(back, suspen
     assert downs(hw) == ["ALT_100_UP", "ALT_100_DN"]
 
 
+def test_a_turn_back_during_a_send_that_meets_a_suspend_keeps_the_steps_before_it():
+    # FMS inner four detents at once, and the send of the first step meets a suspend: that send is the request.
+    # A detent back during the wait does not take back the three steps still queued: the PC gets all four and
+    # the step back, as after a request of wake()
+    hw = hardware({3000: [step(5, 4), suspend_in_the_next_send], 3500: [step(5, -1)]}).run(8000)
+    assert downs(hw) == ["FMS_INNER_CW"] * 4 + ["FMS_INNER_CCW"]
+
+
 def test_turns_during_a_wake_request_add_up():
     # FMS inner: one detent asks the host to resume, then four more and two back during the wait. The PC gets
     # the one from before the request and the two the knob stands further on, not a step back
@@ -661,54 +669,238 @@ def test_input_during_a_wake_back_off_is_read_as_it_comes():
     assert downs(hw) == ["HDG"] and taken(hw)[-1][0] <= 3000 + 2 * FRAME_MS
 
 
-@pytest.mark.parametrize("work_ms", [0, 40])
-def test_a_send_that_meets_a_suspend_is_sent_again(work_ms):
+def suspend_in_the_next_send(hw):
+    """the host suspends the bus while joystick 1's next send waits 5 ms for the endpoint"""
+    one = hw.devices[0]
+    send = one.send_report
+
+    def meet(report):
+        del one.send_report
+        hw.waits[hw.t], hw.suspend = 5, (hw.t + 1, 10**6)
+        send(report)
+    one.send_report = meet
+
+
+def test_a_host_that_came_anew_during_a_request_gets_the_other_joystick_too():
+    # unit 2 with CDI held. AP's send meets a suspend and asks the host to resume; the host resumes and
+    # re-enumerates right after, while the panel waits for it: no pass sees USB down. The new host assumes
+    # everything released, so it gets CDI on joystick 2 again
+    script = {**tap("SHIFT", 10), **tap("HOME", 110), 300: [press("CDI", True)],
+              1000: [press("AP", True), suspend_in_the_next_send]}
+    hw = hardware(script, usb_gap=(1000 + SEND_MS + RESUME_MS, 1100 + SEND_MS + RESUME_MS)).run(4000)
+    assert [t for t, r in taken(hw, 2) if t >= 1100 + SEND_MS + RESUME_MS and pressed(r, 2, "CDI")]
+
+
+def test_a_send_that_meets_a_suspend_is_the_request_to_resume():
     # unit 2, AP and CDI let go together: both joysticks change in one pass. The host suspends the bus while
-    # joystick 1's send waits for the endpoint: that send asks the host to resume and returns with nothing sent,
-    # and joystick 2's send does not go on to wait for the host. Both releases reach the host once it is back,
-    # also when the pass then takes 40 ms (a collection of the heap) and the host is back before the next one
-    def suspend_in_the_next_send(hw):
+    # joystick 1's send waits for the endpoint: that send asks the host to resume and returns with nothing sent.
+    # That is the request: the pass waits for the host there, and joystick 2's send does not go on to wait. No
+    # other pass and no second request come before the host is back, and both releases reach it then
+    script = {**tap("SHIFT", 10), **tap("HOME", 110), 300: [press("AP", True), press("CDI", True)],
+              1000: [press("AP", False), press("CDI", False), suspend_in_the_next_send]}
+    hw = hardware(script).run(4000)
+    asleep = range(hw.suspend[0] - 1, hw.suspend[1])       # from that send to the host's return
+    assert len(asleep) == SEND_MS + RESUME_MS and len([t for j in hw.devices for t in j.tries if t in asleep]) == 1
+    assert [t for t, _ in hw.sleeps if t in asleep] == list(range(asleep[0] + SEND_MS, hw.suspend[1]))
+    assert received(hw, 1)[-1] == ZERO[1] and received(hw, 2)[-1] == ZERO[2]
+
+
+@pytest.mark.parametrize("name, at", [("FMS_INNER_CW", 3000), ("AP", 3000), ("AP", 3020)])
+def test_a_press_whose_send_meets_a_suspend_reaches_the_pc_whole(name, at):
+    # an FMS detent, or AP tapped for 40 ms, and the send of its press meets a suspend: the host is asked to
+    # resume and the panel waits for it, so the press reaches the PC once the host is back, held for PRESS_MS,
+    # also when it is AP's release that meets the suspend
+    script = {3000: [step(5, 1)]} if name != "AP" else {3000: [press("AP", True)], 3040: [press("AP", False)]}
+    script.setdefault(at, []).append(suspend_in_the_next_send)
+    hw = hardware(script).run(6000)
+    on = [pressed(r, 1, name) for _, r in taken(hw)]
+    edges = [t for (t, _), a, b in zip(taken(hw), [False] + on, on) if a != b]
+    assert len(edges) == 2 and edges[1] - edges[0] >= P.PRESS_MS
+    assert (edges[0] > hw.suspend[1]) == (at == 3000)
+
+
+@pytest.mark.parametrize("keyboard", [False, True])
+@pytest.mark.parametrize("wait", [0, 30, SEND_MS - 1])
+def test_a_report_sent_right_before_a_suspend_counts_as_unsent(keyboard, wait):
+    # AP's press, in keyboard mode its modifiers, handed to the endpoint at once, after 30 ms or 1 ms before
+    # send_report would give up, and the host suspends the bus before send_report returns: USB is down, so the
+    # panel cannot tell whether the host took it, and the next pass asks the host to resume. It asked nothing
+    # yet, so it does not wait for the host first. The host gets AP once it is back, in keyboard mode its key
+    # after its modifiers
+    def suspend_after_the_next_send(hw):
         one = hw.devices[0]
         send = one.send_report
 
-        def meet(report):
+        def then_suspend(report):
             del one.send_report
-            hw.waits[hw.t], hw.suspend = 5, (hw.t + 1, 10**6)
+            hw.waits[hw.t] = wait
             send(report)
-        one.send_report = meet
+            hw.suspend = (hw.t, 10**6)
+        one.send_report = then_suspend
+    t0 = START_MS if keyboard else 0
+    hw = hardware({t0 + 1000: [press("AP", True), suspend_after_the_next_send]}, keyboard=keyboard).run(t0 + 6000)
+    tries = [t - t0 for t in hw.devices[0].tries if t >= t0 + 1000]
+    assert tries[:3] == [1000, 1001 + wait, hw.suspend[1] - t0]
+    if keyboard:
+        assert [n for _, _, n in typed(taken(hw))] == ["AP"] and taken(hw)[-1][1][2]
+    else:
+        assert pressed(taken(hw)[-1][1], 1, "AP")
+
+
+def test_a_send_is_the_request_to_resume_by_its_own_wait_only():
+    # unit 2, AP and CDI let go together: joystick 1's send takes 24 ms, and joystick 2's goes out 1980 ms later,
+    # 2004 ms after the pass began, and the host suspends the bus as it returns. That send waited less than
+    # send_report's 2 s, so it asked nothing: the next pass asks the host to resume at once
+    def slow_then_suspend(hw):
+        two = hw.devices[1]
+        send = two.send_report
+
+        def then_suspend(report):
+            del two.send_report
+            hw.waits[hw.t] = 1980
+            send(report)
+            hw.suspend = (hw.t, 10**6)
+        two.send_report = then_suspend
+        hw.waits[hw.t] = P.LATE_MS
     script = {**tap("SHIFT", 10), **tap("HOME", 110), 300: [press("AP", True), press("CDI", True)],
-              1000: [press("AP", False), press("CDI", False), suspend_in_the_next_send]}
-    hw = Board(script, work_ms=work_ms).boot().run(4000)
-    asleep = range(hw.suspend[0] - 1, hw.suspend[1])       # from that send to the host's return
-    assert len(asleep) == SEND_MS + RESUME_MS and len([t for j in hw.devices for t in j.tries if t in asleep]) == 1
+              1000: [press("AP", False), press("CDI", False)], 1000 + P.BOUNCE_MS: [slow_then_suspend]}
+    hw = hardware(script).run(6000)
+    sent = 1000 + P.BOUNCE_MS
+    assert [t for t in hw.devices[1].tries if 1000 <= t < hw.suspend[1]] == [sent + P.LATE_MS]
+    assert [t for t in hw.devices[0].tries if t >= 1000][:3] == [sent, sent + P.LATE_MS + 1981, hw.suspend[1]]
     assert received(hw, 1)[-1] == ZERO[1] and received(hw, 2)[-1] == ZERO[2]
+
+
+@pytest.mark.parametrize("suspend", [3010, 3030, 3050])
+@pytest.mark.parametrize("detents, unit", [(1, 1), (3, 1), (1, 2)])
+def test_steps_the_host_misses_while_it_suspends_ask_it_to_resume(suspend, detents, unit):
+    # one FMS detent, or three at once, on joystick 1, or in unit 2 on joystick 2: the host takes the first press
+    # at 3008 and suspends the bus soon after. What the panel goes on to show (the release, the steps still
+    # queued) differs from what the host has, so the panel asks it to resume and the host gets each step. A
+    # detent at 6000 is a press of its own, not merged
+    script = {**tap("SHIFT", 10), **tap("HOME", 110)} if unit == 2 else {}
+    hw = hardware({**script, 3000: [step(5, detents)], 6000: [step(5, 1)]})
+    hw.suspend = (suspend, 10**6)
+    hw.run(8000)
+    assert downs(hw, unit) == ["FMS_INNER_CW"] * (detents + 1) and received(hw, unit)[-1] == ZERO[unit]
+    assert len([t for t in hw.devices[0].tries if suspend <= t < hw.suspend[1]]) == 1
+
+
+@pytest.mark.parametrize("keyboard, unit", [(False, 1), (False, 2), (True, 1)])
+def test_a_refused_request_is_not_repeated_without_input(keyboard, unit):
+    # three FMS detents at once, the first of which the host has (in unit 2 on joystick 2), and the host then
+    # suspends the bus without letting the panel wake it: the first release asks once. The request brings no
+    # host back, and until the host has been back only input asks again: the steps that play out after the
+    # request do not, also after the back-off. When the host resumes by itself it gets the last report
+    t0 = START_MS if keyboard else 0
+    script = {**tap("SHIFT", 10), **tap("HOME", 110)} if unit == 2 else {}
+    hw = hardware({**script, t0 + 1000: [step(5, 3)]}, keyboard=keyboard)
+    hw.suspend, hw.wakeup = (t0 + 1030, t0 + 30000), False
+    hw.run(t0 + 31000)
+    assert [t - t0 for t in hw.devices[0].tries if t0 + 1030 <= t < t0 + 30000] == [1000 + P.PRESS_MS + 1]
+    assert taken(hw)[-1][1] == (bytes(keys.REPORT) if keyboard else ZERO[1])
+    assert keyboard or received(hw, 2)[-1] == ZERO[2]
+
+
+@pytest.mark.parametrize("keyboard", [False, True])
+def test_a_held_key_does_not_wake_a_host_that_suspended_the_bus(keyboard):
+    # UP held, and the host suspends the bus between two of its repeats, letting the panel wake it: the panel
+    # leaves it asleep, as dark means plain also for the repeats. Once the host resumes by itself the repeats go
+    # on, the one missed while it was away first
+    t0 = START_MS if keyboard else 0
+    hw = hardware({t0 + 500: [press("UP", True)], t0 + 7000: [press("UP", False)]}, keyboard=keyboard)
+    hw.suspend = (t0 + 3000, t0 + 6000)
+    hw.run(t0 + 7500)
+    assert not [t for t in hw.devices[0].tries if t0 + 3000 <= t < t0 + 6000]
+    if keyboard:
+        ups = [t - t0 for t, _, n in typed(taken(hw)) if n == "UP"]
+    else:
+        on = [pressed(r, 1, "UP") for _, r in taken(hw)]
+        ups = [t for (t, _), a, b in zip(taken(hw), [False] + on, on) if b and not a]
+    after = [t for t in ups if t >= 6000]
+    assert after[0] <= 6000 + 2 * FRAME_MS and P.REPEAT_MS - FRAME_MS <= after[1] - after[0] <= P.REPEAT_MS + FRAME_MS
+
+
+def test_a_held_key_repeats_on_time_after_a_send_that_waited():
+    # UP held, and the send of its press waits 300 ms for the endpoint: the PC gets the first repeat
+    # REPEAT_DELAY_MS after the press it got, not sooner
+    def taken_endpoint(hw):
+        hw.waits[hw.t] = 300
+    hw = hardware({1000: [press("UP", True), taken_endpoint], 2000: [press("UP", False)]}).run(2500)
+    on = [t for t, r in taken(hw) if pressed(r, 1, "UP")]
+    starts = [b for a, b in zip([0] + on, on) if b - a > FRAME_MS]
+    assert starts[0] > 1300 and P.REPEAT_DELAY_MS <= starts[1] - starts[0] <= P.REPEAT_DELAY_MS + 2 * FRAME_MS
+
+
+def test_a_key_pressed_while_a_wait_keeps_the_shift_light_lit_is_shifted():
+    # SHIFT armed at 200, until 3200. A send at 2930 waits 400 ms for the endpoint, so the light stays lit until
+    # 3330; VFR pressed at 3250 is read after the wait: it goes out shifted, IDENT, as the light showed
+    def taken_endpoint(hw):
+        hw.waits[hw.t] = 400
+    hw = hardware({100: [press("AP", True)], **tap("SHIFT", 200), 2900: [press("AP", False)],
+                   2900 + P.BOUNCE_MS: [taken_endpoint], **tap("VFR", 3250, 100)}).run(4000)
+    assert 2900 + P.BOUNCE_MS in hw.devices[0].tries and not [t for t in duties(hw) if 2930 < t < 3330]
+    assert downs(hw) == ["AP", "IDENT"]
+
+
+@pytest.mark.parametrize("wrap", [None, 1022])
+@pytest.mark.parametrize("first, second, sent", [("FREQ_PUSH", "SHIFT", "FREQ_PUSH"), ("SHIFT", "FREQ_PUSH",
+                                                 "XPDR_MODE"), (None, "SHIFT FREQ_PUSH", "XPDR_MODE")])
+def test_the_two_keypads_events_reach_the_panel_in_the_order_they_were_scanned(first, second, sent, wrap):
+    # the FREQ push (a keypad of its own) and SHIFT (the matrix) pressed 25 ms apart, in two scans, while a send
+    # waits 100 ms, and read together after it: they reach the panel in the order of their scans, so a push
+    # before SHIFT is plain and a push after it shifted, also when supervisor.ticks_ms wraps between the two.
+    # In one scan the matrix's SHIFT comes first
+    def taken_endpoint(hw):
+        hw.waits[hw.t] = 100
+
+    def hold(names):
+        return [lambda hw, name=name: hw.hold(name, True) for name in names.split()]
+    script = {990: [step(0, 1), taken_endpoint], 1025: hold(second)}
+    if first:
+        script[1000] = hold(first)
+    hw = hardware(script, wrap=wrap).run(1500)
+    assert not [t for t in duties(hw) if 990 < t < 1090]
+    assert downs(hw) == ["ALT_100_UP", sent]
+
+
+def test_the_loop_reads_the_keypads_without_making_an_event_per_read(monkeypatch):
+    # EventQueue.get() makes a new Event in every call, also with the queue empty: code.py uses get_into()
+    def allocates(self):
+        raise AssertionError("get() allocates")
+    monkeypatch.setattr(sim.hardware.EventQueue, "get", allocates)
+    assert downs(hardware(tap("AP", 100)).run(400)) == ["AP"]
 
 
 @pytest.mark.parametrize("released", [2960, 2985, 2999])
 def test_a_release_just_before_a_suspend_still_reaches_the_host(released):
     # AP held and let go 40, 15 or 1 ms before the host suspends the bus. The release waits out its 30 ms: in
-    # the first case it goes out before the suspend; in the others it is applied after it, and asks the host to
-    # resume like any input, so the PC does not keep AP down
+    # the first case it goes out before the suspend; in the others it is applied after it, and the report that
+    # lets AP go, which the host does not have, asks the host to resume in the next pass, so the PC does not keep
+    # AP down
     hw = hardware({1000: [press("AP", True)], released: [press("AP", False)]})
     hw.suspend = (3000, 10**6)
     hw.run(6000)
     assert downs(hw) == ["AP"] and received(hw, 1)[-1] == ZERO[1]
-    assert [t for t in hw.devices[0].tries if 3000 <= t < hw.suspend[1]] == ([] if released == 2960 else [3000])
+    asked = [] if released == 2960 else [released + P.BOUNCE_MS + 1]
+    assert [t for t in hw.devices[0].tries if 3000 <= t < hw.suspend[1]] == asked
 
 
 @pytest.mark.parametrize("held, last", [(("RANGE_COM",), "PTR"), (("SHIFT",), None),
                                         (("RANGE_COM", "RANGE_A"), "PAN_UP")])
 def test_only_a_release_the_pc_would_see_asks_a_suspended_host(held, last):
-    # a control let go 15 ms before the host suspends the bus. The RANGE centre's release sends PTR, so it asks
-    # the host to resume, and PTR reaches it. The release of SHIFT, or of the centre after a tilt that ended
-    # half a second before, changes nothing for the PC: the host is left alone
+    # a control let go 15 ms before the host suspends the bus. The RANGE centre's release sends PTR once it has
+    # waited out its 30 ms, so the report with PTR asks the host to resume, and PTR reaches it. The release of
+    # SHIFT, or of the centre after a tilt that ended half a second before, changes nothing for the PC: the host
+    # is left alone
     script = {1000: [press(k, True) for k in held], 2500: [press(k, False) for k in held[1:]],
               2985: [press(held[0], False)]}
     hw = hardware(script)
     hw.suspend = (3000, 10**6)
     hw.run(6000)
     assert (downs(hw) or [None])[-1] == last
-    assert [t for t in hw.devices[0].tries if 3000 <= t < hw.suspend[1]] == ([3000] if last == "PTR" else [])
+    asked = [2985 + P.BOUNCE_MS + 1] if last == "PTR" else []
+    assert [t for t in hw.devices[0].tries if 3000 <= t < hw.suspend[1]] == asked
 
 
 def slow_send(held, *keys, wait=900, **kwargs):
@@ -912,10 +1104,10 @@ def every_scan(hw, name="AP"):
     return lengths
 
 
-def test_a_wake_request_and_a_send_that_fails_make_the_longest_pass():
+def test_a_wake_request_and_a_send_that_fails_make_a_pass_of_4_s():
     # FMS inner turns one detent while the host has the bus suspended; the host resumes on the request and then
     # does not poll: the request (2 s and the 30 ms of the resume) and the send that fails (2 s) are one pass
-    # of about 4 s, 4.5 s with a host that takes 0.5 s to resume. The keys are read between the two
+    # of about 4 s. The keys are read between the two
     def not_polling(hw):
         hw.busy = 1
     back = 3000 + SEND_MS + RESUME_MS
@@ -928,17 +1120,54 @@ def test_a_wake_request_and_a_send_that_fails_make_the_longest_pass():
     assert hw.matrix.resets == 0 and not hw.matrix.events.overflowed
 
 
+def test_two_requests_to_resume_make_the_longest_pass(monkeypatch):
+    # FMS inner turns one detent while the host has the bus suspended; the host takes 499 ms to resume on the
+    # request, and suspends the bus again while the detent's send waits for the endpoint: that send is a request
+    # of its own, and the host again takes 499 ms. One pass of 5 s, the longest there is
+    monkeypatch.setattr(sim.hardware, "RESUME_MS", 499)
+    back = 3000 + SEND_MS + 499
+    hw = hardware({3000: [step(5, 1)], back: [suspend_in_the_next_send]})
+    hw.suspend = (1000, 10**6)
+    hw.run(9000)
+    assert [t for t in hw.devices[0].tries if t >= 3000][:2] == [3000, back]
+    end = back + SEND_MS + 499
+    # no sleep of the loop from 3000 until the host is back the second time, only those of the two waits for it
+    assert [t for t, _ in hw.sleeps if 3000 <= t < end] == [*range(3000 + SEND_MS, back), *range(back + SEND_MS, end)]
+    assert end - 3000 == 4998 and downs(hw) == ["FMS_INNER_CW"]
+
+
 def test_the_queue_holds_what_a_broken_switch_makes_while_it_goes_unread():
-    # the longest time a keypad's queue goes unread: a send meets a suspend and waits out its 2 s, and the next
-    # pass asks the host to resume, which the host refuses: 2 s more and 0.5 s of waiting before the keys are
-    # read. A switch that changes with every scan in those 4.5 s makes 230 events, which the queue holds
-    def suspend(hw):
-        lengths.append(every_scan(hw))
-        hw.waits[hw.t], hw.suspend, hw.wakeup = 5, (hw.t + 1, 10**6), False
+    # the longest time a keypad's queue goes unread, in passes of 3 ms: unit 2, AP and CDI let go together, and
+    # joystick 1's send waits 24 ms, not late. Joystick 2's send meets a suspend and waits out its 2 s, the panel
+    # waits 0.5 s more for the host, which comes back at the end of them and suspends the bus again at once,
+    # and the next pass's request is refused: 2.5 s more. A switch that changes with every scan makes 258 events
+    # in those 5 s and a little more, which the queue holds with room to spare, and the pass that reads the keys
+    # takes them all
+    def suspend_in_the_second_send(hw):
+        one = hw.devices[0]
+        send = one.send_report
+
+        def slow(report):
+            del one.send_report
+            lengths.append(every_scan(hw))
+            hw.waits[hw.t], hw.suspend, hw.wakeup = P.LATE_MS, (hw.t + P.LATE_MS + 1, 10**6), False
+            hw.script[hw.t + P.LATE_MS + SEND_MS + 496] = [back_for_a_ms]   # its last look for the host
+            send(report)
+        one.send_report = slow
     lengths = []
-    hw = hardware({1000: [step(5, 1), suspend]}).run(6000)
-    assert hw.devices[0].tries[-2:] == [1000, 1000 + SEND_MS + 1]
-    assert max(lengths[0]) + 1 == 230 and hw.matrix.resets == 0 and not hw.matrix.events.overflowed
+    script = {**tap("SHIFT", 10), **tap("HOME", 110), 300: [press("AP", True), press("CDI", True)],
+              1000: [press("AP", False), press("CDI", False), suspend_in_the_second_send]}
+    hw = Board(script, work_ms=3).boot().run(9000)
+    sent = hw.devices[1].tries[-1] - P.LATE_MS
+    assert hw.devices[0].tries[-3:-1] == [sent, sent + P.LATE_MS + SEND_MS + 500]
+    assert max(lengths[0]) + 1 == 258 and hw.code["MAX_EVENTS"] - 258 >= 60
+    assert lengths[0][lengths[0].index(257) + 1] <= 1
+    assert hw.matrix.resets == 0 and not hw.matrix.events.overflowed
+
+
+def back_for_a_ms(hw):
+    """the host resumes the bus for this ms only, and suspends it again"""
+    hw.suspend = (hw.t + 1, 10**6)
 
 
 def test_keys_come_before_turns_after_a_wake_request():
@@ -1043,20 +1272,20 @@ def test_press_right_after_an_overflow_release_is_a_new_press():
 
 
 def test_a_queue_that_overflows_is_dropped_and_the_held_keys_come_again():
-    # eight keys open and close every 50 ms while a send waits 1.9 s for the host: 300 events, more than the
+    # eight keys open and close every 40 ms while a send waits 1.98 s for the host: 400 events, more than the
     # matrix's queue holds. After the wait code.py drops what the queue kept and resets the keypad, and the PC
     # gets one press of each key that is held in the end, none of the others
     names = ("AP", "ALT", "HDG", "FD", "VS", "NAV", "FLC", "APR")
 
     def toggle(hw):
         for i, name in enumerate(names):
-            hw.hold(name, (hw.t // 50 + i) % 2 == 0)
+            hw.hold(name, (hw.t // 40 + i) % 2 == 0)
 
     def stall(hw):
-        hw.waits[hw.t] = 1900
-    script = {t: [toggle] for t in range(1000, 2900, 50)}
+        hw.waits[hw.t] = 1980
+    script = {t: [toggle] for t in range(1000, 2980, 40)}
     script[1000] = [step(5, 1), stall, toggle]
-    hw = hardware(script).run(3600)
+    hw = hardware(script).run(3700)
     held = [name for name in names if hw.key(name)[1] in hw.matrix.state]
     assert len(held) == 4 and hw.matrix.resets == 1 and not hw.matrix.events.overflowed
     assert sorted(downs(hw)) == sorted(["FMS_INNER_CW"] + held)
@@ -1145,8 +1374,8 @@ def turns_of_the_lights(hw):
 
 
 def test_keyboard_mode_starts_with_the_lights_taking_turns():
-    # SHIFT, UNIT, three times, 150 ms each (docs/using/keyboard.md), then the loop's first pass sets both as
-    # the panel has them (dark), and SHIFT lights up as ever
+    # SHIFT, UNIT, three times, 150 ms each (docs/architecture/firmware.md, Keyboard mode), then the first pass
+    # of the loop sets both as the panel has them (dark), and SHIFT lights up as ever
     hw = keyboard_hardware(tap("SHIFT", 10)).run(START_MS + 100)
     pattern, shift, unit = turns_of_the_lights(hw)
     assert pattern == [(READY_MS + 150 * i, i % 2 == 0, i % 2 == 1) for i in range(6)]
@@ -1270,6 +1499,43 @@ def test_keyboard_mode_tap_while_suspended_wakes_the_host():
     down = next(t for t, r in sent if r[2])
     up = next(t for t, r in sent if t > down and not r[2])
     assert back < down <= back + 3 * FRAME_MS and up - down >= P.PRESS_MS - FRAME_MS   # as any short press here
+
+
+def test_keyboard_mode_does_not_type_again_a_shortcut_the_host_kept_through_a_suspend():
+    # AP tapped; the host suspends the bus once AP's key is down, and the release asks it to resume. The panel
+    # waits for the host and the press goes on for it from there: AP's key, which a suspended host keeps, does
+    # not go down a second time, or the autopilot would switch on and off
+    hw = keyboard_hardware({1000: [press("AP", True)], 1040: [press("AP", False)]})
+    hw.suspend = (START_MS + 1012, 10**6)
+    hw.run(START_MS + 4000)
+    assert [t - START_MS for t in hw.devices[0].tries if hw.suspend[0] <= t < hw.suspend[1]] == [1040]
+    assert [n for _, _, n in typed(taken(hw))] == ["AP"] and taken(hw)[-1][1] == bytes(keys.REPORT)
+
+
+def test_keyboard_mode_takes_a_host_that_failed_a_request_for_a_new_one():
+    # AP held; the host re-enumerates, and a detent then asks it to resume. The new host has the panel mounted
+    # but does not poll it yet, so the request fails: AP's shortcut goes down again, its modifiers first, then the
+    # detent's
+    def not_polling(hw):
+        hw.busy = 1
+    hw = keyboard_hardware({10: [press("AP", True)], 300: [step(0, 1)], 400: [not_polling],
+                            3000: [press("AP", False)]}, usb_gap=(START_MS + 200, START_MS + 400))
+    hw.run(START_MS + 4000)
+    after = [(t, r) for t, r in taken(hw) if t >= START_MS + 400]
+    assert START_MS + 300 in hw.devices[0].tries
+    assert [n for _, _, n in typed(after)] == ["AP", "ALT_100_UP"] and after[-1][1] == bytes(keys.REPORT)
+
+
+@pytest.mark.parametrize("suspend, asked", [(1030, [1000 + P.PRESS_MS + 1]), (1200, [])])
+def test_keyboard_mode_asks_a_suspended_host_that_holds_a_key_the_panel_let_go(suspend, asked):
+    # an FMS detent's shortcut is down at the host when it suspends the bus: the panel lets it go, which asks the
+    # host to resume, and the host gets the key and then its modifiers up. Suspended once the shortcut is all up,
+    # the host has what the panel shows and is left alone
+    hw = keyboard_hardware({1000: [step(5, 1)]})
+    hw.suspend = (START_MS + suspend, 10**6)
+    hw.run(START_MS + 4000)
+    assert [t - START_MS for t in hw.devices[0].tries if hw.suspend[0] <= t < hw.suspend[1]] == asked
+    assert [n for _, _, n in typed(taken(hw))] == ["FMS_INNER_CW"] and taken(hw)[-1][1] == bytes(keys.REPORT)
 
 
 def test_a_host_in_the_boot_protocol_gets_the_same_reports():

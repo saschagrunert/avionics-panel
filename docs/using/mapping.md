@@ -257,8 +257,7 @@ the lights and timers stutter.
 
 With USB autosuspend on for the panel (`power/control` at `auto`, which powertop sets), Linux suspends it after
 a few idle seconds: both lights go dark, SHIFT ends, and the next input reaches the PC about 2 s late (a SHIFT
-tap as that input is lost), as does a key let go just before the suspend
-([why](../architecture/firmware.md#usb)). Set its `power/control` to `on`.
+tap as that input is lost; [why](../architecture/firmware.md#usb)). Set its `power/control` to `on`.
 
 [g1000]: https://github.com/saschagrunert/avionics-panel/releases/download/rolling/avionics-panel-g1000.mfproj
 [g3x]: https://github.com/saschagrunert/avionics-panel/releases/download/rolling/avionics-panel-g3x.mfproj

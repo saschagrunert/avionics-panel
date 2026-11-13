@@ -129,8 +129,9 @@ def test_light_is_off_once_shift_runs_out_even_before_tick():
     assert s.p.shift_level(end) == P.LIGHT_OFF and s.p.shift_level(end + 5) == P.LIGHT_OFF
 
 
-def test_inputs_after_a_stall_follow_the_dark_light():
-    # the loop stalls past the end of SHIFT: no tick() ran, but inputs must be plain, as the light says
+def test_inputs_read_after_shift_ran_out_are_plain():
+    # inputs read after the end of SHIFT before a tick() has seen it, in a pass that did not wait for the host
+    # (no stalled()): plain, as the light shows from then on
     s = Sim()
     s.key("SHIFT"); s.p.turn("FREQ_OUTER", 1, s.t)
     s.t += P.SHIFT_MS + 30                               # stalled: time passed, no tick() ran
@@ -982,6 +983,34 @@ def test_a_stalled_pass_sends_one_late_repeat():
         s.t = NEXT_REPEAT + late - 1                       # stalled: time passed, no tick() ran
         s.run(P.REPEAT_MS - 1); s.p.key("UP", False, s.t); s.run(1000)
         assert s.take() == [(1, "UP")] * n, late
+
+
+def test_a_wait_for_the_host_delays_the_repeats_with_the_press():
+    # UP pressed, and the send of its press waits 300 ms for the host (code.py then calls stalled()): the PC gets
+    # the press 300 ms late, and the first repeat still REPEAT_DELAY_MS after it, then every REPEAT_MS; a tilt
+    # the same
+    for key, button, delay, every in (("UP", "UP", P.REPEAT_DELAY_MS, P.REPEAT_MS),
+                                      ("RANGE_A", "PAN_UP", P.PAN_DELAY_MS, P.PAN_MS)):
+        s = Sim()
+        s.p.key(key, True, s.t); s.run(1)
+        s.t += 300                                         # the wait: no tick() ran
+        s.p.stalled(300)
+        s.run(1000)
+        times = [t for t, _, name in s.log if name == button]          # pressed at 0, the wait added 300
+        assert times[1] == 300 + delay and times[2] - times[1] == every, key
+
+
+def test_a_wait_for_the_host_moves_the_end_of_shift():
+    # SHIFT armed, and the loop waits for the host past its 3 s: the light stayed lit during the wait, so a key
+    # read after it goes out shifted, and SHIFT ends that much later
+    s = Sim()
+    s.p.key("SHIFT", True, s.t); s.run(P.SHIFT_MS - 100)
+    s.t += 300
+    s.p.stalled(300)
+    assert s.p.shift_active(s.t) and s.p.shift_level(s.t) != P.LIGHT_OFF
+    s.key("VFR"); assert s.take() == [(1, "IDENT")]
+    s.p.key("SHIFT", True, s.t); s.run(P.SHIFT_MS - 1); s.p.stalled(5)
+    assert s.p.shift_active(s.t + 5) and not s.p.shift_active(s.t + 6)
 
 
 def test_the_cadence_restarts_at_a_long_stall():

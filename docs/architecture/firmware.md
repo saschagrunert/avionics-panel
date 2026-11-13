@@ -93,7 +93,10 @@ stateDiagram-v2
   as it is, and the white light shows it again with the host.
 - SHIFT is scanned first. A key scan reports its changes in the order of the key numbers, and `code.py` hands
   the keypad SHIFT's row and column first. So when one scan (19.5 ms) reads SHIFT and a key going down, SHIFT
-  reaches the panel first, whichever of the two was down first, and the key is shifted.
+  reaches the panel first, whichever of the two was down first, and the key is shifted. The FREQ push has a
+  keypad of its own: `code.py` passes the events of both keypads on in the order of their scans, so a push and
+  a SHIFT tap read together after a wait for the host keep the order of their scans; scanned in the same
+  millisecond, the matrix comes first.
 
 ## Knob steps
 
@@ -166,13 +169,14 @@ due in those 30 ms waits for them, the ones after it keep their time), and a shi
   sends PTR 30 ms after its release. In those 30 ms the push or tilt still counts as held (the release may
   still turn out a bounce), so a key or a second SHIFT tap does not end its SHIFT session; the light stays on
   and shows it. Presses, the SHIFT one-shot and UNIT act on the press and get no bounce delay.
-- Raising the keypad's `debounce_threshold` instead would delay every press and release by a scan (19.5 ms).
-- Each keypad's queue holds 256 events. It goes unread for about 4.5 s at most: a send that meets a suspend
-  waits out its 2 s, and the next loop pass asks the host to resume, which takes 2.5 s if the host refuses,
-  before it reads the keys ([USB](#usb)). In that time a switch that changes with every scan makes 230
-  events, and fingers far fewer. Should a queue overflow all the same, `code.py` drops what it holds, lets go
-  of every key of that keypad at once, without the wait, and resets it. The keys still held then come in
-  again as new presses, so the PC sees them released and pressed again.
+- Each keypad's queue holds 320 events. It goes unread for a little over 5 s at most: the other joystick's
+  send may take 24 ms, then a send that meets a suspend waits 2 s and 0.5 s more for the host
+  ([USB](#usb)), and should the host come back at the end of them and suspend the bus again at once, the next
+  loop pass asks it to resume, which takes 2.5 s more if it refuses, before it reads the keys. In that time a
+  switch that changes with every scan makes about 260 events, so the queue covers it with more than a second
+  to spare, and fingers make far fewer. Should a queue overflow all the same, `code.py` drops what it
+  holds, lets go of every key of that keypad at once, without the wait, and resets it. The keys still held
+  then come in again as new presses, so the PC sees them released and pressed again.
 
 ## Errors
 
@@ -205,46 +209,61 @@ device tries for 1 s, then 2, 4 and up to 8 s, and in the end the loop stalls fo
 A report that goes out more than three frames (24 ms) after the loop pass worked it out, because its send or
 the one before it waited for the host, is later than the 56 ms of a press and of a gap allow for. The presses
 and gaps the PC is being shown then start anew, so one that begins with the late report or after it still
-outlasts a MobiFlight poll for the PC. A press or gap whose report goes into a free endpoint just before the
-host stops polling for a while is not covered: that send returns at once, the host takes the report after its
-pause and the next one a frame later, so the press or gap can come out shorter than a poll.
+outlasts a MobiFlight poll for the PC. A request to resume (below) stalls the panel by its wait as well, also
+one that finds no host; a send of a report that fails does not. After one such wait a held UP, DN or tilt
+repeats first 400 or 300 ms after the press the PC got (a host whose reports come late time and again
+stretches that delay by each of them), and SHIFT ends that much later: the light stayed as it was during the
+wait, so a key pressed then goes out as the light showed, unless the host is still away after the wait (the
+lights then go dark and SHIFT ends, [SHIFT](#shift)). A press or gap whose report goes into a free endpoint
+just before the host stops polling for a while is not covered: that send returns at once, the host takes the
+report after its pause and the next one a frame later, so the press or gap can come out shorter than a poll.
 
 After a late report the other joystick's report goes out again, in the next pass: the host may have
 re-enumerated during the wait, with no loop pass to see USB down. If that second report is late as well and
 holds no change, nothing follows it: a host that takes every report late would otherwise get reports without
 end. Only a host that re-enumerates during that second send is not covered: it takes the first joystick's held
-buttons for released until that report changes. So the sends of one loop pass wait for the host once, 2 s at
-most, and the longest pass takes about 4.5 s: a request to resume (below) that brings the host back, and then
-a send that fails.
+buttons for released until that report changes. A host that comes back after a request to resume (below)
+gets both reports again as well. So the sends of one loop pass wait for the host once, 2.5 s at most, and the
+longest pass takes 5 s: a request to resume whose host comes back at the end of its 0.5 s, and then a send
+that meets a new suspend and waits as long again.
 
 While USB is down (no host, or a host that has suspended the panel) the lights are dark, SHIFT does not apply
-([SHIFT](#shift)) and nothing is sent. Every report then counts as unsent, and a failed send's back-off ends:
-a host that comes back gets the panel's state at once.
+([SHIFT](#shift)) and nothing is sent. A held UP, DN or tilt does not repeat then, so it does not wake a
+sleeping PC; the repeat missed comes once the host is back. Every report then counts as unsent, and a failed
+send's back-off ends: a host that comes back gets the panel's state at once.
 
-Input while the host has suspended the panel (a host that autosuspends idle HID devices, such as Linux with
-`power/control` at `auto`) asks the host to resume. CircuitPython has no call for that: a report sent while
-suspended waits 2 s, then sends the request, and the input waits up to 0.5 s more for the host to come back.
-So the first input reaches the PC about 2 s late, still held for its full 56 ms (in keyboard mode, as every
-short press there, a frame less).
+While the host has suspended the panel (a host that autosuspends idle HID devices, such as Linux with
+`power/control` at `auto`), the panel asks it to resume when input waits, and when the host has something
+other than what the panel shows: a press, a release or a knob step that plays out after the suspend, a press
+still queued, in keyboard mode a shortcut whose modifiers went out without its key.
+CircuitPython has no call for that: a report sent while suspended waits 2 s, then sends the request, and the
+panel waits up to 0.5 s more for the host to come back. It then stalls by the whole wait, as after a late
+report, so the first input reaches the PC about 2 s late, still held for its full 56 ms (in keyboard mode, as
+every short press there, a frame less), and a step the host missed reaches it in full.
 
-- The request is joystick 1's last report, in keyboard mode a report with every key up. A host that is back
-  within those 2 s gets it.
+- The request is the report the last loop pass worked out for joystick 1, in keyboard mode a report with
+  every key up. A host that is back within those 2 s gets it.
 - Knob turns from before the request go to the PC first. What is pressed and turned during the wait is read in
   one go after it, the keys before the turns, since an encoder's count carries no time: a turn and then a key
   made during the wait reach the PC the other way round. The turns of a ring during the wait add up, and a
   step back among them does not take back a step from before the request.
-- While USB is down and no back-off runs, a loop pass reads input only if it finds some waiting, and asks
-  before it reads on. So no input is read, and lost, without a request.
-- A release that was read just before the host suspended the panel, and still waits out its 30 ms, asks as
-  well if it changes a button: it lets a held one go, or it is the RANGE centre's, which sends PTR. Otherwise
-  the PC would keep that button down until the next input, or until the host resumes by itself and gets every
-  report again.
+- While USB is down and no back-off runs, a loop pass reads input only if it asks first. So no input is read,
+  and lost, without a request.
+- A press the host has when it suspends the panel stays down for the PC until the host is back: the panel's
+  release asks, and reaches the PC about 2 s later. That takes a PC put to sleep in the middle of input:
+  Linux's autosuspend does not suspend the panel while a button is down, nor before its delay (2 s by
+  default) has passed since the last report.
+- A send that is under way when the host suspends the panel waits out its 2 s, asks the host to resume and
+  sends nothing. `code.py` tells it from a send that went out by the time that send itself has waited: one
+  that frees its endpoint in the last millisecond of its 2 s and meets a suspend in the same moment is taken
+  for the request too. That is the request: the panel waits for the host as above and sends the report again
+  once it is back. So a PC put to sleep in the instant a report changes can be woken by it. A report that went
+  into the endpoint just before the suspend may not have reached the host either: it counts as not sent, and
+  the next pass asks.
 - A host that refuses stalls the loop for about 2.5 s per request. With no host at all the send fails after
   its 2 s, nothing was asked, and the loop goes on at once. Both back off like a failed send; the back-off
   ends when the host comes back by itself. Input during a back-off is read as it comes, without a request.
-- A send that is under way when the host suspends the panel waits out its 2 s, asks the host to resume and
-  sends nothing. `code.py` sends that report again once the host is back. So a PC put to sleep in the instant
-  a report changes can be woken by it.
+  After a refused request, only input asks again, once the back-off is over, until the host has been back.
 - Whether a sleeping PC wakes is the PC's setting ("Allow this device to wake the computer" in Windows' Device
   Manager, `power/wakeup` on Linux).
 
@@ -292,9 +311,14 @@ but for one rule.
   the report before, so each step reaches it, a frame apart: the key goes down a frame after its modifiers
   and is down about one frame less than `PRESS_MS`.
 - After USB was down the host is taken to have every key up. A shortcut still held then goes down again, its
-  modifiers first; a host that had only suspended the bus sees that key released and pressed once more. One
-  case is not covered: a send that waits while the host re-enumerates goes out to the new host as it stands,
-  so if it holds a key, that host gets the key and its modifiers in one report.
+  modifiers first; a host that had only suspended the bus sees that key released and pressed once more, and a
+  tap still under way when such a host comes back by itself can be typed twice, when its key reached the host
+  before the suspend; a doubled toggle such as AP cancels itself. A host that comes back on the panel's
+  request to resume had suspended the bus and kept its keys: a shortcut still held goes on from the report it
+  has, and is not pressed again. Two cases are not covered: a send that waits while the host re-enumerates
+  goes out to the new host as it stands, so if it holds a key, that host gets the key and its modifiers in one
+  report; and a host that re-enumerates right after it resumed on a request is taken to have kept its keys, so
+  it can get the same report, or a modifier pressed and let go alone.
 - Each time it starts, before its loop, `code.py` lights SHIFT and UNIT by turns, 150 ms each, three times,
   also while USB is down (at plug-in the host may not have mounted the panel yet), so the mode shows on a
   charger too. Then the loop sets both lights, dark while USB is down ([Lights](#lights)). Keys and knobs used
@@ -328,18 +352,20 @@ The pins are in `code.py` and the [GPIO map](electronics.md#gpio-map).
   in blinks in the first second after power-up, after `code.py` stops with an error and in safe mode. A 1 k
   resistor in series on the board (R_GP25) limits the current into a closed contact to 3.3 mA, `boot.py` sets
   the LED's brightness to 0 so that later blinks drive the pin low, and while `code.py` runs the pin belongs
-  to `rotaryio`. A custom board definition would avoid it, and the spare GP14 cannot be routed in its place.
-  To check on the first board: the FREQ outer ring counts normally once `code.py` runs, its B line coming
-  through R_GP25.
+  to `rotaryio`. To check on the first board: the FREQ outer ring counts normally once `code.py` runs, its B
+  line coming through R_GP25.
 
 ## Loop pass time
 
 The firmware times every pulse in passes of its main loop, so each pass adds to the 56 ms of a press and of a
 gap. A pass that only keeps time leaves nothing on the heap: the clock is a small integer counted on from
-`supervisor.ticks_ms()` across its wrap (for 12 days; `time.monotonic_ns()` would make a long integer in every
-pass), and the reports and their copies are made at the start. A key, a knob detent and a repeat step do leave
-something, so CircuitPython collects the heap now and then, in the middle of a pass. How long the longest pass
-takes shows only on a board. To measure it, add this to `code.py` temporarily: right before the line that
+`supervisor.ticks_ms()` across its wrap (`time.monotonic_ns()` would make a long integer in every pass), and
+the reports and their copies are made at the start. A key, a knob detent and a repeat step do leave something,
+so CircuitPython collects the heap now and then, in the middle of a pass; not the keypad's event, which
+`get_into` reads into one `keypad.Event` per keypad. The clock stays a small integer for 2^30 ms, 12.4 days
+after `code.py` started; from then on it is a long integer, and every pass leaves something on the heap until
+`code.py` starts again. A panel on a PC that sleeps with USB power on can run that long. How long the longest
+pass takes shows only on a board. To measure it, add this to `code.py` temporarily: right before the line that
 prints "Avionics Panel rev 1 ready", indented like it, the line `n_pass = t_mark = t_prev = worst = 0`, and
 right after the first line in the loop, which sets `t`:
 
@@ -364,117 +390,22 @@ slows down. Copy the repository's `code.py` back afterwards.
 says what it checks. They cover every line and branch of the files that go on the board, and a run that
 leaves one out fails ([.coveragerc](../../.coveragerc)).
 
-The simulator in [sim/](../../sim/) runs the unchanged `boot.py` and `code.py` on stand-ins for the hardware
-modules, on virtual time: the keypads scan every 20/1024 s (19.5 ms), a loop pass takes 3 ms, and the PC takes
-a report at its poll of the shared endpoint every 8 ms; seconds of flying take milliseconds. The stand-ins are
-written after CircuitPython 9.2.9's source, not checked against CircuitPython itself: `send_report` with its
-2 s wait and its request to resume, `rotaryio`'s decoder on the two contacts of each ring, the keypads' scans
-and queues, the clock and its wrap. Their switches and rings sit on the board's pins, which
-`tests/test_pins.py` compares with the nets in `pcb/board.py`, so a wrong pin or a swapped pair in `code.py`
-fails a test. They do not reproduce CircuitPython's speed, memory or USB stack, and nothing on the PC checks
-the names and arguments of its API; the other differences are listed in
-[sim/hardware.py](../../sim/hardware.py). `tests/test_workflows.py` uses it as a pilot would (tap
-SHIFT, turn the FREQ inner ring) and checks the buttons MobiFlight sees at its 31.25 ms polls, by their names,
-and that none stays pressed. With the firmware's own tests, a firmware change that breaks a documented
-workflow fails the build. Each workflow runs in keyboard mode too (`Sim(keyboard=True)`), where the sim must
-see the same functions typed, in the same order: `sim.typed()` reads them from the keyboard's reports and fails
-on a key that goes down with modifiers other than its own or beside another key.
-
-The compiler is CircuitPython 9.2's own `mpy-cross`, so it rejects the syntax the board rejects. It checks
-syntax only: a module or argument the board's build lacks shows up on the bench. It is not in nixpkgs:
-[nix/mpy-cross.nix](../../nix/mpy-cross.nix) fetches Adafruit's 9.2.9 build for Linux x86-64 and ARM64, pinned
-by its hash, and the firmware shell puts it on the PATH and sets `REQUIRE_MPY_CROSS=1`, which makes a missing
-compiler fail its tests. On other systems the shell prints a notice and those tests skip.
+The tests run the unchanged `boot.py` and `code.py` on stand-ins for CircuitPython's hardware modules, on
+virtual time. [sim/hardware.py](../../sim/hardware.py) says what they model after CircuitPython 9.2.9's source
+and where they differ from it. They do not reproduce CircuitPython's speed, memory or USB stack, and nothing
+on the PC checks the names and arguments of its API: those show on the bench. `tests/test_pins.py` compares
+their wiring with the nets in `pcb/board.py`, `tests/test_workflows.py` uses the panel as a pilot would, in
+both modes, and CircuitPython 9.2's own `mpy-cross` checks the syntax of every file that goes on the board
+(`tests/test_mpy_cross.py`).
 
 ### The simulator in real time
 
-[sim/live.py](../../sim/live.py) runs `code.py` on the same stand-ins in a thread of its own, paced to the
-wall clock. Any thread queues the simulator's actions by the firmware's input names (`act("tap", "AP")`,
-`act("turn", "FREQ_INNER", 3)`), each after the ones before it: press, release and a turn with no spacing
-(`act("turn", "FREQ_INNER", 3, 0)`) run at once, while a tap, a tilt and a turn with its default spacing take
-their time. A switch changes no sooner than 50 ms after its last change, on the panel's clock, as with a
-finger: a quicker click would fall between two key scans. Every report the PC takes goes to an output function
-as the device (1 or 2) and the report bytes, report ID first (in keyboard mode the keyboard's 8 bytes, as
-device 1); `light()` reads a light's duty. An error in the loop goes as on the board: `code.py` releases every
-button, waits 2 s and reloads, on the same board.
-
-[sim/uhid.py](../../sim/uhid.py) makes it a HID device on Linux through `/dev/uhid`: one device with the
-report descriptor `boot.py` builds (both report IDs), the name `DIY Avionics Panel` and the IDs 239A:80F4. It
-reads actions from stdin, one per line, and needs write access to `/dev/uhid` (root, or a udev rule):
-
-```sh
-sudo python3 -m sim.uhid   # then type, for example:
-tap AP
-turn FREQ_INNER 3
-tilt UP 500
-lights
-```
-
-`hid-recorder` or a `/dev/hidrawN` node shows every report. Linux's input layer makes one input device of
-both joysticks and maps only the first 80 buttons of device 1, so `evtest` sees part of it, as with the panel
-([Linux](../using/mapping.md#linux)). `python3 -m sim.uhid --keyboard` makes the keyboard of the keyboard
-mode instead, which the desktop takes like any keyboard. The USB layer (enumeration, interfaces, the drive in
-update mode) is not simulated. `tests/test_uhid.py` runs where `/dev/uhid` and the new hidraw node are
-accessible and skips elsewhere. `REQUIRE_UHID=1` turns the skips into failures: the `build` workflow sets it
-once it has loaded the `uhid` module and opened both up; it installs the extra modules package of the runner's
-kernel if the module is missing. Without a kernel, `tests/test_descriptor.py` parses the descriptors with the
-parser of [hid-tools](https://gitlab.freedesktop.org/libevdev/hid-tools) and reads the simulator's reports
-with them; the firmware shell provides it on Linux and sets `REQUIRE_HID_TOOLS=1`, which makes a missing
-parser fail those tests.
-
-### The panel page
-
-[sim/page.py](../../sim/page.py) runs the simulator in real time and serves the 3D view with the panel
-playable in it. It needs Python 3.10 or newer and nothing else. From the repository root:
-
-```sh
-python3 -m sim.page        # then open the URL it prints, http://127.0.0.1:8000/?sim
-```
-
-How the page is played (keys, knobs, pushes, touch, the RANGE tilt, the lights) and how a tablet opens it are
-in [The page](../using/simulator.md#the-page). `--port N` changes the port (8000), `--host 0.0.0.0` serves
-the page to the network, and `--open` opens it in the default browser once it is served. A page that goes,
-also one that drops off the network, lets go of what it holds within a few seconds. `--uhid` also feeds the
-uhid device above, so programs on Linux see the joysticks, and `--vjoy` the vJoy devices below; without them
-the reports go only to the page. `--keyboard` runs the keyboard mode, and `--sendinput` then types its
-shortcuts on Windows ([below](#keystrokes-on-windows)). The API is described in `sim/page.py`. Opened without
-`?sim`, as on GitHub Pages, the viewer stays the plain 3D view.
-
-### vJoy on Windows
-
-[sim/vjoy.py](../../sim/vjoy.py) feeds vJoy 2.2.2.0 through its `vJoyInterface.dll` with `ctypes`: report ID
-4 goes to vJoy device 1 and ID 5 to device 2, each report as one `UpdateVJD`, so MobiFlight never reads half
-a report. Its struct mirrors `JOYSTICK_POSITION_V3` of vJoy's `SDK/inc/public.h` at the tag `v2.2.2.0`
-(124 bytes; pyvjoy's is an older, shorter one). It acquires both devices at the start, after checking that
-they exist with enough buttons and that no other program owns them. At the end it lets go of every button and
-of the devices: after Ctrl-C, and through a console handler also on Ctrl-Break and when the window closes,
-where Python runs no `finally`. A kill from Task Manager leaves the last buttons down until the next start,
-whose first reports clear them. `python -m sim.vjoy` reads actions from stdin like `sim.uhid`, and
-`python -m sim.page --vjoy` feeds vJoy from the page. `tests/test_vjoy.py` checks it against the header's
-layout, `boot.py`'s descriptor (where hid-tools is), BUTTONS.md and stand-ins for the DLL and the console, on
-Linux and, in the `build` workflow, on Windows; the DLL itself and MobiFlight are tested on a Windows PC.
-
-### Keystrokes on Windows
-
-[sim/sendinput.py](../../sim/sendinput.py) types the keyboard mode's shortcuts on Windows, through user32's
-`SendInput` with `ctypes`: each report becomes the key presses and releases it differs by from the one
-before, by their scan codes (Microsoft's table of HID usages and scan codes), so a game that reads scan codes
-takes them as a keyboard's. Windows gives them to the window in front, so the page is played from another
-device ([Simulator](../using/simulator.md#keyboard-mode)). At the end it lets go of every key, through a
-console handler as vJoy's also on Ctrl-Break and when the window closes, and sends nothing after that. Windows
-takes no keystrokes while a UAC prompt or the lock screen is up. A report it does not take in full is said in
-one line, and every key Windows may hold and every modifier is let go, again every half second and before
-each report until Windows takes that; the next report goes out in full. The end lets go of those keys too.
-`tests/test_sendinput.py` checks its structs against `winuser.h`'s 64-bit layout and its keystrokes against
-a stand-in for `user32.dll`, on Linux and, in the `build` workflow, on Windows; Windows' own `SendInput` and
-the sim are tested on a Windows PC.
-
-[windows/make_zip.py](../../windows/make_zip.py) builds the zip the [Simulator](../using/simulator.md) page
-describes, on Linux: Python's embeddable package for Windows (amd64, pinned by version and SHA-256), whose
-`._pth` file gets the zip's folder, with `firmware/`, `sim/`, `viewer/` and the batch files in `windows/`.
-The `build` workflow builds it for every pull request and push to main, keeps it as an artifact of the run
-and attaches it to every published release. Its `windows` job runs `tests/test_page.py`,
-`tests/test_sendinput.py`, `tests/test_vjoy.py` and `tests/test_windows_zip.py` on Windows, on the zip's minor
-version of Python. A push to main also replaces the zip of the latest build (the release on the tag
-`rolling`), which the Simulator page links, once the build's checks and those tests have passed: the zip is
-from a recent commit on main, which the release names and its tag points to.
+[sim/live.py](../../sim/live.py) runs `code.py` on the same stand-ins, paced to the wall clock: actions go in
+by the firmware's input names, a switch changes no sooner than 50 ms after its last change, as with a finger,
+every report the PC takes goes to an output as the device and its bytes, and an error in the loop releases
+every button and reloads `code.py`, as on the board.
+[sim/page.py](../../sim/page.py) serves it as the playable panel page, [sim/uhid.py](../../sim/uhid.py) makes
+it a HID device on Linux, [sim/vjoy.py](../../sim/vjoy.py) feeds vJoy and
+[sim/sendinput.py](../../sim/sendinput.py) types the keyboard mode's shortcuts on Windows, and
+[windows/make_zip.py](../../windows/make_zip.py) builds the zip for Windows. Each module's docstring describes
+it; [Simulator](../using/simulator.md) says how to use it.

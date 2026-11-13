@@ -19,9 +19,10 @@ shortcuts instead. To try them without a panel, the firmware runs on the PC and 
   behind SHIFT.
 - White legends are primary functions, amber legends are SHIFT functions. All caps are black. Two lights:
   amber whenever SHIFT applies (pulsing in its last second), white while unit 2 is selected. Both are dark while
-  the PC is off, asleep, not connected or has suspended the panel. While they are dark for that reason SHIFT
-  does not apply: tap it again once the PC is back. In the [keyboard mode](keyboard.md) they take turns at each
-  start.
+  the PC is off, asleep, not connected or has suspended the panel. While the panel waits for the PC to take a
+  report, up to 2.5 s, they stay as they were, and a key pressed meanwhile goes out as they showed if the PC
+  then takes the report. While they are dark SHIFT does not apply: tap it again once the PC is back. In the
+  [keyboard mode](keyboard.md) they take turns at each start.
 - Everything behind SHIFT can wait until the autopilot flies, apart from IDENT (SHIFT, VFR). If both hands are
   needed, LVL first.
 
@@ -168,7 +169,8 @@ sides, and its cap has a small raised bar near the front edge, so it can be foun
   after its last detent, or after a held push or RANGE tilt is let go. Another knob ends it at once.
 - In the last second the light pulses between bright and dim, so a knob never drops back to its plain
   function unannounced in the middle of a turn.
-- A second tap cancels SHIFT, and it cancels itself after 3 s without input.
+- A second tap cancels SHIFT, and it cancels itself after 3 s without input, plus any time the panel waited
+  for the PC to take a report.
 - Dark means plain. Lit, even dim, means SHIFT is on: for the next key after a tap, or for the knob that
   keeps it. The light does not tell the two apart, and a key pressed while a knob keeps SHIFT is sent plain
   and ends the knob's SHIFT. For an amber key then, tap SHIFT first: that tap arms SHIFT for the key, and a
