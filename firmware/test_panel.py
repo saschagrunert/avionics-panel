@@ -2,30 +2,35 @@
 import buttonmap as BM
 import panel as P
 
+REPORTS = {d: bytearray(BM.SIZE[d] // 8) for d in (1, 2)}
+
+
+def down(panel, dev):
+    """the names of the buttons a panel has pressed on a device, read from the report code.py would send"""
+    report = REPORTS[dev]
+    panel.fill_report(dev, report)
+    return {BM.DEVICE[dev][8 * i + b] for i, byte in enumerate(report) if byte for b in range(8) if byte >> b & 1}
+
 
 class Sim:
     def __init__(self, solo=False):
         self.p, self.t, self.seen, self.log = P.Panel(solo), 0, [], []
         self.prev = {1: set(), 2: set()}
-        self.names = {d: {v: k for k, v in BM.BUTTON[d].items()} for d in (1, 2)}
+
+    def down(self, dev):
+        return down(self.p, dev)
 
     def run(self, ms):
         """advance time, record every button press edge as (device, name) in seen, and as (ms, device, name) in
-        log; checks that fill_report (code.py's) gives the same buttons as buttons()"""
-        names = self.names
+        log, the presses of one ms in the order of their button numbers"""
         for _ in range(ms):
             self.t += 1
             self.p.tick(self.t)
             for d in (1, 2):
-                now = self.p.buttons(d)
-                report, want = bytearray(b"\xff" * (BM.SIZE[d] // 8)), bytearray(BM.SIZE[d] // 8)
-                self.p.fill_report(d, report)
-                for b in now:
-                    want[b >> 3] |= 1 << (b & 7)
-                assert report == want
-                for b in sorted(now - self.prev[d]):
-                    self.seen.append((d, names[d][b]))
-                    self.log.append((self.t, d, names[d][b]))
+                now = self.down(d)
+                for name in sorted(now - self.prev[d], key=BM.BUTTON[d].get):
+                    self.seen.append((d, name))
+                    self.log.append((self.t, d, name))
                 self.prev[d] = now
 
     def key(self, name, ms=60):
@@ -99,40 +104,27 @@ def check_pulse(trace, warn=P.SHIFT_WARN_MS, pulse=P.SHIFT_PULSE_MS):
 
 def test_shift_light_pulses_before_a_knob_drops_it():
     s = Sim()
-    s.key("SHIFT"); s.turn("FREQ_OUTER", 1)              # a knob session: drops 3000 ms after this detent
-    check_pulse(light_trace(s, s.p.shift_until))
+    s.key("SHIFT"); s.p.turn("FREQ_OUTER", 1, s.t)       # a knob session: drops 3000 ms after this detent
+    check_pulse(light_trace(s, s.t + P.SHIFT_MS))
 
 
 def test_shift_light_pulses_before_an_armed_shift_drops():
     s = Sim()
-    s.key("SHIFT")                                       # armed, no key follows: drops 3000 ms after the tap
-    check_pulse(light_trace(s, s.p.shift_until))
+    s.p.key("SHIFT", True, s.t)                          # armed, no key follows: drops 3000 ms after the press
+    check_pulse(light_trace(s, s.t + P.SHIFT_MS))
 
 
 def test_pulse_follows_other_timings(monkeypatch):
     monkeypatch.setattr(P, "SHIFT_PULSE_MS", 100)        # 5 dim/bright pairs instead of 4
     s = Sim()
-    s.key("SHIFT")
-    check_pulse(light_trace(s, s.p.shift_until), pulse=100)
-
-
-def test_pulse_timing_rules():
-    assert P.pulse_timing_ok(1000, 125, 3000) and P.pulse_timing_ok(1000, 100, 3000)
-    assert not P.pulse_timing_ok(1000, 150, 3000)       # would start with a bright partial phase
-    assert not P.pulse_timing_ok(3000, 125, 3000)       # would pulse for the whole SHIFT
-
-
-def test_bad_timing_raises(monkeypatch):
-    import pytest
-    monkeypatch.setattr(P, "SHIFT_PULSE_MS", 150)
-    with pytest.raises(ValueError):
-        P.check_timing()
+    s.p.key("SHIFT", True, s.t)
+    check_pulse(light_trace(s, s.t + P.SHIFT_MS), pulse=100)
 
 
 def test_light_is_off_once_shift_runs_out_even_before_tick():
     s = Sim()
+    end = s.t + P.SHIFT_MS
     s.key("SHIFT")
-    end = s.p.shift_until
     assert s.p.shift_level(end - 1) == P.LIGHT_FULL      # still applies: last phase bright
     assert s.p.shift_level(end) == P.LIGHT_OFF and s.p.shift_level(end + 5) == P.LIGHT_OFF
 
@@ -140,14 +132,50 @@ def test_light_is_off_once_shift_runs_out_even_before_tick():
 def test_inputs_after_a_stall_follow_the_dark_light():
     # the loop stalls past the end of SHIFT: no tick() ran, but inputs must be plain, as the light says
     s = Sim()
-    s.key("SHIFT"); s.turn("FREQ_OUTER", 1); s.take()
-    s.t = s.p.shift_until + 30                           # stalled: time passed, no tick() ran
+    s.key("SHIFT"); s.p.turn("FREQ_OUTER", 1, s.t)
+    s.t += P.SHIFT_MS + 30                               # stalled: time passed, no tick() ran
     s.turn("FREQ_OUTER", 1)                              # a late detent: plain, and no new 3 s session
     assert s.take() == [(1, "COM_MHZ_UP")] and not s.p.shift_active(s.t)
-    s.key("SHIFT")
-    s.t = s.p.shift_until + 30
+    s.p.key("SHIFT", True, s.t)
+    s.t += P.SHIFT_MS + 30
     s.key("AP")                                          # a late key: plain
     assert s.take() == [(1, "AP")]
+
+
+def test_shift_never_applies_while_dark():
+    # code.py sets dark while USB is down and the lights are off: an armed SHIFT ends, a knob's session too,
+    # a SHIFT tap does nothing, and nothing of it comes back when the lights do. UNIT stays as it is
+    s = Sim()
+    s.key("SHIFT"); s.key("HOME"); assert s.p.unit_light
+    for arm in (lambda: s.key("SHIFT"), lambda: (s.key("SHIFT"), s.turn("ALTHDG_OUTER", 1), s.take())):
+        arm()
+        assert s.p.shift_level(s.t) == P.LIGHT_FULL
+        s.p.dark = True
+        assert s.p.shift_level(s.t) == P.LIGHT_OFF and not s.p.shift_active(s.t)
+        s.key("SHIFT"); assert s.p.shift_level(s.t) == P.LIGHT_OFF
+        s.key("AP"); s.turn("ALTHDG_OUTER", 1); s.key("SHIFT"); s.key("HOME")
+        assert s.take() == [(1, "AP"), (1, "ALT_100_UP"), (2, "HOME")]
+        s.p.dark = False
+        s.run(1); assert s.p.shift_level(s.t) == P.LIGHT_OFF and s.p.unit_light
+        s.key("AP"); s.turn("ALTHDG_OUTER", 1)
+        assert s.take() == [(1, "AP"), (1, "ALT_100_UP")]
+
+
+def test_a_shifted_hold_stops_while_dark():
+    # a shifted tilt held while the lights go dark: its S_PAN steps stop with SHIFT, and its release sends
+    # nothing; a shifted centre push held through it still sends S_PTR, as it was pressed
+    s = Sim()
+    hold_shifted_tilt(s); s.take()
+    s.p.dark = True
+    rest = light_and_edges(s, 2000)
+    assert all(level == P.LIGHT_OFF for level, _ in rest) and not any(names for _, names in rest[P.PRESS_MS:])
+    s.p.key("RANGE_A", False, s.t); s.p.key("RANGE_COM", False, s.t); s.run(500)
+    assert s.take() == []
+    s = Sim()
+    s.key("SHIFT"); s.p.key("RANGE_COM", True, s.t); s.run(100)
+    s.p.dark = True
+    s.run(500); s.p.key("RANGE_COM", False, s.t); s.run(200)
+    assert s.take() == [(1, "S_PTR")]
 
 
 def test_acceleration():
@@ -210,11 +238,13 @@ def test_unit_and_freq_modes():
     s.key("SHIFT"); s.key("HOME"); assert s.p.unit_light and s.take() == []
     s.key("HOME"); assert s.p.unit_light and s.take() == [(2, "HOME")]
     s.key("COM_SWAP"); s.key("AP"); assert s.take() == [(2, "COM_SWAP"), (1, "AP")]
-    s.key("FREQ_PUSH"); assert s.p.freq_mode_name == "NAV" and s.take() == [(2, "FREQ_PUSH")]
+    s.key("FREQ_PUSH"); assert s.take() == [(2, "FREQ_PUSH")]
     s.turn("FREQ_INNER", 1); assert s.take() == [(2, "NAV_KHZ_UP")]
     s.key("FREQ_PUSH"); s.turn("FREQ_INNER", -1); assert s.take() == [(2, "FREQ_PUSH"), (2, "ADF_1_DN")]
     s.key("SHIFT"); s.key("HOME"); assert not s.p.unit_light
-    s.key("SHIFT"); s.key("FREQ_PUSH"); assert s.take() == [(1, "XPDR_MODE")] and s.p.freq_mode_name == "ADF"
+    s.key("SHIFT"); s.key("FREQ_PUSH"); assert s.take() == [(1, "XPDR_MODE")]
+    s.run(P.SHIFT_MS); s.turn("FREQ_OUTER", 1); assert s.take() == [(1, "ADF_100_UP")]   # the mode stayed
+    s.key("FREQ_PUSH"); s.turn("FREQ_OUTER", 1); assert s.take() == [(1, "FREQ_PUSH"), (1, "COM_MHZ_UP")]
 
 
 def test_freq_mode_survives_a_long_pause():
@@ -223,7 +253,7 @@ def test_freq_mode_survives_a_long_pause():
     s.key("FREQ_PUSH"); s.take()
     s.run(20000)                                         # long after the push
     s.turn("FREQ_INNER", 1)
-    assert s.p.freq_mode_name == "NAV" and s.take() == [(1, "NAV_KHZ_UP")]
+    assert s.take() == [(1, "NAV_KHZ_UP")]
 
 
 def squawk(s):
@@ -286,7 +316,8 @@ def test_squawk_push_keeps_the_selected_digit():
     s.p.key("FREQ_PUSH", True, s.t); s.run(100); s.turn("FREQ_OUTER", 1); s.turn("FREQ_INNER", 1)   # push held
     s.p.key("FREQ_PUSH", False, s.t); s.turn("FREQ_INNER", -1)
     assert [n for _, n in s.take()] == ["XPDR_MODE", "SQK_D2_UP", "XPDR_MODE", "SQK_D3_UP", "SQK_D3_DN"]
-    assert s.p.freq_mode_name == "COM"
+    s.run(P.SHIFT_MS); s.turn("FREQ_INNER", 1)
+    assert s.take() == [(1, "COM_KHZ_UP")]               # the shifted pushes left the mode alone
 
 
 def test_squawk_fast_spin_only_steps_the_selected_digit():
@@ -322,7 +353,8 @@ def test_adf_inner_ring_accelerates():
     # in ADF mode the inner ring steps 1 kHz, or 10 kHz on a fast turn
     s = Sim()
     s.key("FREQ_PUSH"); s.key("FREQ_PUSH"); s.take()
-    assert s.p.freq_mode_name == "ADF"
+    s.turn("FREQ_OUTER", 3, every=P.FAST_MS // 2); s.run(500)            # the outer ring: one step per detent
+    assert [n for _, n in s.take()] == ["ADF_100_UP"] * 3
     s.turn("FREQ_INNER", 2, every=P.FAST_MS // 2); s.run(500)
     assert [n for _, n in s.take()] == ["ADF_1_UP", "ADF_10_UP"]
 
@@ -379,11 +411,11 @@ def test_unit_toggled_while_a_unit_key_is_held():
     # press is on device 2
     s = Sim()
     s.p.key("CDI", True, s.t); s.run(100)
-    tap(s, "SHIFT"); tap(s, "HOME"); assert s.p.unit == 2
+    tap(s, "SHIFT"); tap(s, "HOME"); assert s.p.unit_light
     s.run(500)
-    assert s.p.buttons(1) == {BM.BUTTON[1]["CDI"]} and s.p.buttons(2) == set()
+    assert s.down(1) == {"CDI"} and s.down(2) == set()
     s.p.key("CDI", False, s.t); s.run(100)
-    assert s.p.buttons(1) == set() and s.take() == [(1, "CDI")]
+    assert s.down(1) == set() and s.take() == [(1, "CDI")]
     s.key("CDI"); assert s.take() == [(2, "CDI")]
 
 
@@ -392,8 +424,8 @@ def test_unit_toggled_while_detents_are_queued():
     # the next ones to device 2
     s = Sim()
     s.turn("FMS_INNER", 6, every=10)
-    tap(s, "SHIFT"); tap(s, "HOME"); assert s.p.unit == 2
-    assert s.take() == [(1, "FMS_INNER_CW")] * 2 and (1, BM.BUTTON[1]["FMS_INNER_CW"]) in s.p.order   # more to go
+    tap(s, "SHIFT"); tap(s, "HOME"); assert s.p.unit_light
+    assert s.take() == [(1, "FMS_INNER_CW")] * 2         # more to go
     s.turn("FMS_INNER", 2, every=10); s.run(1000)
     assert sorted(s.take()) == [(1, "FMS_INNER_CW")] * 4 + [(2, "FMS_INNER_CW")] * 2
 
@@ -475,10 +507,10 @@ def test_a_key_held_behind_steps_keeps_its_unit_and_is_shown_from_its_turn():
     s = Sim()
     s.turn("FMS_INNER", 4, every=10)
     s.p.key("CDI", True, s.t); s.run(100)
-    tap(s, "SHIFT"); tap(s, "HOME"); assert s.p.unit == 2
-    s.run(500); assert s.p.buttons(1) == {BM.BUTTON[1]["CDI"]}
-    s.p.key("CDI", False, s.t); s.run(P.BOUNCE_MS - 1); assert s.p.buttons(1) == {BM.BUTTON[1]["CDI"]}
-    s.run(1); assert s.p.buttons(1) == set()
+    tap(s, "SHIFT"); tap(s, "HOME"); assert s.p.unit_light
+    s.run(500); assert s.down(1) == {"CDI"}
+    s.p.key("CDI", False, s.t); s.run(P.BOUNCE_MS - 1); assert s.down(1) == {"CDI"}
+    s.run(1); assert s.down(1) == set()
     s.key("CDI")
     assert s.take() == [(1, "FMS_INNER_CW")] * 4 + [(1, "CDI"), (2, "CDI")]
 
@@ -508,7 +540,7 @@ def test_at_most_max_queue_steps_wait():
     s = Sim()
     s.p.turn("FMS_INNER", 12, s.t); s.run(5); s.turn("FMS_OUTER", 1, every=5); s.run(2000)
     assert [n for _, n in s.take()] == ["FMS_INNER_CW"] * P.MAX_QUEUE + ["FMS_OUTER_CW"]
-    assert s.p.order == [] and s.p.shown == {}
+    s.run(2000); assert s.take() == []                   # the four dropped detents never come
 
 
 def test_a_key_behind_a_full_queue_is_kept_and_waits_less_than_a_second():
@@ -546,12 +578,43 @@ def test_reversing_keeps_the_steps_a_key_or_another_ring_followed():
     assert [n for _, n in s.take()] == ["FMS_INNER_CW"] * 6 + ["ENT", "FMS_INNER_CCW"]
 
 
+def test_reversing_in_another_function_keeps_the_steps_of_the_one_before():
+    # a step back only stops the function the ring still has. ALT spun, SHIFT, and the ring one detent back, now
+    # BARO; COM kHz spun, UNIT, and one back for COM 2: SHIFT and UNIT send no button, but the steps queued
+    # before them all go out
+    s = Sim()
+    s.turn("ALTHDG_OUTER", 8, every=10); tap(s, "SHIFT"); s.turn("ALTHDG_OUTER", -1, every=10); s.run(1500)
+    assert [n for _, n in s.take()] == ["ALT_100_UP"] + ["ALT_1000_UP"] * 7 + ["BARO_DN"]
+    s = Sim()
+    s.turn("FREQ_INNER", 6, every=10); tap(s, "SHIFT"); tap(s, "HOME")
+    s.turn("FREQ_INNER", -1, every=10); s.run(1500)
+    assert s.take() == [(1, "COM_KHZ_UP")] * 6 + [(2, "COM_KHZ_DN")]
+
+
+def test_steps_kept_stay_when_the_ring_turns_back():
+    # code.py keeps the steps queued before it waited for a host: a turn back after that queues behind them
+    s = Sim()
+    s.p.turn("ALTHDG_OUTER", 1, s.t); s.p.keep_steps(); s.p.turn("ALTHDG_OUTER", -1, s.t); s.run(500)
+    assert [n for _, n in s.take()] == ["ALT_100_UP", "ALT_100_DN"]
+
+
+def test_fill_report_sets_a_bit_per_pressed_button_and_clears_the_rest():
+    s = Sim()
+    s.p.key("ENT", True, s.t); s.p.key("AP", True, s.t); s.run(P.PRESS_MS + 5)
+    tap(s, "SHIFT"); tap(s, "HOME"); s.p.key("ENT", False, s.t); s.run(200); s.p.key("ENT", True, s.t); s.run(5)
+    for dev, want in ((1, {BM.BUTTON[1]["AP"]}), (2, {BM.BUTTON[2]["ENT"]})):
+        report = bytearray(b"\xff" * (BM.SIZE[dev] // 8))
+        s.p.fill_report(dev, report)
+        assert {b for b in range(BM.SIZE[dev]) if report[b >> 3] >> (b & 7) & 1} == want == s.p.buttons(dev)
+
+
 def test_reversing_forgets_steps_that_never_went_out():
     # ALT spun behind FMS steps and turned back before any of its steps went out: only the step back is sent
     s = Sim()
     s.turn("FMS_INNER", 4, every=10); s.turn("ALTHDG_OUTER", 3, every=10); s.turn("ALTHDG_OUTER", -1, every=10)
     s.run(1000)
-    assert [n for _, n in s.take()] == ["FMS_INNER_CW"] * 4 + ["ALT_100_DN"] and s.p.shown == {}
+    assert [n for _, n in s.take()] == ["FMS_INNER_CW"] * 4 + ["ALT_100_DN"]
+    s.run(1000); assert s.take() == []
 
 
 def test_a_medium_speed_turn_mixes_in_coarse_steps():
@@ -591,7 +654,7 @@ def held_presses(keys, button, pass_ms, ms=15000):
             for k in reversed(keys):
                 p.key(k, False, t)
         p.tick(t)
-        now = BM.BUTTON[1][button] in p.buttons(1)
+        now = button in down(p, 1)
         if now and not was:
             starts.append(t)
         was = now
@@ -612,10 +675,8 @@ def test_a_hold_stops_with_its_release_at_any_pass_time():
 
 
 def test_fast_tilt_closes_direction_and_com_in_one_scan():
-    # a quick tilt closes its direction and "com" within one 20 ms keypad scan: the keypad reports them in
-    # the same pass, the direction (RANGE_A, key 28) before "com" (key 32), and releases them the same way
-    names = sum(BM.MATRIX, ())
-    assert names.index("RANGE_A") < names.index("RANGE_COM")
+    # a quick tilt closes its direction and "com" within one keypad scan: the keypad reports them in the same
+    # pass, the direction before "com" (code.py's scan order, tests/test_pins.py), and releases them the same way
     s = Sim()
     s.p.key("RANGE_A", True, s.t); s.p.key("RANGE_COM", True, s.t); s.run(100)
     s.p.key("RANGE_A", False, s.t); s.p.key("RANGE_COM", False, s.t); s.run(200)
@@ -645,8 +706,8 @@ def test_repeats_due_together_queue_in_a_fixed_order():
     for first, second in (("UP", "DN"), ("DN", "UP")):
         s = Sim()
         s.p.key(first, True, s.t); s.p.key(second, True, s.t); s.run(1000)
-        logs.append([(t, n) for t, _, n in s.log if t > P.REPEAT_DELAY_MS])
-    assert logs[0] == logs[1] and len(logs[0]) >= 4
+        logs.append([(t, n) for t, _, n in s.log if t >= P.REPEAT_DELAY_MS])
+    assert logs[0] == logs[1] and len(logs[0]) >= 4 and [n for _, n in logs[0][:2]] == ["DN", "UP"]   # by name
 
 
 def pressed_trace(s, ms, dev=1):
@@ -654,7 +715,7 @@ def pressed_trace(s, ms, dev=1):
     out = {}
     for _ in range(ms):
         s.run(1)
-        out[s.t] = {s.names[dev][b] for b in s.p.buttons(dev)}
+        out[s.t] = s.down(dev)
     return out
 
 
@@ -701,14 +762,14 @@ def key_trace(s, presses, name, button=None, dev=1, after=500):
     """presses: (down ms, up ms) from now, of key or push `name`. {ms: `button` (default: name) pressed?}"""
     t0, out = s.t, {}
     events = sorted([(t0 + a, True) for a, _ in presses] + [(t0 + b, False) for _, b in presses])
-    for t, down in events:
+    for t, pressed in events:
         while s.t < t:
             s.run(1)
-            out[s.t] = (button or name) in {s.names[dev][b] for b in s.p.buttons(dev)}
-        s.p.key(name, down, s.t)
+            out[s.t] = (button or name) in s.down(dev)
+        s.p.key(name, pressed, s.t)
     for _ in range(after):
         s.run(1)
-        out[s.t] = (button or name) in {s.names[dev][b] for b in s.p.buttons(dev)}
+        out[s.t] = (button or name) in s.down(dev)
     return out
 
 
@@ -790,10 +851,12 @@ def test_second_press_held_waits_for_the_gap_then_stays_held():
 
 
 def test_fast_double_push_stays_two_presses():
-    # pushes follow the same rule: two quick pushes of the FREQ knob step the mode twice and send two C/V
+    # pushes follow the same rule: two quick pushes of the FREQ knob step the mode twice, to ADF, and send
+    # FREQ_PUSH twice
     s = Sim()
     on = key_trace(s, [(0, 15), (50, 65)], "FREQ_PUSH")
-    assert len(runs(on)) == 2 and mobiflight_counts(on) == {2} and s.p.freq_mode_name == "ADF"
+    assert len(runs(on)) == 2 and mobiflight_counts(on) == {2}
+    s.take(); s.turn("FREQ_OUTER", 1); assert s.take() == [(1, "ADF_100_UP")]
     on = key_trace(s, [(0, 15), (50, 65)], "ALTHDG_PUSH", "HDG_SYNC")
     assert len(runs(on)) == 2 and mobiflight_counts(on) == {2}
 
@@ -806,10 +869,12 @@ def test_a_quick_tap_of_another_key_waits_for_the_press_only():
     assert [n for _, n in s.take()] == ["VS", "AP"] and s.log[1][0] - s.log[0][0] == P.PRESS_MS
 
 
-def test_key_state_is_forgotten_after_the_gap():
+def test_a_key_goes_down_at_once_again_after_its_gap():
+    # a fast double tap, and a third press well after its gap: nothing is owed any more, so it shows at once
     s = Sim()
     key_trace(s, [(0, 10), (50, 60)], "AP")
-    assert s.p.shown == {}
+    s.take(); s.p.key("AP", True, s.t); s.run(1)
+    assert s.take() == [(1, "AP")]
 
 
 def test_two_keys_tapped_together_go_out_one_after_the_other():
@@ -822,7 +887,6 @@ def test_two_keys_tapped_together_go_out_one_after_the_other():
     trace.update(pressed_trace(s, 2 * P.PRESS_MS + P.GAP_MS - 10))
     assert [n for t in sorted(trace) for n in trace[t]] == ["VS"] * P.PRESS_MS + ["AP"] * P.PRESS_MS
     s.run(1)
-    assert s.p.shown == {}
     s.take()
     s.p.key("VS", True, s.t); s.run(1)
     assert s.take() == [(1, "VS")]
@@ -859,14 +923,13 @@ def hold_trace(events, ms, shifted=False):
             if s.t - t0 == at:
                 s.p.key(name, down, s.t)
         s.run(1)
-        out.append((s.p.shift_level(s.t), s.p.buttons(1), s.p.buttons(2)))
+        out.append((s.p.shift_level(s.t), s.down(1), s.down(2)))
     return out
 
 
 def presses(trace, dev, name):
     """the presses of a button in a hold_trace"""
-    b = BM.BUTTON[dev][name]
-    on = [b in entry[dev] for entry in trace]                # entry: (level, device 1, device 2)
+    on = [name in entry[dev] for entry in trace]             # entry: (level, device 1, device 2)
     return sum(now and not before for before, now in zip([False] + on, on))
 
 
@@ -904,6 +967,10 @@ def test_chatter_delays_a_repeat_but_does_not_lose_it():
                 presses(hold_trace(clean, ms), 1, "UP"), (n, after)
 
 
+# UP held from 0 ms repeats at REPEAT_DELAY_MS and every REPEAT_MS from there: the first repeat due after 1 s
+NEXT_REPEAT = next(t for t in range(P.REPEAT_DELAY_MS, 2000, P.REPEAT_MS) if t > 1000)
+
+
 def test_a_stalled_pass_sends_one_late_repeat():
     # a loop pass stalls while UP is held, past two or more repeats: one repeat for the time missed, then the
     # usual cadence from there, not a burst of the missed ones. The late one goes out a pass after the stall,
@@ -912,7 +979,7 @@ def test_a_stalled_pass_sends_one_late_repeat():
     for late, n in ((P.REPEAT_MS - 2, 2), (P.REPEAT_MS, 1), (2000, 1)):
         s = Sim()
         s.p.key("UP", True, s.t); s.run(1000); s.take()
-        s.t = s.p.repeat["UP"][2] + late - 1               # stalled: time passed, no tick() ran
+        s.t = NEXT_REPEAT + late - 1                       # stalled: time passed, no tick() ran
         s.run(P.REPEAT_MS - 1); s.p.key("UP", False, s.t); s.run(1000)
         assert s.take() == [(1, "UP")] * n, late
 
@@ -924,7 +991,7 @@ def test_the_cadence_restarts_at_a_long_stall():
     for held, n in ((P.REPEAT_MS - 1, 1), (P.REPEAT_MS, 2)):
         s = Sim()
         s.p.key("UP", True, s.t); s.run(1000); s.take()
-        s.t = s.p.repeat["UP"][2] + 2049                  # stalled, not a whole number of repeats: no tick() ran
+        s.t = NEXT_REPEAT + 2049                          # stalled, not a whole number of repeats: no tick() ran
         s.run(2 + held); s.p.key("UP", False, s.t); s.run(1000)
         assert s.take() == [(1, "UP")] * n, held
 
@@ -978,18 +1045,18 @@ def test_key_works_normally_after_a_bounce():
     # reach the PC, nothing stays held (AP stuck down would block the autopilot key)
     s = Sim()
     on = key_trace(s, [(0, 5), (25, 60), (300, 400)], "AP")
-    assert len(runs(on)) == 2 and not on[s.t] and s.p.held == {} and s.p.pending == {}
+    assert len(runs(on)) == 2 and not on[s.t]
     on = key_trace(s, [(0, 100), (120, 200)], "AP")          # and another bounce after it
-    assert len(runs(on)) == 1 and not on[s.t] and s.p.held == {} and s.p.pending == {}
+    assert len(runs(on)) == 1 and not on[s.t]
 
 
 def test_release_is_applied_at_once_when_no_bounce():
-    # code.py's resync after a keypad overflow: a release it is sure of goes out at once, and a press right
+    # code.py lets go of every key after a keypad overflow: that release goes out at once, and a press right
     # after it is a new press, not a bounce
     s = Sim()
     s.p.key("AP", True, s.t); s.run(100)
     s.p.release("AP", s.t); s.run(1)
-    assert s.p.buttons(1) == set()
+    assert s.down(1) == set()
     s.p.key("AP", True, s.t); s.run(200); s.p.key("AP", False, s.t); s.run(200)
     assert s.take() == [(1, "AP"), (1, "AP")]
 
@@ -1016,9 +1083,10 @@ def test_bounce_does_not_change_state_twice():
     assert [n for _, n in s.take()] == ["TEST"]
     key_trace(s, [(0, 60)], "SHIFT")
     key_trace(s, [(0, 5), (25, 60)], "HOME")
-    assert s.p.unit == 2
+    assert s.p.unit_light
     key_trace(s, [(0, 5), (25, 60)], "FREQ_PUSH")
-    assert s.p.freq_mode_name == "NAV" and [n for _, n in s.take()] == ["FREQ_PUSH"]
+    s.turn("FREQ_INNER", 1)
+    assert s.take() == [(2, "FREQ_PUSH"), (2, "NAV_KHZ_UP")]
 
 
 def test_bounce_does_not_repeat_a_step():
@@ -1045,31 +1113,14 @@ def test_bounce_window_boundary():
         assert [name for _, name in s.take()] == ["CLR"] * n + ["PTR"] * n
 
 
-def test_timing_rules_keep_the_bounce_window_above_a_scan(monkeypatch):
-    # a bounce one scan long must fall in the window, with half a scan to spare for a scan held off
-    import pytest
-    least = P.KEY_SCAN_MS * 3 // 2
-    with monkeypatch.context() as m:
-        m.setattr(P, "BOUNCE_MS", least)
-        P.check_timing()
-        m.setattr(P, "BOUNCE_MS", least - 1)
-        with pytest.raises(ValueError):
-            P.check_timing()
-
-
-def test_timing_rules_keep_press_and_gap_above_a_poll(monkeypatch):
-    # an edge can reach the PC three 8 ms HID frames late (the joysticks share the endpoint): press and gap must
-    # still outlast MobiFlight's poll then. A 50 ms gap can arrive as 26 ms, shorter than the 31.25 ms poll
-    import pytest
-    assert P.HID_FRAME_MS == HID_FRAME_MS
-    least = P.POLL_MS + 3 * HID_FRAME_MS
-    for name in ("PRESS_MS", "GAP_MS"):
-        with monkeypatch.context() as m:
-            m.setattr(P, name, least)
-            P.check_timing()
-            m.setattr(P, name, least - 1)
-            with pytest.raises(ValueError):
-                P.check_timing()
+def test_the_timing_follows_the_poll_the_frames_and_the_scan():
+    # press and gap outlast MobiFlight's poll after an edge came three 8 ms HID frames late (a 50 ms gap can
+    # arrive as 26 ms, shorter than the 31.25 ms poll); the bounce window is a scan and a half; the warning is
+    # whole dim and bright pairs and shorter than SHIFT, which shows steady first
+    assert P.HID_FRAME_MS == HID_FRAME_MS and P.POLL_MS >= POLL_MS
+    assert P.PRESS_MS == P.GAP_MS == P.POLL_MS + 3 * HID_FRAME_MS
+    assert P.BOUNCE_MS * 2 == P.KEY_SCAN_MS * 3
+    assert P.SHIFT_WARN_MS % (2 * P.SHIFT_PULSE_MS) == 0 and 0 < P.SHIFT_WARN_MS < P.SHIFT_MS
 
 
 def test_reversing_a_knob_drops_the_queued_steps():
@@ -1087,15 +1138,15 @@ def test_reversing_a_knob_drops_the_queued_steps():
 
 
 def test_reversing_drops_slow_and_coarse_steps_of_one_turn():
-    # two slow detents (the second still queued), then fast ones: the reversal drops the queued slow step
-    # too, not only the coarse ones queued last
-    s = Sim()
-    for gap in (P.FAST_MS + 5, 5, 5, 5):
-        s.p.turn("ALTHDG_OUTER", 1, s.t); s.run(gap)
-    assert s.take() == [(1, "ALT_100_UP")]
-    assert s.p.order == [s.p._btn(1, "ALT_100_UP")] + [s.p._btn(1, "ALT_1000_UP")] * 2
-    s.p.turn("ALTHDG_OUTER", -1, s.t); s.run(1000)
-    assert s.take() == [(1, "ALT_100_DN")]
+    # two slow detents (the second still queued), then fast ones, which would go out as a second fine step and
+    # two coarse ones: the reversal drops the queued slow step too, not only the coarse ones queued last
+    for back, rest in ((0, ["ALT_100_UP"] + ["ALT_1000_UP"] * 2), (-1, ["ALT_100_DN"])):
+        s = Sim()
+        for gap in (P.FAST_MS + 5, 5, 5, 5):
+            s.p.turn("ALTHDG_OUTER", 1, s.t); s.run(gap)
+        assert s.take() == [(1, "ALT_100_UP")]
+        s.p.turn("ALTHDG_OUTER", back, s.t); s.run(1000)
+        assert [n for _, n in s.take()] == rest
 
 
 def test_reversing_lets_the_running_pulse_finish():
@@ -1144,7 +1195,7 @@ def test_shifted_tilt_held_keeps_the_light():
     assert all(level == P.LIGHT_FULL for level, _ in held)
     assert sum(names.count("S_PAN_UP") for _, names in held) > 30
     s.p.key("RANGE_A", False, s.t); s.p.key("RANGE_COM", False, s.t)
-    assert s.p.shift_until == s.t + P.SHIFT_MS
+    assert s.p.shift_active(s.t + P.SHIFT_MS - 1) and not s.p.shift_active(s.t + P.SHIFT_MS)
     after = light_and_edges(s, 3100)
     assert all(names == [] for _, names in after)            # no PTR, no more pan
     assert after[-1][0] == P.LIGHT_OFF
@@ -1190,17 +1241,17 @@ def test_held_shifted_tilt_survives_a_stalled_pass():
 
 def test_held_shifted_push_survives_a_stalled_pass():
     # the same when the stalled pass first reads an input: the release, then a turn of the same knob. Also for a
-    # release from code.py's resync after a keypad overflow, which is applied at once
-    for resync in (False, True):
+    # release after a keypad overflow, which code.py applies at once
+    for overflow in (False, True):
         s = Sim()
         s.key("SHIFT"); s.take()
         s.p.key("ALTHDG_PUSH", True, s.t); s.run(100)
         s.t += P.SHIFT_MS + 500                              # stalled: time passed, no tick() ran
-        if resync:
+        if overflow:
             s.p.release("ALTHDG_PUSH", s.t)
         else:
             s.p.key("ALTHDG_PUSH", False, s.t)
-        assert s.p.shift_active(s.t) and s.p.shift_until == s.t + P.SHIFT_MS
+        assert s.p.shift_active(s.t + P.SHIFT_MS - 1) and not s.p.shift_active(s.t + P.SHIFT_MS)
         s.turn("ALTHDG_INNER", 1)
         assert s.take() == [(1, "BARO_STD"), (1, "CRS_1_UP")]
 

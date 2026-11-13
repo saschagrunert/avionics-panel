@@ -10,5 +10,6 @@ ignore = [
 ]
 
 [lint.per-file-ignores]
-# CircuitPython: no zip(strict=), keep the code to what the firmware runtime supports
-"firmware/*" = ["B905", "UP"]
+# CircuitPython: no zip(strict=) and no contextlib (SIM105), and any() or next() over a generator would allocate
+# in every loop pass (SIM110); keep the code to what the firmware runtime supports
+"firmware/*" = ["B905", "UP", "SIM105", "SIM110"]

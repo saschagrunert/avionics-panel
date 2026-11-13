@@ -87,6 +87,7 @@ def test_a_click_shorter_than_a_key_scan_still_counts():
 
 def test_idle_waits_also_before_any_switch_changed():
     live = Live(speed=SPEED)
+    live.act("wait", 10)                       # code.py makes its encoders in its first few ms
     live.act("turn", "FREQ_INNER", 1, 0)
     out = run(live)
     finish(live)                               # idle() with no switch changed yet

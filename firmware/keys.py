@@ -56,8 +56,9 @@ DESCRIPTOR = bytes((
 
 # The shortcuts: F1 to F12 and navigation keys (HID usage IDs, Keyboard/Keypad page), which mean the same on every
 # layout and are in the boot keyboard's range, with Ctrl, Shift and Alt as the report's bits. MSFS is reported to
-# keep left and right Ctrl and Shift apart, and its default bindings use the left ones, so the right ones open room
-# that no default takes. Never right Alt (AltGr on many layouts; a sim window in MSFS 2024) or the Windows key.
+# keep left and right Ctrl and Shift apart, and MSFS 2024's default presets use the left ones, so the right ones
+# open room those leave free (its Keyboard 2020 presets are reported to bind right Ctrl with the arrows as well).
+# Never right Alt (AltGr on many layouts; a sim window in MSFS 2024) or the Windows key.
 LC, LS, LA, RC, RS = 0x01, 0x02, 0x04, 0x10, 0x20
 F_KEYS = bytes(range(0x3A, 0x46))  # F1 to F12
 F4, F5, F6, F10 = 0x3D, 0x3E, 0x3F, 0x43
@@ -74,9 +75,12 @@ def without(keys, *left_out):
 # Shift+Alt: head tracking pause), Shift with a navigation key or arrow, which MSFS may take for the keypad key in
 # its place, Delete and End, which erase and reset in its menus, and Windows', drivers' and overlays' shortcuts:
 # Ctrl+Alt with an F-key (Intel; on Linux it switches the console) and those noted below. MSFS is reported to fire
-# a binding of a shortcut's parts when the shortcut itself is not bound, so the shortcuts whose parts do nothing
-# in flight come first: navigation keys alone are menu keys, arrows alone turn the view; F-keys alone are
-# throttle, propeller and mixture, with left Shift cameras, with left Ctrl autopilot modes (last).
+# a binding of a shortcut's parts when the shortcut itself is not bound. So the navigation keys and arrows come
+# first: their parts carry fewer defaults than those of the F-keys, which alone are throttle, propeller and
+# mixture, with left Shift cameras and with left Ctrl autopilot modes (the groups with left Ctrl come last).
+# They are not free of defaults: binding guides name Insert alone as the drone camera, and in the Keyboard 2020
+# presets Home and Page Up alone, right Ctrl with the arrows and Alt with Up and Down. docs/using/keyboard.md
+# says what to clear before binding.
 GROUPS = (
     (RC, NAV), (LA, NAV), (RC | LA, NAV),
     (RC, ARROWS), (LA, ARROWS), (LC, ARROWS[:2]),               # Ctrl+Alt+arrows turn the screen (AMD)
@@ -92,7 +96,8 @@ GROUPS = (
 )
 COMBOS = b"".join(bytes(b for k in keys for b in (mods, k)) for mods, keys in GROUPS)   # (modifiers, key) pairs
 # The functions that take the first shortcuts, those of navigation keys and arrows: the ones the sim's controls
-# may well have nothing for (so their shortcuts stay unbound), knob detents and repeated steps first
+# may well have nothing for (so their shortcuts stay unbound), knob detents and repeated steps first. The table
+# may still change until it has been tested on hardware; from then on it is frozen (test_keys.py has a snapshot).
 FIRST = ("FREQ_PUSH", "PAN_UP", "PAN_DN", "PAN_LEFT", "PAN_RIGHT", "PTR", "PANEL_LT_UP", "PANEL_LT_DN",
          "FLOOD_LT_UP", "FLOOD_LT_DN", "HDG_SYNC", "XPDR_MODE", "COM_121_5", "TEST", "ARM", "CRS_CTR", "GPSS",
          "HALF_BANK", "VFR", "HOME", "OBS", "MAP")
@@ -139,18 +144,19 @@ class Keyboard:
     follows at once (whose modifiers then replace them in a report of their own)."""
 
     def __init__(self, panel):
-        self.panel, self.fn, self.at, self.key = panel, None, None, False
+        self.panel, self.fn = panel, None          # fn: the function whose shortcut the host has, or gets next
 
-    def fill(self, report):
-        """The report for this loop pass, in place (bytes 0 and 2; the others stay 0): one step per pass, and
-        nothing allocated"""
+    def fill(self, report, last):
+        """The next report, in place (bytes 0 and 2; the others stay 0), one step on from last: the report the
+        host has, or None after USB was down, since a host that comes back is taken to have every key up. A
+        report that did not go out is worked out again, so no two steps merge. It leaves nothing on the heap."""
         down = self.panel.pressed()
-        if down != self.fn:
-            if self.key:
-                self.key = False                   # the key goes up, its modifiers stay for this report
-            else:                                  # then the next function's modifiers, or none
-                self.fn, self.at = down, None if down is None else 2 * INDEX[down[0]][down[1]]
-        elif down is not None:
-            self.key = True                        # its modifiers went out with the last report: now its key
-        report[0] = 0 if self.at is None else COMBOS[self.at]
-        report[2] = COMBOS[self.at + 1] if self.key else 0
+        mods = last[0] if last else 0
+        if last and last[2] and down != self.fn:   # the key goes up first, its modifiers stay
+            report[0], report[2] = mods, 0
+            return
+        self.fn = down
+        i = None if down is None else 2 * INDEX[down[0]][down[1]]
+        report[0] = 0 if i is None else COMBOS[i]
+        # the key once the host has its modifiers
+        report[2] = COMBOS[i + 1] if i is not None and mods == COMBOS[i] else 0

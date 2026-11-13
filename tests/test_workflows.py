@@ -272,7 +272,7 @@ def test_shifted_keys():
     legend = {"½ BANK": "HALF_BANK", "ADF": "ADF_AUDIO", "NAV 1": "NAV1_AUDIO", "NAV 2": "NAV2_AUDIO",
               "DME": "DME_AUDIO", "121.5": "COM_121_5", "ADF ⇆": "ADF_SWAP"}
     with open(CONTROLS) as f:
-        text = f.read().split("\n## Keys")[1]
+        text = f.read().split("\n## Keys")[1].split("\n## ")[0]
     cells = [c.strip() for line in text.splitlines() if line.startswith("| ") and "---" not in line
              for c in line.strip("|").split("|") if c.strip() and not c.strip().startswith("SHIFT")]
     sim, expected = Sim(), []
@@ -404,6 +404,44 @@ def test_turning_back_stops_the_knob_at_once():
     sim.turn("FMS_INNER", -1)
     sim.wait(1000)
     assert seen(sim) == (["FMS_INNER_CW"] * 2 + ["FMS_INNER_CCW"], [])
+
+
+def test_turning_back_in_another_function_keeps_the_steps_of_the_one_before():
+    # ALT spun eight detents, SHIFT, and the same ring one detent back, now BARO, while ALT steps still wait: a
+    # step back only stops its own function, so all eight ALT steps reach the PC. The same across a UNIT change:
+    # COM 1's six kHz steps stay when the ring then turns back for COM 2
+    sim = Sim()
+    sim.turn("ALTHDG_OUTER", 8, every=40)
+    sim.tap("SHIFT", then=50)
+    sim.turn("ALTHDG_OUTER", -1)
+    sim.wait(1500)
+    assert seen(sim) == (["ALT_100_UP"] + ["ALT_1000_UP"] * 7 + ["BARO_DN"], [])
+    sim = Sim()
+    sim.turn("FREQ_INNER", 6, every=40)
+    sim.tap("SHIFT", then=50)
+    sim.tap("HOME", then=50)
+    sim.turn("FREQ_INNER", -2)
+    sim.wait(1500)
+    assert seen(sim) == (["COM_KHZ_UP"] * 6, ["COM_KHZ_DN"] * 2)
+
+
+@pytest.mark.parametrize("offset", range(0, 20, 3))
+def test_shift_and_a_key_within_one_scan(offset):
+    # SHIFT and, 5 ms later, FD (YD), then AP; SHIFT and HOME (UNIT) the same way. Whether or not one 19.5 ms key
+    # scan reads both presses, SHIFT comes first: YD, not FD with SHIFT left armed for AP; UNIT, not the HOME page
+    sim = Sim()
+    sim.wait(offset)
+    for key in ("FD", "HOME"):
+        sim.press("SHIFT")
+        sim.wait(5)
+        sim.press(key)
+        sim.wait(100)
+        sim.release("SHIFT")
+        sim.release(key)
+        sim.wait(300)
+        sim.tap("AP")
+    assert seen(sim) == (["YD", "AP", "AP"], [])
+    assert [duty > 0 for _, duty in sim.light("UNIT")] == [False, True]
 
 
 def test_cockpit_lighting():
