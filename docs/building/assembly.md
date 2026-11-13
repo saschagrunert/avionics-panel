@@ -85,6 +85,11 @@ grips stays on when the panel is turned over and does not wobble.
   that does not grip cocks on the lever at full tilt until its skirt touches.
 - A knob that needs more than a firm thumb is too tight: do not force it, as the force goes into the
   encoder's shaft (the inner one is the push switch).
+- An outer ring that rubs the plate when turned (the encoders' heights vary, and so does a support mark
+  left on its bottom face): take it off, sand its bottom face on the fine sandpaper laid on the table, a few
+  strokes at a time, until it clears. Then push the inner knob: it must still click without touching the
+  ring.
+- An inner knob that touches its ring when pushed: sand the rim of its underside the same way.
 - If even bore 1 does not grip, or even bore 5 is too tight, set `FIT` in
   [mech/stack.py](../../mech/stack.py) to -0.5 (1 was loose) or 0.5 (5 was tight), so that the five new
   bores go on where the old ones ended. Run [`./build.sh`](../architecture/generators.md#build) and order

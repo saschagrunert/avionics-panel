@@ -79,7 +79,7 @@ section "firmware" nix-shell "$SHELLS" -A firmware \
 section "board" gen pcb "$BOARD"
 section "plate artwork" gen mech "python3 make_plate_art.py && rsvg-convert -w 2400 avionics-panel-rev1-plate-preview.svg -o avionics-panel-rev1-plate-preview.png"
 section "knobs, light pipes, caps, body, fits" occ mech \
-  "python3 make_knobs.py && python3 make_caps.py && python3 make_mech.py && python3 check_fit.py"
+  "python3 make_knobs.py && python3 make_caps.py --single && python3 make_mech.py && python3 check_fit.py"
 section "plate, viewer data" occ mech "python3 make_plate_step.py && python3 make_viewer_data.py"
 
 # A failed section does not stop the others: they take seconds, and a run then reports every failed check. In
@@ -105,7 +105,7 @@ rm -f production/avionics-panel-rev1-* # a removed output then shows up as a del
 cp pcb/avionics-panel-rev1-{BOM,CPL,BOM-full,CPL-full,THT-LCSC}.csv pcb/avionics-panel-rev1-gerbers.zip production/
 cp pcb/avionics-panel-rev1-schematic.pdf docs/architecture/
 cp mech/avionics-panel-rev1-{body,plate,lightpipes}.step mech/avionics-panel-rev1-knob-*.step \
-  mech/avionics-panel-rev1-caps-{A,B,C,D}.zip mech/avionics-panel-rev1-plate.{dxf,pdf} production/
+  mech/avionics-panel-rev1-caps-{,single-}{A,B,C,D}.zip mech/avionics-panel-rev1-plate.{dxf,pdf} production/
 cp pcb/render-front.png renders/5-pcb-top.png
 cp pcb/render-back.png renders/6-pcb-bottom.png
 cp mech/avionics-panel-rev1-plate-preview.png renders/7-plate-artwork.png

@@ -25,7 +25,7 @@ import board as B
 URL = "https://easyeda.com/api/products/{}/components?version=6.4.19.5"
 MIL10 = 0.254                       # EasyEDA units: 10 mil
 # Seconds between two parts. The API blocks an address for some minutes after 15 to 19 requests at one every 10 s
-# or faster, and its answer then is HTTP 403, which is final here (retry()). At one every 20 s the 27 parts of
+# or faster, and its answer then is HTTP 403, which is final here (retry()). At one every 20 s the 28 parts of
 # this board come through in one run.
 PACE = 20
 

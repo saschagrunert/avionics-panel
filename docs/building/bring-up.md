@@ -36,8 +36,7 @@ A board that arrives with a rail anyway, or with a V-cut (scored and snapped) ed
 The order has four sets of 28 caps (A to D, one to four dimples on the bottom) that differ only in their
 grip ([why](../architecture/mechanics.md#key-caps)). Try one cap of each set on a key of the board (no
 tools), from loose to tight (C, B, A, D), and stop at the first set that holds, so no tight cap has to be
-pulled off a soldered key. With a loose key at hand (a spare, or the hand-soldering option), try them on
-that.
+pulled off a soldered key. With the hand-soldering option, try them on a loose key.
 
 - A cap that holds pushes down by hand until it sits on the plunger top (it stops hard there), stays on when
   the board is turned over and does not wobble.
@@ -45,8 +44,9 @@ that.
   thumb.
 - If even C is too tight, raise `CAP_SETS_MOVE` in [mech/stack.py](../../mech/stack.py) by 0.1 mm for each
   set it missed by; if even D is too loose, lower it the same way (up to 0.3 mm either way; one round may not
-  do). Run [`./build.sh`](../architecture/generators.md#build) and order the four `caps-*.zip`
-  again from `production/`: each round reprints all four sets.
+  do). Run [`./build.sh`](../architecture/generators.md#build) and order `caps-A.zip` to `caps-D.zip` again
+  from `production/` (or the `caps-single-*.zip` files, if JLC3DP asked for them): each round reprints all four
+  sets.
 
 Keep the other three sets. The print varies a little from cap to cap: one that turns out loose or tight on
 its own key when the caps go on is swapped for the same legend from the next tighter or looser set.
@@ -140,6 +140,10 @@ By the step of [Flash and test](#flash-and-test) that shows the fault:
 - Step 2, no RPI-RP2 drive: try another cable (a charge-only cable shows nothing) and another USB port, then
   measure 3V3 again. With 3V3 right, look at J1's contacts and the crystal Y1 under the magnifier for bridges
   or a lifted pin (solder wick for a bridge). Still nothing: put this board aside and use the second one.
+- Step 4.1 or later, no CIRCUITPY with SHIFT held or no joysticks in step 5, and the SHIFT and UNIT lights
+  take turns for a moment after plugging in: HOME, the key above SHIFT, was held instead and switched the
+  panel to the keyboard mode. Plug in once with HOME held to switch back
+  ([Normal and update mode](#normal-and-update-mode)), then once more with SHIFT held.
 - Step 4.3 or later, CIRCUITPY and the console appear without SHIFT, no joysticks, and the console shows "You
   are in safe mode because:": CircuitPython started in safe mode, which skips `boot.py`, after a supply dip
   in its first second or a crash. Unplug for a few seconds and plug in again; if it comes back at every
@@ -173,21 +177,14 @@ joysticks: if the SHIFT and UNIT lights take turns after plugging in, the panel 
 ## Updates and recovery
 
 Plug in with SHIFT held until CIRCUITPY appears, copy the changed files to CIRCUITPY (on Linux, run `sync`),
-then replug without SHIFT before using MobiFlight. To reach the bootloader without the BOOT pads (for a new
-CircuitPython version), plug in the same way, open the serial console, press Ctrl-C, then Enter at "Press
-any key to enter the REPL" (CircuitPython's interactive prompt), and run this:
+then replug without SHIFT before using MobiFlight.
 
-```python
-import microcontroller
-microcontroller.on_next_reset(microcontroller.RunMode.UF2)
-microcontroller.reset()
-```
-
-If CircuitPython ever stops booting: bridge the two BOOT pads, under the 5 mm hole in the body floor, with the
-tip of the 2 mm hex key or a small screwdriver while plugging in USB, and start again at step 3 of [Flash and
-test](#flash-and-test). A new UF2 keeps the files on CIRCUITPY, `boot.py` too; if SHIFT no longer brings the
-drive back, copy Raspberry Pi's [`flash_nuke.uf2`](https://datasheets.raspberrypi.com/soft/flash_nuke.uf2)
-(it downloads as `nuke_universal.uf2`) to RPI-RP2 first, which erases the whole flash.
+For a new CircuitPython version, or if CircuitPython ever stops booting: bridge the two BOOT pads, under the
+5 mm hole in the body floor, with the tip of the 2 mm hex key or a small screwdriver, then connect USB with
+the bridge held, and start again at step 3 of [Flash and test](#flash-and-test), with the new version's UF2. A
+new UF2 keeps the files on CIRCUITPY, `boot.py` too; if SHIFT no longer brings the drive back, copy Raspberry
+Pi's [`flash_nuke.uf2`](https://datasheets.raspberrypi.com/soft/flash_nuke.uf2) (it downloads as
+`nuke_universal.uf2`) to RPI-RP2 first, which erases the whole flash.
 
 ## Pico bench
 

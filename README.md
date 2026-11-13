@@ -29,11 +29,11 @@ on consoles and without MobiFlight.
 
 ## Build one
 
-The files in [production/](production/) are ready to order from the JLC group (JLCPCB, JLCCNC, JLC3DP, JLCMC).
-That is the only supported route; other manufacturers can work from the same files, unsupported. The boards
-arrive fully assembled: nothing to solder, a few checks, then screws and knobs. Hand-soldering the keys,
-encoders and RANGE control is an option. The [build overview](docs/building/README.md) has the steps from
-ordering to mapping.
+The files in [production/](production/) are ready to order from the JLC group (JLCPCB, JLCCNC, JLC3DP), with
+the screws and a few items from a local shop. That is the only supported route; other manufacturers can work
+from the same files, unsupported. The boards arrive fully assembled: nothing to solder, a few checks, then
+screws and knobs. Hand-soldering the keys, encoders and RANGE control is an option. The
+[build overview](docs/building/README.md) has the steps from ordering to mapping.
 
 ## Docs
 

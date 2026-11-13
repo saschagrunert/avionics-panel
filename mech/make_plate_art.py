@@ -4,7 +4,7 @@ Writes avionics-panel-rev1-plate.dxf (R12, layers CUT / LASER / UV_AMBER, each w
 table) and a coloured SVG preview.
 The plate is black anodised aluminium. JLCCNC laser marking is single-tone (light grey on black), so the
 white legends and frame lines are LASER; the amber shift legends and knob functions are UV printed
-(UV_AMBER). Geometry follows pcb/board.py and the 3D view.
+(UV_AMBER). Geometry follows pcb/board.py and mech/stack.py, as the 3D view does.
 """
 import math
 import sys

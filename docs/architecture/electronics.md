@@ -13,7 +13,8 @@ pad of the board is missing from it. Renders: [top](../../renders/5-pcb-top.png)
 [pcb/check.py](../../pcb/check.py) checks the result:
 
 - On the Gerbers: shorts, opens and copper without a net, on the copper as exact geometry; the solder mask,
-  the paste, the legend and the planes.
+  the paste, the legend and the planes; the layer and polarity each file states, and the zip against the
+  files.
 - On the design data the Gerbers are written from: the clearances of the outer copper and the holes, against
   JLCPCB's limits and the design's own.
 - The files against that data, one for one: the copper Gerbers (every pad, via and trace), the drill files,
@@ -35,12 +36,12 @@ It prints what each build reaches, and the build passes when:
 | Holes on different nets | At least 0.5 mm apart (JLCPCB's minimum) |
 | Holes on the same net | At least 0.254 mm apart |
 | Vias | None is in or within 0.1 mm of an SMD (surface-mount) pad or a paste opening, apart from the GND vias in the RP2040's exposed pad; a tented one keeps 0.13 mm of solder mask to the nearest opening |
-| Paste | It is on every assembled pad and nowhere else |
+| Paste | It is on every assembled pad, the size of the pad (on the RP2040's exposed pad, windows that cover 40 to 60 % of it), and nowhere else |
 | Smallest drills | At least 0.3 mm plated, 0.5 mm unplated |
 | Smallest annular rings | At least 0.075 mm on vias, 0.15 mm on pads |
 | JLC's footprints | Every bottom-side part's footprint lands, mirrored, on our pads of the same number ([Assembly data](#assembly-data)) |
 | RP2040 pins | Each pin's net is the one its name in JLC's symbol asks for (GPIO16 on GP16, DVDD on 1V1), and the symbol's pin numbers are exactly U1's pads |
-| BOM and CPL | They name every part of `board.py` on its side, with its value, LCSC number and quantity, and each value is the one in the name of its LCSC part (`0603WAF5101T5E` is 5.1 k) |
+| BOM and CPL | They name every part of `board.py` on its side, with its value, LCSC number and quantity, and each value is the one in the name of its LCSC part (`0603WAF5101T5E` is 5.1 k); `THT-LCSC.csv` names the top side's parts, with two spare keys |
 
 ## GPIO map
 
@@ -132,9 +133,8 @@ U4 has four channels of steering diodes to its VCC pin and a clamp from VCC to G
   GND on a via under the body. A clamp that fails short, or U4 placed turned by 180° (its VCC on GND, the
   clamp diode forward across VBUS_F), then sits behind R_IN and the fuse instead of shorting the host's VBUS
   (see below for what gives way).
-- Part choice: the SRV05-4; a USBLC6-2SC6 does the same job with the same pinout. JLC's datasheet link for
-  C7420376 opens another part; R+O's SRV05-4 datasheet has the pinout (I/O on pins 1, 3, 4 and 6, GND on 2,
-  VCC on 5).
+- Part: JLC's datasheet link for C7420376 opens another part; R+O's SRV05-4 datasheet has the pinout (I/O on
+  pins 1, 3, 4 and 6, GND on 2, VCC on 5).
 - Checked: `check.py` cuts U4's pads out of the bottom copper and checks that J1's contacts then no longer
   reach the 27 R resistors (no copper runs past the array), and that U4 is at most 5 mm of copper from J1.
 
@@ -161,8 +161,7 @@ What gives way on a fault:
   scorches, before F1 trips in practically every case. At 1 to 3.5 A, F1 takes about 7 s to 25 ms, and R_IN
   takes 1 to 12 W meanwhile; a port that limits its current at 0.5 to 1 A may never trip F1 and leaves R_IN at
   0.25 to 1 W. The host's port and the cable are protected. Afterwards replace R_IN, perhaps F1, and U4 if it
-  was turned or shorted. A 1206 resistor (0.25 W) would overheat as well, and does not fit between the VBUS
-  via and F1.
+  was turned or shorted.
 - A sustained overload under about 1 A: F1 (only 1.0 A and more is a guaranteed trip; R_IN already runs over
   its 0.1 W from about 0.32 A).
 - A fault on 3V3: U3's current limit, about 0.1 A into a short. That is about 0.5 W in U3, twice what its
@@ -178,9 +177,9 @@ controlled slope. The cable's inductance then rings with C_IN, a ceramic capacit
 damps it: with the cable's and F1's resistance, 1 R takes the circuit to critical damping or past it
 (2 x √(L / C) is 0.8 to 1.3 ohm up to 1 µH).
 
-A step model of the circuit, not kept in the repository, gives the peaks on VBUS_F. It assumes a 5.25 V step,
-no load, no contact bounce, no U4 clamp and C_IN's DC-bias loss (about 3 µF at 5 V and 2.3 to 2.5 µF at 7 V;
-a pessimistic curve 1.8 µF at 5 V and 1.4 µF at 7 V). The cable and fuse ranges are in the comment at C_IN in
+A step simulation of the circuit gives the peaks on VBUS_F. It assumes a 5.25 V step, no load, no contact
+bounce, no U4 clamp and C_IN's DC-bias loss (about 3 µF at 5 V and 2.3 to 2.5 µF at 7 V; a pessimistic curve
+1.8 µF at 5 V and 1.4 µF at 7 V). The cable and fuse ranges are in the comment at C_IN in
 [board.py](../../pcb/board.py). With 1 R the peak stays within 0.05 V of 5.25 V up to 1 µH of cable. On 2 to
 3 µH with little resistance it reaches 5.8 V with the nominal curve and 6.6 V with the pessimistic one, under
 U3's 7.0 V maximum; with a 5.5 V step the pessimistic worst case scales to about 6.9 V, still under it.
@@ -295,7 +294,10 @@ The legend:
   (0.154 mm on both sides). Text is 1.4 mm, 1.45 mm with "<" or ">", 1.5 mm with a "/" and 1.85 to 2.35 mm
   with lowercase, whose thinnest spot is where a bowl meets its stem.
 - Clearance: 0.15 mm from every mask opening and hole, 0.3 mm inside the board outline and round the two LED
-  cutouts, and 0.5 mm inside the edge with JLCPCB's rail, which is V-cut to ±0.4 mm (`geom.SILK_VCUT`).
+  cutouts, and 0.6 mm inside the edge with JLCPCB's rail, which is V-cut to ±0.4 mm with a groove reaching
+  0.12 mm in on each face (`geom.SILK_VCUT`; `check.py` holds 0.55 mm).
+- Bottom side: mirrored, so it reads from below; `check.py` compares the board's title with its text drawn
+  both ways.
 - Placement: a part name or key legend that a via lands on, or that comes too near the edge, moves to the
   nearest free spot; a diode's cathode bar that a via would cut short moves up to 0.3 mm sideways, and
   `check.py` wants it alongside at least half of its pad's edge.

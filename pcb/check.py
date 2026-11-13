@@ -1,13 +1,15 @@
 """Independent checks on the generated Gerbers:
-1. read each Gerber file (own minimal parser), as exact geometry (shapely) and as a 0.05 mm raster
+1. read each Gerber file (own minimal parser), as exact geometry (shapely) and as a 0.05 mm raster; each file's
+   layer and polarity as it states them, and the zip that is uploaded against the files
 2. electrical check on the copper as exact geometry, the layers joined through the plated holes: no shorts, no
    opens, no copper without a net, no contact or neck under NECK (a point contact is an open), and no plane
    copper narrower than PLANE_NECK
 3. the outer copper Gerbers against the design primitives (the pads of board.py, the segments and vias of
-   routed.json): every pad flashed in its place, shape and size, every via and trace as routed, and nothing
-   else; then the geometric clearance DRC on those primitives, against JLCPCB's limits and the design's
+   routed.json, every net of which is a net of board.py): every pad flashed in its place, shape and size, every
+   via and trace as routed, and nothing else; then the geometric clearance DRC on those primitives, against
+   JLCPCB's limits and the design's
 4. drills and annular rings against JLCPCB's limits, no hole at or in an SMD pad or a paste opening (bar a
-   pin-in-paste hole in its own opening), paste on every assembled pad and nowhere else
+   pin-in-paste hole in its own opening), paste on every assembled pad, the pad's size, and nowhere else
 5. solder mask dams (between openings on the mask Gerbers) against JLCPCB's black minimum, every opening
    clear of its pad by the mask's registration, and the same minimum of mask between each tented via and the
    openings beside it; the fiducials
@@ -26,7 +28,8 @@
    assembly) on our holes pin by pin, each hole within TH_DRILL_TOL of JLC's in size and in its datasheet's band
 12. no copper on B under J1's shell but J1's own pads
 13. the legend clear of mask openings and holes, inside the board outline and outside the LED cutouts by
-   SILK_EDGE, and none of its strokes under JLCPCB's narrowest line
+   SILK_EDGE, SILK_VCUT inside the V-cut edge, none of its strokes under JLCPCB's narrowest line, and the
+   bottom legend's text mirrored to read from below
 14. USB protection: the ESD array in line on D+ and D- right behind J1, the damping resistor and the fuse in
     VBUS ahead of every load, each net of that chain with its own pads only
 15. the drill files against the model: every pad hole, slot and via plated, the mounting holes and the parts'
@@ -38,7 +41,8 @@
 18. the BOM and CPL files as make_bom.py wrote them: JLCPCB's headers, each BOM line's designators in the CPL
     with Quantity their count and the Comment and LCSC of board.py, each Comment the value of its LCSC part, the
     hand-soldering files the bottom side of the full ones, every part of board.py on its side (8 and 11 read
-    their parts from these files, and fail unless they fit every part of their side)
+    their parts from these files, and fail unless they fit every part of their side); THT-LCSC.csv the top
+    side's parts with their spares
 (precheck.py checks the placement before routing: fixed copper clearances, the bottom-side part bodies and the
 mounting holes' keep-outs.)
 """
@@ -47,16 +51,16 @@ import functools
 import heapq
 import json
 import math
+import os
 import re
 import sys
+import zipfile
 
 import board as B
 import numpy as np
 from geom import (
     DETOUR_FACTOR,
     DETOUR_SLACK,
-    SILK_EDGE,
-    SILK_VCUT,
     USB_MAX,
     USB_SKEW,
     bbox,
@@ -73,10 +77,13 @@ from geom import (
     thin_parts,
     usb_lengths,
 )
+from matplotlib.font_manager import FontProperties
 from matplotlib.path import Path
+from matplotlib.textpath import TextPath
 from PIL import Image, ImageDraw
 from scipy import ndimage
 from shapely import STRtree, make_valid
+from shapely.affinity import scale, translate
 from shapely.geometry import LineString, Point, Polygon
 from shapely.geometry import box as shapely_box
 from shapely.ops import unary_union
@@ -130,6 +137,49 @@ def gerber_ops(fname):
 
 def raster(fname):
     return draw_ops(gerber_ops(fname))
+
+
+# What each file says it is (its X2 attributes; the drill files' TF comment): JLCPCB's import may take the layer
+# and its polarity from them, so a file that names another layer or polarity may be ordered as it says. The zip
+# that is uploaded must hold exactly these files.
+FILE_FUNCTION = {
+    "avionics-F_Cu.gtl": ("Copper,L1,Top", "Positive"), "avionics-In1_Cu.g2": ("Copper,L2,Inr", "Positive"),
+    "avionics-In2_Cu.g3": ("Copper,L3,Inr", "Positive"), "avionics-B_Cu.gbl": ("Copper,L4,Bot", "Positive"),
+    "avionics-F_Mask.gts": ("Soldermask,Top", "Negative"), "avionics-B_Mask.gbs": ("Soldermask,Bot", "Negative"),
+    "avionics-B_Paste.gbp": ("Paste,Bot", "Positive"), "avionics-F_Silkscreen.gto": ("Legend,Top", "Positive"),
+    "avionics-B_Silkscreen.gbo": ("Legend,Bot", "Positive"), "avionics-Edge_Cuts.gko": ("Profile,NP", "Positive"),
+    "avionics-PTH.drl": ("Plated,1,4,PTH", None), "avionics-NPTH.drl": ("NonPlated,1,4,NPTH", None)}
+GERBER_ZIP = "avionics-panel-rev1-gerbers.zip"
+
+
+def file_functions():
+    """Every file in gerbers/ is one of FILE_FUNCTION and says so, with its polarity, and the zip holds those
+    files byte for byte and nothing else."""
+    bad = []
+    files = sorted(os.listdir("gerbers"))
+    if files != sorted(FILE_FUNCTION):
+        bad.append(f"gerbers/ holds {files}, not {sorted(FILE_FUNCTION)}")
+    for fname, (func, pol) in FILE_FUNCTION.items():
+        if fname not in files:
+            continue
+        with open("gerbers/" + fname) as f:
+            txt = f.read()
+        got = (re.findall(r"TF\.FileFunction,([^*\n]+)", txt), re.findall(r"%TF\.FilePolarity,(\w+)\*%", txt))
+        if got != ([func], [pol] if pol else []):
+            bad.append(f"{fname} says FileFunction {got[0]}, FilePolarity {got[1]}; it is {func}, {pol}")
+    with zipfile.ZipFile(GERBER_ZIP) as z:
+        held = {i.filename: z.read(i) for i in z.infolist()}
+    if sorted(held) != files:
+        bad.append(f"{GERBER_ZIP} holds {sorted(held)}")
+    for fname in files:
+        with open("gerbers/" + fname, "rb") as f:
+            if fname in held and held[fname] != f.read():
+                bad.append(f"{GERBER_ZIP}: {fname} differs from gerbers/{fname}")
+    for b in bad:
+        print("FILES:", b)
+    print(f"files: {len(files)} Gerber and drill files, each with its file function and polarity; {GERBER_ZIP} "
+          f"holds them byte for byte and nothing else; {len(bad)} problems")
+    return len(bad)
 
 
 def pad_ops(pads):
@@ -308,6 +358,9 @@ def footprint_fit(ref, lcsc, cx, cy, rot, ours):
 # The headers JLCPCB's assembly upload takes, column for column.
 CPL_HEADER = ["Designator", "Mid X", "Mid Y", "Layer", "Rotation"]
 BOM_HEADER = ["Comment", "Designator", "Footprint", "LCSC Part #", "Quantity"]
+# LCSC's BOM tool, and the spares of the hand-soldering order: two keys (docs/building/hand-soldering.md)
+LCSC_HEADER = ["LCSC Part Number", "Quantity", "Manufacturer Part", "Designator", "Needed"]
+LCSC_SPARE = {"C589907": 2}
 
 
 def read_csv(fname, header):
@@ -388,6 +441,20 @@ def assembly_files():
     sides = {ref: {"top": "Top", "bottom": "Bottom"}[side] for ref, *_r, side in B.PARTS}
     if {ref: r["Layer"] for ref, r in full.items()} != sides:
         bad.append("CPL-full.csv does not place every part of board.py on its side (Layer Top or Bottom)")
+    # the hand-soldering option's LCSC order: every top-side part of board.py once, each line its LCSC number and
+    # part, Needed its count, Quantity that and the spares LCSC_SPARE names
+    tht = read_csv("avionics-panel-rev1-THT-LCSC.csv", LCSC_HEADER)
+    refs = [ref for line in tht for ref in line["Designator"].split(",")]
+    if sorted(refs) != sorted(ref for ref, side in sides.items() if side == "Top"):
+        bad.append(f"THT-LCSC.csv names {sorted(refs)}, not board.py's top-side parts")
+    for line in tht:
+        n, lcsc = len(line["Designator"].split(",")), line["LCSC Part Number"]
+        want = {(value, part) for ref, value, part, *_r in B.PARTS if ref in line["Designator"].split(",")}
+        if want != {(line["Manufacturer Part"], lcsc)}:
+            bad.append(f"THT-LCSC.csv: {line['Designator']} are {sorted(want)}, not {line['Manufacturer Part']} {lcsc}")
+        if (int(line["Needed"]), int(line["Quantity"])) != (n, n + LCSC_SPARE.get(lcsc, 0)):
+            bad.append(f"THT-LCSC.csv: {lcsc} Needed {line['Needed']}, Quantity {line['Quantity']} for {n} parts "
+                       f"and {LCSC_SPARE.get(lcsc, 0)} spares")
     # the footprint fits take the parts on their own side; fitted_all() counts the others as missing
     parts = {ref: (*lines[ref], float(r["Mid X"].removesuffix("mm")), B.H - float(r["Mid Y"].removesuffix("mm")),
                    int(r["Rotation"]), r["Layer"]) for ref, r in full.items()
@@ -395,7 +462,8 @@ def assembly_files():
     for p in bad:
         print("ASSEMBLY FILES:", p)
     print(f"assembly files: BOM-full and CPL-full {len(full)} parts, BOM and CPL {len(cpl[''])} (the bottom side), "
-          f"{len(bom['-full'])} BOM lines, each Comment the value of its LCSC part; {len(bad)} problems")
+          f"{len(bom['-full'])} BOM lines, each Comment the value of its LCSC part; THT-LCSC {len(refs)} parts (the "
+          f"top side) in {len(tht)} lines with their spares; {len(bad)} problems")
     return parts, len(bad)
 
 
@@ -663,14 +731,11 @@ def box_in(fb, pb):
     return fb[0] > pb[0] - 1e-6 and fb[1] > pb[1] - 1e-6 and fb[2] < pb[2] + 1e-6 and fb[3] < pb[3] + 1e-6
 
 
-def holes_and_paste(pads, vias, pth, npth):
-    """Drills against JLCPCB's limits, no hole copper at or in an SMD pad or a paste opening (bar a pin-in-paste
-    hole's own), paste on every assembled pad and on nothing else. Measured on the drill files and the paste
-    Gerber."""
+def drill_rings(pads, vias, pth, npth):
+    """Drill sizes and annular rings against JLCPCB's limits: every plated hole (pth, from the drill file, as
+    (x, y, diameter)) matched to the via or pad round it, every unplated one (npth) on its own. Returns how many
+    problems, and the copper round each plated hole {what: (geometry item, net)}."""
     bad = 0
-    bottom = {ref for ref, *_r, side in B.PARTS if side == "bottom"}
-    paste = flashes("avionics-B_Paste.gbp")
-    # --- drill sizes and annular rings: every plated hole matched to the via or pad around it
     ring_min = {"via": 9.0, "pad": 9.0}
     hole_cu = {}                                # what -> (geometry of the copper around the hole, net)
     for x, y, t in sorted(set(pth)):            # read_drill lists a round hole twice, a slot as samples
@@ -698,9 +763,41 @@ def holes_and_paste(pads, vias, pth, npth):
     for x, y, t in npth:
         if t < MIN_NPTH - 1e-6:
             print(f"UNPLATED HOLE TOO SMALL {t} at ({x:.2f}, {y:.2f})"); bad += 1
-    print(f"drills: smallest plated {min(t for *_xy, t in pth):.2f} mm (min {MIN_DRILL}), unplated "
-          f"{min(t for *_xy, t in npth):.2f} mm (min {MIN_NPTH}); annular ring vias {ring_min['via']:.3f} mm "
-          f"(min {MIN_RING_VIA}), pads {ring_min['pad']:.3f} mm (min {MIN_RING_PAD})")
+    print(f"drills: smallest plated {min((t for *_xy, t in pth), default=0):.2f} mm (min {MIN_DRILL}), unplated "
+          f"{min((t for *_xy, t in npth), default=0):.2f} mm (min {MIN_NPTH}); annular ring vias "
+          f"{ring_min['via']:.3f} mm (min {MIN_RING_VIA}), pads {ring_min['pad']:.3f} mm (min {MIN_RING_PAD})")
+    return bad, hole_cu
+
+
+# A paste opening is its pad's size (make.py), within PASTE_TOL, but on the exposed pad (THERMAL), which gets
+# windows of its own: together they cover EP_PASTE (least, most) of its area. make.py's four give about half;
+# windows shrunk or missing starve the joint that carries the RP2040's only GND connection.
+PASTE_TOL = 0.01
+EP_PASTE = (0.4, 0.6)
+
+
+def item_shape(g):
+    """a geometry item (a rectangle, or a capsule) as a shapely shape."""
+    if g[0] == "rect":
+        return shapely_box(*g[1:5])
+    spine = Point(g[1:3]) if g[1:3] == g[3:5] else LineString([g[1:3], g[3:5]])
+    return spine.buffer(g[5], quad_segs=ARC)
+
+
+def paste_share(pad, windows):
+    """the share of the pad's area that the paste windows (shapely shapes) cover together: overlapping windows
+    count once, paste off the pad not at all."""
+    shape = item_shape(pad_geom(pad))
+    return unary_union(windows).intersection(shape).area / shape.area
+
+
+def holes_and_paste(pads, vias, pth, npth):
+    """Drills against JLCPCB's limits (drill_rings), no hole copper at or in an SMD pad or a paste opening (bar a
+    pin-in-paste hole's own), paste on every assembled pad, the size of the pad, and on nothing else. Measured on
+    the drill files and the paste Gerber."""
+    bottom = {ref for ref, *_r, side in B.PARTS if side == "bottom"}
+    paste = flashes("avionics-B_Paste.gbp")
+    bad, hole_cu = drill_rings(pads, vias, pth, npth)
     # --- hole copper vs SMD pads (fan-out breakout points under the mask are not pads) and paste openings
     smd = [p for p in pads if not p.drill and len(p.layers) == 1 and (p.mask or p.paste)]
     near = 9.0
@@ -728,7 +825,7 @@ def holes_and_paste(pads, vias, pth, npth):
             if d < VIA_PAD_MIN - 1e-6:
                 print(f"HOLE AT PASTE: {what} {gap(d)} the paste opening at ({f[1]:.2f}, {f[2]:.2f})"); bad += 1
     # --- paste: every opening inside an assembled pad, every assembled pad with paste
-    pasted = set()
+    pasted, windows = set(), {}
     for f in paste:
         fb = bbox(f)
         p = next((p for p in pads if "B" in p.layers and (not p.drill or p.pip) and box_in(fb, bbox(pad_geom(p)))),
@@ -737,21 +834,33 @@ def holes_and_paste(pads, vias, pth, npth):
             where = p.name if p else "no pad"
             print(f"PASTE ON {where} at ({(fb[0] + fb[2]) / 2:.2f}, {(fb[1] + fb[3]) / 2:.2f})"); bad += 1
             continue
+        size = max(abs(a - b) for a, b in zip(fb, bbox(pad_geom(p)), strict=True))
+        if p.name in THERMAL:
+            windows.setdefault(p.name, []).append(item_shape(f))
+        elif size > PASTE_TOL:
+            print(f"PASTE OPENING ON {p.name} {size:.3f} mm off its pad's outline (max {PASTE_TOL})"); bad += 1
         pasted.add(p.name)
     nopaste = [p.name for p in pads if assembled(p, bottom) and p.name not in pasted]
     for name in nopaste:
         print(f"NO PASTE on {name}"); bad += 1
+    share = {p.name: paste_share(p, windows.get(p.name, [])) for p in pads if p.name in THERMAL}
+    for name, v in share.items():
+        if not EP_PASTE[0] <= v <= EP_PASTE[1]:
+            print(f"PASTE ON {name} covers {100 * v:.0f} % of it ({100 * EP_PASTE[0]:.0f} to "
+                  f"{100 * EP_PASTE[1]:.0f} %)"); bad += 1
     n_asm = sum(assembled(p, bottom) for p in pads)
     print(f"pads and holes: closest hole copper to an SMD pad or paste {near:.3f} mm (min {VIA_PAD_MIN}); "
-          f"paste on {len(pasted)} of {n_asm} assembled pads, {len(paste)} openings; {bad} problems")
+          f"paste on {len(pasted)} of {n_asm} assembled pads, {len(paste)} openings: one the size of each pad (within "
+          f"{PASTE_TOL} mm) but the exposed pad, whose {sum(len(w) for w in windows.values())} windows cover "
+          f"{', '.join(f'{100 * v:.0f} %' for v in share.values())} of it ({100 * EP_PASTE[0]:.0f} to "
+          f"{100 * EP_PASTE[1]:.0f} %); {bad} problems")
     return bad
 
 
 # The through-hole parts on the top are soldered by hand from the bottom, where the SMD parts sit: a solder
-# bridge from an iron-soldered pin to an SMD pad of another net is a short that is hard to see and to clear (a
-# through-hole LED's GND pad 0.28 mm from its resistor's GPIO pad was one). J1's four shell tabs (pin-in-paste)
-# are filled with solder by hand from the top too, and the excess comes out on the bottom
-# (docs/building/hand-soldering.md).
+# bridge from an iron-soldered pin to an SMD pad of another net is a short that is hard to see and to clear.
+# J1's four shell tabs (pin-in-paste) are filled with solder by hand from the top too, and the excess comes out
+# on the bottom (docs/building/hand-soldering.md).
 # Every exposed SMD pad of another net keeps HAND_SMD_MIN of copper from every hand-soldered pad: room for the
 # iron's tip and a fillet. Two hand-soldered pads of different nets keep HAND_PAIR_MIN (the 2.5 mm pin rows of the
 # encoders: 0.7 mm between their 1.8 mm pads, as 0.1 inch headers have), but for the pairs in HAND_PAIR_EXCEPT,
@@ -1075,7 +1184,7 @@ PLANE_ENTRY_MAX = 2.0
 PLANE_SHARED = {26, 33}
 NO_ROOM = {23}
 CAP_VIA_MAX = 1.0          # every decoupling capacitor: its own plane via at most one stub from the pad centre
-# - One capacitor per IOVDD pin (issue #15): each IOVDD pin but 33 (above) reaches a capacitor of its own over the
+# - One capacitor per IOVDD pin: each IOVDD pin but 33 (above) reaches a capacitor of its own over the
 #   outer-layer copper alone (no plane in the path), within OWN_CAP_MAX, and no two IOVDD pins reach the same one
 #   first. A capacitor that only the plane brings within reach, or one shared by two IOVDD pins, fails.
 IOVDD = (1, 10, 22, 42, 49)
@@ -1304,7 +1413,7 @@ def j1_shell(ras_b, pads):
     return bad
 
 
-# USB protection (issue #14), on the Gerbers and the routed copper:
+# USB protection, on the Gerbers and the routed copper:
 # - The ESD array U4 is in line on D+ and D-: with its pads cut out of the bottom copper, J1's contacts of a line
 #   no longer reach that line's 27R resistor (outer layers joined through the plated holes), so no copper runs
 #   past the array; and its pad on the line is at most ESD_MAX of copper from each of J1's contacts.
@@ -1467,22 +1576,32 @@ def edge_cuts():
     return bad
 
 
+# The legend against the edges, this check's own limits (make.py places the legend by geom.py's). JLCPCB mills the
+# outline and the cutouts to +-0.2 mm: legend within SILK_EDGE of them may be clipped. The rail edge (y = board.H)
+# is V-cut to +-0.4 mm, from both faces with a 25 degree blade a third of the board deep, so the groove reaches
+# 0.12 mm in from its line on each face: legend within SILK_VCUT of that edge may be nicked. Read as a half
+# angle, 25 degrees would make it 0.25 mm and the limit 0.65 mm.
+SILK_EDGE = 0.3
+SILK_VCUT = 0.55
+
+
 def silk_edge():
     """Every legend shape inside the board outline (the Edge_Cuts Gerber) and outside each LED cutout by
-    SILK_EDGE, and SILK_VCUT inside the edge with the rail (y = board.H). Measured on the Gerber vertices: the
-    outline and the cutouts are convex, so a shape's closest point to them is a vertex of a region, or an end of a
-    line or a dot less its radius. Not on the raster, which ends at the board edge and would not see legend beyond
-    it."""
+    SILK_EDGE, and SILK_VCUT inside the edge with the rail (y = board.H). The outline is convex and the legend
+    inside it, so a shape's closest point to it is a vertex of a region, or an end of a line or a dot less its
+    radius: measured on the Gerber vertices, not on the raster, which ends at the board edge and would not see
+    legend beyond it. Round a cutout the closest point can lie anywhere on a shape: the legend as exact geometry
+    (vector_copper) against each cutout's polygon."""
     def width(c):
         return max(a[0] for a, _b in c) - min(a[0] for a, _b in c)
     cs = sorted(contours("avionics-Edge_Cuts.gko"), key=width, reverse=True)   # the outline, the widest, first
     if len(cs) != 1 + len(B.CUTOUTS):
         print(f"EDGE CUTS: {len(cs)} contours, expected the outline and {len(B.CUTOUTS)} cutouts")
         return 1
-    loops = []
-    for k, edge in enumerate(cs):
-        ax, ay, bx, by = (np.array(v) for v in zip(*[(*a, *b) for a, b in edge], strict=True))
-        loops.append((Path([a for a, _b in edge] + [edge[-1][1]]), ax, ay, bx - ax, by - ay, k == 0))
+    edge = cs[0]
+    ax, ay, bx, by = (np.array(v) for v in zip(*[(*a, *b) for a, b in edge], strict=True))
+    inside, ux, uy = Path([a for a, _b in edge] + [edge[-1][1]]), bx - ax, by - ay
+    cutouts = [Polygon([a for a, _b in c]) for c in cs[1:]]
     bad, worst, rail = 0, {}, {}
     for side, fname in (("F", "avionics-F_Silkscreen.gto"), ("B", "avionics-B_Silkscreen.gbo")):
         shapes, dark = [], True                    # (points, radius) of every dark legend shape
@@ -1507,20 +1626,70 @@ def silk_edge():
                 bad += 1
                 i = int(py.argmax())
                 print(f"LEGEND AT THE V-CUT EDGE on {side} at ({q[i, 0]:.2f}, {q[i, 1]:.2f}), {off:.2f} mm from it")
-            for inside, ax, ay, ux, uy, outline in loops:
-                u = np.clip(((px - ax) * ux + (py - ay) * uy) / (ux * ux + uy * uy), 0, 1)
-                d = np.hypot(px - (ax + u * ux), py - (ay + u * uy)).min(axis=1)
-                ins = inside.contains_points(q)
-                d = np.where(ins if outline else ~ins, d, -d) - r      # negative: off the board
-                i = int(d.argmin())
-                worst[side] = min(worst[side], float(d[i]))
-                if d[i] < SILK_EDGE - 1e-6:
-                    bad += 1
-                    where = "AT THE BOARD EDGE" if outline else "AT AN LED CUTOUT"
-                    print(f"LEGEND {where} on {side} at ({q[i, 0]:.2f}, {q[i, 1]:.2f}), {d[i]:.2f} mm from it")
+            u = np.clip(((px - ax) * ux + (py - ay) * uy) / (ux * ux + uy * uy), 0, 1)
+            d = np.hypot(px - (ax + u * ux), py - (ay + u * uy)).min(axis=1)
+            d = np.where(inside.contains_points(q), d, -d) - r          # negative: off the board
+            i = int(d.argmin())
+            worst[side] = min(worst[side], float(d[i]))
+            if d[i] < SILK_EDGE - 1e-6:
+                bad += 1
+                print(f"LEGEND AT THE BOARD EDGE on {side} at ({q[i, 0]:.2f}, {q[i, 1]:.2f}), {d[i]:.2f} mm from it")
+        legend = vector_copper(fname)
+        for cut in cutouts:
+            d = legend.distance(cut)                                    # 0 where the legend reaches into it
+            worst[side] = min(worst[side], d)
+            if d < SILK_EDGE - 1e-6:
+                bad += 1
+                c = cut.centroid
+                print(f"LEGEND AT AN LED CUTOUT on {side} at ({c.x:.2f}, {c.y:.2f}), {d:.2f} mm from it")
     print(f"legend to board outline and LED cutouts: closest F {worst['F']:.2f} mm, B {worst['B']:.2f} mm (min "
           f"{SILK_EDGE}), to the V-cut edge F {rail['F']:.2f} mm, B {rail['B']:.2f} mm (min {SILK_VCUT}); {bad} "
           "problems")
+    return bad
+
+
+# JLCPCB prints the bottom legend as the Gerber draws it, seen from the top, so its text must be mirrored left to
+# right to read from below. The board's title (board.TITLE, which make.py draws) is drawn here in the legend's
+# font both ways, each scaled to the extent of the legend within MIRROR_BAND of the title's line on the Gerber;
+# the mirrored one must cover it by MIRROR_MATCH (shared area over the area of either), the other one not. Where
+# neither does, the title is not found there (another text or font): a problem of its own.
+LEGEND_FONT = FontProperties(family="DejaVu Sans", weight="bold")
+MIRROR_BAND, MIRROR_MATCH = 1.0, 0.8
+
+
+def mirror_match(legend):
+    """how well the title matches the bottom legend (a shapely shape, board mm), {mirrored: share}."""
+    def unit(g):
+        """g scaled into the unit square by its bounding box"""
+        x0, y0, x1, y1 = g.bounds
+        return scale(translate(g, -x0, -y0), 1 / (x1 - x0), 1 / (y1 - y0), origin=(0, 0))
+    text, _x, y = B.TITLE
+    band = shapely_box(0.0, y - MIRROR_BAND, B.W, y + MIRROR_BAND)
+    found = unary_union([g for g in getattr(legend, "geoms", [legend]) if band.contains(g)])
+    match = dict.fromkeys((True, False), 0.0)
+    if not found.is_empty:
+        title = unit(found)
+        tp = TextPath((0, 0), text, size=1.0, prop=LEGEND_FONT)
+        drawn = functools.reduce(lambda a, b: a.symmetric_difference(b),     # even-odd: counters cut out
+                                 (make_valid(Polygon(p)) for p in tp.to_polygons(closed_only=True)), Polygon())
+        for mirrored in match:
+            g = unit(scale(drawn, -1.0 if mirrored else 1.0, -1.0, origin=(0, 0)))   # board y down
+            match[mirrored] = g.intersection(title).area / max(g.area, title.area)
+    return match
+
+
+def legend_mirror():
+    text, _x, y = B.TITLE
+    match = mirror_match(vector_copper("avionics-B_Silkscreen.gbo"))
+    bad = int(not match[True] >= MIRROR_MATCH > match[False])
+    if max(match.values()) < MIRROR_MATCH:
+        print(f"TITLE NOT FOUND in the bottom legend at y {y}: {text!r} matches {match[True]:.2f} mirrored, "
+              f"{match[False]:.2f} as read from the top (min {MIRROR_MATCH})")
+    elif bad:
+        print(f"BOTTOM LEGEND NOT MIRRORED: the title matches {match[True]:.2f} mirrored, {match[False]:.2f} as read "
+              f"from the top (min {MIRROR_MATCH} mirrored)")
+    print(f"legend mirror: the bottom title matches its text mirrored by {match[True]:.2f}, as read from the top by "
+          f"{match[False]:.2f} (min {MIRROR_MATCH} mirrored); {bad} problems")
     return bad
 
 
@@ -1719,6 +1888,12 @@ if __name__ == "__main__":
         probes.append((net, ly, 2.0, B.H / 2))
     slots = [(p.x, p.y) for p in pads if p.slot]
     bad = electrical(copper, probes, [(x, y) for x, y, _d in pth] + slots)   # plated holes join the layers
+    # the segments and vias carry routed.json's net names into the probes: each must be a net of board.py
+    stray = sorted(({s[5] for s in rd["segments"]} | {v[2] for v in rd["vias"]}) - {p.net for p in pads if p.net})
+    for net in stray:
+        print(f"ROUTED NET {net} is not a net of board.py")
+    bad += len(stray)
+    bad += file_functions()
 
     # --- inner planes: every hole of another net (and every unplated hole) keeps clear of the plane copper.
     # Measured on the copper as exact geometry: from each drill hole's centre to the plane, less its radius.
@@ -1886,6 +2061,7 @@ if __name__ == "__main__":
     hole_bad += legend_strokes()
     hole_bad += edge_cuts()
     hole_bad += silk_edge()
+    hole_bad += legend_mirror()
     hole_bad += cathode_bars(pads)
     hole_bad += pin1_marks(pads)
     parts, pin_bad = assembly_files()
