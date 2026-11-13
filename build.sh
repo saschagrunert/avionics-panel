@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Regenerate every output, run all checks and copy the results to production/ and renders/.
+# Regenerate every output, run all checks and copy the results to production/, renders/ and docs/architecture/.
 # Usage: ./build.sh [--route]    --route also re-runs the board routing (seed 1, a few minutes) first.
 # Needs Nix (nix-shell) for the Python environments, all from the nixpkgs revision locked in flake.lock
 # (read through nix/nixpkgs.nix, so without the flakes feature).
@@ -68,10 +68,11 @@ stop() {
   exit 1
 }
 trap stop INT TERM HUP QUIT
-# Which generator reads which output: check_fit.py reads the knobs (make_knobs.py), the caps (make_caps.py) and
-# the body STL (make_mech.py), and builds the plate and the plate's legends itself (it imports their generators);
-# check.py reads the Gerbers (make.py) and the BOM and CPL (make_bom.py). Each runs in the section of the files it
-# reads; no other generator reads another one's files.
+# Which generator reads which output: check_fit.py reads the knobs and the light pipes (make_knobs.py), the caps
+# (make_caps.py) and the body's STL and STEP (make_mech.py), builds the plate and the plate's legends itself (it
+# imports their generators) and writes the fits table of docs/architecture/mechanics.md; check.py reads the Gerbers
+# (make.py) and the BOM and CPL (make_bom.py). Each runs in the section of the files it reads; no other generator
+# reads another one's files.
 # the tests, with their coverage of what .coveragerc names, as a table and as coverage.xml (CI sends it to Codecov)
 section "firmware" nix-shell "$SHELLS" -A firmware \
   --run "pytest -v --cov --cov-report=term-missing --cov-report=xml && cd firmware && python3 make_buttons.py >BUTTONS.md && python3 make_keys.py >KEYS.md"
@@ -104,10 +105,9 @@ rm -f production/avionics-panel-rev1-* # a removed output then shows up as a del
 cp pcb/avionics-panel-rev1-{BOM,CPL,BOM-full,CPL-full,THT-LCSC}.csv pcb/avionics-panel-rev1-gerbers.zip production/
 cp pcb/avionics-panel-rev1-schematic.pdf docs/architecture/
 cp mech/avionics-panel-rev1-{body,plate,lightpipes}.step mech/avionics-panel-rev1-knob-*.step \
-  mech/avionics-panel-rev1-body.stl mech/avionics-panel-rev1-caps-{A,B,C,D}.zip \
-  mech/avionics-panel-rev1-plate.dxf mech/avionics-panel-rev1-plate-drawing.pdf production/
+  mech/avionics-panel-rev1-caps-{A,B,C,D}.zip mech/avionics-panel-rev1-plate.{dxf,pdf} production/
 cp pcb/render-front.png renders/5-pcb-top.png
 cp pcb/render-back.png renders/6-pcb-bottom.png
 cp mech/avionics-panel-rev1-plate-preview.png renders/7-plate-artwork.png
 cp mech/fit-check.png renders/8-fit-check.png
-echo "done: production/ and renders/ are up to date (renders 1-4 and 9 come from the 3D viewer)"
+echo "done: production/ and renders/ are up to date (renders 1-4 and 9: viewer/shots.py)"

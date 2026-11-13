@@ -70,7 +70,8 @@ geometry = {
               "tongue": {k: S.USB_TONGUE[k] for k in ("w", "d", "h")}},
     # the plate's artwork: the frame round the keys with its group titles, the legends under the keys and round
     # the knobs, the pan arrows round RANGE
-    "plate_art": {"text": S.PLATE_TEXT, "frame": S.key_frame(B.COLS, B.ROWS),
+    "plate_art": {"text": {k: S.PLATE_TEXT[k] for k in ("cap", "space", "mid")},
+                  "frame": S.key_frame(B.COLS, B.ROWS),
                   "title": {k: S.GROUP_TITLE[k] for k in ("size", "track", "pad")},
                   "shift_legend": S.SHIFT_LEGEND, "knob": S.KNOB_ART, "range": S.RANGE_ART},
     "keys": {"cols": B.COLS, "rows": B.ROWS, "cap": [S.CAP["w"], S.CAP["h"], S.CAP["r"]],

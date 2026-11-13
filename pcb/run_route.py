@@ -13,16 +13,12 @@ import time
 import board as B
 import numpy as np
 import route as R
-from geom import detour_limits, net_lengths, usb_lengths
+from geom import detour_limits, item_dist, net_lengths, pad_geom, usb_lengths
 
 seed = int(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1].isdigit() else 0
 pads = B.build()
 nets = sorted({p.net for p in pads if p.net})
 PLANE_NETS = set(B.PLANES.values())
-# Nets the router grows from their pre-routed copper, like a matrix bus: the chip select (its pins at the RP2040
-# and the flash are joined in board.py, R_BOOT is the router's) and VBUS_F (the fuse, C_IN, the regulator and the
-# ESD array's VCC are joined; the UNIT light's resistor is the router's, wherever the line suits it)
-GROWN = {"QSPI_SS", "VBUS_F"}
 
 
 def is_fixed_end(p):
@@ -38,6 +34,25 @@ for p in pads:
         continue
     if p.net and p.net not in PLANE_NETS and p.net not in B.PREROUTED:
         bynet.setdefault(p.net, []).append(p)
+
+
+def on_fixed(p):
+    """True when pad p touches pre-routed copper of its net on one of its layers (a fan-out end, a line's routing
+    point)."""
+    g = pad_geom(p)
+    return (any(n == p.net and ly in p.layers and item_dist(g, ("cap", x1, y1, x2, y2, w / 2)) <= 0
+                for x1, y1, x2, y2, ly, n, w in B.FIXED_SEGS)
+            or any(n == p.net and item_dist(g, ("cap", x, y, x, y, d / 2)) <= 0 for x, y, n, d, _dr in B.FIXED_VIAS))
+
+
+# Nets the router grows from their pre-routed copper, like a matrix bus: every net with pre-routed copper that none
+# of its router terminals is on. The chip select (its pins at the RP2040 and the flash are joined in board.py,
+# R_BOOT is the router's) and VBUS_F (the fuse, C_IN, the regulator and the ESD array's VCC are joined; the UNIT
+# light's resistor is the router's, wherever the line suits it). Routed among themselves alone, such terminals
+# would count as routed and never reach that copper.
+FIXED_NETS = {s[5] for s in B.FIXED_SEGS} | {v[2] for v in B.FIXED_VIAS}
+GROWN = {net for net, ps in bynet.items()
+         if net in FIXED_NETS and net not in B.BUS_NETS and not any(on_fixed(p) for p in ps)}
 
 local, direct, matrix = [], [], []
 for net, ps in bynet.items():
@@ -80,15 +95,12 @@ others = [n for n in others if n not in mfirst]
 
 def seed_stamp(smask, layers, x1, y1, x2, y2, half):
     """Marks the cells of pre-routed copper (half its width round the centre line) in the source mask on the given
-    layers. The router may end a path on any of them, so none may lie beyond the copper's edge (stamp_capsule takes
-    cells up to r + RES / 2 from the centre line; copper narrower than a cell keeps the cells within RES / 2): the
-    path's round end then overlaps the copper by at least half its width. Stamped at w / 2, a cell could lie half a
-    cell beyond the edge, and a 0.25 mm trace ending there only touched a 0.25 mm lane at a point (GP0 at the FMS
-    push: an open once etched; check.py: thin contacts)."""
-    tmp = np.zeros((R.NY, R.NX), np.int8)
-    R.stamp_capsule(tmp, x1, y1, x2, y2, max(half - R.RES / 2, 0.0), 1)
-    for ly in layers:
-        smask[ly] |= tmp.astype(bool)
+    layers. The router may end a path on any of them, so none may lie beyond the copper's edge (route.seed_cells
+    takes cells up to r + RES / 2 from the centre line; copper narrower than a cell keeps the cells within RES / 2):
+    the path's round end then overlaps the copper by at least half its width. Stamped at w / 2, a cell could lie
+    half a cell beyond the edge, where a 0.25 mm trace only touches a 0.25 mm lane at a point: an open once etched
+    (check.py: thin contacts). A pad's own seed has another margin (route.route_tree)."""
+    R.seed_cells(smask, layers, x1, y1, x2, y2, max(half - R.RES / 2, 0.0))
 
 
 def run(order):

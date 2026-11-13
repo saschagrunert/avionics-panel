@@ -1,7 +1,8 @@
 # Generators
 
-How the outputs are made: every file in `production/` and renders 5 to 8 are generated, by `./build.sh` or by
-the scripts one by one. Generated files are named `avionics-panel-rev1-*`.
+How the outputs are made: every file in `production/`, renders 5 to 8, the schematic and the fits table in
+[Mechanics](mechanics.md#fits) are generated, by `./build.sh` or by the scripts one by one. Generated files
+are named `avionics-panel-rev1-*`.
 
 | Directory | Contents | Start with |
 | --- | --- | --- |
@@ -16,11 +17,11 @@ the scripts one by one. Generated files are named `avionics-panel-rev1-*`.
 
 ## Build
 
-`./build.sh` regenerates everything, runs every check and copies the results to `production/` and `renders/`;
-`./build.sh --route` re-runs the board routing first (a few minutes). Its sections run in parallel and print
-their outputs in a fixed order, the firmware tests with their coverage first. A failed section does not stop
-the others, and the build then exits 1; Ctrl-C stops everything. It needs [Nix](https://nixos.org/download)
-and is tested only on Linux; on Windows run it in WSL 2.
+`./build.sh` regenerates everything, runs every check and copies the results to `production/`, `renders/` and
+`docs/architecture/` (the schematic); `./build.sh --route` re-runs the board routing first (a few minutes).
+Its sections run in parallel and print their outputs in a fixed order, the firmware tests with their coverage
+first. A failed section does not stop the others, and the build then exits 1; Ctrl-C stops everything. It
+needs [Nix](https://nixos.org/download) and is tested only on Linux; on Windows run it in WSL 2.
 
 Renders 1 to 4 and 9 are stills of the 3D view, not part of the build:
 `nix-shell nix/shells.nix -A shots --run "python3 viewer/shots.py"` writes them, after a change to the view or
@@ -40,7 +41,7 @@ actions).
 | What a key, a push or a ring does | Its button in [buttonmap.py](../../firmware/buttonmap.py), its logic in [panel.py](../../firmware/panel.py), its shortcut in [keys.py](../../firmware/keys.py), its legend, and its event in every table of [mobiflight/families/](../../mobiflight/families/) | `./build.sh` rewrites `BUTTONS.md` and `KEYS.md`; [Controls](../using/controls.md) and [Compatibility](../using/compatibility.md) describe it |
 | A timing: SHIFT, the repeats, the pulses | The constants at the top of [panel.py](../../firmware/panel.py) | [Controls](../using/controls.md) and [Firmware](firmware.md) quote them |
 | A pin | [code.py](../../firmware/code.py) and its net in [pcb/board.py](../../pcb/board.py) | `tests/test_pins.py` compares the two; the board needs `./build.sh --route` |
-| A height, a fit or a tolerance | [mech/stack.py](../../mech/stack.py); the body's own sizes in [make_mech.py](../../mech/make_mech.py) | `check_fit.py` measures the solids against them ([Mechanics](mechanics.md)) |
+| A height, a fit or a tolerance | [mech/stack.py](../../mech/stack.py); the body's own sizes in [make_mech.py](../../mech/make_mech.py) | `check_fit.py` measures the solids against them and rewrites the fits table in [Mechanics](mechanics.md#fits) |
 | What a profile sends to the sim | The family's table in [mobiflight/families/](../../mobiflight/families/); the rows several families share in [parts.py](../../mobiflight/families/parts.py) | `tests/test_mobiflight.py` checks the tables; the `build` workflow publishes the profiles |
 
 ## Scripts
@@ -60,11 +61,11 @@ run in `nix-shell nix/shells.nix -A firmware` (pytest, pytest-cov; on Linux hid-
 | `pcb/` | `python3 render.py` | Board renders |
 | `pcb/` | `python3 make_schematic.py` | Schematic |
 | `mech/` | `python3 make_plate_art.py` | Plate artwork |
-| `mech/` | `python3 make_caps.py` | Key caps |
+| `mech/` | `python3 make_caps.py` | Key caps; with `--single` also one zip per cap |
 | `mech/` | `python3 make_mech.py` | Body |
-| `mech/` | `python3 make_plate_step.py` | Plate STEP and drawing |
+| `mech/` | `python3 make_plate_step.py` | Plate STEP and its drawing, `plate.pdf` |
 | `mech/` | `python3 make_knobs.py` | Knobs, light pipes |
-| `mech/` | `python3 check_fit.py` | Sections and clearances ([Mechanics](mechanics.md)) |
+| `mech/` | `python3 check_fit.py` | Sections and clearances; it also writes the fits table in [Mechanics](mechanics.md#fits) |
 | `mech/` | `python3 make_viewer_data.py` | `viewer/geometry.js`, the dimensions the 3D view takes from the generators |
 | `firmware/` | `python3 make_buttons.py >BUTTONS.md` | The button numbers of both joysticks, for MobiFlight |
 | `firmware/` | `python3 make_keys.py >KEYS.md` | The shortcuts of the [keyboard mode](../using/keyboard.md) |
@@ -84,7 +85,7 @@ writes `routed_<seed>.json` instead of `routed.json`, for trying seeds in parall
 ## Nix
 
 Every Nix package comes from the nixpkgs revision locked in `flake.lock`, so a local build on x86-64 Linux
-and CI write the same files (STEP, STL, PDF and PNG output depends on the OpenCascade and matplotlib versions).
+and CI write the same files (STEP, PDF and PNG output depends on the OpenCascade and matplotlib versions).
 `nix/nixpkgs.nix` reads the lock without the flakes feature, and `nix/shells.nix` defines the environments
 above from it: `gen`, `firmware`, `lint` and `shots`. Dependabot proposes newer nixpkgs-unstable revisions as
 pull requests (monthly, each at least a week old), and CI fails on any output that the update changes: run

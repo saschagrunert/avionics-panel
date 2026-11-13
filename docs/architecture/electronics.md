@@ -2,7 +2,7 @@
 
 The board has four layers (signals, GND, 3V3, signals). The RP2040, W25Q16 flash, a 12 MHz crystal, an XC6206
 regulator and USB-C with an ESD (electrostatic discharge) array and a fuse ([USB protection](#usb-protection))
-sit on the bottom; the keys, encoders and RANGE control on the top. It has 93 nets and 30 unconnected pins.
+sit on the bottom; the keys, encoders and RANGE control on the top.
 
 [pcb/board.py](../../pcb/board.py) generates it ([Generators](generators.md)). The
 [schematic](avionics-panel-rev1-schematic.pdf) (four A3 sheets: USB-C and power, RP2040, key matrix, knobs and
@@ -12,21 +12,26 @@ pad of the board is missing from it. Renders: [top](../../renders/5-pcb-top.png)
 
 [pcb/check.py](../../pcb/check.py) checks the result:
 
-- On the Gerbers: shorts and opens, on a raster and again on the copper as exact geometry, the solder mask,
+- On the Gerbers: shorts, opens and copper without a net, on the copper as exact geometry; the solder mask,
   the paste, the legend and the planes.
-- On the design data the Gerbers are written from: the clearances of the outer copper and the holes.
+- On the design data the Gerbers are written from: the clearances of the outer copper and the holes, against
+  JLCPCB's limits and the design's own.
 - The files against that data, one for one: the copper Gerbers (every pad, via and trace), the drill files,
-  the outline with its cutouts, and a cathode bar at every diode and LED.
+  the outline with its cutouts, a cathode bar at every diode and LED and a pin 1 mark at U1 to U4 and Y1.
 - The BOM and CPL against `board.py` and each other: every part on its side with its value and LCSC number,
   each BOM line's quantity, and the hand-soldering files the bottom side of the full ones.
+- The parts against JLC's own data: each footprint on our pads, each value against the name of its LCSC part,
+  each RP2040 pin against its name in JLC's symbol.
 
 It prints what each build reaches, and the build passes when:
 
 | Check | Passes when |
 | --- | --- |
-| Shorts, opens, nets with a detour | There are none, and no contact or neck in a net is under 0.08 mm wide (a point contact is an open) |
-| Plane copper | Nowhere narrower than 0.15 mm (`make.py` clears what is under 0.2 mm) |
-| Copper to copper | At least 0.15 mm |
+| Shorts, opens, nets with a detour | There are none, no copper is without a net, and no contact or neck in a net is under 0.15 mm wide (a point contact is an open) |
+| Traces | None narrower than 0.1 mm (JLCPCB: 0.09 mm); the narrowest is 0.16 mm |
+| Plane copper | Nowhere narrower than 0.15 mm (`make.py` clears what is under 0.2 mm), and 0.3 mm from every hole of another net |
+| Copper to copper | At least 0.15 mm, and 0.09 mm from another net's mask opening |
+| Copper to the board edge, to an unplated hole | At least 0.5 mm (JLCPCB: 0.4 mm from a V-cut edge), 0.2 mm |
 | Holes on different nets | At least 0.5 mm apart (JLCPCB's minimum) |
 | Holes on the same net | At least 0.254 mm apart |
 | Vias | None is in or within 0.1 mm of an SMD (surface-mount) pad or a paste opening, apart from the GND vias in the RP2040's exposed pad; a tented one keeps 0.13 mm of solder mask to the nearest opening |
@@ -34,7 +39,8 @@ It prints what each build reaches, and the build passes when:
 | Smallest drills | At least 0.3 mm plated, 0.5 mm unplated |
 | Smallest annular rings | At least 0.075 mm on vias, 0.15 mm on pads |
 | JLC's footprints | Every bottom-side part's footprint lands, mirrored, on our pads of the same number ([Assembly data](#assembly-data)) |
-| BOM and CPL | They name every part of `board.py` on its side, with its value, LCSC number and quantity |
+| RP2040 pins | Each pin's net is the one its name in JLC's symbol asks for (GPIO16 on GP16, DVDD on 1V1), and the symbol's pin numbers are exactly U1's pads |
+| BOM and CPL | They name every part of `board.py` on its side, with its value, LCSC number and quantity, and each value is the one in the name of its LCSC part (`0603WAF5101T5E` is 5.1 k) |
 
 ## GPIO map
 
@@ -126,9 +132,9 @@ U4 has four channels of steering diodes to its VCC pin and a clamp from VCC to G
   GND on a via under the body. A clamp that fails short, or U4 placed turned by 180° (its VCC on GND, the
   clamp diode forward across VBUS_F), then sits behind R_IN and the fuse instead of shorting the host's VBUS
   (see below for what gives way).
-- Part choice: the SRV05-4 ([Ordering](../building/ordering.md#parts-and-stock)); a USBLC6-2SC6 does the same
-  job with the same pinout. JLC's datasheet link for C7420376 opens another part; R+O's SRV05-4 datasheet has
-  the pinout (I/O on pins 1, 3, 4 and 6, GND on 2, VCC on 5).
+- Part choice: the SRV05-4; a USBLC6-2SC6 does the same job with the same pinout. JLC's datasheet link for
+  C7420376 opens another part; R+O's SRV05-4 datasheet has the pinout (I/O on pins 1, 3, 4 and 6, GND on 2,
+  VCC on 5).
 - Checked: `check.py` cuts U4's pads out of the bottom copper and checks that J1's contacts then no longer
   reach the 27 R resistors (no copper runs past the array), and that U4 is at most 5 mm of copper from J1.
 
@@ -159,11 +165,13 @@ What gives way on a fault:
   via and F1.
 - A sustained overload under about 1 A: F1 (only 1.0 A and more is a guaranteed trip; R_IN already runs over
   its 0.1 W from about 0.32 A).
-- A fault on 3V3: U3's current limit. F1 will not reliably trip.
+- A fault on 3V3: U3's current limit, about 0.1 A into a short. That is about 0.5 W in U3, twice what its
+  SOT-23 takes: it gets hot, and after a sustained short it may need replacing. F1 will not reliably trip.
 
 `check.py` checks that each net of the chain holds only its pads (VBUS: J1 and R_IN; VBUS_R: R_IN and F1;
-VBUS_F: F1, C_IN, U3, U4's VCC and R_UNIT; `CHAIN_PADS` and `LOADS`) and that no copper runs past or across
-R_IN or F1 (the parts in `VBUS_CHAIN`).
+VBUS_F: F1, C_IN, U3, U4's VCC and R_UNIT; `CHAIN_PADS` and `LOADS`) and that R_IN and F1 each sit between
+their two nets (`VBUS_CHAIN`). Copper past or across either part would join two of these nets, a short that
+the electrical check finds.
 
 Hot plug: a live USB-A port (with an A to C cable) switches VBUS on hard, where a USB-C source ramps it with a
 controlled slope. The cable's inductance then rings with C_IN, a ceramic capacitor with next to no loss. R_IN
@@ -177,13 +185,11 @@ a pessimistic curve 1.8 µF at 5 V and 1.4 µF at 7 V). The cable and fuse range
 3 µH with little resistance it reaches 5.8 V with the nominal curve and 6.6 V with the pessimistic one, under
 U3's 7.0 V maximum; with a 5.5 V step the pessimistic worst case scales to about 6.9 V, still under it.
 
-- Value: without R_IN, a short, low-resistance cable peaks at 9.7 V, above the 7.0 V maximum for about 3 µs;
-  0.33 R gives 6.4 V there and 0.5 R 5.7 V. A smaller value would also do; 1 R is the lowest basic one.
+- Value: without R_IN, a short, low-resistance cable peaks above the 7.0 V maximum for a few µs. 1 R is the
+  lowest basic value.
 - Pulse: R_IN takes the inrush: at most 4.1 A, about 17 W at its peak and above half that current for 5 to
   7 µs, under 0.1 mJ in all. An 0603 thick-film resistor takes about 25 W for a 5 µs single pulse (Vishay's
   CRCW0603 pulse curve, as a stand-in for the Uniroyal part).
-- Clamp: a TVS (transient voltage suppressor) diode from VBUS to GND instead of R_IN would not keep U3
-  reliably under 7.0 V: an SMF5.0A breaks down at 6.4 to 7.0 V and clamps no lower.
 
 ## Crystal
 
@@ -246,23 +252,26 @@ so JLCPCB fits them in both assembly variants.
 The current ranges, with their assumptions, are in `add_led` in `board.py`, the positions at `LEDS`, the
 layout at `LED_CATHODE_EAST` and `LED_SWITCH`.
 
-- Cutout: each LED shines up through a cutout in the board, 2.2 x 2.4 mm with R0.5 corners, round its lens
-  (`board.LED_CUTOUT`, `stack.LED_LENS`). The lens stays inside the board, so the light pipe stands on the
-  board over it ([Mechanics](mechanics.md#light-pipes)). At tolerance the lens clears the cutout's corners by
-  0.01 mm (`check_fit.py`).
+- Cutout: each LED shines up through a cutout in the board, 2.2 mm along the pads by 2.6 mm across, with
+  R0.5 corners, round its 1.5 x 1.6 mm lens (`board.LED_CUTOUT`, `stack.LED_LENS`). The lens stays inside the
+  board, so the light pipe stands on the board over it ([Mechanics](mechanics.md#light-pipes)). With the lens
+  at its tolerance, the cutout routed 0.1 mm small per side and the LED placed 0.1 mm off and turned 2°, the
+  lens clears the cutout's corners by 0.05 mm (`check_fit.py`).
 - Copper: the pads (1.15 x 1.6 mm) and the other outer copper stop 0.2 mm short of the cutouts (JLCPCB's
-  minimum from copper to a routed edge), the planes 0.5 mm; `check.py` holds all copper to 0.2 mm. With
-  JLCPCB's ±0.2 mm on routed edges, the router may shave a pad's inner edge.
+  minimum from copper to a routed edge), the planes 0.4 mm; `check.py` holds the outer copper to
+  0.2 mm and the planes to 0.3 mm. JLCPCB routes a cutout within ±0.2 mm on its size, taken as ±0.1 mm per
+  side (`stack.PCB_CUTOUT_TOL`), so the routed edge stays 0.1 mm off the pads.
 - Resistors: in line with each LED beyond its anode pad, not below it: the SHIFT light is 5.25 mm from the
   board edge, and every part body but J1's keeps 2.5 mm from it, as JLCPCB's assembly terms ask.
-- Drive: `code.py` sets GP12 and GP15 to 12 mA drive strength (at most 57 ohm output resistance), so the
-  resistor sets the SHIFT light's current, at most 17.2 mA of the 50 mA all of the RP2040's GPIOs may source.
+- Drive: `code.py` sets GP12 to 12 mA drive strength (at most 57 ohm output resistance), so the resistor sets
+  the SHIFT light's current, at most 17.2 mA of the 50 mA all of the RP2040's GPIOs may source. GP15 only
+  drives Q_UNIT's gate and keeps the 4 mA default.
 - UNIT: the white LED's forward voltage, 2.8 to 3.6 V by bin, is too close to the 3.3 V supply for a GPIO,
   so it runs from VBUS_F and Q_UNIT switches its cathode to GND. GP15 high turns it on (at most 2.5 V
   threshold), and the pull-down keeps it off while the pin floats from reset until `code.py` drives it.
 - Brightness: the intensity bins span a factor of two and more. The firmware's duties leave three to three
   and a half times up to full duty, and the level that reads well behind the pipe is set on the first board
-  ([Bring-up](../building/bring-up.md#first-board)).
+  ([Bring-up](../building/bring-up.md#light-brightness)).
 
 ## Placement and legend
 
@@ -274,14 +283,19 @@ The placement keeps these rules:
   hole centres, where the plate's boss and the body's boss press on the board (`board.MOUNT_KEEPOUT`).
 - J1: nothing but its own pads under its grounded shell, which has only the solder mask between it and the
   bottom copper. The router keeps out of the whole body on the bottom; `check.py` checks it on the Gerbers.
+- Fiducials: three bare copper dots on the bottom for JLCPCB's placement machines, 1 mm across in 2 mm mask
+  openings, 8.5 mm in from three corners of the board (`board.FIDUCIALS`). They have no net and no paste, and
+  no bottom copper lies within 2.6 mm of a centre.
 
 The legend:
 
-- Size: capitals and the x-height of lowercase at least 1.0 mm, measured on the font, and every stroke, a "/"
-  too, at least 0.153 mm wide (JLCPCB's minimums). Text is 1.4 mm, 1.5 mm with a "/" and 1.85 mm with
-  lowercase.
+- Size: capitals and the x-height of lowercase at least 1.0 mm, measured on the font, and every stroke and
+  neck at least 0.153 mm wide (6 mil; JLCPCB's minimum is 0.15 mm). `make.py` measures the thinnest stroke of
+  each text on its outlines and sizes the text from it; `check.py` measures the legend Gerbers the same way
+  (0.154 mm on both sides). Text is 1.4 mm, 1.45 mm with "<" or ">", 1.5 mm with a "/" and 1.85 to 2.35 mm
+  with lowercase, whose thinnest spot is where a bowl meets its stem.
 - Clearance: 0.15 mm from every mask opening and hole, 0.3 mm inside the board outline and round the two LED
-  cutouts.
+  cutouts, and 0.5 mm inside the edge with JLCPCB's rail, which is V-cut to ±0.4 mm (`geom.SILK_VCUT`).
 - Placement: a part name or key legend that a via lands on, or that comes too near the edge, moves to the
   nearest free spot; a diode's cathode bar that a via would cut short moves up to 0.3 mm sideways, and
   `check.py` wants it alongside at least half of its pad's edge.
@@ -302,10 +316,10 @@ The solder mask is black, with JLCPCB's white legend on it: green would show as 
 each key cap and through the USB-C opening. Black needs wider mask dams than green (0.13 mm against 0.10 mm
 with 1 oz outer copper, JLCPCB's capabilities page). The closest pads (the RP2040's, the USB-C contacts, C_X2
 and R_X) are 0.2 mm apart, so every opening is its pad plus 0.035 mm per side, not the usual 0.05, which
-leaves a 0.13 mm dam. The comment at `MASK_GROW` in `make.py` says why JLCPCB's exposure and alignment allow
-it. `check.py` measures every dam (64 are exactly 0.13 mm) and checks that each opening clears its pad by at
-least 0.025 mm. JLCPCB removes a dam it cannot hold rather than asking, so the order asks for the production
-file to be confirmed and the dams checked there; the fallback is green
+leaves a 0.13 mm dam. The comment at `MASK_GROW` in `board.py` says why JLCPCB's exposure and alignment allow
+it. `check.py` measures every dam, prints how many are exactly 0.13 mm, and checks that each opening clears
+its pad by at least 0.025 mm. JLCPCB removes a dam it cannot hold rather than asking, so the order asks for
+the production file to be confirmed and the dams checked there; the fallback is green
 ([Ordering](../building/ordering.md#review-questions)).
 
 Via covering Tented matches the Gerbers: the mask covers every via on both sides, except:
@@ -322,15 +336,15 @@ The through-hole parts are soldered from the bottom, among the SMD parts: by JLC
 otherwise. `check.py` keeps every exposed SMD pad of another net at least 1.0 mm (copper to copper) from every
 through-hole pad and from J1's four shell tabs, room for the iron and a fillet without a bridge, and
 through-hole pads of different nets 0.5 mm apart (the closest 0.70 mm), apart from the RKJXT's COM and ECOM
-at 0.38 mm ([Hand-soldering](../building/assembly.md#hand-soldering)).
+at 0.38 mm ([Hand-soldering](../building/hand-soldering.md#soldering)).
 
 The four J1 shell tabs get paste over their pads (pin-in-paste), but the stencil leaves about 0.12 mm³ of
 solder for about 0.8 mm³ of slot round each tab: a fillet on the bottom at most. The tabs carry the plug's
 load, so they are soldered from the top as well: by JLCPCB in full assembly (its PCBA remark), by hand
-otherwise ([Hand-soldering](../building/assembly.md#hand-soldering)).
+otherwise ([Hand-soldering](../building/hand-soldering.md#soldering)).
 
-Our drills follow the datasheets; `check.py` wants each within 0.21 mm of JLC's footprint
-([Assembly data](#assembly-data)), the span of JLCPCB's plated-hole tolerance:
+Our drills follow the datasheets; `check.py` wants each plated hole inside its datasheet's band and within
+0.21 mm of JLC's footprint ([Assembly data](#assembly-data)), the span of JLCPCB's plated-hole tolerance:
 
 | Hole | Ours | JLC's | Datasheet |
 | --- | --- | --- | --- |
@@ -353,8 +367,9 @@ JLCPCB places the bottom-side parts by its own library footprints. [pcb/footprin
 keeps each one: its pads (number, position, size) and the pin names of JLC's symbol, saved from JLC's EasyEDA
 library by `footprints/fetch.py`, with source and date in each file. `check.py` fits them onto our pads at the
 place and rotation in the CPL (placement file), offline: every JLC pad must land on our pad with the same
-number, centres within 0.15 mm and edges within 0.25 mm. A footprint that is not mirrored cannot be fixed by a
-rotation; this fit catches one.
+number, centres within 0.15 mm and edges within 0.25 mm, and on a narrow pad within 0.3 of its narrow side
+(0.06 mm on the RP2040's pads, 0.09 mm on J1's contacts). A footprint that is not mirrored cannot be fixed by
+a rotation; this fit catches one.
 
 - LEDs: our pads stop 0.2 mm short of the board cutout, where JLC's footprints run further in, so the fit
   allows the two LEDs more at the pad's centre and inner edge (`FP_TOL` in `check.py`).
@@ -377,7 +392,9 @@ counter-clockwise by the rotation.
 | Q_UNIT | 90 (pin 3, the drain, to the south, towards LED_UNIT) |
 
 The bottom legend has a pin 1 corner mark at U1, pin 1 dots at U2, U3, U4 and Y1, and a cathode bar at each
-diode and LED, for the [placement preview](../building/ordering.md#placement-preview).
+diode and LED, for the [placement preview](../building/ordering.md#placement-preview). `check.py` wants each
+mark on the legend Gerber: a bar beyond every cathode pad, and at each of the five parts a mark that is at
+least 0.3 mm nearer to pin 1 than to any other pad (at Y1 to pin 1 or pin 3, the crystal's two ends).
 
 In full assembly JLCPCB also places the through-hole parts on the top, from the same CPL (`CPL-full.csv`,
 Layer "Top"). It uses its top-side convention: seen from the top, the part is JLC's footprint turned

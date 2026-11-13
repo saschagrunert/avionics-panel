@@ -8,11 +8,12 @@ and how much margin it has. The steps at home are in [Assembly](../building/asse
 | Every height, tolerance and datasheet dimension, with the reason beside it | [mech/stack.py](../../mech/stack.py) |
 | The body's own sizes: walls, cavity, counterbores, middle column, post, ribs, USB-C opening, feet | [mech/make_mech.py](../../mech/make_mech.py) |
 | The knob and light pipe solids | [mech/make_knobs.py](../../mech/make_knobs.py) |
-| The key cap solids and their legends | [mech/make_caps.py](../../mech/make_caps.py) |
-| The plate's legends, their positions and the DXF layers | [mech/make_plate_art.py](../../mech/make_plate_art.py) |
+| The legend texts of the keys and the knobs (`KEY_LEGENDS`, `KNOB_LEGENDS`) | [mech/stack.py](../../mech/stack.py) |
+| The key cap solids, and how their legends are drawn | [mech/make_caps.py](../../mech/make_caps.py) |
+| Where the plate's legends go, and the DXF layers | [mech/make_plate_art.py](../../mech/make_plate_art.py) |
 | The notes and tolerances on the plate drawing | [mech/make_plate_step.py](../../mech/make_plate_step.py) |
 | The mounts, the key grid, the knob and light positions | [pcb/board.py](../../pcb/board.py) |
-| Every fit with its margin | [mech/check_fit.py](../../mech/check_fit.py): one printed row per fit, and a failed build when a margin reaches zero; it also draws the [sections](../../renders/8-fit-check.png) |
+| Every fit with its margin | [mech/check_fit.py](../../mech/check_fit.py): one printed row per fit, and a failed build when a margin reaches zero; it also draws the [sections](../../renders/8-fit-check.png) and writes the table under [Fits](#fits) |
 
 To change a dimension, change it there and run `./build.sh` ([Generators](generators.md#build)): the fit
 rows show what the change costs.
@@ -45,7 +46,7 @@ Heights as drawn, z = 0 at the top of the board. Anodising raises the plate's fa
 | -7.6 to -5.6 | Body floor, 2 mm. Below it the 6° wedge is hollow down to the desk plane (-7.2 at the front, about -14 at the back), with 2 mm ribs and a solid band along the front |
 | -5.6 to -1.6 | 5 body bosses (Ø8 on the board) carry the board: four joined to the corner walls, one on a bar-shaped column in the middle of the key field. One post (Ø4.0) ends 0.3 mm under the board |
 | -3.2 | Counterbore seats (Ø8.4), 1.6 mm of PA12 under the board: the screw heads stay recessed |
-| -1.6 to 0 | Board. The two LEDs on its bottom shine up through 2.2 x 2.4 mm cutouts |
+| -1.6 to 0 | Board. The two LEDs on its bottom shine up through 2.2 x 2.6 mm cutouts |
 | 0 to 6.55 | The plate's 5 bosses (Ø5.5, tapped M3). Beside them: key switch bodies (3.6 mm high), encoder bodies (8.0), the RANGE control's body (8.6), the light pipes' bases (5.65). The body walls end at 5.6, the plate's tongue at 1.05 |
 | 6.55 to 10.55 | Plate web, 4 mm. Pockets from the back for the encoders (2.5 mm deep) and the RANGE control (3.05) |
 | 6.8 to 12.5 | Key caps, their socket ceiling on the plunger top (9.5): 1.95 mm over the plate |
@@ -66,21 +67,24 @@ Heights as drawn, z = 0 at the top of the board. Anodising raises the plate's fa
   would take the screws' clamp off the board.
 - Threads: M3-6H from each boss's end face, full thread at least 6.0 mm deep, the tap drill 7.5 mm plus its
   point, which leaves at least 2.15 mm of metal in front of it. An anodised thread does not gauge, so the
-  drawing asks for the threads masked or cut again afterwards. The boss end faces may be bare or anodised, all
-  alike (`stack.ANODISE`).
+  drawing asks for the threads plugged through bead blasting and anodising. The boss end faces may be bare or
+  anodised, all alike (`stack.ANODISE`).
 - What locates what: the plate's bosses locate the screws. The key caps centre the board in the key holes
   while it is lowered into the plate, and its 3.8 mm holes let it stay there. A cap turned on its round
   plunger has less room in its hole, so each row of caps is squared on a steel rule first (step 1 of
   [Putting it together](../building/assembly.md#putting-it-together)); the fit rows take 1° of turn, and
-  2.5° that a cap may creep in use. The body locates nothing: its 4.2 mm holes pass the screws wherever the
-  plate puts them, with up to 0.82 mm of play, so it is centred by eye for the tongue's gaps.
+  2.5° that a cap may creep in use. Nothing centres the board once it is in: face down it rests where the last
+  cap stopped it, so that cap may touch its hole until the board is nudged. The rows for the caps' play take
+  the board centred, and the other rows take it as far off the plate as a cap set printed small lets it sit
+  (0.60 mm). The body locates nothing: its 4.2 mm holes pass the screws wherever the plate puts them, with up
+  to 0.82 mm of play, so it is centred by eye for the tongue's gaps.
 - Middle mount: the fifth boss and screw, at board (72.25, 30.75), hold the board and the plate together in
   the middle of the key field. The body's column there is a bar along board y, 4.0 mm wide and 12.2 mm long,
   because the leads of the four keys round it stand 5.3 mm off its axis. The counterbore is wider than the
   bar, so it is open to the room under the board on the bar's two long sides.
-- Board support: with the middle mount a firm key press (10 N, about six times the switch force) dips the
-  board by 0.21 mm at most (`stack.PRESS_FIRM`). The post at board (98.3, 30.75) is a backstop that never
-  lifts the board.
+- Board support: with the middle mount a firm key press (10 N, about six times the switch force) is taken to
+  dip the board by 0.25 mm and to slope it by 8 mrad at most (`stack.PRESS_DIP`, `PRESS_SLOPE`). The post at
+  board (98.3, 30.75) is a backstop that never lifts the board.
 
 ## Plate and body
 
@@ -94,10 +98,12 @@ Heights as drawn, z = 0 at the top of the board. Anodising raises the plate's fa
   ([Electronics](electronics.md#through-hole-parts)). The pocket and the hole give it that room.
 - Key and light holes: key holes 10.4 x 7.2 mm +0.1/-0 after anodising, 0.4 mm per side round the caps,
   corners R1.6 (R1.7 at most), their back edges broken 0.3 to 0.5 mm as a lead-in for the caps. Light holes
-  Ø2.3 +0.1/-0, their back edges sharp, because the light pipes' shoulders bear there. The laser-marked line
-  between the AUDIO and RADIO keys passes 0.575 mm from the key holes beside it (0.525 mm with a hole 0.1 mm
-  large). Where a laser mark meets a hole's edge break it is only cosmetic, so the fit check holds only the
-  amber print to the holes.
+  Ø2.3 +0.1/-0 before anodising, their back edges sharp, because the light pipes' shoulders bear there. The
+  face-down assembly blocks reach at most 6 mm under the plate's long edges: the SHIFT light hole starts
+  6.6 mm in (6.45 mm at the ends of its tolerances), and a block over it would hold the pipe, and the board
+  on it, off the bosses. The laser-marked line between the AUDIO and RADIO keys passes 0.575 mm from the key
+  holes beside it (0.525 mm with a hole 0.1 mm large). Where a laser mark meets a hole's edge break it is
+  only cosmetic, so the fit check holds only the amber print to the holes.
 - USB-C: the USB-C socket (J1) stands 0.52 mm past the board edge, level with the cavity wall, so the plug
   opening in the back wall (16.8 x 8.7 mm) runs on up through the wall top as a slot of the same width, and
   the socket passes the wall when the body goes on. A tongue on the plate's back edge (15.0 mm wide, 2.0 mm
@@ -132,7 +138,9 @@ Heights as drawn, z = 0 at the top of the board. Anodising raises the plate's fa
 - Turn: only friction on the round plunger holds a cap square, so it may creep round in use. Up to 2.5° it
   keeps its room in the key hole (in a set printed 0.2 mm large, up to about 1.5°); one that rubs is turned
   back square in place ([Care](../using/controls.md#care)).
-- Firm press: the board bends, and the cap can dip up to 0.85 mm under the plate back and tilt 0.43° with its
+- Height: a cap stands 1.95 mm over the plate face, and 0.83 mm at least when fully pressed at the worst
+  stack; a fit row holds it to 0.5 mm.
+- Firm press: the board bends, and the cap can dip up to 0.89 mm under the plate back and tilt 0.46° with its
   plunger. It may then rub the face edge of its hole on one side. It cannot wedge across the hole, and the
   edge break on the hole's back edge leads it back in; `check_fit.py` has a row for each.
 - Legends: Barlow Semi Condensed Bold, grown by 0.055 mm all round, so every coloured stroke prints at least
@@ -147,9 +155,10 @@ Heights as drawn, z = 0 at the top of the board. Anodising raises the plate's fa
   Ø2.3 mm light hole. Lifted, the shoulder stops on the plate back, so the pipe is captive.
 - Height: in use the pipe rests on the board. Its top is 0.50 mm under the anodised face in the nominal stack
   (0.45 mm under the face as drawn), and between 0.40 mm over it (a long pipe grown in its first week) and
-  1.25 mm under it at the ends of the tolerances. Lifted onto its shoulder it can stand 0.95 mm over the face
-  of a thin plate. Between the two it has 0.9 mm of play, so it may tick when the panel is moved.
-- Never clamped: the longest base, grown by the 0.2 mm that resin may gain in its first week and with
+  1.25 mm under it (a short one, shrunk in its first week) at the ends of the tolerances. Lifted onto its
+  shoulder it can stand 0.95 mm over the face of a thin plate. Between the two it has 0.9 mm of play, so it
+  may tick when the panel is moved.
+- Never clamped: the longest base, grown by the 0.2 mm that resin may change by in its first week and with
   0.1 mm of sanded stub left on, stays under the smallest gap between the board and the plate back. A clamp
   would load the pipe with newtons (the board is 13 to 17 N/mm stiff at the lights). This row limits the
   plate's flatness: the drawing asks for 0.1 mm, and the row fails just above 0.22 mm, or just above 0.17 mm
@@ -167,16 +176,23 @@ Heights as drawn, z = 0 at the top of the board. Anodising raises the plate's fa
 
 ### Knobs
 
-- Fit: friction only. The bores are drawn at the shaft size (`stack.FIT` = 0), and JLC3DP's resin holes vary
-  by ±0.3 mm, so one outer ring, one FMS ring, one inner knob and the RANGE knob also come 0.2 mm tighter and
-  0.2 mm looser (`stack.FIT_VARIANTS`). A rigid fit grips over about 0.13 mm, less than the step between the
-  variants, so for about four knobs in ten none grips as printed and the next tighter one is opened
+- Fit: friction only. Each knob (outer ring, FMS ring, inner knob, RANGE knob) comes with five bores, 0.1 mm
+  apart: bore 1 is 0.1 mm under the shaft's largest size, bore 5 0.3 mm over it (`stack.FIT_VARIANTS`), and
+  each is ordered in the panel's quantity. A rigid fit grips over about 0.13 mm of interference, more than
+  the step from one bore to the next, so one of the five grips whenever the bores print 0.02 to 0.45 mm
+  small; JLC3DP's resin holes come out small, within ±0.3 mm. The knob to keep goes on by hand and holds.
+  For a print outside that range, `stack.FIT` moves all five bores by 0.5 mm for a second order
   ([Assembly](../building/assembly.md#fitting-the-knobs)).
+- Marks: as many dimples as the bore's number (1 the tightest), Ø0.9 mm and 0.9 mm deep, on one arc with a
+  gap after the third, where they do not show: in the bottom face of the outer rings, each under a flute's
+  crest, in the ceiling of the inner knob's recess and in the dished underside of the RANGE knob
+  (`stack.KNOB_MARK`). At the worst print 0.9 mm of resin stays round each, also with the largest bore
+  `stack.FIT` allows.
 - Heights: the uncut shafts of the Bourns PEC11D encoders set them. The outer ring rests with its key (1.4 mm
   wide) on the floor of the shaft slot, its counterbore 1.05 mm over the bushing. In the 2.0 mm slot the key
-  has 11.5° of play in all (21.4° at the ends of the tolerances), against 12° a detent: only the bore's grip
+  has 12.0° of play in all (22.4° at the ends of the tolerances), against 12° a detent: only the bore's grip
   takes it out. The inner knob rests with its bore end on the shaft tip; its D bore ends 0.7 mm short of the
-  shaft's D flat, so the bore end, not a short flat, sets the height. A bore drilled deeper lowers the knob.
+  shaft's D flat, so the bore end, not a short flat, sets the height.
 - Proportions: outer rings Ø17, inner knobs Ø12, so 2.5 mm of ring shows on each side. The FMS ring has 14
   flutes 0.9 mm deep where the other rings have 24 at 0.45 mm: FREQ and FMS, the same size one above the
   other, are told apart by feel.
@@ -190,35 +206,37 @@ Heights as drawn, z = 0 at the top of the board. Anodising raises the plate's fa
 
 ## Fits
 
-The main margins from `check_fit.py`'s output, in this page's words; the script prints more rows. Each margin
-is what is left at the worst end of every tolerance in its row, and "over 0.8 mm" names the minimum it is
-counted from. A margin of zero fails the build. RSS: independent errors added as a root sum square. "Plate
-low" and "Plate high" are the two groups the boss height sits between. Margins of 0.05 mm or less are bold.
+The main margins, written into this table by `check_fit.py` on every build; the script prints more rows. Each
+margin is what is left at the worst end of every tolerance in its row, and "over 0.8 mm" names the minimum it
+is counted from. A margin of zero fails the build. RSS: independent errors added as a root sum square. "Plate
+low" and "Plate high" are the two groups the boss height sits between. Margins of 0.05 mm or less are bold; a
+margin in percent is a share.
 
+<!-- fits: written by mech/check_fit.py -->
 | Group | Fit | Margin (mm) |
 | --- | --- | --- |
-| Plate low | Outer knob ring over the plate face | 0.22 |
-| Plate low | RANGE knob's underside over the plate at full tilt, cocked on the lever by its play and pushed | 0.17 |
+| Plate low | Outer knob ring over the plate face | 0.174 |
+| Plate low | RANGE knob's underside over the plate at full tilt, cocked on the lever by its play and pushed | 0.125 |
 | Plate high | Encoder pocket over the encoder body | 0.485 |
-| Plate high | RANGE pocket over the RKJXT body, also at the pocket's floor corner | 0.435 |
-| Plate high | Cap socket ceiling under the plate face, on a plunger at TE's +0.3 mm | 0.51 |
-| Plate high | Tongue's end over the plug overmould | 0.29 |
-| Plate high | Body wall tops under the plate back | 0.33 |
+| Plate high | RANGE pocket over the RKJXT body | 0.435 |
+| Plate high | Cap socket ceiling under the plate face, on a plunger at TE's +0.3 mm | 0.514 |
+| Plate high | Tongue's end over the plug overmould | 0.291 |
+| Plate high | Body wall tops under the plate back | 0.329 |
 | Plate high | Light pipe base under the plate back, grown 0.2 mm in its first week (never clamped) | 0.125 |
-| Light pipes | Top over the face of a thin plate, lifted and grown in its first week, under the 1.0 mm allowed | **0.05** |
 | Light pipes | Rod in its hole, on the diameter | **0.05** |
-| Light pipes | Base clear of the switch bodies (SHIFT, UNIT) | 0.125, 0.85 |
-| Light pipes | Base out from under the key holes (SHIFT, UNIT) | 0.20, 0.43 |
-| Light pipes | Light hole web to the next key hole at tolerance, over JLCCNC's 0.5 mm minimum (SHIFT, UNIT) | 0.30, 0.53 |
-| Light pipes | LED lens in its board cutout | **0.01** |
-| Caps | Cap's play in its key hole beyond the per-key position errors (RSS) | 0.13 |
-| Caps | The same with the cap turned 1° | 0.10 |
-| Caps | The same with the cap crept round to 2.5° in use | **0.02** |
-| Caps | A whole set printed 0.2 mm large (WJP's outline error as a bias), turned 1° | **0.024** |
-| Caps | Firmly pressed cap lands on the back edge break | 0.29 |
-| Caps | Cap sets' coverage beyond a rib circle printed 0.2 mm small or large | **0.012** |
+| Light pipes | Top over the face of a thin plate, lifted and grown in its first week, under the 1.0 mm allowed | **0.05** |
+| Light pipes | LED lens in its board cutout, the LED placed 0.1 mm off and turned 2° | **0.049** |
+| Light pipes | Share of the LED's die under the pipe base at the worst offsets, over 80 % (SHIFT, UNIT) | 11 %, 11 % |
+| Light pipes | Base clear of the switch bodies (SHIFT, UNIT) | **0.025**, 0.748 |
+| Light pipes | Base out from under the key holes (SHIFT, UNIT) | 0.20, 0.432 |
+| Light pipes | Light hole web to the next key hole at tolerance, over JLCCNC's 0.5 mm minimum (SHIFT, UNIT) | 0.30, 0.532 |
+| Caps | Amber legends beyond the largest key hole's edge break, for the UV print's register | 0.50 |
 | Caps | Wall round the socket at the worst print, over 1.0 mm | 0.10 |
-| Caps | Amber legends beyond the largest key hole's edge break, for the UV print's register | 0.505 |
+| Caps | Cap sets' coverage beyond a rib circle printed 0.2 mm small or 0.2 mm large | **0.012** |
+| Caps | Firmly pressed cap lands on the back edge break | 0.293 |
+| Caps | Cap top over the plate face when fully pressed, over 0.5 mm | 0.328 |
+| Caps | Cap's play in its key hole beyond the per-key position errors (RSS), the board centred in the key holes and the cap crept round to 2.5° in use | **0.02** |
+| Caps | The same for a whole set printed 0.2 mm large (WJP's outline error as a bias), turned 1° | **0.024** |
 | Screws | M3 through the narrowest board hole, the board where the caps centre it | **0.045** |
 | Screws | Plate boss end covers the widest board hole all round | 0.10 |
 | Screws | Plate boss inside the board's 3.6 mm copper keep-out | 0.20 |
@@ -227,45 +245,61 @@ low" and "Plate high" are the two groups the boss height sits between. Margins o
 | Screws | Full thread engaged, over 2.0 mm | 0.75 |
 | Screws | Tip short of the end of the full thread | 0.45 |
 | Body | Plate corner bosses clear of the cavity walls at the end of the body's screw play | 0.08 |
-| Body | Board in the cavity, per side: across (V-cut rail edge), along | 0.15, 0.08 |
-| Body | Middle column, corner bosses and post clear of leads, solder fillets and bottom parts, over 0.3 mm | 0.16, 0.125, 0.205 |
-| Body | Column bar and corner boss walls round the counterbore, over JLC3DP's 1.5 mm | 0.10 |
+| Body | Board in the cavity, per side: across (V-cut rail edge), along | 0.15, 0.078 |
 | Body | Untrimmed leads over the body floor | 1.00 |
-| USB-C | Tongue's smallest side gap in the body's slot, the body centred (largest gap 1.50 mm, limit 1.6) | 0.30 |
-| USB-C | Tongue covers the plug overmould across | 0.25 |
-| USB-C | Tongue's inner face short of the J1 shell tabs | 0.725 |
+| Body | Post, corner bosses and middle column clear of leads, solder fillets and bottom parts, over 0.3 mm | 0.105, **0.025**, 0.157 |
+| Body | Column bar and corner boss walls round the counterbore, over JLC3DP's 1.5 mm | 0.10, 0.098 |
 | USB-C | Plug overmould (12.85 x 7.0 mm) in the opening | 0.315 |
-| Controls | Encoder bushing in its Ø9.5 hole, radial | 0.15 |
-| Controls | Encoder lugs in their pocket, per side | 0.15 |
-| Controls | RKJXT body in its Ø19.6 pocket, radial | 0.39 |
-| Controls | RKJXT hub at full tilt in its Ø11.1 hole, radial | 0.18 |
+| USB-C | Tongue's smallest side gap in the body's slot, the body centred (largest gap 1.50 mm, limit 1.6) | 0.30 |
+| USB-C | Tongue covers the plug overmould across | 0.15 |
+| USB-C | Tongue's inner face short of the J1 shell tabs | 0.625 |
+| Controls | Encoder bushing in its Ø9.5 hole, radial | **0.05** |
+| Controls | Encoder lugs in their pocket, per side | **0.05** |
+| Controls | RKJXT body in its Ø19.6 pocket, radial | 0.29 |
+| Controls | RKJXT hub at full tilt in its Ø11.1 hole, radial | 0.081 |
 | Controls | Plate left over the RANGE pocket on a thin plate, over 0.8 mm | **0.05** |
-| Knobs | RANGE skirt covers its hole at full tilt, cocked and pushed or not | 0.18 |
-| Knobs | Pan arrows outside the RANGE skirt, seen square on | 0.39 |
-| Knobs | RANGE knob's underside over the plate, should the lever reach 9° on both axes at once (12.6°): nominal, pushed 0.3 mm (0.57 not pushed) | 0.27 |
-| Knobs | Outer ring covers its encoder hole, seen from above | 1.10 |
-| Knobs | Outer knob's counterbore over the bushing | 0.08 |
-| Knobs | Outer knob's key face clear of the inner shaft in the slot | **0.05** |
 | Knobs | Outer knob's key in the narrowest shaft slot | 0.10 |
-| Knobs | Outer ring's lash in the shaft slot, should its bore not grip, within a detent (12°), nominal | 0.54° |
-| Knobs | Inner knob over the outer ring, pushed | 0.18 |
-| Knobs | Knob bore variants' coverage beyond the resin's ±0.3 mm | **0.05** |
+| Knobs | Outer ring's lash in the shaft slot, should its bore not grip, within a detent (12°), nominal | 0.044° |
+| Knobs | Outer knob's key face clear of the inner shaft in the slot | 0.275 |
+| Knobs | Outer knob's counterbore over the bushing | 0.082 |
+| Knobs | Inner knob over the outer ring, pushed | 0.181 |
+| Knobs | Resin round the knobs' dimples at the worst print, with the largest bore `stack.FIT` allows, over JLC3DP's least wall for a part of the knob's size (0.81 to 0.84 mm) | 0.09 |
+| Knobs | Outer ring covers its encoder hole, seen from above | 1.225 |
+| Knobs | RANGE skirt covers its hole at full tilt, cocked and pushed or not | 0.083 |
+| Knobs | Pan arrows outside the RANGE skirt, seen square on | 0.29 |
+| Knobs | RANGE knob's underside over the plate, should the lever reach 9° on both axes at once (12.6°): nominal, pushed 0.3 mm (0.57 not pushed) | 0.274 |
+| Knobs | Overlap of the grip windows of two neighbouring bores (outer ring, FMS ring, inner knob, RANGE knob), with `stack.FIT` at +0.0 | **0.03**, **0.03**, **0.029**, **0.029** |
+<!-- /fits -->
 
 ## Assumptions
 
 Values that no datasheet or vendor states; the fit rows take them as given.
 
 - RKJXT: body tolerance ±0.3 mm; the tilt fulcrum on either side (the RANGE rows take the worse); the centre
-  push may still go down at full tilt; between two directions the lever reaches at most 9° on each axis.
+  push may still go down at full tilt; between two directions the lever reaches at most 9° on each axis
+  (Alps gives 9° as the most in each of the four directions).
 - PEC11D: the inner shaft at most 0.05 mm off the outer one (`stack.SHAFT_ECC`).
-- Knob bores: a variant fits when it prints within 0.15 mm of the size drawn (`stack.FIT_OFF`), and a kept
-  RANGE knob has at most that much play on the lever (`stack.RANGE_PLAY`).
-- Key switch: TE's plunger lot is close enough to its STEP model for the four cap sets.
+- Friction fits: a rigid fit holds from 0.02 mm of interference and still goes on by hand at 0.15 mm
+  (`stack.CAP_GRIP`), for the caps and, taken from them, for the knobs (`stack.KNOB_GRIP`).
+- Knobs: a kept knob has at most 0.15 mm of play on its shaft (`stack.KNOB_PLAY`, `stack.RANGE_PLAY`), and
+  resin holes print small, by 0.02 mm at least: that is what the tightest bore needs to grip a shaft at its
+  low limit.
+- Key switch: TE's plunger lot is close enough to its STEP model for the four cap sets; the plunger's own
+  sideways play in the switch is left out.
 - Key caps: they creep round on their plungers by at most 2.5° in use (`stack.CAP_CREEP`).
-- MJF: rounds a counterbore's floor corner by 0.2 mm at most (`stack.CB_FLOOR_R`).
+- Firm press: 10 N on a key dips the board by 0.25 mm and slopes it by 8 mrad at most (`stack.PRESS_DIP`,
+  `PRESS_SLOPE`); a plate model of the bare board gives 0.2 mm and 6.8 mrad.
+- Board: bowed by 0.1 mm at most at its middle (`stack.PCB_BOW`); JLCPCB allows 0.75 %, 1.2 mm over this
+  board.
+- Resin: a light pipe's lengths change by 0.2 mm at most in the first week, either way (`stack.RESIN_DRIFT`;
+  JLC3DP gives 0.2 mm or 0.2 %).
+- MJF: rounds a counterbore's floor corner by 0.2 mm at most (`stack.CB_FLOOR_R`); the body does not warp
+  beyond JLC3DP's tolerances, which leave warp out. The wall tops have 0.33 mm to the plate for it
+  ([Assembly](../building/assembly.md)).
 - JLCCNC's UV print: registers within 0.5 mm.
 - JLCPCB's drill positions: ±0.075 mm (`stack.POS_TOL`).
 - JLCPCB's routed LED cutouts: ±0.1 mm per side (`stack.PCB_CUTOUT_TOL`).
+- JLCPCB's placement of the LEDs: within 0.1 mm and 2° (`stack.LED_LENS`).
 
 ## Dimensions
 
@@ -279,4 +313,4 @@ Values that no datasheet or vendor states; the fit rows take them as given.
 | Caps | 9.6 x 6.4 mm, 1.95 mm over the plate, one legend size (capitals about 2.0 mm high, strokes at least 0.4 mm). The flip-flop icon is narrow, so COM ⇆ does not shrink every legend |
 | Dual knob centres | x 15 and 145, y 15 and 45 (30 mm apart). Between the knobs: 12.85 mm on the left (ALT/HDG ring to RANGE skirt), 13 mm on the right |
 | Knobs | Matte black resin, vertical flutes, slight taper, chamfered flat top. Outer ring Ø17 x 6.3 mm on all three, inner knob Ø12 x 10.4 mm above it. RANGE knob Ø13.6 x 8.2 mm with a Ø17.3 skirt |
-| Amber | The plate's UV print is JLCCNC's standard orange. #d9a441 (RGB 217, 164, 65) approximates it for the SHIFT cap legend and the 3D view (`stack.AMBER`) |
+| Amber | #d9a441 (RGB 217, 164, 65; CMYK 0, 24, 70, 15): the plate's UV print, as the drawing gives it, the SHIFT cap legend and the 3D view (`stack.AMBER`) |

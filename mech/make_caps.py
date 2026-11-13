@@ -10,11 +10,15 @@ ceiling sits on the plunger top. A rigid fit needs better than the resin prints,
 the cap underside: the set that seats fully and holds is the one to fit. Black caps, white printed labels, amber
 SHIFT, every coloured stroke at least 0.4 mm wide (stack.LEGEND_*). Exact solids (OpenCascade), meshed
 watertight, one shell per cap.
-Writes caps-<set>.zip (OBJ, MTL and texture of the set's 28 caps).
+Writes caps-<set>.zip (OBJ, MTL and texture of the set's 28 caps). With --single it also writes
+caps-single-<set>.zip for a shop that takes one model per file: in it one zip per cap, cap-<set>-<number>-<legend>.zip
+(OBJ, MTL and the cap's own texture tile). build.sh does not ask for these, and production/ does not hold them.
 Needs pythonocc-core and pillow (nix-shell nix/shells.nix -A gen, from the repository root).
 """
 import io
 import math
+import re
+import sys
 import zipfile
 from pathlib import Path
 
@@ -233,8 +237,33 @@ def zip_add(z, name, data):
     z.writestr(zi, data)
 
 
+def slug(label):
+    """a cap's legend as part of a file name: COM ⇆ is COM-FLIP, D→ is D-TO, a cap without one BLANK."""
+    return re.sub(r"[^A-Za-z0-9]+", "-", label.replace("⇆", "FLIP").replace("→", "TO")).strip("-") or "BLANK"
+
+
+def write_singles(name, singles):
+    """caps-single-<set>.zip: one zip per cap of the set (its OBJ, MTL and texture tile), all in one archive.
+    singles: (cap number from 1, legend, part for write_obj with the UVs of the cap's own tile, the tile's corner in
+    the texture)."""
+    with zipfile.ZipFile(f"avionics-panel-rev1-caps-single-{name}.zip", "w", zipfile.ZIP_DEFLATED) as outer:
+        for k, label, part, (x0, y0) in singles:
+            cap = f"cap-{name}-{k:02d}-{slug(label)}"
+            buf, obj, png = io.BytesIO(), io.StringIO(), io.BytesIO()
+            write_obj(obj, f"{cap}.mtl", [part])
+            tex.crop((x0, y0, x0 + CELL, y0 + CELL)).save(png, "PNG")
+            with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+                zip_add(z, f"{cap}.obj", obj.getvalue())
+                zip_add(z, f"{cap}.mtl", mtl_text(f"{cap}.png"))
+                zip_add(z, f"{cap}.png", png.getvalue())
+            zip_add(outer, f"{cap}.zip", buf.getvalue())
+
+
 # ---------------- build ----------------
 if __name__ == "__main__":                       # make_viewer_data.py imports LEGEND_EM
+    if sys.argv[1:] not in ([], ["--single"]):
+        raise SystemExit("usage: python3 make_caps.py [--single]")
+    single = sys.argv[1:] == ["--single"]
     for k, label in enumerate(caps):
         draw_label(k, label)
     pitch, per_row = S.CAP_LAYOUT["pitch"], S.CAP_LAYOUT["per_row"]
@@ -245,7 +274,7 @@ if __name__ == "__main__":                       # make_viewer_data.py imports L
     for name in S.CAP_SETS:
         plain = socket(name)
         meshes = {}                               # one mesh per shape: plain, bar at the front, bar at the back
-        parts = []
+        parts, singles = [], []
         open_edges, vol = 0, 0.0
         for k, label in enumerate(caps):
             edge = S.CAP_BAR_EDGE.get(label, 0)
@@ -257,6 +286,9 @@ if __name__ == "__main__":                       # make_viewer_data.py imports L
             # top vertices: planar projection into this cap's texture cell (image y down, model y up)
             px, py = x0 + CELL / 2 + V[:, 0] * ppm, y0 + CELL / 2 - V[:, 1] * ppm
             uv = np.stack([px / TEX, 1 - py / TEX], 1)
+            if single:      # the same cap alone, on its own texture tile (its sides: a black pixel near a corner)
+                uv1 = np.stack([(px - x0) / CELL, 1 - (py - y0) / CELL], 1)
+                singles.append((k + 1, label, (V, T, top, uv1, (4 / CELL, 1 - 4 / CELL)), (x0, y0)))
             # watertight: every edge used once in each direction
             e = np.concatenate([T[:, [0, 1]], T[:, [1, 2]], T[:, [2, 0]]])
             fwd = {tuple(a) for a in e}
@@ -275,6 +307,8 @@ if __name__ == "__main__":                       # make_viewer_data.py imports L
             zip_add(z, f"{base}.obj", obj.getvalue())
             zip_add(z, f"{base}.mtl", mtl_text(f"{base}.png"))
             zip_add(z, f"{base}.png", png_all.getvalue())
+        if single:
+            write_singles(name, singles)
         d_top = S.cap_rib_d(name, SK["relief"])
         summary.append(f"  set {name}: {set_marks(name)} dimple(s), ribs {d_top:.2f} to {S.CAP_SETS[name]:.2f} mm, "
                        f"{len(caps)} caps, {sum(len(q[0]) for q in parts)} vertices, "
@@ -286,3 +320,5 @@ if __name__ == "__main__":                       # make_viewer_data.py imports L
           f"{len(S.CAP_SETS)} sets:")
     print("\n".join(summary))
     print(f"legend em {LEGEND_EM:.2f} mm, cap height about {0.7 * LEGEND_EM:.2f} mm, grown by {S.LEGEND_GROW} mm")
+    if single:
+        print(f"one zip per cap: avionics-panel-rev1-caps-single-<set>.zip, {len(caps)} caps in each")

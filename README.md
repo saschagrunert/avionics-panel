@@ -22,18 +22,18 @@ and without MobiFlight.
   <a href="renders/6-pcb-bottom.png">board bottom</a><br>
   Resources:
   <a href="renders/7-plate-artwork.png">plate artwork</a>,
-  <a href="production/avionics-panel-rev1-plate-drawing.pdf">plate drawing</a>,
+  <a href="production/avionics-panel-rev1-plate.pdf">plate drawing</a>,
   <a href="renders/8-fit-check.png">fit check</a>,
   <a href="docs/architecture/avionics-panel-rev1-schematic.pdf">schematic</a>
 </p>
 
 ## Build one
 
-The files in [production/](production/) are ready to order. The docs describe ordering from the JLC group
-(JLCPCB, JLCCNC, JLC3DP, JLCMC, LCSC), which is a suggestion, not a requirement: other manufacturers can work
-from the same files. Ordered that way, the boards arrive fully assembled: nothing to solder, a few checks, then
-screws and knobs. Hand-soldering the keys, encoders and RANGE control is an option. The
-[build overview](docs/building/README.md) has the steps from ordering to mapping.
+The files in [production/](production/) are ready to order from the JLC group (JLCPCB, JLCCNC, JLC3DP, JLCMC).
+That is the only supported route; other manufacturers can work from the same files, unsupported. The boards
+arrive fully assembled: nothing to solder, a few checks, then screws and knobs. Hand-soldering the keys,
+encoders and RANGE control is an option. The [build overview](docs/building/README.md) has the steps from
+ordering to mapping.
 
 ## Docs
 
@@ -50,11 +50,11 @@ Using the panel:
 Building one, in build order:
 
 - [Overview](docs/building/README.md): the steps from ordering to mapping
-- [Ordering](docs/building/ordering.md): what to order where, the order remarks, the
-  [shopping list](docs/building/ordering.md#shopping-list), review questions, shipping
-- [Bring-up](docs/building/bring-up.md): checks on arrival, the cap set, flashing, testing, first-board
-  checks, updates and recovery, the Pico bench
-- [Assembly](docs/building/assembly.md): assembly, disassembly, hand-soldering (an option)
+- [Ordering](docs/building/ordering.md): what to order where, with the
+  [shopping list](docs/building/ordering.md#shopping-list)
+- [Bring-up](docs/building/bring-up.md): from the parcels to a flashed and tested board
+- [Assembly](docs/building/assembly.md): putting the panel together and fitting the knobs
+- [Hand-soldering](docs/building/hand-soldering.md): soldering the through-hole parts yourself
 
 How it works:
 

@@ -1,4 +1,5 @@
-"""Edge-to-edge distances of capsules / rectangles (used by make.py, check.py, precheck.py)."""
+"""Edge-to-edge distances of capsules / rectangles, the stroke width of a legend and the routed lengths (used by
+make.py, check.py, precheck.py and run_route.py)."""
 import math
 
 
@@ -101,6 +102,36 @@ DETOUR_FACTOR, DETOUR_SLACK = 1.5, 15.0
 # to +-0.2 mm: legend closer than SILK_EDGE to the outline may be clipped or run off the edge (make.py places
 # the legend inside it, check.py measures it).
 SILK_EDGE = 0.3
+# The edge with JLCPCB's rail (the long edge away from J1, at y = board.H) is V-cut, to +-0.4 mm: the legend keeps
+# SILK_VCUT from it.
+SILK_VCUT = 0.5
+
+
+def thin_parts(shape, width, arc=16):
+    """Where a shapely shape (text outlines, a legend) is thinner than width: a point in each of its pieces that
+    comes apart, vanishes or loses a counter when it is eroded by width / 2 (a stroke or a neck under width), and
+    in each part a disc of that diameter cannot reach, bar corners and tips (parts under width x width in area)."""
+    out = []
+    for q in getattr(shape, "geoms", [shape]):
+        if q.geom_type != "Polygon" or q.is_empty:
+            continue
+        core = q.buffer(-width / 2, quad_segs=arc)
+        if core.geom_type != "Polygon" or core.is_empty or len(core.interiors) != len(q.interiors):
+            out.append(q.representative_point())
+            continue
+        lost = q.difference(core.buffer(width / 2, quad_segs=arc))
+        out += [t.representative_point() for t in getattr(lost, "geoms", [lost]) if t.area >= width * width]
+    return [(pt.x, pt.y) for pt in out]
+
+
+def stroke_width(shape, most, tol=1e-3):
+    """The width of the thinnest stroke or neck of a shapely shape, up to `most`: the largest width, to within
+    tol below it, at which thin_parts() finds nothing."""
+    lo, hi = 0.0, most
+    while hi - lo > tol:
+        mid = (lo + hi) / 2
+        lo, hi = (lo, mid) if thin_parts(shape, mid) else (mid, hi)
+    return lo
 
 
 def octilinear(a, b):

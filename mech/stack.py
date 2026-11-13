@@ -9,8 +9,8 @@ z = 0 is the PCB top. Part heights from the datasheets:
   Alps RKJXT1F42001 (RANGE): octagonal body 8.6 high, 16.4 across corners and 15.73 across flats above z 4
       (Alps' STEP model; it stands on a round foot dia 13.5, and the 17.2 mm base frame from z 0.40 to 2.55
       stays under the plate), hub dia 7.2 up to 10.0
-      (chamfered to 10.5), lever dia 2.5 with a 1.8 D flat from 12.4 to 17.4, tilts 9 degrees about a fulcrum
-      5.55 above the PCB and 4.65 off the axis, push stroke 0.3 +-0.2.
+      (chamfered to 10.5), lever dia 2.5 with a 1.8 D flat from 12.4 to 17.4, tilts 9 degrees at most about a
+      fulcrum 5.55 above the PCB and 4.65 off the axis, push stroke 0.3 +-0.2.
   TE 1-1825910-4 keys (FSM8JH, 6 x 6 mm): plunger top at 9.5, switch body top 5.90 below it, a round plunger
       that tapers about 2 degrees per side (TE's STEP model, see PLUNGER).
 
@@ -40,7 +40,7 @@ def plunger_d(dz):
 
 
 KEY_TRAVEL = 0.45                          # TE 1-1825910-4 travel 0.25 +0.20/-0.10 (drawing)
-RKJXT_BODY, RKJXT_HUB_TOP, RKJXT_TILT = 8.6, 10.5, 9.0   # Alps RKJXT1F42001: body and hub top, tilt (deg)
+RKJXT_BODY, RKJXT_HUB_TOP, RKJXT_TILT = 8.6, 10.5, 9.0   # Alps RKJXT1F42001: body and hub top, tilt (deg, 9 max)
 RKJXT_FULCRUM = 5.55                       # Alps RKJXT1F42001: tilt fulcrum above the PCB (datasheet)
 # and off the lever axis (datasheet). Alps' drawing marks it on the side the lever tilts away from, which fits the
 # centre contact closing on every tilt (the lever's foot goes down, 4.65 sin 9 deg = 0.73); Alps' formal
@@ -51,17 +51,18 @@ RANGE_PUSH = (0.3, 0.2)                    # Alps RKJXT1F42001 push stroke 0.3 +
 LEVER_TOL = 0.3                            # Alps RKJXT1F42001 lever height, +-
 BODY_TILT = 6.0                            # body wedge (deg)
 # key cap: outline, height and top chamfer; it sits with its socket ceiling on the plunger top and the socket
-# is 2.7 deep, so its bottom is at 6.8. A cap pressed firmly (travel up to 0.45, plunger up to 0.3 low, the board
+# is 2.7 deep, so its bottom is at 6.8 and its top 1.95 over the plate face (CAP_PROUD_MIN is the least it keeps,
+# fully pressed, at the worst stack). A cap pressed firmly (travel up to 0.45, plunger up to 0.3 low, the board
 # bent by PRESS_DIP) can dip under the plate back; the bent board tilts it with its plunger (PRESS_SLOPE), so a cap
 # at the edge of its per-key allowance may rub the face edge of its hole on one side. check_fit.py proves that it
 # cannot wedge across the hole and that its bottom edge comes back over the back edge, which is broken by
 # KEY_BACK_BREAK at least (drawing)
 CAP = dict(w=9.6, h=6.4, r=1.2, height=5.7, cham=0.45, base=PLUNGER_TOP - 2.7)
+CAP_PROUD_MIN = 0.5
 # tactile bars (CAP_BAR_EDGE): closed box 1.0 wide (JLC3DP embossed detail: 0.8),
 # sunk 0.05 into the top, its outer side 0.1 inside the top face. Only 0.5 proud, below JLC3DP's 0.8 for
-# embossed detail (a solid 3.2 x 1.0 ridge, not fine detail): a taller front bar hides the bottom of the SHIFT
-# and DN legends from the seat; check_fit.py proves it hides none at 45 deg (a review question,
-# docs/building/ordering.md)
+# embossed detail (a solid 3.2 x 1.0 ridge, not fine detail), so that the front bar hides none of the SHIFT and DN
+# legends from the seat at 45 deg (check_fit.py; a review question, docs/building/ordering.md)
 CAP_BAR = dict(w=3.2, d=1.0, proud=0.5, sink=0.05, inset=0.6)
 # The caps with a bar and its edge: 1 the front (towards the user, board +y), -1 the back; a cap not listed has
 # none (0).
@@ -93,19 +94,14 @@ DIRECT_TO = dict(w=0.55, dy=0.02, tail=0.12, neck=0.2, head=0.26, head_h=0.17)
 CAP_SOCKET = dict(d=3.8, rib_w=1.2, rib_angles=(0, 90, 180, 270), relief=0.35, lead=0.3, lead_r=0.2,
                   depth=PLUNGER_TOP - CAP["base"])
 # A rigid friction fit works over a window of about 0.13 mm (CAP_GRIP), but JLC3DP prints holes in the full-colour
-# resin within +-0.2 (WJP_TOL, CAP_PRINT). So the caps come in four full sets that
-# differ only in their rib circle, given here at the socket mouth (2.7 below the plunger top, where the plunger
-# is 3.29): set D grips a print whose rib circle comes out 0.09 to 0.22 large, A 0.01 small to 0.12 large, B
-# 0.11 small to 0.02 large, C 0.21 to 0.08 small (CAP_GRIP). The set that seats fully and holds is the one
-# to fit. Each set's caps carry 1 to 4 dimples (CAP_MARK, A 1 ... D 4) on the underside, inside the key hole
-# where they never show. The sets take a plunger off TE's model by as much, together with the print: TE's drawing
-# allows +-0.30 on its diameter, so a plunger lot at the edge of that needs the sets moved
-# (docs/architecture/mechanics.md).
-# One compliant set cannot replace them in a 9.6 x 6.4 cap: springs that grip over the drawing's 0.6 and the print's
-# 0.4 deflect up to 0.55 each, and two of them, one printed 0.1 thin and one 0.1 thick, hold the cap up to 0.18 off
-# its plunger, twice the 0.09 the key hole leaves for that.
-# A reprint for a plunger lot off TE's model moves every set by CAP_SETS_MOVE, 0.1 per set it missed by, up to
-# TE's +-0.30 on the plunger diameter (docs/building/bring-up.md); check_fit.py takes the plunger that far off.
+# resin within +-0.2 (WJP_TOL, CAP_PRINT). So the caps come in four full sets that differ only in their rib
+# circle, given here at the socket mouth (2.7 below the plunger top, where the plunger is 3.29): from D, which
+# grips a print whose rib circle comes out up to 0.22 large, to C, up to 0.21 small, each window overlapping the
+# next (check_fit.py). The set that seats fully and holds is the one to fit. Each set's caps carry 1 to 4 dimples
+# (CAP_MARK, A 1 ... D 4) on the underside, inside the key hole where they never show. The sets take a plunger
+# off TE's model by as much, together with the print. TE's drawing allows +-0.30 on its diameter: a reprint for a
+# plunger lot beyond the sets moves every one by CAP_SETS_MOVE, 0.1 per set it missed by
+# (docs/building/bring-up.md); check_fit.py takes the plunger that far off.
 CAP_SETS_MOVE = 0.0
 CAP_SETS = {n: d + CAP_SETS_MOVE for n, d in {"A": 3.15, "B": 3.25, "C": 3.35, "D": 3.05}.items()}
 CAP_GRIP = (0.02, 0.15)                    # diametral interference: holds from, still seats by hand up to
@@ -179,10 +175,14 @@ POCKET_TOL = 0.1
 # (on the diameter), bore depths and the height of the outer knob's key. JLC3DP gives no depth figure of its own:
 # its +-0.2 for SLA applies to every size.
 RESIN_TOL = dict(size=0.2, hole=0.3, depth=0.2)
-# SLA parts keep changing size after printing (JLC3DP: up to 0.15 mm in 1 to 3 days, 0.2 mm in 3 to 7): the light
-# pipe's length takes it (check_fit.py); a rod that comes out tight in its hole sands free.
+# SLA parts keep changing size after printing (JLC3DP: up to 0.15 mm in 1 to 3 days, 0.2 mm in 3 to 7). JLC3DP
+# does not say which way, so each of the light pipe's lengths takes it either way, as an absolute 0.2 on top of its
+# tolerance (check_fit.py); a rod that comes out tight in its hole sands free.
 RESIN_DRIFT = 0.2
 RESIN_PART_MIN = (10.0, 2.0, 2.0)          # JLC3DP's least size of a resin part, largest first
+# JLC3DP's least wall of a resin part by the part's size, (size, wall): 0.8 on a 10 mm part, 1.0 on a 50 mm one,
+# taken in proportion between them.
+RESIN_WALL = ((10.0, 0.8), (50.0, 1.0))
 # JLC3DP WJP full-colour resin (caps), +-: outline and holes, on the size (JLC3DP's WJP design guide: 0.2 within
 # 100 mm, printed holes 0.1 to 0.2 off). The caps' rib circle is such a hole: CAP_PRINT is the print error on its
 # diameter that the four cap sets cover.
@@ -191,11 +191,10 @@ CAP_PRINT = (-WJP_TOL["hole"], WJP_TOL["hole"])
 # JLC3DP MJF PA12 (body), +-: MJF_TOL on a length up to 100 mm, MJF_SCALE of it above.
 MJF_TOL, MJF_SCALE = 0.3, 0.004
 # JLCPCB, +-: the routed board outline, a V-cut edge (the rail edge), a routed cutout per side
-# (assumed: the outline's +-0.2 on its size).
+# (assumed: the outline's +-0.2 on its size). Should JLCPCB add rails on the short edges too, those V-cut edges
+# can be too long for the body's cavity: they are then sanded down to the routed outline's largest size
+# (docs/building/bring-up.md, On arrival).
 PCB_OUTLINE_TOL, PCB_VCUT_TOL, PCB_CUTOUT_TOL = 0.2, 0.4, 0.1
-# Should JLCPCB add rails on the short edges too, those V-cut edges can be too long for the body's cavity at worst:
-# they are then sanded until the board is at most this long (docs/building/bring-up.md, On arrival).
-PCB_SANDED_LEN = 160.2
 
 # ---- fasteners: bosses milled with the plate, M3 flanged button heads from below, no washers ----
 # Bosses: dia 5.5 +-0.1 (ISO 2768-m), PLATE_Z0 +-h_tol high from the back face (drawing): 6.5 to 6.6. That height
@@ -208,8 +207,9 @@ PCB_SANDED_LEN = 160.2
 BOSS = dict(d=5.5, d_tol=0.1, h=PLATE_Z0, h_tol=0.05, root_r=0.3)   # root_r: inside corner at the back face, at most
 # Thread M3-6H from the boss end face, full thread at least `full` deep, drilled dia `drill` `depth` deep plus the
 # drill point (118 deg), a `cham` x 90 deg countersink at the mouth. JLCCNC's rules: at most 3 D of thread, at least
-# half the diameter unthreaded at the bottom of a blind hole (7.5 - 6.0 = 1.5). Anodised threads must be masked or
-# cut again after anodising: the coating would take about 0.1 mm off the pitch diameter, more than the 6H band.
+# half the diameter unthreaded at the bottom of a blind hole (7.5 - 6.0 = 1.5). An anodised thread would not
+# gauge: the coating takes about 0.1 mm off the pitch diameter, more than the 6H band. The drawing asks for the
+# threads plugged through blasting and anodising.
 TAP = dict(thread="M3-6H", full=6.0, drill=2.5, depth=7.5, cham=0.3)
 TAP["point"] = TAP["drill"] / 2 / 1.664                   # 118 deg point: r / tan 59 deg, 0.75
 # PCB mounting hole (pcb/board.py MOUNT_HOLE): the plate's bosses locate the screws, and the caps centre the board
@@ -250,8 +250,7 @@ CAP_TOL = dict(pcb=0.075, switch=0.15, plate=0.1, cap=0.1, socket=0.05)
 # room to shift. Each row of caps is squared against a steel rule before the face-down assembly, which leaves
 # about CAP_TURN (deg). Held by friction alone, a cap may creep round in use: up to CAP_CREEP it keeps its room
 # (check_fit.py) in a set printed true; in a set printed 0.2 large it starts to rub at about 1.5 deg. A cap that
-# rubs is turned back square in place (docs/using). Nothing on the cap can hold it tighter: skirts beside the
-# switch body would leave it more (TE's +-0.30 on the body, WJP's +-0.2 on the gap).
+# rubs is turned back square in place (docs/using).
 CAP_TURN, CAP_CREEP = 1.0, 2.5
 ENC_ON_PINS = 0.15                         # encoder (bushing) on its pins and lugs before soldering, radial
 # Alps' STEP model of the RKJXT, for the section drawing: it stands on a round foot (RKJXT_FOOT across), its base
@@ -270,8 +269,7 @@ SLEEVE_CLEAR = dict(radial=0.9, above=1.05)
 # The outer knob's bore grips the 6 mm shaft above that counterbore: 5.0 mm of shaft stand over the bushing, the
 # counterbore takes SLEEVE_CLEAR["above"] of them, which the resin's depth tolerance needs, and the slot depth and
 # the resin take more, so 3.45 are left at worst (check_fit.py). OUTER_GRIP_MIN keeps 0.1 of that in hand. How
-# firmly the knob holds is set by its bore's interference (FIT and its variants, against a print off by up to 0.3);
-# 0.15 mm less of length takes about 4 % off it.
+# firmly the knob holds is set by its bore's interference (FIT and the five bores about it).
 OUTER_GRIP_MIN = 3.35
 # The tongue on the plate's back edge, over the USB-C socket (pcb/board.py USB_X): the body's back wall has a slot
 # there, as wide as the plug opening and open to the top, so the socket (its face level with the cavity wall) passes
@@ -324,45 +322,53 @@ ENC_SPREAD = dict(
 # key face printed 0.15 back), clear of the 3.5 mm inner shaft that runs through the slot even with a loose
 # knob pushed towards it. It rests on the slot floor over its whole 1.4 x 0.7 end. In the slot it has lash, about
 # a detent (ENC_DETENTS, check_fit.py): only the bore's grip takes it out, so the kept ring must not turn without
-# the shaft (docs/building/assembly.md). A wider key, or one per fit variant, would not clear the narrowest slot
-# at the resin's tolerance unless a print's bias on holes and on the key were known to match.
+# the shaft (docs/building/assembly.md).
 KEY_W, KEY_R = 1.4, 2.3
 ENC_DETENTS = 30                           # PEC11D-4120F: 30 detents (15 pulses) a turn
 
-# knobs (heights above the plate top); resin, fits to test on the first print
-# FIT is added to the datasheet nominal of bores that must grip. The shafts are toleranced +0/-0.05 and
-# +0/-0.1, so FIT 0 leaves 0 to 0.1 real clearance on a true print. JLC3DP's resin holes vary by
-# +-0.3 (RESIN_TOL), so one of each knob (outer, FMS ring, inner, RANGE) also comes 0.2 tighter and 0.2 looser; a
-# bore that is still too tight opens with a drill of the shaft size (6.0, 3.5, 2.5) and a needle file on the D flat.
-# A variant counts as fitting when its bore prints within FIT_OFF of the size drawn: up to that much under, it opens
-# with the drill and the file; up to that much over, it has at most 0.25 of play on the smallest shaft and still
-# turns it through its key or D flat (assumed; the first print shows). check_fit.py holds the three variants
-# against the resin's tolerance with it. A reprint sets FIT to the variant that fit (docs/building/assembly.md),
-# which takes out the printer's own bias: the variants come about FIT, and check_fit.py takes the resin's tolerance
-# about it too, with FIT itself within that tolerance.
-# A single compliant bore cannot replace the variants: the friction must carry the detent torque (PEC11D: 100 +-70
-# gf cm, 16.7 N mm at most; RKJXT: 15 +-8 mN m, 23 N mm at most), which on the inner knob's D flat (1.58 from the
-# axis to its corner) takes a spring preload of 10.6 N and on the RANGE lever's (1.12) about 20.5 N; over the bore's
-# 0.6 and the shaft's 0.1 such a spring in the SLA resin (E about 2.7 GPa) is strained about 7 % at the tight end
-# on the inner knob, the resin's elongation at break, and takes about 70 N to push on.
-# A rigid fit grips over about 0.13 mm of interference (CAP_GRIP), less than the 0.2 between the variants: under
-# JLC3DP's +-0.3, for about four knobs in ten no variant grips as printed (docs/architecture/mechanics.md), and the
-# next tighter one is opened until it just goes on.
+# knobs (heights above the plate top); resin, held on their shafts by friction alone
+# The bores that must grip are drawn at the shaft's largest size (the shafts are +0/-0.05 and +0/-0.1, SHAFT_TOL)
+# plus FIT plus one of FIT_VARIANTS: every knob (outer, FMS ring, inner, RANGE) comes with five bores, numbered 1
+# (the tightest) to 5, and each is ordered in the panel's quantity. A rigid fit grips over KNOB_GRIP of
+# interference (taken from the caps), a window wider than the step from one bore to the next: so one of the five
+# grips on every shaft whenever the bores print 0.02 to 0.45 small, and JLC3DP's resin holes come out small (its
+# tolerance is +-0.3, RESIN_TOL). check_fit.py has a row per knob. The knob to keep is the one that goes on by
+# hand and holds. Should a print lie outside that range, FIT moves all five bores for a second order, by FIT_STEP
+# so that they go on where the first five ended: +0.5 when even bore 5 is too tight, -0.5 when even bore 1 is
+# loose (docs/building/assembly.md). FIT is 0 for a first order; check_fit.py prints it with the knobs' rows.
 FIT = 0.0
-FIT_VARIANTS = {"tight": -0.2, "loose": 0.2}   # extra outer, FMS, inner and RANGE knob each
-FIT_OFF = 0.15
+FIT_VARIANTS = {1: -0.1, 2: 0.0, 3: 0.1, 4: 0.2, 5: 0.3}
+FIT_STEP = 0.5
+if FIT not in (-FIT_STEP, 0.0, FIT_STEP):
+    raise ValueError("FIT is 0, or FIT_STEP either way for a second order")
+KNOB_GRIP = CAP_GRIP
+# Each knob carries as many dimples as its bore's number, KNOB_MARK["d"] across and `depth` deep (JLC3DP: engraved
+# detail 0.8 wide and deep), where they never show: on the outer rings in the bottom face, on the inner knob in
+# the ceiling of its recess, on the RANGE knob in its dished underside. They sit on a circle of radius r[knob]
+# about the axis, in places `pitch` degrees apart from `first` (degrees from +x) on. The place after the first
+# `group` stays empty, so four dimples read as three and one, five as three and two. On the outer rings each lies
+# under a flute's crest (every second of the 24, each of the FMS ring's 14), where the ring is thickest.
+# KNOB_MARK_WALL: the resin left round a dimple as drawn, with the largest bore FIT allows; at the worst print it
+# keeps JLC3DP's least wall for a resin part of the knob's size (RESIN_WALL; check_fit.py).
+KNOB_MARK = dict(d=0.9, depth=0.9, group=3, r=dict(outer=6.3, outer_fms=6.3, inner=3.8, range=4.5),
+                 first=dict(outer=105.0, outer_fms=360 / 14, inner=105.0, range=105.0),
+                 pitch=dict(outer=30.0, outer_fms=360 / 14, inner=45.0, range=30.0))
+KNOB_MARK_WALL = 1.0
+# The most diametral play a kept knob has on its shaft (assumed: more than the step past the bore that grips; a
+# looser knob is replaced by the next tighter bore). The radial clearances of the knobs take it (check_fit.py).
+KNOB_PLAY = 0.15
 # Garmin proportions: outer rings 17 on all three dual knobs, inner knobs 12, so 2.5 of ring shows each side.
-# The outer ring ends flush with the 6 mm shaft top: no neck rises into the inner knob, since a recess round a
-# neck in a 12 mm knob cannot leave 1.0 of resin on both and still clear a loose knob. Its bottom
-# is 1.15 over the plate, so the slot floor's spread and a high plate face (high bosses, a thick plate, anodised,
-# bowed up) leave 0.22.
+# The outer ring ends flush with the 6 mm shaft top. Its bottom is 1.15 over the plate, over the slot floor's
+# spread and a high plate face (high bosses, a thick plate, anodised, bowed up) on a board bowed down
+# (check_fit.py).
 OUTER_KNOB = dict(d=17.0, z0=1.15, z1=7.45)
 # 1.0 over the outer knob when pushed, so the PEC11D's shaft spread (ENC_SPREAD) never makes them touch. The
-# recess clears the outer shaft top when the shafts' spread lifts it into the inner knob.
-INNER_KNOB = dict(d=12.0, z0=8.95, z1=19.35, recess_d=8.0, recess_top=10.25)
+# recess clears the outer shaft top when the shafts' spread lifts it into the inner knob; its ceiling has room
+# for the dimples outside the widest relief bore.
+INNER_KNOB = dict(d=12.0, z0=8.95, z1=19.35, recess_d=8.6, recess_top=10.25)
 # Its D bore ends INNER_BORE_SHORT short of the shaft's 7.0 mm D flat (+-0.3), so the bore end, not the round
-# shaft under a short flat, sets the knob height (check_fit.py); below it a round bore INNER_BORE_RELIEF over the
-# shaft radius.
+# shaft under a short flat, sets the knob height (check_fit.py); below it a round relief bore, INNER_BORE_RELIEF
+# over the shaft radius and never narrower than the D bore over it.
 INNER_BORE_SHORT, INNER_BORE_RELIEF = 0.7, 0.1
 # Flutes (count, depth, taper of the radius to the top, top chamfer), for make_knobs.py and the 3D view. The FMS
 # ring has fewer, twice as deep flutes than the other two, so FREQ and FMS (one above the other, same size)
@@ -384,16 +390,21 @@ KNOB_ART = dict(size=1.55, track=0.22, off=1.9, shift_off=2.2)
 # Legends, the one source for the caps (make_caps.py), the plate (make_plate_art.py), the board silkscreen
 # (pcb/board.py) and the 3D view (geometry.js). Only the firmware button map (firmware/buttonmap.py,
 # CircuitPython) keeps its own names; tests/test_labels.py checks they agree with these.
-# The one amber: the plate's UV print is ordered in JLCCNC's standard orange, and this approximates it for the
-# SHIFT cap legend, the artwork preview and the 3D view (its legends and the SHIFT light).
+# The one amber: the plate's UV print (the drawing gives it as sRGB and as CMYK), the SHIFT cap legend, the
+# artwork preview and the 3D view (its legends and the SHIFT light).
 AMBER = dict(hex="#d9a441", rgb=(217, 164, 65))
 # The amber legends under the keys on the plate (make_plate_art.py and the 3D view): the middle of their capitals dy
 # below the cap's front edge, capitals `size` high, letters `track` apart. With dy 2.0 the ink starts 0.7 from the
 # largest key hole (0.5 past its edge break, for the UV print's register) and ends 1.3 short of the next row's.
 SHIFT_LEGEND = dict(dy=2.0, size=1.7, track=0.08)
 # The plate's legends (em): their sizes are capital heights in mm, `cap` of the font's em; a space is `space` wide;
-# a glyph is centred `mid` over its baseline, the middle of the capitals.
-PLATE_TEXT = dict(cap=0.72, space=0.26, mid=0.35)
+# a glyph is centred `mid` over its baseline, the middle of the capitals. JLCCNC's UV print keeps lines from
+# MARK_STROKE_MIN, and the laser marking is held to the same (check_fit.py measures both layers of the artwork).
+# `thin` names the glyphs with thinner strokes than the others and their thinnest stroke (em): where it comes
+# out under `stroke` (mm) at a legend's size, the glyph is grown all round until it is that wide. That is the
+# fraction of "½ BANK" and the B of the knob legends; the B of the larger key legends stays as it is.
+MARK_STROKE_MIN = 0.176
+PLATE_TEXT = dict(cap=0.72, space=0.26, mid=0.35, stroke=0.2, thin={"½": 0.065, "B": 0.087})
 # The marked frame round all keys (make_plate_art.py and the 3D view): lines `line` wide, `side`, `back` and
 # `front` outside the outer caps, corners of radius r. One line splits AUTOPILOT from the rest (between key columns
 # 2 and 3, counted from 0 as in pcb/board.py), one AUDIO from RADIO (between columns 4 and 5) and one both from FMS
@@ -432,11 +443,12 @@ KEY_LEGENDS = [
 ]
 # The flip-flop icon of "COM ⇆" and "ADF ⇆": Barlow has no such glyph and fallback fonts draw it the other
 # way round, so the caps, the plate and the 3D view all fill these polygons. Units are em, from the icon's
-# left edge and the middle of the cap height (0.7 em), y down: the right arrow on top, the left one below.
+# left edge and the middle of the cap height (0.7 em), y down: the right arrow on top, the left one below. Its
+# lines are lw wide: 0.2 mm at the size of the plate's amber legends (SHIFT_LEGEND).
 FLIP_W, FLIP_GAP = 0.6, 0.22                  # icon width, gap after the text
 
 
-def _flip_icon(w=FLIP_W, dy=0.7 * 0.24, hl=0.22, hh=0.13, lw=0.075):
+def _flip_icon(w=FLIP_W, dy=0.7 * 0.24, hl=0.22, hh=0.13, lw=0.085):
     def bar(xa, xb, y):
         return [(xa, y - lw / 2), (xb, y - lw / 2), (xb, y + lw / 2), (xa, y + lw / 2)]
     return [bar(0, w - hl, -dy), [(w, -dy), (w - hl, -dy - hh), (w - hl, -dy + hh)],
@@ -455,7 +467,7 @@ KNOB_LEGENDS = {
 }
 
 # RANGE knob on the RKJXT lever. The skirt (skirt_d) hides the plate hole; its rim is `rim` thick (no feather edge
-# in resin: 1.0 left at -0.1, with 0.2 to spare); above the rim a 45 degree cone runs up to `sink` inside the
+# in resin: 1.0 left at -0.2, with 0.1 to spare); above the rim a 45 degree cone runs up to `sink` inside the
 # fluted body. The underside is dished: flat over the hub (hub_d across, z0 over the plate, which gives the D bore
 # its 3.7 mm on the lever), then a cone that rises by `dish` to the rim, steeper than the tilt's 9 degrees: at full
 # tilt the knob also cocks on the lever by its play (RANGE_PLAY over the D bore's length) and the lever may be
@@ -463,41 +475,48 @@ KNOB_LEGENDS = {
 # either side).
 LEVER_Z0, LEVER_Z1, LEVER_D, LEVER_FLAT = 12.4, 17.4, 2.5, 1.8
 RANGE_KNOB = dict(d=13.6, skirt_d=17.3, z0=2.85, z1=11.05, rim=1.3, sink=0.3, hub_d=6.0, dish=1.3)
-# The most diametral play a kept RANGE knob may have on the lever (FIT_OFF over it): a looser one cocks on the lever
-# at full tilt until its skirt touches the plate, so the next tighter variant replaces it (docs/building/assembly.md).
-RANGE_PLAY = FIT_OFF
-RANGE_RELIEF = (4.0, 0.3)                  # round bore under its D bore, clear of the lever: dia, least depth
+# The most diametral play a kept RANGE knob may have on the lever: a looser one cocks on the lever at full tilt
+# until its skirt touches the plate, so the next tighter bore replaces it (docs/building/assembly.md).
+RANGE_PLAY = KNOB_PLAY
+# round relief bore under its D bore, clear of the lever and never narrower than the D bore: dia, least depth
+RANGE_RELIEF = (4.0, 0.3)
 # RANGE artwork on the plate (make_plate_art.py and the 3D view): legend arc radius (glyph centres) and the
 # four pan arrows (triangle in mm, tip along the pan direction), outside the skirt with the lever off its hole
 # (check_fit.py); the arrow tips stay 0.8 off the legend.
 RANGE_ART = dict(legend_r=12.95, arrow_r=10.6, arrow=((0.75, 0.0), (-0.45, -0.7), (-0.45, 0.7)))
 
 # Face-down assembly: the plate rests on two blocks under its long edges, clear of the shafts that stick out.
+# The blocks reach at most ASSEMBLY_BLOCK_IN under the plate, short of the caps, the shafts and the light holes: a
+# block over a light hole would hold the pipe, and the board on it, off the bosses.
 ASSEMBLY_BLOCK = 25.0                      # block height, mm
+ASSEMBLY_BLOCK_IN = 6.0
 # Lights: reverse-mount 1206 LEDs on the bottom (LiteOn LTST-C230KSKT amber, LTW-C230DS white, one package), their
 # lens up in a cutout through the board (pcb/board.py LED_CUTOUT, LiteOn's land pattern), so they shine out of the
 # top side. LiteOn: the lens is 1.5 long (along the pads) and 1.6 wide, 1.10 - 0.28 = 0.82 over the substrate,
-# +-0.1; the die sits on the substrate, at the board underside.
-LED_LENS = dict(l=1.5, w=1.6, h=0.82, tol=0.1, place=0.1, solder=0.05, die=0.3)   # place: JLCPCB's placement
-# Light pipes (clear resin, JLC3DP SLA): a stepped rod that stands on the board over the cutout and goes up through
-# its plate hole, held by geometry alone. The base (base_d) runs from the PCB top to a shoulder base_len up, the rod
-# (the light hole less `clear`, 2.0 across: JLC3DP's resin pillar guideline is 2.0 up to 4 mm, so the 4.45 rod is a
-# review question) top_len from there. Every length is +-len_tol (JLC3DP's resin tolerance, 0.2 within 100 mm).
+# +-0.1; the die sits on the substrate, at the board underside. place and turn: JLCPCB's placement, off its spot
+# and turned (deg; assumed).
+LED_LENS = dict(l=1.5, w=1.6, h=0.82, tol=0.1, place=0.1, turn=2.0, solder=0.05, die=0.3)
+# The share of the die that stays under the light pipe's base at the worst offsets (the pipe in its hole, the
+# board as far off the plate as a cap set printed small lets it sit, the LED's placement), at least: what is
+# lost is a few percent of the light, and the firmware's duties leave three times up to full duty.
+LED_DIE_SHARE = 0.8
+# Light pipes (translucent resin, JLC3DP SLA): a stepped rod that stands on the board over the cutout and goes up
+# through its plate hole, held by its shape alone. The base (base_d) runs from the PCB top to a shoulder base_len
+# up, the rod (the light hole less `clear`, 2.0 across: JLC3DP's resin pillar guideline is 2.0 up to 4 mm, so the
+# 4.45 rod is a review question) top_len from there. Every length is +-len_tol (JLC3DP's resin tolerance, 0.2
+# within 100 mm) and may change by RESIN_DRIFT either way in its first week.
 # Lifted, the shoulder stops on the plate back round the hole, so the pipe is captive; its top then stands over the
-# face of a thin plate, by at most `proud` (check_fit.py: about half of what the key caps stand over the face). In use
-# the pipe rests on the board and its top sits 0.50 under the anodised face in the nominal stack (check_fit.py has the
-# range and how much of it shows from the seat). The pipe is never clamped: base_len + len_tol + stub, grown by the
-# resin's drift in its first week (RESIN_DRIFT), stays under the smallest gap from the board to the plate back (plate
-# back low and bowed down, the board bowed up), up to the flatness and boss tolerance JLCCNC may answer with
-# (PLATE_FLAT); the base is that much shorter, so the pipe has 0.9 of free play up and down (it may tick when the
-# panel is moved). A clamp cannot be bounded: a bare board held at its corners alone is about 13 (SHIFT) and 17 N/mm
-# (UNIT) stiff at the lights, and the middle mount stiffens it further, so even 0.1 mm would load the pipe with
-# newtons. The rod is `clear` under its hole on the diameter: anodising (0.05) and the resin tolerance (+-0.2) cannot
-# make it jam as printed (a rod that grows tight in its first week sands free: the hole cannot grow, its webs and the
-# shoulder's seat are spent). The base (2.8 across) is wider than the cutout, so it stands on the board, and narrow
-# enough to stay out from under the key holes (a firmly pressed cap dips under the plate back) and clear of the switch
-# bodies (check_fit.py). The light holes' back edges are sharp, deburred only (LIGHT_HOLE_BACK_BREAK at most), so the
-# shoulder sits on the flat back face.
+# face of a thin plate, by at most `proud` (check_fit.py). In use the pipe rests on the board and its top sits 0.50
+# under the anodised face in the nominal stack (check_fit.py has the range and how much of it shows from the seat).
+# The pipe is never clamped: base_len + len_tol + RESIN_DRIFT + stub stays under the smallest gap from the board to
+# the plate back (plate back low and bowed down, the board bowed up), up to the flatness and boss tolerance JLCCNC
+# may answer with (PLATE_FLAT). A clamp would load the pipe with newtons: the board is 13 to 17 N/mm stiff at the
+# lights. The base is that much shorter, so the pipe has 0.9 of free play up and down (it may tick when the panel
+# is moved). The rod is `clear` under its hole on the diameter: anodising (0.05) and the resin tolerance (+-0.2)
+# cannot make it jam as printed; a rod that grows tight in its first week sands free. The base (2.8 across) is
+# wider than the cutout, so it stands on the board, and narrow enough to stay out from under the key holes (a
+# firmly pressed cap dips under the plate back) and clear of the switch bodies (check_fit.py). The light holes'
+# back edges are sharp, deburred only (LIGHT_HOLE_BACK_BREAK at most), so the shoulder sits on the flat back face.
 # Both pipes print on one 2.2 x 2.0 bar under their bases (a resin part is RESIN_PART_MIN at least), on 1.0
 # necks (the resin minimum), so the visible tops are as printed. The snap-off stubs under the bases are sanded flush,
 # no further, so up to `stub` may stay on: the clamp row counts it.
@@ -511,9 +530,10 @@ PIPE["len"] = PIPE["base_len"] + PIPE["top_len"]
 LEAD_MAX = 2.7
 # PCB bow, either way, at its middle (the two lights sit near the middle of the 153 mm span between the corner
 # screws). JLCPCB, like IPC-6012, allows 0.75 % bow and twist for SMT boards (1.2 mm over 160 mm); a 4-layer 1.6 mm
-# board is usually far flatter. The light pipe rows and the pocket rows over the encoders and the RKJXT take this
-# much, shaped like the plate's bow (check_fit.plate_bow, taken as if both were held at the four corner mounts
-# only; the middle mount holds them flatter).
+# board is usually far flatter. The light pipe rows, the pocket rows over the encoders and the RKJXT (the board
+# bowed towards the plate) and the rows of the knobs over the plate face (bowed away from it) take this much,
+# shaped like the plate's bow (check_fit.plate_bow, taken as if both were held at the four corner mounts only; the
+# middle mount holds them flatter).
 PCB_BOW = 0.1
 # The plate is held at its corners as well, so its flatness counts the same way: "flatness 0.1" on the drawing,
 # after bead blasting and anodising (milling most of a 12 mm plate off one side and blasting it can bow it; ISO
@@ -522,7 +542,7 @@ PCB_BOW = 0.1
 # costs the row. The light pipe rows take PLATE_FLAT in full. Every row still passes up to 0.2 (the light pipes'
 # clamp row goes first, just above 0.22, with the resin's drift counted); that is what to answer should JLCCNC ask.
 # With the bosses at +-0.1 as well, up to 0.15 (the same row goes first, just above 0.17; the RANGE knob's
-# underside keeps 0.09 there) (docs/building/ordering.md).
+# underside keeps 0.05 there) (docs/building/ordering.md).
 PLATE_FLAT = 0.1
 # The body post under the PCB (make_mech.py) ends SUPPORT_SHORT under it, so with JLC3DP's MJF +-0.3 (post height
 # against the bosses) it never lifts the board. It is a backstop: with the board held at the middle mount, a firm
@@ -530,14 +550,9 @@ PLATE_FLAT = 0.1
 SUPPORT_SHORT = 0.3
 if SUPPORT_SHORT < MJF_TOL:
     raise ValueError("the body post could lift the board")
-# A firm key press (PRESS_FIRM, about six times the switch's 1.6 N) on the bare board, from a Kirchhoff plate model
-# of it (1.6 mm FR4 at 20 GPa, no stiffening by the parts, clamped at the four corner mounts, the post pushing only
-# up), tied to the plate at the middle mount: a disc of 2.5 mm radius there moved as one, on the aluminium plate's
-# compliance (0.0017 mm/N), and tilting against 46000 N mm/rad, far softer than a board clamped between the plate's
-# boss and the body's. Every key pressed in turn, the pressed key dips up to 0.195 (0.193 rounded up; the front row,
-# 18 mm in front of the middle mount) and the board under any key slopes up to 6.8 mrad (6.75); with that disc held
-# rigidly it is 0.175 and 6.2. A normal 1.6 N press dips it 0.031 and slopes it 1.1 mrad. check_fit.py takes dip
-# and slope 10 % up (FR4's flexural modulus, about 18 to 24 GPa; 18 GPa would need 11 %). The model is not part of
-# this repository.
+# A firm key press (PRESS_FIRM, about six times the switch's 1.6 N): the board under the pressed key dips by
+# PRESS_DIP and slopes by PRESS_SLOPE at most (assumed bounds). A plate model of the bare board (1.6 mm FR4 at
+# 20 GPa, held at the four corner mounts, tied to the plate at the middle mount) gives 0.195 mm and 6.8 mrad for the
+# worst key, in the front row 18 mm in front of the middle mount, and 0.031 mm for a normal 1.6 N press.
 PRESS_FIRM = 10.0                          # N
-PRESS_DIP, PRESS_SLOPE = 0.195 * 1.1, 0.0068 * 1.1
+PRESS_DIP, PRESS_SLOPE = 0.25, 0.008
