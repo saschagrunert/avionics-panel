@@ -1,14 +1,16 @@
 """TDS GTN 750Xi and 650Xi in the KAP 140 cockpit, in MSFS 2024: what each button does there
 (docs/using/controls.md, docs/using/compatibility.md), as in the Cessna 172 Skyhawk Classic with TDS's GTNs. The GTN
-750Xi is TDS's unit 1 (COM 1, NAV 1) and the GTN 650Xi its unit 2 (COM 2, NAV 2), as TDS's MSFS 2024 aircraft
-integrations load them (the C172's attaches the bezels marcfsx-tdssim-gtnxi750u1 and marcfsx-tdssim-gtnxi650u2).
-TDS numbers the units per model: aircraft that load the 650Xi as unit 1, as Black Square's do, are not covered. What
-the profile does differently from the real units is in docs/using/mapping.md#tds-gtn-750xi-and-650xi.
+750Xi is TDS's unit 1 (COM 1, NAV 1) and the GTN 650Xi its unit 2 (COM 2, NAV 2). TDS numbers the units per model
+(TDS GTNXi manual, revision 19, "Interfacing with Hardware"); that its MSFS 2024 aircraft integrations load the
+650Xi as unit 2 is assumed from the bezel names of the C172's (marcfsx-tdssim-gtnxi750u1 and
+marcfsx-tdssim-gtnxi650u2). Aircraft that load the 650Xi as unit 1, as Black Square's do, are not covered. What the
+profile does differently from the real units is in docs/using/mapping.md#tds-gtn-750xi-and-650xi.
 
 TDS takes only the GTNs' bezel from outside, as the simulator's GPS key events with a value that names the unit
-(TDS GTNXi manual, revision 19, "Interfacing with Hardware"): a knob detent sends the unit's value, a key that
-value plus 2 when it goes down and plus 4 when it comes up. The radios are tuned with the simulator's own key
-events, which the GTNs show; the rest is the parts the tables share (parts.py).
+(the manual's "Interfacing with Hardware"): a knob detent sends the unit's value, a key that value plus 2 when it
+goes down and plus 4 when it comes up. The radios are tuned with the simulator's own key events: the manual says
+the GTNs "are able to control the Flight Simulator COM and NAV radio frequencies", and that they show frequencies
+set from outside is assumed (docs/using/mapping.md). The rest is the parts the tables share (parts.py).
 """
 from mobiflight.families import parts
 from mobiflight.families.rpn import k
@@ -38,9 +40,11 @@ def _bezel(unit):
 
 
 _TOUCH = "a touchscreen function of the GTN: TDS takes only its bezel (HOME, D→, the knobs) from outside"
+_TOUCH_KEYS = ("CDI", "OBS", "FPL", "MENU", "PROC", "CLR", "ENT", "S_ENT", "VNAV", "MSG", "NRST", "TERR", "MAP")
+# what the GTN has on its touchscreen only (docs/using/compatibility.md)
+TOUCHSCREEN = (*_TOUCH_KEYS, *parts.RANGE_KNOB)
 _UNIT_UNMAPPED = {
-    **dict.fromkeys(("CDI", "OBS", "FPL", "MENU", "PROC", "CLR", "ENT", "S_ENT", "VNAV", "MSG", "NRST", "TERR",
-                     "MAP"), _TOUCH),
+    **dict.fromkeys(_TOUCH_KEYS, _TOUCH),
     **parts.RADIO_UNMAPPED,
 }
 
