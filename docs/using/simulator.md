@@ -35,7 +35,8 @@ The simulator is one zip with everything it needs, Python included. The virtual 
 
 ## The page
 
-The page shows the panel from above and keeps the view still:
+The page shows the panel from above and keeps the view still. The mouse pointer turns into a hand over
+everything that can be operated:
 
 - Keys: press with the mouse or a finger; a key stays pressed as long as you hold it.
 - Knobs: the pointer's distance from the knob's middle picks the inner knob or the outer ring round it. The
@@ -55,13 +56,11 @@ exclusive full screen.
 
 For a tablet in landscape beside the sim (a phone is too small), serve the page to the network. On Windows,
 close the `start.bat` window, open a command prompt in the folder (type `cmd` in Explorer's address bar,
-Enter) and run `python\python.exe -m sim.page --vjoy --host 0.0.0.0 --open`; on Linux, add `--host 0.0.0.0`
-to the command in [Linux](#linux). Open the address it prints on the tablet, by its IP address, not a host
-name. If that is
-127.0.0.1 or a VPN address, use the computer's Wi-Fi address with the same port instead. Windows asks to let
-Python through its firewall: allow it on private networks only. Anyone on that network can then press the
-panel's keys. A page that goes, also one that drops off the network, lets go of what it holds within a few
-seconds.
+Enter) and run `start.bat --host 0.0.0.0`; on Linux, add `--host 0.0.0.0` to the command in [Linux](#linux).
+Open the address it prints on the tablet, by its IP address, not a host name. If that is 127.0.0.1 or a VPN
+address, use the computer's Wi-Fi address with the same port instead. Windows asks to let Python through its
+firewall: allow it on private networks only. Anyone on that network can then press the panel's keys. A page
+that goes, also one that drops off the network, lets go of what it holds within a few seconds.
 
 ## What MobiFlight shows
 
@@ -111,8 +110,9 @@ function whose shortcut is down, with the shortcut. Its keystrokes reach the sim
   close the `start.bat` window, open a command prompt in the folder and run
   `python\python.exe -m sim.page --keyboard --sendinput --host 0.0.0.0`, open the address it prints on the
   tablet, and bring the sim to the front. When the command prompt's window closes, the keystrokes stop and the
-  keys held are let go. Bindings made this way are the keyboard's, so they should work with the panel later,
-  unlike vJoy's.
+  keys held are let go. Windows takes no keystrokes while a UAC prompt or the lock screen is up: the command
+  prompt says so once, and the panel's next keys arrive when Windows takes them again. Bindings made this way
+  are the keyboard's, so they should work with the panel later, unlike vJoy's.
 - Linux: `sudo python3 -m sim.page --keyboard --uhid` makes a keyboard with the panel's descriptor, name and
   USB IDs, which the desktop takes like any keyboard, in the window in front. The desktop can act on some of
   the shortcuts itself, window shortcuts with Alt and an F-key for example.

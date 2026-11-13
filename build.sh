@@ -81,7 +81,8 @@ section "knobs, light pipes, caps, body, fits" occ mech \
   "python3 make_knobs.py && python3 make_caps.py && python3 make_mech.py && python3 check_fit.py"
 section "plate, viewer data" occ mech "python3 make_plate_step.py && python3 make_viewer_data.py"
 
-# A failed section does not stop the others: they take seconds, and a run then reports every failed check.
+# A failed section does not stop the others: they take seconds, and a run then reports every failed check. In
+# a GitHub workflow each one is also an error annotation of the run.
 FAILED=()
 for i in "${!NAMES[@]}"; do
   if wait "${PIDS[$i]}"; then status=0; else status=$?; fi
@@ -89,6 +90,7 @@ for i in "${!NAMES[@]}"; do
   cat "$LOGS/$i.log"
   if [ "$status" != 0 ]; then
     echo "== ${NAMES[$i]}: FAILED (exit $status)"
+    [ -z "${GITHUB_ACTIONS:-}" ] || echo "::error::${NAMES[$i]} failed (exit $status)"
     FAILED+=("${NAMES[$i]}")
   fi
 done

@@ -11,9 +11,10 @@ and writes --out (dist/avionics-panel-sim-windows.zip). In the zip, under avioni
 
 The package's ._pth file gets the line `..`, the zip's folder: there `python -m sim.page` finds sim/ (a ._pth
 replaces sys.path, without the current directory). LICENSE, firmware/, sim/ and viewer/ are the files git
-tracks, without the firmware's tests, so it needs a git checkout. The batch files and README.txt get Windows'
-line ends. Every file has the time of the last commit, so a commit builds the same files (the compressed bytes
-can differ with another zlib).
+tracks, without the firmware's tests and the script for the renders, so it needs a git checkout. They go in as
+they are in the working tree, with any change that is not committed. The batch files and README.txt get
+Windows' line ends. Every file has the time of the last commit, so a clean checkout of a commit builds the same
+files (the compressed bytes can differ with another zlib).
 """
 import argparse
 import hashlib
@@ -33,6 +34,7 @@ ROOT = os.path.dirname(HERE)
 TOP = "avionics-panel-sim"
 OUT = os.path.join(ROOT, "dist", f"{TOP}-windows.zip")
 SOURCES = ("LICENSE", "firmware", "sim", "viewer")
+LEFT_OUT = ("firmware/test_", "viewer/shots.py")             # of SOURCES: not for the simulator's users
 WINDOWS = ("start.bat", "vjoy-setup.bat", "README.txt")      # text with CRLF line ends
 
 
@@ -50,11 +52,11 @@ def fetch(path=None, sha256=PYTHON_SHA256):
 
 
 def sources():
-    """The repository's files of SOURCES that go in, by their path from the root"""
+    """The repository's files of SOURCES that go in, by their path from the root: the ones git tracks that the
+    working tree has"""
     names = subprocess.run(["git", "ls-files", "-z", "--cached", "--", *SOURCES], cwd=ROOT, capture_output=True,
                            check=True, text=True).stdout.split("\0")
-    return sorted({n for n in names if n and os.path.isfile(os.path.join(ROOT, n))
-                   and not n.startswith("firmware/test_")})
+    return sorted({n for n in names if n and os.path.isfile(os.path.join(ROOT, n)) and not n.startswith(LEFT_OUT)})
 
 
 def commit_time():

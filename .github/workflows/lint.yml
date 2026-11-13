@@ -1,7 +1,7 @@
 name: lint
 # Python (ruff.toml), shell (shellcheck, shfmt with .editorconfig), Markdown (.markdownlint-cli2.yaml), dead
 # relative links and anchors (lychee), spelling (.typos.toml), the workflows (actionlint) and their security
-# (zizmor). Every tool comes from the locked nixpkgs, like locally.
+# (zizmor). Every tool comes from the lint shell of nix/shells.nix, like locally.
 on:
   push:
     branches:
@@ -26,11 +26,11 @@ jobs:
         with:
           persist-credentials: false
       - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # v31.11.3
-      # Keyed on flake.lock and nix/nixpkgs.nix, which the tools step evaluates, and on this file, which lists
-      # the tools. Only main saves; pull requests (Dependabot's too) restore.
+      # Keyed on flake.lock and nix/*.nix, which make the lint shell. Only main saves; pull requests
+      # (Dependabot's too) restore.
       - uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569 # v7
         with:
-          primary-key: nix-lint-${{ hashFiles('flake.lock', 'nix/nixpkgs.nix', '.github/workflows/lint.yml') }}
+          primary-key: nix-lint-${{ hashFiles('flake.lock', 'nix/*.nix') }}
           restore-prefixes-first-match: nix-lint-
           save: ${{ github.ref == 'refs/heads/main' }}
           gc-max-store-size-linux: 2G
@@ -38,14 +38,21 @@ jobs:
           purge-prefixes: nix-lint-
           purge-created: 0
           purge-primary-key: never
-      # One shell with every tool, from the nixpkgs locked in flake.lock, as build.sh uses it. The tools'
-      # directories go on the PATH of the steps below, one per tool; each runs whatever the others found.
+      # The lint shell (nix/shells.nix) has every tool, from the nixpkgs locked in flake.lock. Their directories
+      # go on the PATH of the steps below, one per tool; each runs whatever the others found. The step prints
+      # where each tool is, and fails, naming the tool, for one that does not come from the Nix store: the shell
+      # lacks it, or the runner's own copy would be used.
       - id: tools
         run: |
           tools="ruff shellcheck shfmt markdownlint-cli2 lychee typos actionlint zizmor"
-          # shellcheck disable=SC2086 # one package per word
-          nix-shell -I "nixpkgs=$(nix-instantiate --eval nix/nixpkgs.nix | tr -d '"')" -p $tools \
-            --run "command -v $tools" | xargs -n 1 dirname >>"$GITHUB_PATH"
+          nix-shell -I "nixpkgs=$(nix-instantiate --eval nix/nixpkgs.nix | tr -d '"')" nix/shells.nix -A lint --run "
+            for tool in $tools; do
+              path=\$(command -v \$tool)
+              case \$path in
+                /nix/store/*) echo \$path >&2 && dirname \$path ;;
+                *) echo \"::error::\$tool is not in the lint shell (found: \${path:-nowhere})\" >&2 && exit 1 ;;
+              esac
+            done" >>"$GITHUB_PATH"
       - name: ruff
         run: ruff check .
       - name: shellcheck
@@ -68,6 +75,9 @@ jobs:
       - name: actionlint
         if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
         run: actionlint
+      # with the token it also asks GitHub about the pinned commits and the actions' known vulnerabilities
       - name: zizmor
         if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
-        run: zizmor --offline .
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: zizmor .

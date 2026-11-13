@@ -10,9 +10,10 @@ docs/using/simulator.md has the steps.
 import ctypes
 import sys
 import threading
+import time
 
 from sim.hardware import keys
-from sim.vjoy import CONSOLE_HANDLER, CTRL_BREAK_EVENT, CTRL_CLOSE_EVENT
+from sim.vjoy import on_console_close
 
 # winuser.h: an INPUT of type INPUT_KEYBOARD holds a KEYBDINPUT in a union as large as its largest member,
 # MOUSEINPUT. ULONG_PTR is as wide as a pointer (size_t): 40 bytes in all for 64-bit Windows.
@@ -44,6 +45,7 @@ SCAN = {**{0x3A + i: 0x3B + i for i in range(10)}, 0x44: 0x57, 0x45: 0x58,
                                        0xE048), strict=True))}
 # the modifier bits of the report: left Ctrl, Shift, Alt, right Ctrl, Shift
 MODIFIERS = ((0x01, 0x1D), (0x02, 0x2A), (0x04, 0x38), (0x10, 0xE01D), (0x20, 0x36))
+RETRY_S = 0.5              # while Windows takes no keystrokes, the keys it may hold are let go this often
 
 
 def keystroke(scan, up):
@@ -54,8 +56,8 @@ def keystroke(scan, up):
 class SendInput:
     """The keyboard of a Board in keyboard mode as keystrokes: send(device, report) is Live's output. close() lets
     go of every key, also on Ctrl-Break and when the console window closes (Python runs no finally then; a kill
-    from Task Manager can leave a modifier down until it is pressed and let go on the PC's keyboard). user32,
-    kernel32: Windows' (on win32 by default)."""
+    from Task Manager can leave a modifier down until it is pressed and let go on the PC's keyboard). Keystrokes
+    that Windows does not take (press()) do not end the run. user32, kernel32: Windows' (on win32 by default)."""
 
     name = "keystrokes to the window in front"
 
@@ -69,17 +71,10 @@ class SendInput:
         user32.SendInput.argtypes = (ctypes.c_uint, ctypes.POINTER(INPUT), ctypes.c_int)
         user32.SendInput.restype = ctypes.c_uint
         self.user32, self.lock, self.closed = user32, threading.Lock(), False
-        self.last = self.failed = bytes(keys.REPORT)   # the last report Windows took in full, one it did not
-        self.handler = None
-        if kernel32 is not None:                   # kept: Windows calls it after Python would have freed it
-            self.handler = CONSOLE_HANDLER(self.console)
-            kernel32.SetConsoleCtrlHandler(self.handler, True)
-
-    def console(self, event):
-        """Windows' console handler: lets go on Ctrl-Break and when the window closes; Ctrl-C goes on to Python"""
-        if event in (CTRL_BREAK_EVENT, CTRL_CLOSE_EVENT):
-            self.close()
-        return int(event == CTRL_CLOSE_EVENT)
+        self.last = bytes(keys.REPORT)             # the last report Windows took in full
+        self.unsure = None                         # the keys it may hold since a call it did not take in full
+        self.retrying = False                      # whether retry()'s thread runs: one at a time
+        self.handler = on_console_close(self.close, kernel32)
 
     def send(self, device, report):
         """A report's changes as one SendInput: keys up, modifiers up, modifiers down, keys down; nothing once
@@ -90,18 +85,44 @@ class SendInput:
 
     def press(self, new):
         """What tells new from the last report Windows took in full. Windows can take a part or nothing (nothing
-        while a UAC prompt, Ctrl+Alt+Del or the lock screen is up): then new counts as failed, for close()."""
+        while a UAC prompt, Ctrl+Alt+Del or the lock screen is up): what it then holds is unknown, so this says so,
+        once, and lets go of everything (let_go()), again every RETRY_S (retry(): a prompt can go while the panel
+        sends nothing) and before each report, until Windows takes that. The next report goes out in full."""
+        if self.unsure is not None and not self.let_go():
+            return
         old = self.last
         events = [(SCAN[k], True) for k in old[2:] if k and k not in new[2:]]
         events += [(scan, True) for bit, scan in MODIFIERS if old[0] & bit and not new[0] & bit]
         events += [(scan, False) for bit, scan in MODIFIERS if new[0] & bit and not old[0] & bit]
         events += [(SCAN[k], False) for k in new[2:] if k and k not in old[2:]]
         taken = self.keystrokes(events)
-        if taken != len(events):
-            self.failed = new
-            raise OSError(f"Windows took {taken} of {len(events)} keystrokes: a prompt or another program blocks "
-                          "them")
-        self.last = new
+        if taken == len(events):
+            self.last = new
+            return
+        print(f"sim.sendinput: Windows took {taken} of {len(events)} keystrokes (a prompt or another program blocks "
+              "them): they go on once it takes them again", file=sys.stderr, flush=True)
+        self.unsure = {k for k in old[2:] + new[2:] if k}
+        if not self.let_go() and not self.retrying:
+            self.retrying = True
+            threading.Thread(target=self.retry, name="sendinput", daemon=True).start()
+
+    def retry(self):
+        """In a thread of its own: let_go() every RETRY_S, until Windows takes it, a report's did or close()"""
+        while True:
+            time.sleep(RETRY_S)
+            with self.lock:
+                if self.closed or self.unsure is None or self.let_go():
+                    self.retrying = False
+                    return
+
+    def let_go(self):
+        """Key-ups for the keys Windows may hold and for all five modifiers: True if it took them all, and the
+        next report then counts from no key down"""
+        events = [(SCAN[k], True) for k in sorted(self.unsure)] + [(scan, True) for _, scan in MODIFIERS]
+        if self.keystrokes(events) != len(events):
+            return False
+        self.last, self.unsure = bytes(keys.REPORT), None
+        return True
 
     def keystrokes(self, events):
         """The keystrokes [(scan code, up)] as one SendInput: how many of them Windows took"""
@@ -111,10 +132,10 @@ class SendInput:
         return self.user32.SendInput(len(events), inputs, ctypes.sizeof(INPUT))
 
     def close(self):
-        """Lets go of the keys of the last report and of a failed one, then of all five modifiers, whatever Windows
-        took before; sends nothing after that"""
+        """Lets go of the keys of the last report and of those Windows may hold, then of all five modifiers,
+        whatever Windows took before; sends nothing after that"""
         with self.lock:
             if not self.closed:
                 self.closed = True
-                down = sorted({k for report in (self.last, self.failed) for k in report[2:] if k})
+                down = sorted({k for k in self.last[2:] if k} | (self.unsure or set()))
                 self.keystrokes([(SCAN[k], True) for k in down] + [(scan, True) for _, scan in MODIFIERS])

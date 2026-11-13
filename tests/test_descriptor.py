@@ -1,13 +1,13 @@
 """The report descriptor boot.py builds, through the parser of hid-tools (what hid-recorder uses), without a kernel:
 two joysticks on report IDs 4 and 5, and the reports code.py sends read with it name the buttons buttonmap.py
-gives; in keyboard mode one keyboard, whose reports read with it are the shortcuts of keys.py. build.sh provides
-hid-tools; tests/test_uhid.py does the same through the kernel where it can."""
-import pytest
-
+gives; in keyboard mode one keyboard, whose reports read with it are the shortcuts of keys.py. The firmware shell
+(nix/shells.nix) has hid-tools on Linux and sets REQUIRE_HID_TOOLS=1 there, which makes a missing parser fail these
+tests; elsewhere they skip. tests/test_uhid.py does the same through the kernel where it can."""
+from conftest import hid_parser
 from sim import BM, FUNCTIONS, Sim
 from sim.hardware import Board, keys
 
-hid = pytest.importorskip("hidtools.hid", reason="hid-tools missing (build.sh provides it)")
+hid = hid_parser()
 REPORT_ID = {1: 4, 2: 5}
 BUTTON_PAGE = 0x09 << 16
 KEY_PAGE = 0x07 << 16

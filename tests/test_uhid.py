@@ -1,8 +1,9 @@
 """The simulated panel as a Linux HID device (sim/uhid.py), through the kernel. These run only where /dev/uhid is
-writable and the hidraw node the device gets is readable (root, or udev rules), and skip elsewhere, CI included
+writable and the hidraw node the device gets is readable (root, or udev rules), and skip elsewhere
 (tests/test_descriptor.py checks the descriptor and the reports there without a kernel), but for the first, which
-stands in for the kernel. REQUIRE_UHID=1 turns the skips into failures. The keyboard mode's test types one
-shortcut (Ctrl, Shift and Alt with an F-key) into the desktop too."""
+stands in for the kernel. REQUIRE_UHID=1 turns the skips into failures: the build workflow loads the kernel
+module, opens both up and sets it. The keyboard mode's test types one shortcut (Ctrl, Shift and Alt with an
+F-key) into the desktop too."""
 import contextlib
 import fcntl
 import glob
@@ -20,7 +21,7 @@ from sim.hardware import keys
 from sim.live import Live
 from sim.uhid import UHID_GET_REPORT, UHID_GET_REPORT_REPLY, UHID_INPUT_REPORT, UHID_START, Uhid
 
-TIMEOUT_S = 2
+TIMEOUT_S = 5
 
 
 def need(ok, why):

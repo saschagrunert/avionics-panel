@@ -1,21 +1,23 @@
 name: build
-# Regenerates every output with ./build.sh, which runs all checks (electrical, DRC, footprints, fit
-# clearances, firmware tests), then makes sure the committed outputs are current. Every build uses the
-# nixpkgs locked in flake.lock. Dependabot proposes each nixpkgs-unstable update as a pull request, whose
-# build is the check that the update leaves every output as it is (so no scheduled run). Dependabot's pull
-# requests get a read-only token, which is enough: the cache only restores there, and the cache step uses
-# its write access on main only. A push to main that passes also publishes the 3D view, and every build
-# that passes sends the firmware tests' coverage to Codecov.
+# Runs ./build.sh, which regenerates every output and runs every check, and fails when a committed output is
+# not current. Builds the simulator for Windows and the MobiFlight profiles and runs the simulator's Windows
+# tests. A push to main publishes the 3D view once build.sh and its checks pass. Once the Windows tests and
+# both files' jobs pass too, it replaces the files of the rolling pre-release, at the links the docs give; a
+# release that is published gets the same files attached. build.sh takes its tools from the nixpkgs locked in
+# flake.lock; the zip and the profiles are made with the runner's python3.
 on:
   push:
     branches:
       - main
   pull_request:
+  release:
+    types:
+      - published
   workflow_dispatch:
-# Pull requests cancel their outdated runs. Every push to main gets a group of its own: GitHub replaces
-# the pending run of a group when a newer one queues, which would leave that commit unchecked.
+# Pull requests cancel their outdated runs. Every other run (a push to main, a release, a manual run) is a
+# group of its own, so none replaces another pending one.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 permissions: {}
 jobs:
@@ -25,20 +27,20 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: read # checkout
-      actions: write # the cache step deletes superseded caches
+      actions: write # the cache step deletes superseded caches, on main
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       # build.sh puts the locked nixpkgs on NIX_PATH itself
       - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # v31.11.3
-      # The Nix store is keyed on flake.lock and nix/*.nix, so it hits until one of them changes. A new key
-      # misses: the build restores the latest store (which has most of it) and builds or downloads the rest,
-      # and the next run on main saves it under the new key.
-      # So a change there (and this key scheme itself) speeds up pull requests from the first main run after
-      # its merge. Only main saves, and pull requests restore: one cache per pull request would push the ones
-      # of main out of the repository's 10 GB. Main also purges the caches of earlier keys.
-      - uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569 # v7
+      # The Nix store, keyed on flake.lock and nix/*.nix. A new key restores the latest store and adds what is
+      # missing. Only main saves, and purges the caches of earlier keys; pull requests restore. zizmor's
+      # cache-poisoning audit flags this step for the release trigger. The ignore is for this step alone, on a
+      # line of its own so that the version stays a comment of its own: this job publishes nothing, the files
+      # come from the zip and profiles jobs, which restore no cache, and are fetched by their artifacts' names.
+      - uses: # zizmor: ignore[cache-poisoning]
+          nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569 # v7
         with:
           primary-key: nix-build-${{ hashFiles('flake.lock', 'nix/*.nix') }}
           restore-prefixes-first-match: nix-build-
@@ -48,10 +50,30 @@ jobs:
           purge-prefixes: nix-build-
           purge-created: 0
           purge-primary-key: never
+      # tests/test_uhid.py needs /dev/uhid and the hidraw node of each device it makes. If the uhid module is
+      # missing, this installs the extra modules package of the runner's kernel. Where the module loads, the
+      # tests must run (REQUIRE_UHID); for a kernel without it they skip, with a warning.
+      - id: uhid
+        name: uhid for the kernel HID tests
+        run: |
+          if sudo modprobe uhid || {
+            sudo apt-get update -q && sudo apt-get install -y -q "linux-modules-extra-$(uname -r)" &&
+              sudo modprobe uhid
+          }; then
+            echo 'KERNEL=="hidraw*", MODE="0666"' | sudo tee /etc/udev/rules.d/99-hidraw.rules
+            sudo udevadm control --reload
+            sudo chmod a+rw /dev/uhid
+            sudo udevadm settle
+            echo "require=1" >>"$GITHUB_OUTPUT"
+          else
+            echo "::warning::no uhid module for the kernel $(uname -r): tests/test_uhid.py skips"
+          fi
       - run: ./build.sh
-      # With nixpkgs locked, build.sh reproduces every file: any changed, new or deleted output fails. On a
-      # Dependabot pull request, that means the nixpkgs update changes an output (STEP, STL, PDF and PNG
-      # files follow OpenCascade and matplotlib): run build.sh on its branch and commit the result.
+        env:
+          REQUIRE_UHID: ${{ steps.uhid.outputs.require }}
+      # build.sh reproduces every file: a changed, new or deleted output fails. On a Dependabot pull request
+      # the nixpkgs update then changes an output (STEP, STL, PDF and PNG files follow OpenCascade and
+      # matplotlib): run build.sh on its branch and commit the result.
       - name: Committed outputs are up to date
         run: |
           git status --short
@@ -60,10 +82,10 @@ jobs:
             echo "::error::build.sh changed, added or removed outputs: run it and commit the result"
             exit 1
           fi
-      # Sends the firmware tests' coverage (coverage.xml from build.sh, and nothing else) to Codecov, with the
-      # CODECOV_TOKEN secret (Dependabot's pull requests read the Dependabot secret of that name). A failed
-      # or stalled upload, as during an outage of Codecov, does not fail the build (continue-on-error), while
-      # fail_ci_if_error keeps the action from running an upload tool whose signature does not verify.
+      # The firmware tests' coverage (coverage.xml from build.sh, and nothing else) goes to Codecov, with the
+      # CODECOV_TOKEN secret (Dependabot's pull requests read the Dependabot secret of that name). A failed or
+      # stalled upload does not fail the build (continue-on-error), while fail_ci_if_error keeps the action
+      # from running an upload tool whose signature does not verify.
       - uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         continue-on-error: true
         timeout-minutes: 5
@@ -73,8 +95,73 @@ jobs:
           disable_search: true
           plugins: noop
           fail_ci_if_error: true
-  # Packs the viewer without write access; deploy only publishes the artifact. Only a push to main that
-  # built and checked cleanly publishes; forks have no Pages of this repository to deploy to.
+  # The simulator for Windows (windows/make_zip.py: Python's embeddable package, pinned by its hash, with the
+  # firmware, the simulator and the viewer), built on Linux and kept as an artifact of the run.
+  zip:
+    name: simulator zip
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read # checkout
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: python3 windows/make_zip.py --out avionics-panel-sim-windows.zip
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: avionics-panel-sim-windows
+          path: avionics-panel-sim-windows.zip
+          if-no-files-found: error
+          # the release keeps its own copy; a run's zip is only for trying a change
+          retention-days: 7
+  # The profile of every family in mobiflight/families/, bound to no joysticks: MobiFlight asks for both when it
+  # opens one (docs/using/mapping.md#generated-profiles).
+  profiles:
+    name: MobiFlight profiles
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read # checkout
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: |
+          families=$(python3 -c "from mobiflight.families import FAMILIES; print(*FAMILIES)")
+          for family in $families; do
+            python3 -m mobiflight --family "$family" -o "avionics-panel-$family.mfproj"
+          done
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: avionics-panel-mobiflight
+          path: avionics-panel-*.mfproj
+          if-no-files-found: error
+          retention-days: 7
+  # The simulator's Windows code on Windows: the vJoy and keystroke outputs, against stand-ins for the DLLs, the
+  # page's server and the zip's build, on the zip's minor version of Python (tests/test_windows_zip.py compares
+  # the two). -rs lists what skips, with the reason.
+  windows:
+    name: Windows tests
+    runs-on: windows-2025
+    timeout-minutes: 10
+    permissions:
+      contents: read # checkout
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.14"
+      - run: python -m pip install pytest==9.1.1
+      - run: >-
+          python -m pytest -v -rs
+          tests/test_page.py tests/test_sendinput.py tests/test_vjoy.py tests/test_windows_zip.py
+        env:
+          REQUIRE_ZIP_PYTHON: "1"
+  # Packs the viewer without write access; pages-deploy publishes the artifact. A push to main or a manual run
+  # on main publishes, once its build has passed; forks have no Pages of this repository to deploy to.
   pages-pack:
     name: pack the viewer
     needs: build
@@ -124,3 +211,72 @@ jobs:
       - id: deployment
         if: steps.tip.outputs.current == 'true'
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+  # Only this job and rolling may write to the releases, this one only to the release that started the run. Both
+  # wait for the build, the Windows tests and the files.
+  release:
+    name: attach to the release
+    needs: [build, windows, zip, profiles]
+    if: github.event_name == 'release'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write # upload a release asset
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: avionics-panel-sim-windows
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: avionics-panel-mobiflight
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          gh release upload "$TAG" avionics-panel-sim-windows.zip avionics-panel-*.mfproj \
+            --repo "$GITHUB_REPOSITORY" --clobber
+  # Keeps the files of the newest commit on main that passed at releases/download/rolling/<file>. The first run
+  # makes the rolling pre-release and its tag, which stays at that commit; each run replaces the files and names
+  # its commit in their labels and the notes. Needs immutable releases off. Updates run one at a time, a newer
+  # one waiting for the one in progress. A re-run repairs a failed update.
+  rolling:
+    name: update the rolling pre-release
+    needs: [build, windows, zip, profiles]
+    if: github.repository == 'saschagrunert/avionics-panel' && github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    concurrency:
+      group: rolling-release
+      cancel-in-progress: false
+    permissions:
+      contents: write # replace the files, edit the notes
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: avionics-panel-sim-windows
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: avionics-panel-mobiflight
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          tip=$(gh api "repos/$GH_REPO/git/ref/heads/main" --jq .object.sha)
+          if [ "$tip" != "$GITHUB_SHA" ]; then
+            echo "::notice::main moved on to $tip: leaving the rolling pre-release as it is"
+            exit 0
+          fi
+          short=${GITHUB_SHA:0:7}
+          url=$GITHUB_SERVER_URL/$GH_REPO
+          docs=$url/blob/main/docs/using
+          notes="Built from [$short]($url/commit/$GITHUB_SHA) on main; each push to main replaces the files."
+          notes+=" The tag and its source code stay at the first build's commit."
+          notes+=" [Simulator]($docs/simulator.md) and [Mapping]($docs/mapping.md#generated-profiles) have the steps."
+          gh release view rolling >/dev/null 2>&1 ||
+            gh release create rolling --prerelease --target "$GITHUB_SHA" --title "Rolling build" --notes "$notes"
+          # every file to download, built in this workflow, goes up in this one call, labelled with the commit
+          files=()
+          for file in avionics-panel-sim-windows.zip avionics-panel-*.mfproj; do
+            files+=("$file#$file ($short)")
+          done
+          gh release upload rolling --clobber "${files[@]}"
+          gh release edit rolling --notes "$notes" >/dev/null
