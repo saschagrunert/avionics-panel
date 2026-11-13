@@ -3,7 +3,7 @@ of the artwork.
 
 z = 0 is the PCB top. Part heights from the datasheets:
   Bourns PEC11D-4120F-S0015 (dual encoder): body 8 mm (11.7 x 12, 13.1 over the side lugs), unthreaded
-      bushing dia 7 up to 13, outer shaft dia 6 with a 2 mm slot 2.5 deep up to 18, inner shaft dia 3.5 up to
+      bushing dia 7 +0/-0.05 up to 13, outer shaft dia 6 with a 2 mm slot 2.5 deep up to 18, inner shaft dia 3.5 up to
       28 with a D flat (2.5 across) on its last 7 mm. The inner shaft pushes (stroke 0.5 +0/-0.3). Tolerances
       +-0.3 under 10 mm, +-0.5 from 10 mm.
   Alps RKJXT1F42001 (RANGE): octagonal body 8.6 high, 16.4 across corners and 15.73 across flats above z 4
@@ -141,7 +141,7 @@ KEY_BACK_BREAK, KEY_BACK_BREAK_MAX = 0.3, 0.5   # edge break on the key holes' b
 FRONT_BREAK = 0.2                          # edge break on the front outline and hole edges, at most (drawing)
 # general tolerance ISO 2768-m (+-0.2 from 6 to 30 mm) where the drawing gives none
 PLATE_GEN_TOL = 0.2
-SHAFT_HOLE = 9.5                           # encoder bushing dia 7 +0.3: clears the board offset, hidden by the knob
+SHAFT_HOLE = 9.5                           # encoder bushing dia 7 +0/-0.05: clears the board offset, hidden by the knob
 RANGE_HOLE = 11.1                          # RKJXT hub (7.2) at full tilt, hidden under the knob skirt (check_fit)
 LIGHT_HOLE = 2.3                           # light pipes; webs to the neighbouring key holes in check_fit.py
 LIGHT_HOLE_TOL = (0.1, 0.0)                # +0.1/-0 on the drawing: never smaller, so a pipe cannot jam
@@ -200,10 +200,10 @@ PCB_OUTLINE_TOL, PCB_VCUT_TOL, PCB_CUTOUT_TOL = 0.2, 0.4, 0.1
 # Bosses: dia 5.5 +-0.1 (ISO 2768-m), PLATE_Z0 +-h_tol high from the back face (drawing): 6.5 to 6.6. That height
 # centres the plate between the rows that want it low (knobs and RANGE skirt over the face) and those that want it
 # high (pockets over the RKJXT and the encoders, cap sockets under the face, the tongue's end over the plug, body
-# walls). At JLCCNC's default +-0.1 every row still passes, with 0.05 less on each side: the drawing and the JLCCNC
-# remark ask for +-0.05, and +-0.1 is acceptable (docs/building/ordering.md). End faces flat, square to the bore. They
-# sit on the PCB inside its copper keep-out (pcb/board.py MOUNT_KEEPOUT). Five of them: at the four corner mounts and
-# at the middle one (pcb/board.py MID_MOUNT), all alike.
+# walls). At +-0.1 every row still passes, with 0.05 less on each side: the drawing and the order form ask for +-0.05
+# (JLCCNC's default, ISO 2768-m, is +-0.2), and +-0.1 is acceptable (docs/building/ordering.md). End faces flat,
+# square to the bore. They sit on the PCB inside its copper keep-out (pcb/board.py MOUNT_KEEPOUT). Five of them: at
+# the four corner mounts and at the middle one (pcb/board.py MID_MOUNT), all alike.
 BOSS = dict(d=5.5, d_tol=0.1, h=PLATE_Z0, h_tol=0.05, root_r=0.3)   # root_r: inside corner at the back face, at most
 # Thread M3-6H from the boss end face, full thread at least `full` deep, drilled dia `drill` `depth` deep plus the
 # drill point (118 deg), a `cham` x 90 deg countersink at the mouth. JLCCNC's rules: at most 3 D of thread, at least
@@ -237,9 +237,9 @@ ENGAGE_MIN = 2.0                           # full thread engaged in the plate bo
 SCREW_HEAD_Z = SEAT_Z                      # the flange bears on the counterbore seat (for the 3D view)
 # Positional budget (each +-, radial unless noted): bosses, pockets, the tongue and through holes to each other
 # (drawing note), PCB drill positions (JLCPCB, about 0.05; 0.075 assumed), NPTH size (JLCPCB +-0.2 on the diameter),
-# M3 in its thread, the board offset the caps allow (their largest shift in key holes at +0.1, about 0.45
-# diagonally, plus 0.05 of key pattern to screw pattern), the body over 153 mm (JLC3DP MJF +-0.4 % above
-# 100 mm, so +-0.31 in x and +-0.11 in y per hole once the screws centre it) and its hole size (MJF, radial).
+# M3 in its thread, the board offset the caps allow (a set printed 0.2 small in key holes at +0.1: 0.55, plus 0.05
+# of key pattern to screw pattern), the body over 153 mm (JLC3DP MJF +-0.4 % above 100 mm, so +-0.31 in x and
+# +-0.11 in y per hole once the screws centre it) and its hole size (MJF, radial).
 POS_TOL = dict(plate=0.1, pcb=0.075, npth_d=0.2, thread=0.03, centring=0.05, body=0.33, body_hole=0.15)
 # The caps centre the board in the key holes during assembly; the screws then must not pull it off centre.
 # Per-key errors that stay (RSS): switch holes on the PCB, switch on its pins, key hole on the plate, cap
@@ -357,6 +357,12 @@ KNOB_MARK_WALL = 1.0
 # The most diametral play a kept knob has on its shaft (assumed: more than the step past the bore that grips; a
 # looser knob is replaced by the next tighter bore). The radial clearances of the knobs take it (check_fit.py).
 KNOB_PLAY = 0.15
+# The knobs print with supports on their bottom faces, the faces over the plate and over the outer ring; the
+# JLC3DP remark asks for none inside the bores and recesses and for the marks sanded flush, no more than
+# SUPPORT_MARK proud (docs/building/ordering.md), which takes that much of the room under those faces
+# (check_fit.py). JLC3DP publishes no figure; a mark that stands higher is sanded down at home
+# (docs/building/assembly.md, Fitting the knobs).
+SUPPORT_MARK = 0.05
 # Garmin proportions: outer rings 17 on all three dual knobs, inner knobs 12, so 2.5 of ring shows each side.
 # The outer ring ends flush with the 6 mm shaft top. Its bottom is 1.15 over the plate, over the slot floor's
 # spread and a high plate face (high bosses, a thick plate, anodised, bowed up) on a board bowed down
@@ -541,8 +547,8 @@ PCB_BOW = 0.1
 # its plate_bow() (a dome, or a bow along or across the plate, held at the corner bosses), in the direction that
 # costs the row. The light pipe rows take PLATE_FLAT in full. Every row still passes up to 0.2 (the light pipes'
 # clamp row goes first, just above 0.22, with the resin's drift counted); that is what to answer should JLCCNC ask.
-# With the bosses at +-0.1 as well, up to 0.15 (the same row goes first, just above 0.17; the RANGE knob's
-# underside keeps 0.05 there) (docs/building/ordering.md).
+# With the bosses at +-0.1 as well, up to 0.15 (the RANGE knob's underside over the plate goes first, just above
+# 0.15) (docs/building/ordering.md).
 PLATE_FLAT = 0.1
 # The body post under the PCB (make_mech.py) ends SUPPORT_SHORT under it, so with JLC3DP's MJF +-0.3 (post height
 # against the bosses) it never lifts the board. It is a backstop: with the board held at the middle mount, a firm

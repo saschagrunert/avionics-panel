@@ -69,7 +69,7 @@ run in `nix-shell nix/shells.nix -A firmware` (pytest, pytest-cov; on Linux hid-
 | `mech/` | `python3 make_viewer_data.py` | `viewer/geometry.js`, the dimensions the 3D view takes from the generators |
 | `firmware/` | `python3 make_buttons.py >BUTTONS.md` | The button numbers of both joysticks, for MobiFlight |
 | `firmware/` | `python3 make_keys.py >KEYS.md` | The shortcuts of the [keyboard mode](../using/keyboard.md) |
-| Repository root | `pytest` | The [firmware tests](firmware.md#code-and-tests) |
+| Repository root | `pytest` | The [firmware tests](firmware.md#code-and-tests); `tests/test_checkers.py` runs the checkers in the gen shell through nix-shell and skips without it |
 | Repository root | `python3 -m sim.page` | The [simulator](../using/simulator.md): the firmware on the PC, played in the browser |
 | Repository root | `python3 -m mobiflight --family g1000` | The MobiFlight profile of a family ([Mapping](../using/mapping.md#generated-profiles)) |
 | Repository root | `python3 windows/make_zip.py` | The simulator's zip for Windows ([Simulator](../using/simulator.md#windows)) |

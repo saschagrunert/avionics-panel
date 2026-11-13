@@ -91,6 +91,8 @@ FREQ, FMS = (XR, 15.0), (XR, 45.0)          # right: frequency dual over FMS dua
 MCU = (131.6, 25.0)             # RP2040 on the bottom, mirrored (pins 1-14 face the keys, bottom to top)
 USB_X = 127.0
 BOOT = (MCU[0] + 0.5, 54.0)     # bridge pads on the bottom, under a hole in the body floor
+# the bottom legend's title and where its line is (make.py draws it, check.py reads the legend's mirroring from it)
+TITLE = ("Avionics Panel rev 1 - RP2040 - USB-C", (COLS[2] + COLS[3]) / 2, 2.6)
 # Light pipes in the front plate over the LEDs. In the 4 mm aluminium plate each light hole keeps at least 0.8 mm
 # to the next key hole, JLCCNC's recommended wall (0.5 mm is its minimum). Each LED is a reverse-mount 1206 on the
 # bottom that shines up through a cutout in the board (LED_CUTOUT); its light pipe stands on the board over it,
@@ -564,7 +566,7 @@ def add_usb(pads):
     part("J1", "TYPE-C-31-M-12", "C165948", cx, (yc + 2.10) / 2, 180, foot="USB-C 16P")
 
 
-# USB protection right behind J1 (issue #14). U4, an SRV05-4 ESD array (SOT-23-6, four channels with steering
+# USB protection right behind J1. U4, an SRV05-4 ESD array (SOT-23-6, four channels with steering
 # diodes to its VCC pin and a clamp from VCC to GND), takes D+ and D- straight through: each line comes from J1
 # into one pad, crosses under the body to the opposite pad and leaves from there (pins 6 -> 1 for D+, 4 -> 3 for
 # D-, two channels per line), so the array is in line, with no stub. R_IN (1 ohm, the hot-plug damping) and F1,
@@ -910,7 +912,7 @@ def add_core_caps(pads):
 
 
 def add_io_caps(pads):
-    """One 100 nF (0402) per IOVDD pin, as in Raspberry Pi's minimal design (issue #15), each on its own trace
+    """One 100 nF (0402) per IOVDD pin, as in Raspberry Pi's minimal design, each on its own trace
     from the pin and with its own GND via. Pin 42 has C_D2 (add_core_caps), pin 49 C_IO49 (with USB_VDD, pin 48).
     The others sit inside the fan-out, where no pin of theirs fans out:
     - pin 1 (west, the corner pin): below pin 2's fan-out line, south-west of the pin

@@ -95,7 +95,9 @@ Heights as drawn, z = 0 at the top of the board. Anodising raises the plate's fa
   centre it and stay hidden under the knobs.
 - RANGE control (Alps RKJXT1F42001, RKJXT below): it can sit up to 0.26 mm off on its pins before soldering,
   because its locating peg goes into the 1.3 mm hole of JLC's footprint
-  ([Electronics](electronics.md#through-hole-parts)). The pocket and the hole give it that room.
+  ([Electronics](electronics.md#through-hole-parts)). The pocket and the hole give it that room. Should the
+  lever reach 9° on both axes at once, the hole's edge rather than the lever's stop may end a diagonal tilt at
+  the worst offsets, by up to about 0.25 mm; the hub is plastic and the hole anodised.
 - Key and light holes: key holes 10.4 x 7.2 mm +0.1/-0 after anodising, 0.4 mm per side round the caps,
   corners R1.6 (R1.7 at most), their back edges broken 0.3 to 0.5 mm as a lead-in for the caps. Light holes
   Ø2.3 +0.1/-0 before anodising, their back edges sharp, because the light pipes' shoulders bear there. The
@@ -117,7 +119,7 @@ Heights as drawn, z = 0 at the top of the board. Anodising raises the plate's fa
   parts, the socket and the untrimmed leads (2.7 mm at most). The milled outline fits as delivered, and so
   does the V-cut (scored and snapped) rail edge (±0.4 mm); V-cut short edges would have to be sanded
   ([On arrival](../building/bring-up.md#on-arrival)).
-- Bottom: a 5 mm hole in the floor over the two BOOT pads, for recovery only
+- Bottom: a 5 mm hole in the floor over the two BOOT pads, for recovery and CircuitPython updates
   ([Bring-up](../building/bring-up.md#updates-and-recovery)), and four flat 12 mm pads under the corners for
   self-adhesive feet up to 10 mm across.
 
@@ -161,9 +163,10 @@ Heights as drawn, z = 0 at the top of the board. Anodising raises the plate's fa
 - Never clamped: the longest base, grown by the 0.2 mm that resin may change by in its first week and with
   0.1 mm of sanded stub left on, stays under the smallest gap between the board and the plate back. A clamp
   would load the pipe with newtons (the board is 13 to 17 N/mm stiff at the lights). This row limits the
-  plate's flatness: the drawing asks for 0.1 mm, and the row fails just above 0.22 mm, or just above 0.17 mm
-  with the bosses at ±0.1 mm. The rod's 0.05 mm in its hole cannot take that growth: a rod that grows tight is
-  sanded ([Putting it together](../building/assembly.md#putting-it-together)).
+  plate's flatness: the drawing asks for 0.1 mm, and the row fails just above 0.22 mm. With the bosses at
+  ±0.1 mm the RANGE knob's underside limits it first, just above 0.15 mm. The rod's 0.05 mm in its hole
+  cannot take that growth: a rod that grows tight is sanded
+  ([Putting it together](../building/assembly.md#putting-it-together)).
 - Visibility from the seat (45°): 81 % of each top in the nominal stack, 70 % with the rod against the near
   side of its hole, 21 % at the worst depth. The UNIT light sits 5.5 mm east of the HOME and SHIFT column,
   in the gap between two cap columns, so no cap stands in front of it.
@@ -215,8 +218,8 @@ margin in percent is a share.
 <!-- fits: written by mech/check_fit.py -->
 | Group | Fit | Margin (mm) |
 | --- | --- | --- |
-| Plate low | Outer knob ring over the plate face | 0.174 |
-| Plate low | RANGE knob's underside over the plate at full tilt, cocked on the lever by its play and pushed | 0.125 |
+| Plate low | Outer knob ring over the plate face | 0.124 |
+| Plate low | RANGE knob's underside over the plate at full tilt, cocked on the lever by its play and pushed | 0.075 |
 | Plate high | Encoder pocket over the encoder body | 0.485 |
 | Plate high | RANGE pocket over the RKJXT body | 0.435 |
 | Plate high | Cap socket ceiling under the plate face, on a plunger at TE's +0.3 mm | 0.514 |
@@ -226,7 +229,7 @@ margin in percent is a share.
 | Light pipes | Rod in its hole, on the diameter | **0.05** |
 | Light pipes | Top over the face of a thin plate, lifted and grown in its first week, under the 1.0 mm allowed | **0.05** |
 | Light pipes | LED lens in its board cutout, the LED placed 0.1 mm off and turned 2° | **0.049** |
-| Light pipes | Share of the LED's die under the pipe base at the worst offsets, over 80 % (SHIFT, UNIT) | 11 %, 11 % |
+| Light pipes | Share of the LED's die under the pipe base at the worst offsets, over 80 % (both) | 11 % |
 | Light pipes | Base clear of the switch bodies (SHIFT, UNIT) | **0.025**, 0.748 |
 | Light pipes | Base out from under the key holes (SHIFT, UNIT) | 0.20, 0.432 |
 | Light pipes | Light hole web to the next key hole at tolerance, over JLCCNC's 0.5 mm minimum (SHIFT, UNIT) | 0.30, 0.532 |
@@ -253,7 +256,7 @@ margin in percent is a share.
 | USB-C | Tongue's smallest side gap in the body's slot, the body centred (largest gap 1.50 mm, limit 1.6) | 0.30 |
 | USB-C | Tongue covers the plug overmould across | 0.15 |
 | USB-C | Tongue's inner face short of the J1 shell tabs | 0.625 |
-| Controls | Encoder bushing in its Ø9.5 hole, radial | **0.05** |
+| Controls | Encoder bushing in its Ø9.5 hole, radial | 0.20 |
 | Controls | Encoder lugs in their pocket, per side | **0.05** |
 | Controls | RKJXT body in its Ø19.6 pocket, radial | 0.29 |
 | Controls | RKJXT hub at full tilt in its Ø11.1 hole, radial | 0.081 |
@@ -262,7 +265,7 @@ margin in percent is a share.
 | Knobs | Outer ring's lash in the shaft slot, should its bore not grip, within a detent (12°), nominal | 0.044° |
 | Knobs | Outer knob's key face clear of the inner shaft in the slot | 0.275 |
 | Knobs | Outer knob's counterbore over the bushing | 0.082 |
-| Knobs | Inner knob over the outer ring, pushed | 0.181 |
+| Knobs | Inner knob over the outer ring, pushed | 0.131 |
 | Knobs | Resin round the knobs' dimples at the worst print, with the largest bore `stack.FIT` allows, over JLC3DP's least wall for a part of the knob's size (0.81 to 0.84 mm) | 0.09 |
 | Knobs | Outer ring covers its encoder hole, seen from above | 1.225 |
 | Knobs | RANGE skirt covers its hole at full tilt, cocked and pushed or not | 0.083 |
@@ -283,7 +286,9 @@ Values that no datasheet or vendor states; the fit rows take them as given.
   (`stack.CAP_GRIP`), for the caps and, taken from them, for the knobs (`stack.KNOB_GRIP`).
 - Knobs: a kept knob has at most 0.15 mm of play on its shaft (`stack.KNOB_PLAY`, `stack.RANGE_PLAY`), and
   resin holes print small, by 0.02 mm at least: that is what the tightest bore needs to grip a shaft at its
-  low limit.
+  low limit. A support mark stands at most 0.05 mm proud of a knob's bottom face, as the JLC3DP remark asks
+  (`stack.SUPPORT_MARK`); one that stands higher is sanded
+  ([Fitting the knobs](../building/assembly.md#fitting-the-knobs)).
 - Key switch: TE's plunger lot is close enough to its STEP model for the four cap sets; the plunger's own
   sideways play in the switch is left out.
 - Key caps: they creep round on their plungers by at most 2.5° in use (`stack.CAP_CREEP`).
@@ -309,7 +314,7 @@ Values that no datasheet or vendor states; the fit rows take them as given.
 | Panel | 165 x 65 mm, 17.75 mm high at the front and about 24.6 mm at the back (6° wedge, for a flat desk in front of the pilot) |
 | Plate | 4 mm web, 10.55 mm high with its bosses, 32 cm³, 86 g |
 | Body | 39 cm³, about 40 g |
-| Key pitch | 11.85 mm horizontal (17.1 mm between AUTOPILOT and AUDIO), 11 mm vertical, 14.5 mm between rows 2 and 3 for the FMS line. The rows stay aligned across the panel, so the autopilot block shares that gap |
+| Key pitch | 11.85 mm horizontal (17.1 mm between AUTOPILOT and AUDIO), 11 mm vertical, 14.5 mm between the FD and UP rows for the FMS line. The rows stay aligned across the panel, so the autopilot block shares that gap |
 | Caps | 9.6 x 6.4 mm, 1.95 mm over the plate, one legend size (capitals about 2.0 mm high, strokes at least 0.4 mm). The flip-flop icon is narrow, so COM ⇆ does not shrink every legend |
 | Dual knob centres | x 15 and 145, y 15 and 45 (30 mm apart). Between the knobs: 12.85 mm on the left (ALT/HDG ring to RANGE skirt), 13 mm on the right |
 | Knobs | Matte black resin, vertical flutes, slight taper, chamfered flat top. Outer ring Ø17 x 6.3 mm on all three, inner knob Ø12 x 10.4 mm above it. RANGE knob Ø13.6 x 8.2 mm with a Ø17.3 skirt |

@@ -1,12 +1,12 @@
 # Hand-soldering
 
 An option for those who like to solder. JLCPCB assembles only the bottom side of the board, with every SMD
-(surface-mount) part and the two LEDs. The 28 keys, the three encoders, the RANGE control and the four shell
-tabs of J1 (the USB-C socket) are soldered at home, from the bottom side. JLCPCB then charges about half the
-setup and stencil fees and nothing for the through-hole parts and joints. The encoders and the RANGE control
-go on last, after the board has been tested, as they are the parts that are hard to remove again. This page
-has what differs from [Ordering](ordering.md) and [Bring-up](bring-up.md); [Soldering](#soldering) also
-serves rework on a board that JLCPCB assembled.
+(surface-mount) part and the two LEDs. The 28 keys, the three encoders and the RANGE control are soldered at
+home from the bottom side, the four shell tabs of J1 (the USB-C socket) from the top. JLCPCB then charges
+about half the setup and stencil fees and nothing for the through-hole parts and joints. The encoders and the
+RANGE control go on last, after the board has been tested, as they are the parts that are hard to remove
+again. This page has what differs from [Ordering](ordering.md) and [Bring-up](bring-up.md);
+[Soldering](#soldering) also serves rework on a board that JLCPCB assembled.
 
 ## Ordering
 
@@ -15,9 +15,9 @@ serves rework on a board that JLCPCB assembled.
   `THT-LCSC.csv` to LCSC's BOM tool. It is one board's set: 30 keys (28 and two spares, C589907), 3 encoders
   (C19270361) and 1 RANGE control (C160841); the `Needed` column gives the count per board. Order a second
   set for the spare board if wanted.
-- JLCPCB: assembly of the bottom side only, with `BOM.csv` and `CPL.csv` (the BOM step must find all 25 lines
-  with stock for 2 boards) and no PCBA remark. The PCB settings, the PCB remark, the edge rail and the
-  bottom side of the [placement preview](ordering.md#placement-preview) stay the same.
+- JLCPCB: Standard assembly of the bottom side only, with `BOM.csv` and `CPL.csv` (the BOM step must find all
+  25 lines with stock for 2 boards) and no PCBA remark. The PCB settings, the PCB remark, the edge rail and
+  the bottom side of the [placement preview](ordering.md#placement-preview) stay the same.
 - Locally: the soldering iron, solder, flux, solder wick and the magnifier of the
   [shopping list](ordering.md#shopping-list).
 

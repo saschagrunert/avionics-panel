@@ -215,10 +215,11 @@ for ref, spots in NAME_SPOTS.items():
         except AssertionError:
             if i == len(spots) - 1:
                 raise
-T("B", "Avionics Panel rev 1 - RP2040 - USB-C", (B.COLS[2] + B.COLS[3]) / 2, 2.6)
-# two lines, each 2.0 mm high, between the BOOT pads and the board's V-cut edge
-T("B", "BOOT: bridge", B.BOOT[0], B.BOOT[1] + 2.2)
-T("B", "while plugging in", B.BOOT[0], B.BOOT[1] + 4.46)
+T("B", *B.TITLE)
+# two lines between the BOOT pads and the board's V-cut edge, the second without descenders, so it keeps
+# geom.SILK_VCUT from that edge
+T("B", "BOOT: hold bridged,", B.BOOT[0], B.BOOT[1] + 2.2)
+T("B", "then connect USB", B.BOOT[0], B.BOOT[1] + 4.35)
 
 # ---------------- Gerber writer ----------------
 def fmt(v):
