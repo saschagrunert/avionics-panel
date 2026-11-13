@@ -1,0 +1,6 @@
+# actionlint's settings (the lint workflow runs it).
+paths:
+  .github/workflows/build.yml:
+    ignore:
+      # GitHub's concurrency takes queue; actionlint does not know it yet
+      - 'unexpected key "queue" for "concurrency" section'

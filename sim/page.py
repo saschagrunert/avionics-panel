@@ -12,8 +12,9 @@ default browser once it is served.
 The API, under /sim/:
 
 - GET events: one Server-Sent Events stream per page. `hello` first, with the page's client ID (a secret: only
-  the page can read it), the firmware names of the caps and knobs geometry.js draws (inputs()) and the numbers the
-  page keeps to (the detents of a knob's turn, TURN_MAX, ACTS_MAX and BEAT_S in ms), then `state` whenever the
+  the page can read it), the build (build(): a page that reconnects to a program serving other files reloads),
+  the firmware names of the caps and knobs geometry.js draws (inputs()) and the numbers the page keeps to (the
+  detents of a knob's turn, TURN_MAX, ACTS_MAX and BEAT_S in ms), then `state` whenever the
   lights or the buttons change (the lights are read every POLL_S, so the SHIFT light's 125 ms pulse keeps its
   rhythm; in keyboard mode the buttons are the keyboard's, with the shortcut), and `fault` for an error in
   code.py's loop, which then reloads (not `error`: EventSource has an event of that name).
@@ -25,7 +26,8 @@ The API, under /sim/:
 A page that goes lets go of what it holds, unless another page holds it too: when its stream closes, and when it
 has not posted for LEASE_S (a tablet that drops off the network closes nothing; the page posts every BEAT_S).
 A browser asks before it reuses a file it has kept (Cache-Control: no-cache) and always gets the file, never a
-304, so the page it shows is the one this program serves. A connection that stalls for TIMEOUT_S is closed.
+304, so the page it shows is the one this program serves; an open page that reconnects to another build of it
+reloads. A connection that stalls for TIMEOUT_S is closed.
 Only this server's own page drives the panel: a request with a Host other than an IP address or localhost with
 the server's port (DNS rebinding), from another Origin, or from another site (Sec-Fetch-Site) gets 403, except a
 link to the page itself from another site; no other site may frame the page (clickjacking), and none can read a
@@ -36,6 +38,7 @@ A fatal error of the live panel ends the program with its traceback; the page th
 import argparse
 import contextlib
 import errno
+import hashlib
 import ipaddress
 import json
 import os
@@ -78,6 +81,19 @@ def port(text):
     if not 0 <= number <= PORT_MAX:
         raise ValueError(text)
     return number
+
+
+def build(directory=VIEWER):
+    """The build of the page: a hash of the files under directory, by their paths and contents"""
+    digest = hashlib.sha256()
+    for top, dirs, files in os.walk(directory):
+        dirs.sort()
+        for name in sorted(files):
+            path = os.path.join(top, name)
+            with open(path, "rb") as f:
+                data = f.read()
+            digest.update(f"{os.path.relpath(path, directory)}\0{len(data)}\0".encode() + data)
+    return digest.hexdigest()[:16]
 
 
 def inputs(path=GEOMETRY):
@@ -137,7 +153,7 @@ class Page(ThreadingHTTPServer):
         """Serves the page for a Live, not started yet: start it with output as its output. forward(device,
         report) gets every report too (Uhid.send)."""
         super().__init__(address, partial(Handler, directory=VIEWER))
-        self.live, self.forward, self.inputs = live, forward, inputs()
+        self.live, self.forward, self.inputs, self.build = live, forward, inputs(), build()
         self.reports = {}                      # the last report of each device
         self.held, self.seen = {}, {}          # each client's switches held, and when it last posted
         self.lock, self.closing = threading.Lock(), threading.Event()
@@ -213,6 +229,11 @@ class Page(ThreadingHTTPServer):
         self.closing.set()
         self.shutdown()
         self.server_close()
+
+    def handle_error(self, request, client_address):
+        # a request the page gave up on (a stall of this program): its answer finds the connection closed
+        if not isinstance(sys.exc_info()[1], ConnectionError):
+            super().handle_error(request, client_address)
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -304,8 +325,8 @@ class Handler(SimpleHTTPRequestHandler):
         client, state, error = page.connect(), None, live.printed[-1] if live.printed else None
         try:
             self.wfile.write(b"retry: 1000\n\n")
-            self.event("hello", {"client": client, "inputs": page.inputs, "detents": DETENTS, "turn_max": TURN_MAX,
-                                 "acts_max": ACTS_MAX, "beat_ms": 1000 * BEAT_S})
+            self.event("hello", {"client": client, "build": page.build, "inputs": page.inputs, "detents": DETENTS,
+                                 "turn_max": TURN_MAX, "acts_max": ACTS_MAX, "beat_ms": 1000 * BEAT_S})
             while not page.closing.is_set() and live.thread.is_alive() and not page.gone(client):
                 if (new := page.state()) != state:
                     self.event("state", state := new)
@@ -364,12 +385,14 @@ def main(argv=None):
     except KeyboardInterrupt:
         pass
     finally:
-        page.stop()
-        try:
-            live.stop()                        # raises the live panel's fatal error, with its traceback
+        try:                                   # (a second Ctrl-C while one stops still stops the others)
+            page.stop()
         finally:
-            if out:
-                out.close()
+            try:
+                live.stop()                    # raises the live panel's fatal error, with its traceback
+            finally:
+                if out:                        # after the panel, which sends nothing more
+                    out.close()
 
 
 if __name__ == "__main__":

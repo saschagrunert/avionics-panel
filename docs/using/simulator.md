@@ -31,6 +31,10 @@ The simulator is one zip with everything it needs, Python included. The virtual 
    profile of your family with `--from` ([Mapping](mapping.md#generated-profiles)). If MobiFlight lists no
    vJoy Device, turn on joystick support and tick both under Extras, Settings, Peripherals.
 
+To try the page before vJoy is installed, open a command prompt in the `avionics-panel-sim` folder (type
+`cmd` in Explorer's address bar, Enter) and run `python\python.exe -m sim.page --open`. MobiFlight then sees
+no joysticks.
+
 [The page](#the-page) says how to play the panel in the browser.
 
 ## The page
@@ -40,16 +44,20 @@ everything that can be operated:
 
 - Keys: press with the mouse or a finger; a key stays pressed as long as you hold it.
 - Knobs: the pointer's distance from the knob's middle picks the inner knob or the outer ring round it. The
-  mouse wheel turns that ring, one detent per notch, so a fast spin is a fast turn, and a mouse button pushes
-  the knob as long as it is down. On a touch screen, a finger moved round the knob turns the ring it touched,
-  one detent per 12 degrees as on the panel. A quick tap in the middle pushes the knob; a finger that moves
-  round it, even by a fraction of a detent, never does. A push held by touch is not possible; the mouse can
-  hold one.
+  mouse wheel turns that ring, one detent per notch, so a fast spin is a fast turn, and the left mouse button
+  pushes the knob as long as it is down. On a touch screen, a finger moved round the knob turns the ring it touched,
+  one detent per 12 degrees as on the panel. A quick tap on the knob, on its outer ring or close round it
+  pushes the knob; a finger that moves round it, even by a fraction of a detent, never does. A push held by
+  touch is not possible; the mouse can hold one.
 - RANGE turns and pushes like the other knobs; holding one of the four arrows round it tilts it that way.
 - The SHIFT and UNIT lights follow the firmware. The lines at the bottom left say the same in words and show
   the buttons each joystick reports, by their [BUTTONS.md](../../firmware/BUTTONS.md) names; a button that
   went off stays there dimmed for a second. A firmware error shows its message; when the program stops, the
-  page says it is disconnected and reconnects once it runs again.
+  page says it is disconnected and reconnects once it runs again. If the program then serves another version
+  of the page, as a newer zip can, the page reloads.
+
+The page is played with a mouse or a touch screen only: the keyboard does not operate it, and a screen reader
+does not announce the lines at the bottom left.
 
 Clicking the page takes the keyboard focus from the sim, so run the sim in a window or borderless, not in
 exclusive full screen.
@@ -89,7 +97,7 @@ MobiFlight and MSFS do not run on Linux, but the simulator does, from a copy of 
 3.10 or newer:
 
 ```sh
-python3 -m sim.page          # the panel in the browser, http://127.0.0.1:8000/?sim
+python3 -m sim.page --open   # the panel in the browser, http://127.0.0.1:8000/?sim
 sudo python3 -m sim.page --uhid
 ```
 
@@ -111,8 +119,10 @@ function whose shortcut is down, with the shortcut. Its keystrokes reach the sim
   `python\python.exe -m sim.page --keyboard --sendinput --host 0.0.0.0`, open the address it prints on the
   tablet, and bring the sim to the front. When the command prompt's window closes, the keystrokes stop and the
   keys held are let go. Windows takes no keystrokes while a UAC prompt or the lock screen is up: the command
-  prompt says so once, and the panel's next keys arrive when Windows takes them again. Bindings made this way
-  are the keyboard's, so they should work with the panel later, unlike vJoy's.
+  prompt says so once, and the panel's next keys arrive when Windows takes them again. A sim that runs as
+  administrator takes no keystrokes from a program that does not, and Windows says nothing about it: then
+  run the command prompt as administrator too. Bindings made this way are the keyboard's, so they should work
+  with the panel later, unlike vJoy's.
 - Linux: `sudo python3 -m sim.page --keyboard --uhid` makes a keyboard with the panel's descriptor, name and
   USB IDs, which the desktop takes like any keyboard, in the window in front. The desktop can act on some of
   the shortcuts itself, window shortcuts with Alt and an F-key for example.
@@ -126,8 +136,9 @@ vJoy takes only the joysticks: `--vjoy` refuses the keyboard mode, and `--sendin
   [update mode](mapping.md#update-mode-and-guids) do not come up. Only `--uhid` on Linux shows the panel's
   name and IDs, and nothing shows its USB layer.
 - The firmware is the panel's, but the PC runs it on stand-ins for the hardware, so its timing is modelled: a
-  key scan every 19.5 ms, a loop pass of 3 ms and a USB report every 8 ms, as on the board. The PC's own load
-  can delay a step slightly; the board's real loop time is tested on the board.
+  key scan every 19.5 ms and a USB report every 8 ms, as on the board, and a loop pass of 3 ms; the board's
+  own pass time is measured on the board ([Loop pass time](../architecture/firmware.md#loop-pass-time)). The
+  PC's own load can delay a step slightly.
 - A mouse is not the panel: the feel of the keys and knobs, their reach and the legends' legibility are for
   the real panel to show.
 

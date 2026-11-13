@@ -19,6 +19,9 @@ Unblock, OK, and extract it again.
 A profile bound to the vJoy devices has to be bound to the real panel again later: MobiFlight tells
 joysticks apart by an ID Windows gives each one.
 
+To try the page without vJoy, open a command prompt in this folder (type cmd in Explorer's address bar,
+Enter) and run python\python.exe -m sim.page --open. MobiFlight then sees no joysticks.
+
 The panel's keyboard mode, for MSFS without MobiFlight, runs too, without vJoy: see Keyboard mode on the
 page linked below.
 

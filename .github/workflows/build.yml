@@ -1,10 +1,11 @@
 name: build
 # Runs ./build.sh, which regenerates every output and runs every check, and fails when a committed output is
-# not current. Builds the simulator for Windows and the MobiFlight profiles and runs the simulator's Windows
-# tests. A push to main publishes the 3D view once build.sh and its checks pass. Once the Windows tests and
-# both files' jobs pass too, it replaces the files of the latest build (the release on the tag rolling), at the
-# links the docs give; a release that is published gets the same files attached. build.sh takes its tools from
-# the nixpkgs locked in flake.lock; the zip and the profiles are made with the runner's python3.
+# not current. Builds the simulator for Windows and the MobiFlight profiles, runs the simulator's Windows
+# tests and runs the zip on Windows. A push to main publishes the 3D view once build.sh and its checks pass.
+# Once the Windows jobs and both files' jobs pass too, it replaces the files of the latest build (the release
+# on the tag rolling), at the links the docs give; a release that is published gets the same files attached.
+# build.sh takes its tools from the nixpkgs locked in flake.lock; the zip and the profiles are made with the
+# runner's python3.
 on:
   push:
     branches:
@@ -72,8 +73,9 @@ jobs:
         env:
           REQUIRE_UHID: ${{ steps.uhid.outputs.require }}
       # build.sh reproduces every file: a changed, new or deleted output fails. On a Dependabot pull request
-      # the nixpkgs update then changes an output (STEP, PDF and PNG files follow OpenCascade and
-      # matplotlib): run build.sh on its branch and commit the result.
+      # the nixpkgs update can change outputs (the solids and meshes, viewer/geometry.js and the fits table
+      # of mechanics.md follow OpenCascade; drawings, pictures and lettering follow matplotlib, shapely and
+      # librsvg): run build.sh on its branch and commit the result.
       - name: Committed outputs are up to date
         run: |
           git status --short
@@ -160,6 +162,37 @@ jobs:
           tests/test_page.py tests/test_sendinput.py tests/test_vjoy.py tests/test_windows_zip.py
         env:
           REQUIRE_ZIP_PYTHON: "1"
+  # The zip of this run as it is published, unpacked on Windows: the Python it ships with imports the simulator
+  # and runs the firmware, then serves the page (vJoy is not installed here).
+  windows-zip:
+    name: simulator zip on Windows
+    needs: zip
+    runs-on: windows-2025
+    timeout-minutes: 10
+    permissions: {}
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: avionics-panel-sim-windows
+      - run: Expand-Archive avionics-panel-sim-windows.zip .
+      - run: >-
+          & .\avionics-panel-sim\python\python.exe -c "import sim.page, sim.sendinput, sim.vjoy; from sim import Sim;
+          sim.page.inputs(); s = Sim(); s.tap('AP'); assert s.presses(1) == ['AP'], s.presses(1)"
+      - run: |
+          $page = Start-Process .\avionics-panel-sim\python\python.exe "-m sim.page --port 8765" -NoNewWindow -PassThru
+          try {
+            for ($i = 0; ; $i++) {
+              try { $r = Invoke-WebRequest "http://127.0.0.1:8765/?sim" -TimeoutSec 5; break }
+              catch { if ($i -ge 30) { throw }; Start-Sleep 1 }
+            }
+            if (-not $r.Content.Contains("sim.js")) { throw "not the panel page" }
+            # the program says hello on the page's stream, and still runs
+            & .\avionics-panel-sim\python\python.exe -c "import urllib.request as u; r = u.urlopen('http://127.0.0.1:8765/sim/events', timeout=10); assert b'event: hello\n' in [r.readline() for _ in range(3)]"
+            if ($LASTEXITCODE) { throw "no hello" }
+            if ($page.HasExited) { throw "the simulator ended" }
+          } finally {
+            Stop-Process -Id $page.Id
+          }
   # Packs the viewer without write access; pages-deploy publishes the artifact. A push to main or a manual run
   # on main publishes, once its build has passed; forks have no Pages of this repository to deploy to.
   pages-pack:
@@ -182,10 +215,12 @@ jobs:
     needs: pages-pack
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    # one deployment at a time; one that started finishes, a newer one waits
+    # One deployment at a time: one that started finishes, and every other one waits its turn (queue: max), so
+    # the next one to queue, which can be an older commit's, cancels none of them: the tip's always runs.
     concurrency:
       group: pages
       cancel-in-progress: false
+      queue: max
     permissions:
       contents: read # read the tip of main
       pages: write # publish the artifact
@@ -212,10 +247,10 @@ jobs:
         if: steps.tip.outputs.current == 'true'
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
   # Only this job and rolling may write to the releases, this one only to the release that started the run. Both
-  # wait for the build, the Windows tests and the files.
+  # wait for the build, the Windows tests, the files and the zip's run on Windows.
   release:
     name: attach to the release
-    needs: [build, windows, zip, profiles]
+    needs: [build, windows, zip, windows-zip, profiles]
     if: github.event_name == 'release'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -237,17 +272,19 @@ jobs:
   # Keeps the files of the newest commit on main that passed at releases/download/rolling/<file>. The first run
   # makes the release "Latest build" and its tag rolling; each run replaces the files, names its commit in their
   # labels and the notes, and moves the tag to it, so the release's source code is the commit the files were
-  # built from. Needs immutable releases off. Updates run one at a time, a newer one waiting for the one in
-  # progress. A re-run repairs a failed update.
+  # built from. Needs immutable releases off. Updates run one at a time, and every one waits its turn (queue:
+  # max), so the next one to queue, which can be an older commit's, cancels none of them: the tip's always runs,
+  # and only it replaces the files. A re-run repairs a failed update.
   rolling:
     name: update the latest build
-    needs: [build, windows, zip, profiles]
+    needs: [build, windows, zip, windows-zip, profiles]
     if: github.repository == 'saschagrunert/avionics-panel' && github.event_name == 'push'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     concurrency:
       group: rolling-release
       cancel-in-progress: false
+      queue: max
     permissions:
       contents: write # replace the files, move the tag, edit the release
     steps:
@@ -278,10 +315,17 @@ jobs:
           # and a ref it moves starts no workflow
           gh api -X PATCH "repos/$GH_REPO/git/refs/tags/rolling" -f sha="$GITHUB_SHA" -F force=true >/dev/null
           # every file to download, built in this workflow, goes up in this one call, labelled with the commit
+          names=(avionics-panel-sim-windows.zip avionics-panel-*.mfproj)
           files=()
-          for file in avionics-panel-sim-windows.zip avionics-panel-*.mfproj; do
+          for file in "${names[@]}"; do
             files+=("$file#$file ($short)")
           done
           gh release upload rolling --clobber "${files[@]}"
+          # then a file this run did not build goes, such as the profile of a family that was removed (the names
+          # are letters, digits, dots and hyphens, which GitHub keeps as they are)
+          assets=$(gh release view rolling --json assets --jq '.assets[].name')
+          while IFS= read -r name; do
+            [[ -z $name || " ${names[*]} " == *" $name "* ]] || gh release delete-asset rolling "$name" --yes </dev/null
+          done <<<"$assets"
           gh release edit rolling --title "Latest build" --prerelease=false --latest --target "$GITHUB_SHA" \
             --notes "$notes" >/dev/null
