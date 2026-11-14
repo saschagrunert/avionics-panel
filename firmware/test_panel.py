@@ -257,6 +257,112 @@ def test_freq_mode_survives_a_long_pause():
     assert s.take() == [(1, "NAV_KHZ_UP")]
 
 
+def test_holding_the_freq_push_returns_it_to_com():
+    # from every mode, and in the keyboard mode too: the press cycles as before and is held as before, and once
+    # held FREQ_HOLD_MS the knob tunes COM; a shorter push only cycles
+    for solo in (False, True):
+        for start in range(len(P.FREQ_MODES)):
+            for held, mode in ((P.FREQ_HOLD_MS - 1, (start + 1) % 3), (P.FREQ_HOLD_MS, 0), (5000, 0)):
+                s = Sim(solo)
+                for _ in range(start):
+                    s.key("FREQ_PUSH")
+                s.take()
+                s.p.key("FREQ_PUSH", True, s.t); s.run(held)
+                assert s.p.freq_mode == mode and s.down(1) == {"FREQ_PUSH"}, (solo, start, held)
+                s.p.key("FREQ_PUSH", False, s.t); s.run(500)
+                s.turn("FREQ_INNER", 1)
+                assert s.take() == [(1, "FREQ_PUSH"), (1, P.FREQ_MODES[mode][1] + "_UP")], (solo, start, held)
+
+
+def test_a_freq_push_released_in_time_is_short_while_its_release_waits_out_the_bounce():
+    # the hold counts until the scan of the release, not until it is applied BOUNCE_MS later; a bounce in
+    # between does not start the hold again
+    for release, mode in ((P.FREQ_HOLD_MS - 1, 1), (P.FREQ_HOLD_MS, 0)):
+        s = Sim()
+        s.p.key("FREQ_PUSH", True, s.t); s.run(release)
+        s.p.key("FREQ_PUSH", False, s.t); s.run(P.BOUNCE_MS + 10)
+        assert s.p.freq_mode == mode, release
+    s = Sim()
+    s.p.key("FREQ_PUSH", True, s.t); s.run(500)
+    s.p.key("FREQ_PUSH", False, s.t); s.run(10); s.p.key("FREQ_PUSH", True, s.t)   # a bounce: still held
+    s.run(P.FREQ_HOLD_MS - 510)
+    assert s.p.freq_mode == 0 and s.take() == [(1, "FREQ_PUSH")]
+
+
+def test_another_push_released_under_a_held_freq_push_keeps_its_hold():
+    s = Sim()
+    s.p.key("FREQ_PUSH", True, s.t); s.run(100)
+    s.key("ALTHDG_PUSH", 100)
+    s.run(P.FREQ_HOLD_MS)
+    assert s.p.freq_mode == 0
+
+
+def test_a_shifted_freq_push_held_stays_xpdr_mode_and_keeps_the_mode():
+    s = Sim()
+    s.key("FREQ_PUSH"); s.take()                                         # NAV
+    s.key("SHIFT"); s.p.key("FREQ_PUSH", True, s.t); s.run(2000)
+    s.turn("FREQ_INNER", 1); s.p.key("FREQ_PUSH", False, s.t); s.run(P.SHIFT_MS + 100)
+    assert s.p.freq_mode == 1 and s.take() == [(1, "XPDR_MODE"), (1, "SQK_D1_UP")]
+    s.turn("FREQ_INNER", 1); assert s.take() == [(1, "NAV_KHZ_UP")]
+
+
+def test_a_freq_turn_ends_the_hold():
+    # a push held while the FREQ knob turns changes no radio under the hand: the turn tunes the mode the push
+    # stepped to, and the hold no longer returns to COM
+    s = Sim()
+    s.p.key("FREQ_PUSH", True, s.t); s.run(P.FREQ_HOLD_MS - 20)          # NAV
+    s.p.turn("FREQ_INNER", 8, s.t); s.run(2000)                           # NAV steps, no COM at 1 s
+    s.p.turn("FREQ_INNER", -1, s.t)
+    s.p.key("FREQ_PUSH", False, s.t); s.run(2000)
+    assert s.take() == [(1, "FREQ_PUSH")] + [(1, "NAV_KHZ_UP")] * 8 + [(1, "NAV_KHZ_DN")]
+
+
+def test_a_hold_read_late_with_its_turn_still_returns_to_com():
+    # after a wait for the host the loop reads a long hold and the turn after it at once: the hold counts first,
+    # so the turn tunes COM
+    s = Sim()
+    s.t = 4000
+    s.p.key("FREQ_PUSH", True, s.t, at=2000)                               # NAV, held 1.5 s by the scans
+    s.p.key("FREQ_PUSH", False, s.t, at=3500)
+    s.p.turn("FREQ_INNER", 1, s.t); s.run(500)
+    assert s.p.freq_mode == 0 and (1, "COM_KHZ_UP") in s.take()
+
+
+def test_a_hold_read_late_returns_to_com():
+    # after a wait for the host the loop reads a long hold at once, and then only ticks, or reads the next press:
+    # the hold counts before its release ends the push
+    for then in ("tick", "press"):
+        s = Sim()
+        s.t = 4000
+        s.p.key("FREQ_PUSH", True, s.t, at=2000)                           # NAV, held 1.5 s by the scans
+        s.p.key("FREQ_PUSH", False, s.t, at=3500)
+        if then == "press":
+            s.p.key("FREQ_PUSH", True, s.t, at=3990)                       # a new push from COM: NAV, not ADF
+            assert s.p.freq_mode == 1
+        else:
+            s.p.tick(s.t)
+            assert s.p.freq_mode == 0
+
+
+def test_a_hold_counts_before_a_release_after_a_keypad_overflow():
+    # code.py lets go of every key after a keypad overflow, at once: a push held long enough returns to COM first
+    s = Sim()
+    s.p.key("FREQ_PUSH", True, s.t)                                        # NAV
+    s.t += P.FREQ_HOLD_MS + 500                                            # a wait for the host: no tick
+    s.p.release("FREQ_PUSH", s.t)
+    assert s.p.freq_mode == 0
+
+
+def test_a_freq_hold_runs_from_the_scan_of_its_press():
+    # a press the loop reads late (after a wait for the host) is held from its scan, as its release is: held
+    # 1.5 s by the scans, it returns to COM, though the loop read it only 0.5 s before the release
+    s = Sim()
+    s.t = 3000
+    s.p.key("FREQ_PUSH", True, s.t, at=s.t - 1000); s.run(500)            # scanned at 2000, read at 3000: NAV
+    s.p.key("FREQ_PUSH", False, s.t); s.run(100)                           # released at 3500
+    assert s.p.freq_mode == 0
+
+
 def squawk(s):
     """SHIFT, then one detent of the FREQ inner ring: a new squawk entry, on digit 1"""
     s.key("SHIFT"); s.turn("FREQ_INNER", 1)

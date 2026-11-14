@@ -1,24 +1,27 @@
 """The live panel (sim/live.py) in the browser: serves the 3D view (viewer/) with the panel playable in it, and an
 API for it. Python's standard library only.
 
-    python3 -m sim.page [--keyboard] [--uhid | --vjoy | --sendinput] [--port N] [--host ADDR] [--open]
+    python3 -m sim.page [--keyboard | --family NAME] [--uhid | --vjoy | --sendinput] [--port N] [--host ADDR]
+                        [--open]
 
 prints the page's URL (http://127.0.0.1:8000/?sim): the ?sim makes the viewer play the panel (viewer/sim.js).
 With --uhid the reports also go to a Linux HID device, as with `python3 -m sim.uhid`; with --vjoy to vJoy's
 devices 1 and 2 on Windows, as with `python -m sim.vjoy`. --keyboard runs the keyboard mode (keys.py), whose
-keystrokes --sendinput gives to the window in front on Windows (sim/sendinput.py). --open opens the page in the
-default browser once it is served.
+keystrokes --sendinput gives to the window in front on Windows (sim/sendinput.py). --family names a profile
+(mobiflight.families.FAMILIES), and the page then shows what each joystick button does in it (legend()); the
+keyboard mode has no joystick buttons, so it takes none. --open opens the page in the default browser once it is
+served.
 
 The API, under /sim/:
 
 - GET events: one Server-Sent Events stream per page. `hello` first, with the page's client ID (a secret: only
   the page can read it), the build (build(): a page that reconnects to a program serving other files reloads),
   the version (version(): the commit of the files, which the page shows; null in a git checkout), the firmware
-  names of the caps and knobs geometry.js draws (inputs()) and the numbers the page keeps to (the
-  detents of a knob's turn, TURN_MAX, ACTS_MAX and BEAT_S in ms), then `state` whenever the
-  lights or the buttons change (the lights are read every POLL_S, so the SHIFT light's 125 ms pulse keeps its
-  rhythm; in keyboard mode the buttons are the keyboard's, with the shortcut), and `fault` for an error in
-  code.py's loop, which then reloads (not `error`: EventSource has an event of that name).
+  names of the caps and knobs geometry.js draws (inputs()), the legend of --family's profile (null without one)
+  and the numbers the page keeps to (the detents of a knob's turn, TURN_MAX, ACTS_MAX and BEAT_S in ms), then
+  `state` whenever the lights or the buttons change (the lights are read every POLL_S, so the SHIFT light's 125 ms
+  pulse keeps its rhythm; in keyboard mode the buttons are the keyboard's, with the shortcut), and `fault` for an
+  error in code.py's loop, which then reloads (not `error`: EventSource has an event of that name).
 - POST act?client=ID: actions, one per line, run at once and in order: `press NAME`, `release NAME` (a key, push
   or RANGE switch) and `turn RING DETENTS` (all in the same ms, sim.live.TURN_MAX at most). Nothing paces them: a
   fast wheel is a fast turn. An empty one only says that the page is still there. 204, or 400 with the reason
@@ -74,6 +77,7 @@ ACTS = {"press": USAGE["press"], "release": USAGE["release"], "turn": "turn RING
 WSAEACCES = 10013    # OSError.winerror (with errno 13) for a port Windows gives to no one: another program has it
                      # to itself, or it lies in a range that Windows keeps, as for Hyper-V and WSL
 PORT_MAX = 65535
+NOTHING = "nothing"  # the legend of a button the profile leaves unmapped, with the profile's reason after it
 
 
 def port(text):
@@ -121,6 +125,23 @@ def inputs(path=GEOMETRY):
         else:
             knobs[knob] = {"outer": f"{knob}_OUTER", "inner": f"{knob}_INNER", "push": f"{knob}_PUSH"}
     return {"keys": keys, "knobs": knobs}
+
+
+def legend(family):
+    """What each joystick button does in a profile of FAMILIES: {device: {button: what}}, what being the events and
+    variables its codes set, as MobiFlight's list names them (mobiflight.profile.label()), or NOTHING and the
+    profile's reason for a button it leaves unmapped"""
+    # imported here and in main(), the program's start: a module that imports sim.page needs no profiles
+    from mobiflight.families import FAMILIES
+    from mobiflight.profile import actions as codes
+    from mobiflight.profile import label
+
+    profile, out = FAMILIES[family], {}
+    for device in (1, 2):
+        table = profile.DEVICE[device]
+        out[device] = {button: label(" ".join(codes(entry).values())) for button, entry in table.items()}
+        out[device].update({button: f"{NOTHING} ({why})" for button, why in profile.UNMAPPED[device].items()})
+    return out
 
 
 def actions(body):
@@ -171,11 +192,12 @@ class Page(ThreadingHTTPServer):
     # the connections: there the port must be free
     allow_reuse_address = sys.platform != "win32"
 
-    def __init__(self, live, address=("127.0.0.1", 0), forward=None):
+    def __init__(self, live, address=("127.0.0.1", 0), forward=None, family=None):
         """Serves the page for a Live, not started yet: start it with output as its output. forward(device,
-        report) gets every report too (Uhid.send)."""
+        report) gets every report too (Uhid.send). family: the profile of the page's legend (legend()), or None."""
         super().__init__(address, partial(Handler, directory=VIEWER))
         self.live, self.forward, self.inputs, self.build = live, forward, inputs(), build()
+        self.legend = legend(family) if family else None
         self.reports = {}                      # the last report of each device
         self.held, self.seen = {}, {}          # each client's switches held, and when it last posted
         self.lock, self.closing = threading.Lock(), threading.Event()
@@ -347,8 +369,8 @@ class Handler(SimpleHTTPRequestHandler):
         client, state, error = page.connect(), None, live.printed[-1] if live.printed else None
         try:
             self.wfile.write(b"retry: 1000\n\n")
-            self.event("hello", {"client": client, "build": page.build, "version": VERSION,
-                                 "inputs": page.inputs, "detents": DETENTS, "turn_max": TURN_MAX, "acts_max": ACTS_MAX,
+            self.event("hello", {"client": client, "build": page.build, "version": VERSION, "inputs": page.inputs,
+                                 "legend": page.legend, "detents": DETENTS, "turn_max": TURN_MAX, "acts_max": ACTS_MAX,
                                  "beat_ms": 1000 * BEAT_S})
             while not page.closing.is_set() and live.thread.is_alive() and not page.gone(client):
                 if (new := page.state()) != state:
@@ -367,11 +389,17 @@ class Handler(SimpleHTTPRequestHandler):
 
 
 def main(argv=None):
+    # --family's names
+    from mobiflight.families import FAMILIES
+
     parser = argparse.ArgumentParser(prog="python3 -m sim.page", description=__doc__.split("\n\n")[0])
     parser.add_argument("--port", type=port, default=8000, help="the port to serve on (default 8000)")
     parser.add_argument("--host", default="127.0.0.1",
                         help="the address to serve on (default 127.0.0.1; 0.0.0.0 for a tablet on the network)")
-    parser.add_argument("--keyboard", action="store_true", help="the keyboard mode: a keyboard, no joysticks")
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument("--keyboard", action="store_true", help="the keyboard mode: a keyboard, no joysticks")
+    modes.add_argument("--family", choices=FAMILIES, metavar="NAME",
+                       help="show what each joystick button does in this profile: " + ", ".join(FAMILIES))
     outputs = parser.add_mutually_exclusive_group()
     outputs.add_argument("--uhid", action="store_true", help="also feed a Linux HID device (sim.uhid)")
     outputs.add_argument("--vjoy", action="store_true", help="also feed vJoy devices 1 and 2 on Windows (sim.vjoy)")
@@ -383,7 +411,7 @@ def main(argv=None):
     try:
         if args.uhid or args.vjoy or args.sendinput:
             out = Uhid(live) if args.uhid else VJoy(live) if args.vjoy else SendInput(live)
-        page = Page(live, (args.host, args.port), out.send if out else None)
+        page = Page(live, (args.host, args.port), out.send if out else None, args.family)
     except OSError as e:
         if out:
             out.close()
@@ -399,7 +427,10 @@ def main(argv=None):
     live.start(page.output)
     threading.Thread(target=page.serve_forever, name="page", daemon=True).start()
     on = f" ({out.name}{' on uhid' if args.uhid else ''})" if out else ""
-    print(f"The panel{' in keyboard mode' if args.keyboard else ''}{on}: {page.url} (Ctrl-C ends it)", flush=True)
+    mode = " in keyboard mode" if args.keyboard else ""
+    if args.family:
+        mode = f" with the {FAMILIES[args.family].NAME} profile's legend"
+    print(f"The panel{mode}{on}: {page.url} (Ctrl-C ends it)", flush=True)
     if hint := firewall(page.server_address[0]):
         print(hint, flush=True)
     if args.open:

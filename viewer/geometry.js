@@ -663,10 +663,12 @@ window.GEOMETRY = {
   "across": 16.4,
   "body": 8.6,
   "flats": 15.73,
+  "fulcrum": 5.55,
   "hub_d": 7.2,
   "hub_top": 10.5,
   "lever_d": 2.5,
-  "lever_z1": 17.4
+  "lever_z1": 17.4,
+  "tilt": 9.0
  },
  "screw": {
   "d": 3.0,

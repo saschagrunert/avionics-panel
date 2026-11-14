@@ -46,10 +46,12 @@ everything that can be operated:
 - Keys: press with the mouse or a finger; a key stays pressed as long as you hold it.
 - Knobs: the pointer's distance from the knob's middle picks the inner knob or the outer ring round it. The
   mouse wheel turns that ring, one detent per notch, so a fast spin is a fast turn, and the left mouse button
-  pushes the knob as long as it is down. On a touch screen, a finger moved round the knob turns the ring it touched,
-  one detent per 12 degrees as on the panel. A quick tap on the knob, on its outer ring or close round it
-  pushes the knob; a finger that moves round it, even by a fraction of a detent, never does. A push held by
-  touch is not possible; the mouse can hold one.
+  pushes the knob as long as it is down. On a touch screen, a finger moved round the knob turns the ring it
+  touched, one detent per 12 degrees as on the panel. A finger that stays still on the knob, on its outer ring
+  or close round it pushes the knob: a quick tap for a moment, and a finger that stays longer than 1 s for as
+  long as it stays, so a held push works by touch too: the FREQ push for COM takes a finger of about 2 s. A
+  finger that moves round the knob, even by a fraction of a detent, never pushes it, and one that holds the
+  push turns the ring if it then moves round the knob, as a push and turn on the panel.
 - RANGE turns and pushes like the other knobs; holding one of the four arrows round it tilts it that way.
 - A key or push clicks as it goes down and as it comes up, and a knob ticks at each detent. "sound on" beside
   the lines at the bottom left turns the sounds off and on again; the browser remembers it. The browser plays
@@ -58,12 +60,13 @@ everything that can be operated:
   again with the next. An iPhone or iPad with its silent switch on plays none.
 - The SHIFT and UNIT lights follow the firmware. The lines at the bottom left say the same in words and show
   the buttons each joystick reports, J1 and J2, by their [BUTTONS.md](../../firmware/BUTTONS.md) names; a
-  button that went off stays there dimmed for a second. The last line, dimmed, names the build: the date and
-  short hash of the commit the zip was built from, as in `firmware\version.py` in its folder, which the
-  release names too. Run from a git checkout, the page has no such line (git log names the commit there). In
-  a low window, as a phone turned sideways, they are one line across the bottom. A firmware error shows its
-  message; when the program stops, the page says it is disconnected and reconnects once it runs again. If the
-  program then serves another version of the page, as a newer zip can, the page reloads.
+  button that went off stays there dimmed for a second. With a [legend](#legend), one more line says what the
+  button pressed last does. The last line, dimmed, names the build: the date and short hash of the commit the
+  zip was built from, as in `firmware\version.py` in its folder, which the release names too. Run from a git
+  checkout, the page has no such line (git log names the commit there). In a low window, as a phone turned
+  sideways, they are one line across the bottom. A firmware error shows its message; when the program stops,
+  the page says it is disconnected and reconnects once it runs again. If the program then serves another
+  version of the page, as a newer zip can, the page reloads.
 
 The page is played with a mouse or a touch screen only: the keyboard does not operate it, and a screen reader
 does not announce the lines at the bottom left.
@@ -87,6 +90,19 @@ open it in Settings, Network & internet, and choose Private network; a DomainAut
 stays closed. Run it again after moving the folder. To take the rule out again, in a command prompt run as
 administrator:
 `netsh advfirewall firewall delete rule name="Avionics Panel simulator"`.
+
+### Legend
+
+`--family` with the name of a [generated profile](mapping.md#generated-profiles) (`g1000`, `g3x`, `gns`,
+`gtn`, `black-square-bonanza`, `cows-da40` or `carenado-c182t`, as for `python -m mobiflight`) adds a line at
+the bottom left that says what the button pressed last does in that profile, as "HDG_SYNC: HEADING_BUG_SET" (a
+button of joystick 2 with "(J2)"): the events and variables it sets as MobiFlight's list names them, or
+"nothing" and why for a button the profile leaves unmapped ([Mapping](mapping.md#generated-profiles)). It
+stays until the next button goes down; a long one ends in an ellipsis, and in a low window, where the lines
+are one, it is cut to 48 characters. On Windows, close the `start.bat` window, open a command prompt in the
+folder and run `start.bat --family g1000`; on Linux, add `--family g1000` to the command in [Linux](#linux).
+Without `--family` the page shows no legend. The legend is for the joysticks only: the [keyboard
+mode](#keyboard-mode) shows shortcuts, not joystick buttons, and refuses `--family`.
 
 ## What MobiFlight shows
 
@@ -145,7 +161,8 @@ function whose shortcut is down, with the shortcut. Its keystrokes reach the sim
   USB IDs, which the desktop takes like any keyboard, in the window in front. The desktop can act on some of
   the shortcuts itself, window shortcuts with Alt and an F-key for example.
 
-vJoy takes only the joysticks: `--vjoy` refuses the keyboard mode, and `--sendinput` the joysticks.
+vJoy takes only the joysticks: `--vjoy` refuses the keyboard mode, and `--sendinput` the joysticks. The
+[legend](#legend) is for the joysticks only: `--keyboard` refuses `--family`.
 
 ## Limits
 

@@ -32,7 +32,7 @@ shortcuts instead. To try them without a panel, the firmware runs on the PC and 
 | --- | --- | --- | --- | --- |
 | Left top | Dual encoder, Ø17 / Ø12 knobs | Outer ALT, inner HDG | HDG SYNC | Outer BARO, inner CRS, push STD |
 | Left bottom | Multi-control: turn, tilt 4 ways, push | RANGE | Map pointer | Own buttons: the second unit's map in the generated profiles (in the Bonanza's also its weather radar's range), else free for your own mappings |
-| Right top | Dual encoder, Ø17 / Ø12 knobs | Frequency: outer MHz, inner kHz (ADF: outer 100s, inner 1s) | Cycles COM, NAV, ADF (without an ADF in the aircraft, the ADF mode's turns do nothing) | Squawk: outer selects the digit, inner sets it; push XPDR mode |
+| Right top | Dual encoder, Ø17 / Ø12 knobs | Frequency: outer MHz, inner kHz (ADF: outer 100s, inner 1s) | Cycles COM, NAV, ADF; held 1 s, back to COM (without an ADF in the aircraft, the ADF mode's turns do nothing) | Squawk: outer selects the digit, inner sets it; push XPDR mode |
 | Right bottom | Dual encoder, Ø17 / Ø12 knobs | Outer page group, inner page | Cursor | Lighting: outer panel lights, inner glareshield flood, push cabin light |
 
 The ALT/HDG knob:
@@ -67,7 +67,11 @@ twice per flight, and more knobs would break the symmetric layout.
 
 Frequency mode: the FREQ push cycles the knob through COM, NAV and ADF, always all three. The panel has no
 light for the mode; it starts at COM after plugging in or a firmware restart and stays until the next push,
-and both units share it, so watch which frequency moves.
+and both units share it, so watch which frequency moves. When unsure, hold the push for 1 s: the knob is back
+at COM, whatever mode it was in. The push changes the mode as it goes down, so a hold first steps to the next
+mode and returns to COM at 1 s, unless the knob turns while the push is held: that turn tunes the mode the
+push stepped to, and the knob stays there. With SHIFT a held push stays XPDR mode and leaves the mode as it
+was.
 
 Squawk (SHIFT, FREQ knob): the outer ring selects the digit and the inner ring sets it, one step per detent.
 Every entry starts at the first digit. Turning the outer ring clockwise moves on to the next digit,
@@ -193,8 +197,8 @@ The full rules and the state diagram are in [Firmware](../architecture/firmware.
   [HOTAS](#hotas).
 - After takeoff: SHIFT, FD (YD, where installed), then AP.
 - Descent: set the new altitude, press VS, hold DN to -500 to -1000 ft/min; ALT captures.
-- Tuning: push the FREQ knob to choose COM, NAV or ADF, turn outer (MHz) and inner (kHz), then press COM ⇆ or
-  NAV ⇆. SHIFT, HOME (UNIT) first for COM 2 / NAV 2. In the
+- Tuning: push the FREQ knob to choose COM, NAV or ADF (hold it 1 s for COM), turn outer (MHz) and inner
+  (kHz), then press COM ⇆ or NAV ⇆. SHIFT, HOME (UNIT) first for COM 2 / NAV 2. In the
   [generated profiles](mapping.md#generated-profiles) the ADF's turns tune its active frequency, so no
   flip-flop follows; ADF ⇆ (SHIFT, NAV ⇆) brings back the standby.
 - Squawk: tap SHIFT, set the first digit with the inner ring of the FREQ knob, move to the next digit with one
