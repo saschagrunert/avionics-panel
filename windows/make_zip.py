@@ -1,6 +1,7 @@
 """Builds the simulator for Windows (docs/using/simulator.md): one zip with Python's embeddable package for Windows
-(amd64), the firmware, the simulator, the viewer and the MobiFlight profiles, and start.bat, profile.bat,
-vjoy-setup.bat, firewall.bat and README.txt from here. Python's standard library only; runs on Linux.
+(amd64), the firmware, the simulator, the viewer, the MobiFlight profiles and mech/stack.py (the legends, for the
+cards), and start.bat, profile.bat, vjoy-setup.bat, firewall.bat and README.txt from here. Python's standard library
+only; runs on Linux.
 
     python3 windows/make_zip.py [--python ZIP] [--out ZIP]
 
@@ -8,16 +9,16 @@ downloads the embeddable package from PYTHON_URL (--python takes a copy download
 and writes --out (dist/avionics-panel-sim-windows.zip). In the zip, under avionics-panel-sim/:
 
     start.bat  profile.bat  vjoy-setup.bat  firewall.bat  README.txt  LICENSE
-    python/  firmware/  sim/  viewer/  mobiflight/
+    python/  firmware/  sim/  viewer/  mobiflight/  mech/stack.py
 
 The package's ._pth file gets the line `..`, the zip's folder: there `python -m sim.page` finds sim/ (a ._pth
-replaces sys.path, without the current directory). LICENSE, firmware/, sim/, viewer/ and mobiflight/ are the
-files git tracks, without the firmware's tests and the script for the renders, so it needs a git checkout. They
-go in as they are in the working tree, with any change that is not committed. The batch files and README.txt get
-Windows' line ends. firmware/version.py gets the commit's date and short hash, as git archive writes them
+replaces sys.path, without the current directory). LICENSE, firmware/, sim/, viewer/, mobiflight/ and mech/stack.py
+are the files git tracks, without the firmware's tests and the script for the renders, so it needs a git checkout.
+They go in as they are in the working tree, with any change that is not committed. The batch files and README.txt
+get Windows' line ends. firmware/version.py gets the commit's date and short hash, as git archive writes them
 (SUBST, .gitattributes), which the page, the firmware's console and the profiles show; with -dirty after the hash
-when a file that goes in differs from the commit. Every file has the time of the last commit, so a clean checkout
-of a commit builds the same files (the compressed bytes can differ with another zlib).
+when a file that goes in differs from the commit. Every file has the time of the last commit, so a clean checkout of
+a commit builds the same files (the compressed bytes can differ with another zlib).
 """
 import argparse
 import hashlib
@@ -37,7 +38,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 TOP = "avionics-panel-sim"
 OUT = os.path.join(ROOT, "dist", f"{TOP}-windows.zip")
-SOURCES = ("LICENSE", "firmware", "sim", "viewer", "mobiflight")
+SOURCES = ("LICENSE", "firmware", "sim", "viewer", "mobiflight", "mech/stack.py")   # (the cards take the legends)
 LEFT_OUT = ("firmware/test_", "viewer/shots.py")   # of SOURCES: not for the simulator's users
 WINDOWS = ("start.bat", "profile.bat", "vjoy-setup.bat", "firewall.bat", "README.txt")   # text with CRLF line ends
 SUBST = ("firmware/version.py",)          # of SOURCES: git archive fills in their placeholders (export-subst)

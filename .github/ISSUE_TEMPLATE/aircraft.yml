@@ -1,0 +1,61 @@
+name: Aircraft or avionics
+description: Ask for a MobiFlight profile of an aircraft, or a part for its avionics
+title: "Profile: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        A profile maps every control of the panel to an input of the aircraft, from a documented source
+        ([Adding an aircraft or a part](https://github.com/saschagrunert/avionics-panel/blob/main/docs/architecture/generators.md#adding-an-aircraft-or-a-part)). The more
+        of the fields below you fill in, the sooner it can be written. Check first whether a profile or the
+        avionics parts already cover it ([Mapping](https://github.com/saschagrunert/avionics-panel/blob/main/docs/using/mapping.md)).
+  - type: input
+    id: aircraft
+    attributes:
+      label: Aircraft
+      description: >-
+        Its developer and name in MSFS 2024, and the name the sim reports for it, which MobiFlight shows at the
+        bottom of its window during a flight.
+    validations:
+      required: true
+  - type: textarea
+    id: avionics
+    attributes:
+      label: Avionics
+      description: >-
+        Its autopilot, its navigators in unit 1 and unit 2 (G1000 NXi, GNS 530 and 430, TDS or pms50 GTN, KLN 90B,
+        radios alone), its audio panel, transponder and ADF, and any options its tablet or menu selects.
+      placeholder: KFC 150 with a KAS 297B, GNS 530 and GNS 430, KMA 28, GTX 327, KR 87
+    validations:
+      required: true
+  - type: textarea
+    id: events
+    attributes:
+      label: Source of its input events
+      description: >-
+        Where the events or variables that work its controls are written down: a section of its manual for home
+        cockpits, its HubHop presets, the avionics' source, or a MobiFlight project that works with it (attach
+        the .mfproj in a .zip: GitHub takes no .mfproj files). Say which of them you have tried in the sim.
+    validations:
+      required: true
+  - type: textarea
+    id: controls
+    attributes:
+      label: What each control of the panel should do
+      description: >-
+        For the keys and knobs that should differ from the closest profile
+        ([Compatibility](https://github.com/saschagrunert/avionics-panel/blob/main/docs/using/compatibility.md)), what
+        each should do in this aircraft, and which have no counterpart in it.
+      placeholder: |
+        VNV: the KAS 297B's VS ENG key
+        SHIFT, UP and SHIFT, DN: the engine monitor's STEP and LEAN FIND
+        GPSS: the HSI's NAV/RNAV switch
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else
+      description: Its lighting, links to its documentation, or what the closest profile already does in it.

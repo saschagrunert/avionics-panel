@@ -46,7 +46,7 @@ def test_the_layout(built):
                                        "firmware/keys.py", "firmware/version.py", "firmware/BUTTONS.md",
                                        "firmware/KEYS.md", "sim/vjoy.py", "sim/sendinput.py", "sim/page.py",
                                        "viewer/index.html", "mobiflight/__main__.py", "mobiflight/profile.py",
-                                       "mobiflight/families/g1000.py")} <= names
+                                       "mobiflight/families/g1000.py", "mech/stack.py")} <= names
         assert all(n.startswith(f"{TOP}/") for n in names)
         assert not [n for n in names if "/test_" in n or "__pycache__" in n or n.endswith("shots.py")]
         assert z.read(f"{TOP}/python/python314._pth").split(b"\r\n")[:3] == [b"python314.zip", b".", b".."]
@@ -147,9 +147,17 @@ def test_the_profiles_are_made_from_the_unpacked_zip(built, tmp_path):
     def mobiflight(*args):
         return subprocess.run([sys.executable, "-I", "-c", code, str(tmp_path / TOP), *args], cwd=out, check=True,
                               capture_output=True, text=True).stdout
+    stack = tmp_path / TOP / "mech" / "stack.py"
+    stack.rename(tmp_path / "stack.py")                                # the profiles do without the cards' legends
     listed = mobiflight("--list")
     assert "--family: " in listed and " g1000 " in listed and "--unit1, --unit2: " in listed
     mobiflight("--family", "g1000", "-o", "x.mfproj")
     project = json.loads((out / "x.mfproj").read_text(encoding="utf-8"))
     assert project["Name"] == f"Avionics Panel: G1000 NXi ({make_zip.stamp('%cs, %h')})"
-    assert os.listdir(out) == ["x.mfproj"]
+    (tmp_path / "stack.py").rename(stack)
+    mobiflight("--cards", "cards.zip")                                  # their legends are in mech/stack.py
+    mobiflight("--joystick-definition", "x.joystick.json")
+    assert sorted(os.listdir(out)) == ["cards.zip", "x.joystick.json", "x.mfproj"]
+    with zipfile.ZipFile(out / "cards.zip") as z:                     # named with the commit, as the profiles
+        assert f"<title>Avionics Panel: G1000 NXi ({make_zip.stamp('%cs, %h')})</title>" in z.read(
+            "avionics-panel-g1000-card.html").decode()

@@ -61,19 +61,6 @@ def codes(key):
             for button, entry in buttons.items() for event, code in profile.actions(entry).items()]
 
 
-def buttons_md():
-    """(device, name) -> button number, from the table in firmware/BUTTONS.md"""
-    out = {}
-    with open(os.path.join(ROOT, "firmware", "BUTTONS.md"), encoding="utf-8") as f:
-        for line in f:
-            cells = [c.strip() for c in line.strip().strip("|").split("|")]
-            if len(cells) == 4 and cells[2].isdigit():
-                for device, number in ((1, cells[2]), (2, cells[3])):
-                    if number:
-                        out[device, cells[0]] = int(number)
-    return out
-
-
 # ---------------- the tables ----------------
 @FAMILY
 def test_every_button_is_mapped_or_listed_as_unmapped(key):
@@ -1170,8 +1157,7 @@ def test_the_project_has_the_structure_mobiflight_reads(key):
 
 
 @FAMILY
-def test_button_numbers_match_buttons_md(key):
-    numbers = buttons_md()
+def test_button_numbers_match_buttons_md(key, buttons_md):
     serials = {serial: device for device, (_, serial) in PANEL.items()}
     got = {}
     for item in items(build(key=key)):
@@ -1179,7 +1165,7 @@ def test_button_numbers_match_buttons_md(key):
         name = re.fullmatch(r"(\w+)(, unit 2)?: .+", item["Name"])
         assert bool(name[2]) == (device == 2)
         got[device, name[1]] = int(item["Device"]["Name"].split()[1])
-    assert got == {k: numbers[k] for d in (1, 2) for k in [(d, n) for n in FAMILIES[key].DEVICE[d]]}
+    assert got == {(d, n): buttons_md[d][n] for d in (1, 2) for n in FAMILIES[key].DEVICE[d]}
 
 
 @FAMILY
@@ -1481,6 +1467,57 @@ def test_the_parts_zip_holds_a_project_of_every_part(tmp_path):
         for key, p in PARTS.items():
             vfr = "1200" if p.KIND == "cockpit" else None
             assert z.read(f"avionics-panel-{key}.mfproj").decode() == profile.dumps(profile.build(p, vfr=vfr)), key
+        assert {info.external_attr >> 16 for info in z.infolist()} == {0o644}   # rw-r--r-- when unpacked
+
+
+def test_an_output_takes_its_place_only_once_written(tmp_path):
+    # through a new file in the same folder: the old one stays until the new one is whole, and the new one has the
+    # mode open() would give it, or the old one's
+    out = tmp_path / "x.mfproj"
+    out.write_text("old")
+    with pytest.raises(RuntimeError), cli.replacing(str(out)) as f:
+        f.write("half")
+        raise RuntimeError
+    assert os.listdir(tmp_path) == ["x.mfproj"] and out.read_text() == "old"
+    with cli.replacing(str(out)) as f:
+        f.write("new")
+    mask = os.umask(0)
+    os.umask(mask)
+    assert os.listdir(tmp_path) == ["x.mfproj"] and out.read_text() == "new"
+    if os.name != "nt":
+        assert out.stat().st_mode & 0o777 == 0o666 & ~mask
+        out.chmod(0o640)
+        with cli.replacing(str(out)) as f:
+            f.write("kept")
+        assert out.stat().st_mode & 0o777 == 0o640
+
+
+@pytest.mark.skipif(os.name == "nt", reason="symbolic links need rights on Windows")
+def test_an_output_through_a_link_replaces_the_file_it_points_to(tmp_path):
+    # as a project linked into MobiFlight's folder: the link stays and MobiFlight reads the new project
+    (tmp_path / "mobiflight").mkdir()
+    real, link = tmp_path / "mobiflight" / "g1000.mfproj", tmp_path / "g1000.mfproj"
+    real.write_text("old")
+    link.symlink_to(real)
+    with cli.replacing(str(link)) as f:
+        f.write("new")
+    assert link.is_symlink() and real.read_text() == "new"
+    assert sorted(os.listdir(tmp_path / "mobiflight")) == ["g1000.mfproj"]
+
+
+def test_a_failed_write_leaves_no_parts_zip(tmp_path, monkeypatch):
+    # as a project that fails to write: no zip with some parts
+    build, built = profile.build, []
+
+    def fail(part, *args):
+        if built:
+            raise ValueError("no project")
+        built.append(part)
+        return build(part, *args)
+    monkeypatch.setattr(profile, "build", fail)
+    with pytest.raises(SystemExit):
+        cli.main(["--parts-zip", str(tmp_path / "parts.zip")])
+    assert built and not os.listdir(tmp_path)
 
 
 @pytest.mark.parametrize("args", [

@@ -39,7 +39,8 @@ screws and knobs. Hand-soldering the keys, encoders and RANGE control is an opti
 
 Using the panel:
 
-- [Mapping](docs/using/mapping.md): the ready MobiFlight profiles, and mapping the two joysticks by hand
+- [Mapping](docs/using/mapping.md): the ready MobiFlight profiles with a card to print for each, and mapping
+  the two joysticks by hand
 - [Controls](docs/using/controls.md): what each key and knob does
 - [Compatibility](docs/using/compatibility.md): what each control maps to per avionics family and aircraft
 - [Keyboard mode](docs/using/keyboard.md): the panel as a keyboard, for MSFS on Xbox and PS5 and without

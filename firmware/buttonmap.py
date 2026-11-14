@@ -34,7 +34,7 @@ def shifted(name):
     return SHIFTED.get(name, "S_" + name)
 
 
-def _turn(base, fast=None):
+def turn(base, fast=None):
     """Turn buttons of one knob function: slow step, plus the fast (coarse) step if it accelerates."""
     out = [base + "_UP", base + "_DN"]
     if fast:
@@ -51,26 +51,26 @@ DEVICE1_ONLY = (
     list(PLAIN_KEYS) + [shifted(k) for k in PLAIN_KEYS]
     # ALT / HDG knob (outer / inner ring); with SHIFT: BARO / CRS, push STD. CRS comes before BARO here: the
     # order is frozen with the numbers.
-    + _turn("ALT_100", "ALT_1000") + _turn("HDG_1", "HDG_10") + ["HDG_SYNC"]
-    + _turn("CRS_1", "CRS_10") + _turn("BARO") + ["BARO_STD"]
+    + turn("ALT_100", "ALT_1000") + turn("HDG_1", "HDG_10") + ["HDG_SYNC"]
+    + turn("CRS_1", "CRS_10") + turn("BARO") + ["BARO_STD"]
     # RANGE: turn, tilt (pan), push (pointer); shifted copies are free for own mappings
     + ["RANGE_CW", "RANGE_CCW", "PAN_UP", "PAN_DN", "PAN_LEFT", "PAN_RIGHT", "PTR",
        "S_RANGE_CW", "S_RANGE_CCW", "S_PAN_UP", "S_PAN_DN", "S_PAN_LEFT", "S_PAN_RIGHT", "S_PTR"]
     # frequency knob with SHIFT: squawk (octal). The outer ring selects the digit (1 to 4) and sends no
     # button, the inner ring steps the selected digit. The digits' order here is frozen with the numbers.
-    + _turn("SQK_D2") + _turn("SQK_D1") + _turn("SQK_D4") + _turn("SQK_D3") + ["XPDR_MODE"]
+    + turn("SQK_D2") + turn("SQK_D1") + turn("SQK_D4") + turn("SQK_D3") + ["XPDR_MODE"]
 )
 # FMS knob with SHIFT: cockpit lighting, the same in every unit, so on device 1 only. Outer ring: panel /
 # instrument lights, inner ring: glareshield flood, push: cabin (dome) light. One step per detent; the
 # profile sets the step size.
-LIGHTING = _turn("PANEL_LT") + _turn("FLOOD_LT") + ["CABIN_LT"]
+LIGHTING = turn("PANEL_LT") + turn("FLOOD_LT") + ["CABIN_LT"]
 
 
 def _unit():
     keys = list(UNIT_KEYS) + [shifted(k) for k in UNIT_KEYS if k != "HOME"]
     fms = ["FMS_OUTER_CW", "FMS_OUTER_CCW", "FMS_INNER_CW", "FMS_INNER_CCW", "FMS_CRSR"]   # SHIFT: LIGHTING
-    freq = _turn("COM_MHZ") + _turn("COM_KHZ") + _turn("NAV_MHZ") + _turn("NAV_KHZ")
-    freq += _turn("ADF_100") + _turn("ADF_1", "ADF_10") + ["FREQ_PUSH"]
+    freq = turn("COM_MHZ") + turn("COM_KHZ") + turn("NAV_MHZ") + turn("NAV_KHZ")
+    freq += turn("ADF_100") + turn("ADF_1", "ADF_10") + ["FREQ_PUSH"]
     return keys + fms + freq
 
 
