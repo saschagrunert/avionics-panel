@@ -120,6 +120,26 @@ def test_tune_adf():
     assert seen(sim) == (["FREQ_PUSH"] * 2 + ["ADF_100_UP"] + ["ADF_1_UP"] * 2 + ["ADF_10_UP"] * 2 + ["ADF_SWAP"], [])
 
 
+def test_the_unit_light_counts_the_freq_mode_and_the_squawk_digit():
+    # the white light's short flashes after each FREQ push, NAV twice, ADF three times, COM once, and a squawk's
+    # outer ring at digit 3 three times (docs/using/controls.md, Knobs)
+    def flashes(sim, ms):
+        start = sim.now
+        sim.wait(ms)
+        return len([1 for t, duty in sim.light("UNIT") if t >= start and duty])
+    sim = Sim()
+    counts = []
+    for _ in range(3):
+        sim.press("FREQ_PUSH"); counts.append(flashes(sim, 50)); sim.release("FREQ_PUSH")
+        counts[-1] += flashes(sim, 800)
+    sim.tap("SHIFT")
+    sim.turn("FREQ_OUTER", 1)                                          # digit 2, then from this detent on:
+    start = sim.now
+    sim.turn("FREQ_OUTER", 1)                                          # digit 3
+    sim.wait(800)
+    assert counts == [2, 3, 1] and len([1 for t, duty in sim.light("UNIT") if t >= start and duty]) == 3
+
+
 def test_tune_com2():
     # SHIFT, HOME (UNIT) first for COM 2: the white light comes on, the knob and flip-flop move to device 2
     sim = Sim()

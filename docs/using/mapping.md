@@ -495,7 +495,8 @@ To remove it, delete the folder and restart MobiFlight.
 ## Per avionics
 
 - FREQ knob: its push cycles COM, NAV and ADF, and each mode sends turn buttons of its own. The mode stays
-  until the next push, or a push held 1 s, which returns it to COM; the panel has no light for it. Map each
+  until the next push, or a push held 1 s, which returns it to COM; the white UNIT light counts the mode after
+  each push ([Controls](controls.md#knobs)). Map each
   mode to its radio (COM and NAV 1 or 2 by unit, and the one ADF), as the
   [generated profiles](#generated-profiles) do; a GNS shows the frequencies whichever field its cursor is on;
   for a GTN see [TDS GTN 750Xi and 650Xi](#tds-gtn-750xi-and-650xi).

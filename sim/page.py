@@ -19,9 +19,10 @@ The API, under /sim/:
   the version (version(): the commit of the files, which the page shows; null in a git checkout), the firmware
   names of the caps and knobs geometry.js draws (inputs()), the legend of --family's profile (null without one)
   and the numbers the page keeps to (the detents of a knob's turn, TURN_MAX, ACTS_MAX and BEAT_S in ms), then
-  `state` whenever the lights or the buttons change (the lights are read every POLL_S, so the SHIFT light's 125 ms
-  pulse keeps its rhythm; in keyboard mode the buttons are the keyboard's, with the shortcut), and `fault` for an
-  error in code.py's loop, which then reloads (not `error`: EventSource has an event of that name).
+  `state` whenever the lights, the unit or the buttons change (the lights are read every POLL_S, so the UNIT
+  light's 60 ms flashes and the SHIFT light's 125 ms pulse reach the page; in keyboard mode the buttons are the
+  keyboard's, with the shortcut), and `fault` for an error in code.py's loop, which then reloads (not `error`:
+  EventSource has an event of that name).
 - POST act?client=ID: actions, one per line, run at once and in order: `press NAME`, `release NAME` (a key, push
   or RANGE switch) and `turn RING DETENTS` (all in the same ms, sim.live.TURN_MAX at most). Nothing paces them: a
   fast wheel is a fast turn. An empty one only says that the page is still there. 204, or 400 with the reason
@@ -215,8 +216,9 @@ class Page(ThreadingHTTPServer):
             self.forward(device, report)
 
     def state(self):
-        """The lights (their duty as a share of full on: 1, or 0.25 for SHIFT's dim pulse) and each device's
-        buttons by name; in keyboard mode the keyboard's ("keyboard") function with its shortcut and unit"""
+        """The lights (their duty as a share of full on: 1, or 0.25 for SHIFT's dim pulse), the unit (the panel's:
+        the UNIT light also counts with short flashes) and each device's buttons by name; in keyboard mode the
+        keyboard's ("keyboard") function with its shortcut and unit"""
         live, lights = self.live, {}
         for i, name in enumerate(LIGHTS):
             duty = live.light(name)
@@ -231,7 +233,8 @@ class Page(ThreadingHTTPServer):
         else:
             buttons = {device: [n for b, n in enumerate(BM.DEVICE[device]) if report[1 + b // 8] >> b % 8 & 1]
                        for device, report in sorted(self.reports.items())}
-        return {"lights": lights, "buttons": buttons}
+        panel = live.code.get("panel")
+        return {"lights": lights, "unit": panel.unit if panel else 1, "buttons": buttons}
 
     def connect(self):
         client = secrets.token_urlsafe(16)

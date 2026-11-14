@@ -39,8 +39,14 @@ preconditions and cannot get out of sync with the panel:
 
 - SHIFT: one-shot for keys, kept through a knob session ([the rules](#shift) below). Shifted functions are
   their own buttons.
-- UNIT: the firmware keeps the state and drives the white light; what moves to device 2 is in
-  [Mapping](../using/mapping.md#two-joysticks). Button numbers are frozen; a snapshot test in
+- UNIT: the firmware keeps the state and drives the white light, which also counts: n short flashes
+  (`FLASH_MS` long, `FLASH_EVERY_MS` apart, dark blips in unit 2) give the FREQ mode after a push or a hold
+  back to COM (1 COM, 2 NAV, 3 ADF) and the squawk digit once the outer ring has rested `SQUAWK_REST_MS`. A
+  new count replaces the current one and starts no sooner than `FLASH_PAUSE_MS` after its last flash shown,
+  so two never read as one number. A unit change ends a count; a key, a SHIFT tap or another knob drops a
+  digit's count that has not started; a wait for the host delays a count like the other timings. While USB is
+  down nothing is counted and a count under way is dropped. What moves to
+  device 2 is in [Mapping](../using/mapping.md#two-joysticks). Button numbers are frozen; a snapshot test in
   `firmware/test_panel.py` checks it.
 - FREQ knob: the push cycles COM, NAV, ADF, and each mode sends its own turn buttons. The mode stays until the
   next push. It changes at the press, so a turn right after it already tunes the next radio. A plain push held
@@ -334,13 +340,14 @@ but for one rule.
 ## Lights
 
 `code.py` drives the SHIFT and UNIT lights with PWM at 1 kHz, at `LED_DUTY` = 0x4800 and 0x5500 (about 28 and
-33 % of full), the amber one dimmed to a quarter for its pulse in SHIFT's last second. Both stay dark while
-USB is not connected (the PC asleep, booting or off, a charger, a host that has suspended the panel); the
-panel runs on, without SHIFT ([SHIFT](#shift)). In keyboard mode they first take turns at each start
-([Keyboard mode](#keyboard-mode)). It sets the drive strength of the SHIFT light's pad (GP12) to 12 mA, which
-that light's series resistor needs, by writing the RP2040's pad register through `memorymap` (CircuitPython
-has no call for it); should that fail, it prints "LED drive strength not set" and the SHIFT light stays
-dimmer at the 4 mA default. GP15 only switches the UNIT light's transistor
+33 % of full), the amber one dimmed to a quarter for its pulse in SHIFT's last second, the white one turned
+over for the flashes of its counts (`Panel.unit_lit`; the Pico bench, which prints the unit, has none). Both
+stay dark while USB is not connected (the PC asleep, booting or off, a charger, a host that has suspended the
+panel); the panel runs on, without SHIFT ([SHIFT](#shift)). In keyboard mode they first take turns at each
+start ([Keyboard mode](#keyboard-mode)). It sets the drive strength of the SHIFT light's pad (GP12) to 12 mA,
+which that light's series resistor needs, by writing the RP2040's pad register through `memorymap`
+(CircuitPython has no call for it); should that fail, it prints "LED drive strength not set" and the SHIFT
+light stays dimmer at the 4 mA default. GP15 only switches the UNIT light's transistor
 ([Electronics](electronics.md#lights)) and keeps that default.
 
 ## Pins

@@ -261,6 +261,25 @@ def test_unit_light_is_written_only_on_a_change():
     assert unit.duty_cycle > 0 and len(unit.history) == 2         # off at the start, on after SHIFT, HOME
 
 
+def test_the_unit_light_counts_the_freq_mode():
+    # a FREQ push in unit 1: NAV, two short flashes of the UNIT light (panel.py's count)
+    hw = hardware(tap("FREQ_PUSH", 100)).run(800)
+    on = [ms for ms, duty in hw.leds[1].history if duty]
+    off = [ms for ms, duty in hw.leds[1].history[1:] if not duty]
+    assert [ms - on[0] for ms in on] == [0, P.FLASH_EVERY_MS] and [ms - on[0] for ms in off] == [
+        P.FLASH_MS, P.FLASH_EVERY_MS + P.FLASH_MS]
+
+
+def test_the_pico_bench_prints_the_unit_not_its_counts(capsys):
+    # the bench has no UNIT light and prints the unit: a count (as a FREQ push's, whose bench pin the simulated
+    # board lacks) prints nothing, SHIFT, HOME unit 2
+    def count(hw):
+        hw.code["panel"]._count(3, hw.code["now"]())
+    hw = hardware({100: [count], **tap("SHIFT", 1000), **tap("HOME", 1100)}).run(1600, PICO)
+    units = [line for line in capsys.readouterr().out.splitlines() if line.startswith("UNIT")]
+    assert units == ["UNIT 1", "UNIT 2"] and not hw.printed
+
+
 def test_the_shift_light_pad_drives_12_ma():
     # the amber LED's series resistor assumes the 12 mA pad drive: DRIVE (bits 5:4) set on GP12, the rest of the
     # register as it was. GP15 only switches the UNIT light's transistor and keeps its drive, and the Pico bench
