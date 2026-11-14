@@ -56,7 +56,7 @@ window.playPanel = function playPanel(V) {
            display: flex; align-items: flex-start; }
     .sim .lines { min-width: 0; }
     .sim .lines > div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .sim .gone { opacity: .45; }
+    .sim .gone, .sim .version { opacity: .45; }
     .sim .speaker { pointer-events: auto; cursor: pointer; font: inherit; color: inherit; background: none; border: 0;
                     padding: 0 4px; margin-left: 1ch; flex: none; line-height: inherit;
                     text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 3px; }
@@ -118,6 +118,7 @@ window.playPanel = function playPanel(V) {
   };
   // the lights and each device's buttons as the program last sent them (update()), and when each button went
   let lights = {}, buttons = {}, fadeTimer;
+  let version = null;                  // the commit of the files the program serves (hello), the last line, dimmed
   let went = {};                       // device: { button: when it went }
   function place() {
     const was = short;
@@ -235,6 +236,10 @@ window.playPanel = function playPanel(V) {
       const name = device === 'keyboard' ? 'keyboard' : `J${device}`;
       line(`${name}: `, ...(parts.length ? parts : ['none']));
     }
+    if (version) {
+      const s = document.createElement('span'); s.textContent = `build ${version}`; s.className = 'version';
+      line(s);
+    }
     if (next < Infinity) fadeTimer = setTimeout(render, Math.ceil(next) + 1);
   }
   function update(state) {
@@ -244,8 +249,8 @@ window.playPanel = function playPanel(V) {
       for (const n of names) if (!still.includes(n)) (went[device] = went[device] || {})[n] = now;
     }
     ({ lights, buttons } = state);
-    const count = 1 + Object.keys(buttons).length;
-    if (count > 1 && count !== lines) {          // the mode is known: the lines' number and width
+    const count = 1 + Object.keys(buttons).length + (version ? 1 : 0);
+    if (Object.keys(buttons).length && count !== lines) {   // the mode is known: the lines' number and width
       lines = count; width = (buttons.keyboard ? KEYS_W_PX : LINES_W_PX) + (speaker.parentNode ? SPEAKER_PX : 0);
       fitStrip(); go('P', true);
     }
@@ -259,7 +264,8 @@ window.playPanel = function playPanel(V) {
   clear();
 
   // ---------------- the program ----------------
-  // hello names this page (client), the build of the files the program serves, the firmware's inputs under the caps
+  // hello names this page (client), the build of the files the program serves and their commit (version, null in a
+  // git checkout), the firmware's inputs under the caps
   // and knobs, and the program's numbers: the angle of a detent, the detents one action takes and the actions one
   // request takes at most, and how often the page tells the program that it is still there. A page that reconnects
   // to another build, as after a newer simulator was unpacked and started, reloads: its files go with the old one.
@@ -272,7 +278,7 @@ window.playPanel = function playPanel(V) {
     events.addEventListener('hello', e => {
       const hello = JSON.parse(e.data);
       if (build !== null && hello.build !== build) { events.close(); location.reload(); return; }
-      ({ client, build, inputs, turn_max: TURN_MAX, acts_max: ACTS_MAX, beat_ms: BEAT_MS } = hello);
+      ({ client, build, version, inputs, turn_max: TURN_MAX, acts_max: ACTS_MAX, beat_ms: BEAT_MS } = hello);
       DETENT = 2 * Math.PI / hello.detents;
       clearInterval(beatTimer);
       beatTimer = setInterval(() => { beat = true; flush(); }, BEAT_MS);

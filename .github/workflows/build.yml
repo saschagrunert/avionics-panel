@@ -98,7 +98,9 @@ jobs:
           plugins: noop
           fail_ci_if_error: true
   # The simulator for Windows (windows/make_zip.py: Python's embeddable package, pinned by its hash, with the
-  # firmware, the simulator and the viewer), built on Linux and kept as an artifact of the run.
+  # firmware, the simulator and the viewer), built on Linux and kept as an artifact of the run. A pull request's
+  # zip and profiles are built from its head, not the merge GitHub makes for the run: the commit they name is one
+  # that exists.
   zip:
     name: simulator zip
     runs-on: ubuntu-24.04
@@ -108,6 +110,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - run: python3 windows/make_zip.py --out avionics-panel-sim-windows.zip
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -119,7 +122,8 @@ jobs:
           retention-days: 7
   # The profile of every avionics family and aircraft in mobiflight/families/ and a zip with a project of every
   # avionics part, bound to no joysticks: MobiFlight asks for both when it opens one
-  # (docs/using/mapping.md#generated-profiles).
+  # (docs/using/mapping.md#generated-profiles). Each project's name ends in the commit's date and short hash:
+  # git archive fills in firmware/version.py, as in a release's source code and the zip.
   profiles:
     name: MobiFlight profiles
     runs-on: ubuntu-24.04
@@ -129,13 +133,16 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - run: |
+          git -c core.abbrev=7 archive HEAD firmware/version.py | tar -x
           families=$(python3 -c "from mobiflight.families import FAMILIES; print(*FAMILIES)")
           for family in $families; do
             python3 -m mobiflight --family "$family" -o "avionics-panel-$family.mfproj"
           done
           python3 -m mobiflight --parts-zip avionics-panel-parts.zip
+          grep -q '"Name": "Avionics Panel: .* ([0-9-]*, [0-9a-f]\{7\})"' avionics-panel-g1000.mfproj
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: avionics-panel-mobiflight
@@ -167,8 +174,9 @@ jobs:
         env:
           REQUIRE_ZIP_PYTHON: "1"
   # The zip of this run as it is published, unpacked on Windows: the Python it ships with imports the simulator
-  # and runs the firmware, then serves the page (vJoy is not installed here). firewall.bat runs as the runner's
-  # administrator and leaves its one rule for the zip's python.exe.
+  # and runs the firmware, then serves the page (vJoy is not installed here). profile.bat says how to use it and
+  # writes a profile, named with the zip's commit. firewall.bat runs as the runner's administrator and leaves its
+  # one rule for the zip's python.exe.
   windows-zip:
     name: simulator zip on Windows
     needs: zip
@@ -198,6 +206,19 @@ jobs:
           } finally {
             Stop-Process -Id $page.Id
           }
+      - run: |
+          $usage = "" | cmd /c .\avionics-panel-sim\profile.bat
+          if ($LASTEXITCODE) { throw "profile.bat without arguments failed" }
+          if (-not ($usage -match "^--family: .*\bg1000\b")) { throw "no list of the profiles: $usage" }
+          cmd /c .\avionics-panel-sim\profile.bat --family g1000 -o x.mfproj
+          if ($LASTEXITCODE) { throw "profile.bat failed" }
+          if (-not (Test-Path x.mfproj)) { throw "profile.bat wrote no x.mfproj" }
+          $name = (Get-Content x.mfproj -Raw | ConvertFrom-Json).Name
+          if ($name -notmatch "^Avionics Panel: G1000 NXi \(\d{4}-\d\d-\d\d, [0-9a-f]{7,}\)$") { throw "named $name" }
+          # a second download unpacks into a folder of spaces and parentheses: profile.bat runs from there too
+          Copy-Item -Recurse .\avionics-panel-sim "zip (1) x"
+          & ".\zip (1) x\profile.bat" --family gns -o y.mfproj
+          if ($LASTEXITCODE -or -not (Test-Path y.mfproj)) { throw "profile.bat failed in a folder of spaces" }
       - run: |
           $python = (Resolve-Path .\avionics-panel-sim\python\python.exe).Path
           # Windows' own rule can hold the path in another case: the delete must match it all the same

@@ -2,6 +2,7 @@
 py -m mobiflight --autopilot kap140 --cockpit g1000 --navigator g1000 [...]
 py -m mobiflight --autopilot kap140 --cockpit bendix-king --unit1 gns530 --unit2 gtn650-tds2 [...]
 py -m mobiflight --parts-zip avionics-panel-parts.zip [...]
+py -m mobiflight --list
 
 Writes the MobiFlight project of a profile, or of the avionics parts given (one autopilot, one cockpit, and a
 navigator of both units or one per unit), for both joysticks; or a zip with a project of each part, to add to a
@@ -10,7 +11,8 @@ project (docs/using/mapping.md). With them, the project is bound to your joystic
 project saved in MobiFlight with ENT bound in unit 1 and in unit 2, or given by their serials, JS- and the
 DirectInput instance GUID, which names both "Avionics Panel". For joysticks of another name, as the simulator's
 vJoy devices, use --from: MobiFlight asks again for two joysticks of one name in a project that it does not find
-by name and serial (ControllerAutoBinder.cs)."""
+by name and serial (ControllerAutoBinder.cs). The project's name ends in the commit of the files, in a release's
+files (profile.VERSION), or in what --stamp gives. --list lists the profiles and the parts."""
 import argparse
 import contextlib
 import os
@@ -41,6 +43,16 @@ def unmapped(family, device):
     return out
 
 
+UNITS = sorted(UNIT_NAVIGATORS) + ["none"]   # what --unit1 and --unit2 take (none: radios alone)
+
+
+def listing():
+    """The profiles and the parts, a line for each option that takes them"""
+    return "\n".join(f"{option}: {' '.join(sorted(keys))}" for option, keys in (
+        ("--family", FAMILIES), ("--autopilot", AUTOPILOTS), ("--cockpit", COCKPITS), ("--navigator", NAVIGATORS),
+        ("--unit1, --unit2", UNITS)))
+
+
 def chosen(parser, args):
     """The profile of --family, or of the parts given"""
     if args.family:
@@ -64,11 +76,11 @@ def main(argv=None):
     what.add_argument("--family", choices=sorted(FAMILIES), help="a whole profile")
     what.add_argument("--autopilot", choices=sorted(AUTOPILOTS), help="the autopilot part")
     what.add_argument("--parts-zip", metavar="OUT.zip", help="a zip with a project of every part")
+    what.add_argument("--list", action="store_true", help="list the profiles and the parts, and write nothing")
     parser.add_argument("--cockpit", choices=sorted(COCKPITS), help="the cockpit part")
     parser.add_argument("--navigator", choices=sorted(NAVIGATORS), help="the navigator of both units")
-    units = sorted(UNIT_NAVIGATORS) + ["none"]
-    parser.add_argument("--unit1", choices=units, help="the navigator of unit 1 (none: radios alone)")
-    parser.add_argument("--unit2", choices=units, help="the navigator of unit 2 (none: radios alone)")
+    parser.add_argument("--unit1", choices=UNITS, help="the navigator of unit 1 (none: radios alone)")
+    parser.add_argument("--unit2", choices=UNITS, help="the navigator of unit 2 (none: radios alone)")
     parser.add_argument("--vfr", metavar="CODE",
                         help=f"the squawk the VFR key sets (default: {parts.VFR} as in EASA's airspace; 1200 in the "
                              "US)")
@@ -79,7 +91,15 @@ def main(argv=None):
                            help="the serials of the panel's joysticks, JS-<guid>: device 1 (128 buttons), "
                                 "device 2 (64)")
     parser.add_argument("-o", "--output", metavar="OUT.mfproj", help="default: FAMILY.mfproj, or avionics.mfproj")
+    parser.add_argument("--stamp", metavar="TEXT", default=profile.VERSION,
+                        help="the text in brackets after the project's name, as the date and short hash of the "
+                             f"commit (default: {profile.VERSION or 'none'}, from firmware/version.py)")
     args = parser.parse_args(argv)
+    if args.list:
+        if any(value != parser.get_default(name) for name, value in vars(args).items() if name != "list"):
+            parser.error("--list lists the profiles and parts: it takes no other option")
+        print(listing())
+        return
     if args.parts_zip and (args.cockpit or args.navigator or args.unit1 or args.unit2 or args.output):
         parser.error("--parts-zip writes every part: it takes no parts and no --output")
     try:
@@ -100,11 +120,11 @@ def main(argv=None):
                     vfr = args.vfr if part.KIND == "cockpit" else None
                     info = zipfile.ZipInfo(f"avionics-panel-{key}.mfproj", STAMP)
                     info.compress_type = zipfile.ZIP_DEFLATED
-                    z.writestr(info, profile.dumps(profile.build(part, controllers, vfr)))
+                    z.writestr(info, profile.dumps(profile.build(part, controllers, vfr, args.stamp)))
             print(f"wrote {args.parts_zip}: {len(every)} parts", file=sys.stderr)
             return
         family, key = chosen(parser, args)
-        project = profile.build(family, controllers, args.vfr)
+        project = profile.build(family, controllers, args.vfr, args.stamp)
     except (OSError, ValueError) as e:
         parser.error(str(e))
     output = args.output or f"{key}.mfproj"

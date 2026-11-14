@@ -56,6 +56,13 @@ run in `nix-shell nix/shells.nix -A firmware` (pytest, pytest-cov; on Linux hid-
 the repository root on python3 alone: `pytest` (with pytest installed; the tests whose tools are missing
 skip), `python3 -m sim.page`, `python3 -m mobiflight` and `python3 windows/make_zip.py`.
 
+None of them writes the commit into a committed file, so a commit builds the same outputs. The files users
+download name their commit instead: `firmware/version.py` holds a placeholder that git archive fills in with
+the commit's date and short hash (`export-subst` in `.gitattributes`, for a release's source code and GitHub's
+Download ZIP), and so does `windows/make_zip.py` in the zip, with `-dirty` after the hash for files that are
+not committed. The firmware prints it on its console, the page shows it, and the profiles end their name in it
+(the `build` workflow fills in `version.py` with git archive before it makes them).
+
 | Directory | Script | Does |
 | --- | --- | --- |
 | `pcb/` | `python3 precheck.py` | Placement clearances, bottom-side part bodies, mount keep-outs |
@@ -76,8 +83,8 @@ skip), `python3 -m sim.page`, `python3 -m mobiflight` and `python3 windows/make_
 | `firmware/` | `python3 make_keys.py >KEYS.md` | The shortcuts of the [keyboard mode](../using/keyboard.md) |
 | Repository root | `pytest` | The [firmware tests](firmware.md#code-and-tests); `tests/test_checkers.py` runs the checkers in the gen shell through nix-shell and skips without it |
 | Repository root | `python3 -m sim.page` | The [simulator](../using/simulator.md): the firmware on the PC, played in the browser |
-| Repository root | `python3 -m mobiflight --family g1000` | The MobiFlight profile of a family or aircraft, or of avionics parts, or the parts zip ([Mapping](../using/mapping.md#generated-profiles)) |
-| Repository root | `python3 windows/make_zip.py` | The simulator's zip for Windows ([Simulator](../using/simulator.md#windows)) |
+| Repository root | `python3 -m mobiflight --family g1000` | The MobiFlight profile of a family or aircraft, or of avionics parts, or the parts zip ([Mapping](../using/mapping.md#generated-profiles)); `--stamp` puts any text in place of the commit in its name |
+| Repository root | `python3 windows/make_zip.py` | The simulator's zip for Windows ([Simulator](../using/simulator.md#windows)), with `profile.bat` for the profiles; it writes the commit into the zip's `firmware/version.py` |
 | Repository root | `python3 viewer/shots.py` | Renders 1 to 4 and 9, in the `shots` shell |
 
 ## Routing seeds

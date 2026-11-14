@@ -30,6 +30,7 @@ monotonic_ns returns a long integer on the board, which code.py's loop keeps off
 the Pico bench's; the status LED on GP25, PIO and PWM slices, the heap and its collections are not modelled.
 """
 import builtins
+import importlib.util
 import os
 import sys
 from contextlib import suppress
@@ -43,6 +44,18 @@ if FIRMWARE not in sys.path:       # behind the standard library: firmware/code.
 import buttonmap as BM  # noqa: E402
 import keys  # noqa: E402
 import make_keys  # noqa: E402, F401 (the shortcuts' names, for the panel page)
+
+
+def load(path, name="_firmware_file"):
+    """The module of a file by its path, so that no installed module of the same name stands in for it"""
+    spec = importlib.util.spec_from_file_location(name, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+VERSION_PY = os.path.join(FIRMWARE, "version.py")
+version = load(VERSION_PY, "_firmware_version")    # code.py's, by its path: version is a common module name
 
 # The board's wiring, which tests/test_pins.py compares with pcb/board.py: the matrix rows and columns in
 # buttonmap.MATRIX's order, the FREQ push, and the A and B contact of each ring
@@ -389,6 +402,7 @@ class Board:
             "supervisor": SimpleNamespace(runtime=self, reload=self.reload, ticks_ms=self.ticks_ms,
                                           set_usb_identification=self.call("set_usb_identification")),
             "time": SimpleNamespace(sleep=self.sleep),
+            "version": version,
             "traceback": SimpleNamespace(print_exception=self.printed.append),
             "usb_cdc": SimpleNamespace(disable=self.call("usb_cdc.disable")),
             "usb_hid": SimpleNamespace(Device=self.device, enable=self.enable, devices=self.devices,

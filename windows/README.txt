@@ -19,6 +19,13 @@ Unblock, OK, and extract it again.
 A profile bound to the vJoy devices has to be bound to the real panel again later: MobiFlight tells
 joysticks apart by an ID Windows gives each one.
 
+profile.bat writes a MobiFlight profile bound to your joysticks, the panel's or the vJoy devices, with the
+Python in this folder. Double-click it for the steps, or run profile.bat --family g1000 --from guids.mfproj
+from a command prompt in this folder.
+
+This zip's build, the date and short hash of its commit, is in firmware\version.py. The page shows it in
+its last line at the bottom left, and a profile from profile.bat has it in its name.
+
 To try the page without vJoy, open a command prompt in this folder (type cmd in Explorer's address bar,
 Enter) and run python\python.exe -m sim.page --open. MobiFlight then sees no joysticks.
 

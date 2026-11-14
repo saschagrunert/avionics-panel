@@ -87,18 +87,20 @@ both: [When bring-up fails](#when-bring-up-fails)). On Linux, after every copy t
    that 3V3 reads 3.2 to 3.4 V across C_OUT0 (or from its 3V3 end to J1's shell).
 3. Copy the [CircuitPython 9.2.9 UF2 file for the Raspberry Pi Pico][uf2] (same chip, 2 MB flash, 12 MHz
    crystal) to RPI-RP2; the firmware is tested on 9.2.9. The board restarts with a CIRCUITPY drive.
-4. Copy `boot.py`, `code.py`, `panel.py`, `buttonmap.py` and `keys.py` from [firmware/](../../firmware/) to
-   CIRCUITPY (the repository's `code.py`, with `PICO_TEST = False` and `divisor=2`, not the copy edited for the
-   Pico bench). Then:
+4. Copy `boot.py`, `code.py`, `panel.py`, `buttonmap.py`, `keys.py` and `version.py` from
+   [firmware/](../../firmware/) to CIRCUITPY (the repository's `code.py`, with `PICO_TEST = False` and
+   `divisor=2`, not the copy edited for the Pico bench). Then:
    1. Replug with SHIFT held until CIRCUITPY appears ([update mode](#normal-and-update-mode)): `boot.py` only
       runs at power-up.
    2. Open the serial console (Linux: for example `tio /dev/ttyACM0`; Windows: the serial console of Thonny or
       Mu, or PuTTY on the panel's COM port, which Device Manager lists under Ports). Press Ctrl-C, then
-      Ctrl-D: `code.py` runs again and prints "Avionics Panel rev 1 ready". A line before it that names a
-      ring "between two detents" means that knob was not resting on a detent: turn it to one and press Ctrl-D
-      again. A traceback instead, again every 2 s, whose last line says that the joysticks are missing and to
-      copy `boot.py`, means `boot.py` has not run: copy it and replug as in step 4.1. "ready" means that it
-      has run.
+      Ctrl-D: `code.py` runs again and prints "Avionics Panel rev 1 ready" and, in brackets, the version of
+      the files: the date and short hash of their commit, as in "(2026-11-14, 5d1c305)". `version.py` holds
+      it in the source code of a release and in GitHub's Code, Download ZIP; a git checkout prints "(version
+      unknown)", and git log names its commit. A line before it that names a ring "between two detents" means
+      that knob was not resting on a detent: turn it to one and press Ctrl-D again. A traceback instead, again
+      every 2 s, whose last line says that the joysticks are missing and to copy `boot.py`, means `boot.py` has
+      not run: copy it and replug as in step 4.1. "ready" means that it has run.
    3. Replug without SHIFT: CIRCUITPY and the serial port must not appear. If they still do, look at the
       console: "You are in safe mode because:" means CircuitPython skipped `boot.py`
       ([When bring-up fails](#when-bring-up-fails)); otherwise SHIFT reads as held (row GP2, column GP6).
@@ -177,7 +179,8 @@ joysticks: if the SHIFT and UNIT lights take turns after plugging in, the panel 
 ## Updates and recovery
 
 Plug in with SHIFT held until CIRCUITPY appears, copy the changed files to CIRCUITPY (on Linux, run `sync`),
-then replug without SHIFT before using MobiFlight.
+then replug without SHIFT before using MobiFlight. Copy `version.py` with them, so that the console names the
+files' new version (step 4.2 of [Flash and test](#flash-and-test)).
 
 For a new CircuitPython version, or if CircuitPython ever stops booting: bridge the two BOOT pads, under the
 5 mm hole in the body floor, with the tip of the 2 mm hex key or a small screwdriver, then connect USB with

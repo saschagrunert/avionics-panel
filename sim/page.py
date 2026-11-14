@@ -13,7 +13,8 @@ The API, under /sim/:
 
 - GET events: one Server-Sent Events stream per page. `hello` first, with the page's client ID (a secret: only
   the page can read it), the build (build(): a page that reconnects to a program serving other files reloads),
-  the firmware names of the caps and knobs geometry.js draws (inputs()) and the numbers the page keeps to (the
+  the version (version(): the commit of the files, which the page shows; null in a git checkout), the firmware
+  names of the caps and knobs geometry.js draws (inputs()) and the numbers the page keeps to (the
   detents of a knob's turn, TURN_MAX, ACTS_MAX and BEAT_S in ms), then `state` whenever the
   lights or the buttons change (the lights are read every POLL_S, so the SHIFT light's 125 ms pulse keeps its
   rhythm; in keyboard mode the buttons are the keyboard's, with the shortcut), and `fault` for an error in
@@ -55,7 +56,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 
 from sim import BM, FUNCTIONS, LIGHTS, TILT, key_name
-from sim.hardware import make_keys
+from sim.hardware import VERSION_PY, load, make_keys
 from sim.live import DETENTS, TURN_MAX, USAGE, Live, parse
 from sim.sendinput import SendInput
 from sim.uhid import Uhid
@@ -94,6 +95,16 @@ def build(directory=VIEWER):
                 data = f.read()
             digest.update(f"{os.path.relpath(path, directory)}\0{len(data)}\0".encode() + data)
     return digest.hexdigest()[:16]
+
+
+def version(path=VERSION_PY):
+    """The commit of the files as firmware/version.py names it ("2026-11-14, 5d1c305"), which git archive (a
+    release's source code) and windows/make_zip.py fill in; None in a git checkout, which keeps the placeholder"""
+    text = str(getattr(load(path), "VERSION", "$")) if os.path.isfile(path) else "$"
+    return None if text.startswith("$") else text
+
+
+VERSION = version()
 
 
 def inputs(path=GEOMETRY):
@@ -336,8 +347,9 @@ class Handler(SimpleHTTPRequestHandler):
         client, state, error = page.connect(), None, live.printed[-1] if live.printed else None
         try:
             self.wfile.write(b"retry: 1000\n\n")
-            self.event("hello", {"client": client, "build": page.build, "inputs": page.inputs, "detents": DETENTS,
-                                 "turn_max": TURN_MAX, "acts_max": ACTS_MAX, "beat_ms": 1000 * BEAT_S})
+            self.event("hello", {"client": client, "build": page.build, "version": VERSION,
+                                 "inputs": page.inputs, "detents": DETENTS, "turn_max": TURN_MAX, "acts_max": ACTS_MAX,
+                                 "beat_ms": 1000 * BEAT_S})
             while not page.closing.is_set() and live.thread.is_alive() and not page.gone(client):
                 if (new := page.state()) != state:
                     self.event("state", state := new)
