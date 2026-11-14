@@ -30,6 +30,7 @@ COCKPIT = {
 }
 UNIT = ("CDI", "OBS", "HOME", "FPL", "DIRECT", "MENU", "PROC", "CLR", "ENT", "S_ENT", "VNAV", "MSG", "NRST", "TERR",
         "MAP", "FMS_OUTER_CW", "FMS_OUTER_CCW", "FMS_INNER_CW", "FMS_INNER_CCW", "FMS_CRSR")
+GPS_DISTANCE = "(A:GPS WP DISTANCE, nmiles)"   # the sim's distance to the active waypoint, which most navigators write
 MAP = ("RANGE_CW", "RANGE_CCW", "PAN_UP", "PAN_DN", "PAN_LEFT", "PAN_RIGHT", "PTR")   # unit 1's; unit 2's with S_
 
 
@@ -45,10 +46,11 @@ def scope(kind, units=(1, 2)):
             2: UNIT if 2 in units else ()}
 
 
-def part(key, name, kind, device, unmapped, units=(1, 2)):
+def part(key, name, kind, device, unmapped, units=(1, 2), **extra):
     """A part: its key (as the generator and the zip name it), NAME (the avionics) and TITLE (with its kind, and a
     navigator of one unit with the unit), KIND, UNITS (a navigator's) and its DEVICE and UNMAPPED tables, which
-    must cover its scope() exactly"""
+    must cover its scope() exactly, and extra's attributes (a navigator's DISTANCES and REQUIRED_VS, an autopilot's
+    VNV, compose())"""
     want = scope(kind, units)
     for d in (1, 2):
         rows, rest = set(device.get(d, {})), set(unmapped.get(d, {}))
@@ -58,7 +60,7 @@ def part(key, name, kind, device, unmapped, units=(1, 2)):
     title = f"{name} in unit {units[0]}" if kind == "navigator" and len(units) == 1 else f"{name} {kind}"
     return SimpleNamespace(KEY=key, NAME=name, TITLE=title, KIND=kind, UNITS=tuple(units),
                            DEVICE={d: dict(device.get(d, {})) for d in (1, 2)},
-                           UNMAPPED={d: dict(unmapped.get(d, {})) for d in (1, 2)})
+                           UNMAPPED={d: dict(unmapped.get(d, {})) for d in (1, 2)}, **extra)
 
 
 def place(rows, unit):
@@ -73,16 +75,19 @@ def place(rows, unit):
     return out
 
 
-def navigator(key, name, rows, unmapped, unit):
-    """A navigator of one unit, from its rows and unmapped buttons as unit 1 has them"""
-    return part(f"{key}-unit{unit}", name, "navigator", place(rows, unit), place(unmapped, unit), (unit,))
+def navigator(key, name, rows, unmapped, unit, distances=(GPS_DISTANCE,)):
+    """A navigator of one unit, from its rows and unmapped buttons as unit 1 has them; distances: the RPN reads of
+    its distance to the active waypoint (compose()), by default the sim's GPS WP DISTANCE, which Working Title's
+    navigators write from their flight plans"""
+    return part(f"{key}-unit{unit}", name, "navigator", place(rows, unit), place(unmapped, unit), (unit,),
+                DISTANCES=tuple(distances))
 
 
 def empty(unit):
     """No navigator in this unit: radios alone, as a KX 155"""
     reason = f"no navigator in unit {unit}"
     rows = dict.fromkeys((*UNIT, *MAP), reason)
-    return part(f"none-unit{unit}", "none", "navigator", {}, place(rows, unit), (unit,))
+    return part(f"none-unit{unit}", "none", "navigator", {}, place(rows, unit), (unit,), DISTANCES=())
 
 
 def compose(name, *parts, rows=None, unmapped=None, **extra):
@@ -90,7 +95,10 @@ def compose(name, *parts, rows=None, unmapped=None, **extra):
     family module has them (families/__init__.py), PARTS (their kinds and keys, as "cockpit-g1000") and extra's
     attributes. An aircraft's own
     rows ({device: {button: entry}}) and unmapped buttons ({device: {button: reason}}) replace the parts' for those
-    buttons, as its own lights."""
+    buttons, as its own lights. An autopilot whose VNV reads the navigator's distance (its VNV: the code of
+    distances= and required=, for VNV and SHIFT, VNV alike) gets the distances the navigators give (DISTANCES), unit
+    1's first, then the sim's GPS WP DISTANCE if none gave it, and the first navigator's REQUIRED_VS: no profile
+    reads a variable of a navigator it lacks, which another aircraft of the session may have left."""
     kinds = [p.KIND for p in parts]
     units = sorted(u for p in parts if p.KIND == "navigator" for u in p.UNITS)
     if sorted(kinds) != sorted(["autopilot", "cockpit", *["navigator"] * (len(kinds) - 2)]) or units != [1, 2]:
@@ -101,6 +109,13 @@ def compose(name, *parts, rows=None, unmapped=None, **extra):
         for d in (1, 2):
             device[d].update(p.DEVICE[d])
             rest[d].update(p.UNMAPPED[d])
+    vnv = [p.VNV for p in parts if getattr(p, "VNV", None)]
+    if vnv:
+        navigators = sorted((p for p in parts if p.KIND == "navigator"), key=lambda p: p.UNITS)
+        reads = [d for p in navigators for d in getattr(p, "DISTANCES", ())]
+        required = next((p.REQUIRED_VS for p in navigators if getattr(p, "REQUIRED_VS", None)), None)
+        device[1]["VNV"] = device[1]["S_VNV"] = vnv[0](distances=tuple(dict.fromkeys((*reads, GPS_DISTANCE))),
+                                                       required=required)
     for d in (1, 2):
         both = set((rows or {}).get(d, {})) & set((unmapped or {}).get(d, {}))
         if both:

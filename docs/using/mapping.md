@@ -195,8 +195,10 @@ profile's events cannot tell the two apart. Differences from the real units:
 - RANGE is the GNS 530's RNG key, and SHIFT, RANGE the GNS 430's, in both units. Tilted up and down, the RANGE
   knob sets the volume of COM 1 (the GNS 530's volume knob), and with SHIFT that of COM 2.
 - The XPDR mode push turns the KT 76's mode knob: to ALT from OFF or SBY, to SBY from any other position.
+- VNV, with or without SHIFT, works out and sets the vertical speed that reaches the selected altitude at the
+  active waypoint ([VNV without VNAV](#vnv-without-vnav)).
 
-Does nothing in this profile: TEST, FD, YD, VS, FLC, VNV, LVL, GPSS and ½ BANK (the KAP 140 has none of these
+Does nothing in this profile: TEST, FD, YD, VS, FLC, LVL, GPSS and ½ BANK (the KAP 140 has none of these
 keys; it engages in VS, and UP and DN set the rate), ARM (the sim's KAP 140 does nothing on it), HOME (the GNS
 has none), NRST and TERR (the GNS has pages for them, not keys), the RANGE knob tilted left or right and PTR
 (the GNS has no joystick), VNAV in unit 2 (the GNS 430 has none), the dimmers.
@@ -218,9 +220,10 @@ knob's push, squelch. The panel sends the RANGE push as a tap, so holding it doe
 COM ⇆ and NAV ⇆ are the sim's flip-flops, as the GTN has no such keys. TDS says the GTNs control the sim's COM
 and NAV radios; if a frequency set with the FREQ knob does not show on the GTN, tune it there with the FMS
 knob, whose push toggles between COM and NAV. The XPDR mode push works the cockpit's KT 76 through the
-simulator's variable; a transponder that the GTN runs itself may not follow it.
+simulator's variable; a transponder that the GTN runs itself may not follow it. VNV and SHIFT, VNV are the
+descent calculator, as in the GNS profile, with TDS's distance to the next waypoint.
 
-Does nothing in this profile: TEST, FD, YD, VS, FLC, VNV, LVL, GPSS, ½ BANK and ARM (as in the GNS profile),
+Does nothing in this profile: TEST, FD, YD, VS, FLC, LVL, GPSS, ½ BANK and ARM (as in the GNS profile),
 FPL, PROC, MENU, CLR, ENT, MSG, NRST, TERR, VNAV, MAP, CDI, OBS, the RANGE knob tilted left or right (on the
 touchscreen), the dimmers.
 
@@ -241,6 +244,9 @@ real units:
   altimeter.
 - VS and ALT ARM (SHIFT, ALT) are the KAS 297B's VS ENG and ALT ARM keys. TEST starts the KFC 150's self-test
   and holds the MD41's lamp test as long as it is held.
+- VNV works out and sets the vertical speed that reaches the selected altitude at the active waypoint, then
+  presses VS ENG when the autopilot is engaged, VS is off and no glideslope is captured ([VNV without
+  VNAV](#vnv-without-vnav)). SHIFT, VNV is the KR 87's BFO key (below).
 - UP and DN step the altitude held in ALT, the rate in VS and the pitch in pitch mode, as the KFC 150's rocker
   does. Black Square lists no event for the rocker or for FD, so they send the simulator's, which the aircraft
   may ignore.
@@ -279,8 +285,8 @@ real units:
   push turns the six reading lights and the copilot's yoke map light on or off, as the pilot's reading light
   goes.
 
-Does nothing in this profile: VNV without SHIFT (the KFC 150 has no VNAV mode), NRST in unit 2 and TERR in
-unit 2 (neither the GNS nor the GTN has such keys), VNAV in unit 2 (the GNS 430 and the GTN have none).
+Does nothing in this profile: NRST in unit 2 and TERR in unit 2 (neither the GNS nor the GTN has such keys),
+VNAV in unit 2 (the GNS 430 and the GTN have none).
 
 ### COWS DA40
 
@@ -302,10 +308,81 @@ the [G1000 NXi profile](#g1000-nxi), with the same differences from the real uni
 SHIFT sets the PFD's CRS and BARO knobs, and the heading bug is the sim's. The C182T dims all its panel lights
 with one knob: the outer ring steps its four dimmers alike (two potentiometers, the panel and the pedestal),
 in steps of 5 %, and the cabin light push turns its two cabin lights fully on or off, as a project the C182T
-is flown with sets them.
+is flown with sets them. VNV and SHIFT, VNV are the descent calculator, as in the GNS profile; VNV takes the
+NXi's required vertical speed first ([VNV without VNAV](#vnv-without-vnav)).
 
-Does nothing in this profile: TEST, FD, YD, VS, FLC, VNV, LVL, GPSS, ½ BANK and ARM (as in the GNS profile), the
+Does nothing in this profile: TEST, FD, YD, VS, FLC, LVL, GPSS, ½ BANK and ARM (as in the GNS profile), the
 flood dimmer (the C182T has one dimmer for all its panel lights).
+
+### VNV without VNAV
+
+The KAP 140 and the KFC 150 with the KAS 297B have no VNAV, and a GNS or GTN drives none through them. In the
+GNS, GTN, Black Square Bonanza and Carenado C182T profiles and the `kap140` and `kfc150` autopilot parts, VNV
+is a descent calculator instead: one press works out a vertical speed down and sets it. It is a calculator,
+not path tracking: the rate stays as it was set until you press VNV again, change it with UP and DN, or the
+autopilot captures the altitude. It sets no climb: neither autopilot minds the airspeed in VS, so a climb is
+for you to set, with an eye on the airspeed and the power.
+
+1. Set the altitude to reach with the ALT/HDG knob, as usual, and make the fix where you want to reach it the
+   navigator's active waypoint: D→ to it, or fly the flight plan's leg to it.
+2. Press VNV. It works out the rate that reaches the selected altitude at that waypoint: the altitude to lose
+   over the time to the waypoint at the present ground speed. It rounds the rate to 100 ft/min and keeps it
+   between 300 and 1500 ft/min down. In the KAP 140 it leaves ALT hold for VS as the ALT key does and then
+   sets the rate; in the KAS 297B it sets the rate and then presses VS ENG, when the autopilot is engaged, not
+   in VS and not on a glideslope. With the autopilot off, VNV only sets the rate; an autopilot may take the
+   present vertical speed when it engages, so press VNV again after engaging it.
+3. Press VNV again now and then, after a turn or a change of speed or wind: it works the rate out anew from
+   where you are.
+
+VNV does nothing without a distance or at 30 knots or less (in the C182T, unless the NXi gives a required
+vertical speed, below), or unless the selected altitude is more than 100 ft below. VNV has no amber legend, so
+SHIFT, VNV does the same and a stray SHIFT changes nothing; in the Bonanza, SHIFT, VNV stays the KR 87's BFO
+key.
+
+The distance is the first one above 0 of the navigators' own, unit 1's first: a TDS GTN's is TDS's GTNXi's
+distance to the next waypoint (`L:TDSGTNXI_NextWaypointDistanceNM`, from TDS's manual); a GNS's, PMS50's GTN's
+and the G1000 NXi's is the sim's GPS distance to the active waypoint (`GPS WP DISTANCE`), which Working
+Title's GNS and NXi write from their own flight plans; then the GPS distance, if neither unit gave it. So the
+GNS and C182T profiles read the GPS distance alone, and a TDS variable that another aircraft of the session
+left behind does not count there. The Bonanza, whose tablet chooses the navigators, reads first the KNS 81's
+RNAV distance, while the HSI's source switch is on RNAV, then TDS's, then the GPS distance; the `kap140` and
+`kfc150` parts alone, which cannot know the navigator, read TDS's, then the GPS distance. The ground speed is
+the aircraft's (`GROUND VELOCITY`), the altitude the altimeter's. With the G1000 NXi (the C182T, or the
+`kap140` part joined with the `g1000` navigator), VNV first takes the NXi's required vertical speed (`VSR` on
+its PFD, `L:WTAP_VNAV_Required_VS`), when it is a descent of 300 ft/min or more; without one, or with a
+smaller one, as for a constraint far ahead, VNV works the rate out itself. The NXi works the VSR out to the
+next altitude constraint of its flight plan, which may lie above the selected altitude: VNV holds that rate
+past the constraint's fix too, so press VNV again there.
+
+None of this has been flown in the sim yet. To check there:
+
+- That the selected altitude is the sim's first autopilot altitude (`AUTOPILOT ALTITUDE LOCK VAR:1`) in the
+  KAP 140 and the KAS 297B, also in ALT hold, where the sim's KAP 140 holds its altitude in the second. If VNV
+  does nothing in ALT hold after you set a lower altitude, it is not.
+- That the KAP 140 enters VS on `AP_PANEL_VS_ON`, as its ALT key makes it do, and holds the rate set right
+  after it (`AP_VS_VAR_SET_ENGLISH`). Its display shows VS and the rate for 3 s as it enters VS; a rate set
+  while it already flies VS is not shown.
+- That the KAP 140 captures the selected altitude after VS (ARM on its display). Its ARM key does nothing in
+  the sim, so if it does not, press ALT at the altitude; else the aircraft goes on through it.
+- That the KAS 297B takes the rate (Black Square's guide says the native VS events keep working) and shows it
+  for 2 s, and that it arms the altitude capture. If ARM is not lit, press ALT ARM (SHIFT, ALT); else the
+  aircraft goes on through the selected altitude.
+- That the KAS 297B keeps its VS mode in the sim's `AUTOPILOT VERTICAL HOLD`: VNV presses VS ENG only while
+  that is off, so if the KAS 297B keeps VS to itself, a second press of VNV in a VS descent turns VS off.
+- That the first press in ALT hold keeps its rate. If the autopilot still takes the present rate as it enters
+  VS, press VNV again.
+- Which of two GTNs TDS's distance is for. With a TDS GTN that has no active waypoint, a flight plan in the
+  sim's own GPS may give the GPS distance. TDS's variable may also keep its last value after a flight with a
+  TDS GTN: in the Bonanza with its tablet set to a GNS, the KLN 90B or PMS50's GTN, and with the parts alone,
+  it would then come ahead of the GPS distance. The profile cannot see the tablet's choice, and reads TDS's
+  first, as a TDS GTN may fly a leg that the sim's own flight plan, which gives the GPS distance, does not.
+- That the KLN 90B writes the GPS distance: Black Square's guide names no distance variable for it. The same
+  for PMS50's GTN, whose own flight plan may leave the sim's GPS behind.
+- In the Bonanza, that the KNS 81's RNAV distance (`L:var_RNAV_DME`) drops to 0 when it loses the station, as
+  VNV takes it while the HSI is on RNAV.
+- In the C182T, that the NXi writes its VSR with the KAP 140 fitted, and below 0 for a descent, as Working
+  Title's source works it out (VNV takes it only then, else it works the rate out itself). That source runs
+  the NXi's VNAV with its own autopilot, which it keeps running beside the KAP 140.
 
 ## Avionics parts
 
@@ -313,7 +390,9 @@ For avionics the profiles above do not join, the panel's buttons come in parts. 
 own, so one of each kind makes a whole profile:
 
 - An autopilot (the autopilot keys, UP and DN, the ALT/HDG knob's altitude and heading): `gfc700` (the G1000
-  NXi's), `gfc500` (the G3X Touch's), `kap140`, or `kfc150` (Black Square's KFC 150 and KAS 297B).
+  NXi's), `gfc500` (the G3X Touch's), `kap140`, or `kfc150` (Black Square's KFC 150 and KAS 297B). In
+  `kap140` and `kfc150`, VNV is the descent calculator, with or without SHIFT ([VNV without
+  VNAV](#vnv-without-vnav)).
 - A cockpit (the ALT/HDG knob with SHIFT, the audio panel, transponder and lighting, the radios and ADF of both
   units): `g1000` (the PFD's CRS and BARO knobs), `g3x`, or `bendix-king` (the course of NAV 1 and the
   altimeter).

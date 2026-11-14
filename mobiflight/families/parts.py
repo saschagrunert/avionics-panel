@@ -9,8 +9,9 @@ ones its instrument (KAP140.js) handles. Garmin's autopilot, as Working Title's 
 takes the simulator's autopilot key events (GARMIN_SHARED).
 """
 import re
+from functools import partial
 
-from mobiflight.families.part import part
+from mobiflight.families.part import GPS_DISTANCE, part
 from mobiflight.families.rpn import h, k, turn
 
 VFR = "7000"                     # the squawk the VFR key sets (EASA), unless a profile is made with another (--vfr)
@@ -231,7 +232,59 @@ NAV1_KNOBS = {
     **STD,
 }
 
+# ---------------- VNV without VNAV: the descent calculator ----------------
+# For an autopilot without VNAV (the KAP 140, the KFC 150), VNV works out once per press the vertical speed that
+# reaches the selected altitude at the navigator's active waypoint: Δ / (distance / ground speed in minutes). Δ is the
+# selected altitude (AUTOPILOT ALTITUDE LOCK VAR:1, the slot the sim's SimPlane.js names the selected one, which
+# KAP140.js leaves alone in ALT hold, where it holds its altitude in slot 2) less the altimeter's (INDICATED
+# ALTITUDE); the ground speed is the aircraft's own (GROUND VELOCITY), whatever the navigator. It descends only: these
+# autopilots hold a climb rate with no care for the airspeed. It rounds the rate to 100 ft/min, keeps its size between
+# 300 and 1500 ft/min and sets it with the SDK's AP_VS_VAR_SET_ENGLISH, after the autopilot's code that enters VS
+# (before) or before the one that engages it (after), so the autopilot flies VS at that rate: the KAP 140 takes the
+# present vertical speed as it enters VS, and the KAS 297B's VS ENG takes the rate it shows. It does nothing without a
+# distance, at 30 knots or less (below which TDS's GTNXi and Working Title's VNAV work out no times or rates either)
+# or unless the selected altitude is more than 100 ft below. The distance is the first above 0 of distances (RPN
+# reads, in nautical miles), which the navigators declare: TDS's GTNXi's (gtn.py), or the simulator's GPS WP DISTANCE,
+# which Working Title's GNS and G1000 NXi write from their own LNAV (GpsSynchronizer.ts in
+# microsoft/msfs-avionics-mirror's sdk/autopilot, run by the GNS's MainScreen.tsx and the NXi's WTG1000_MFD.tsx);
+# Working Title publishes no L: variable of its own for it. A profile joined from parts reads its navigators' (the
+# autopilot part's VNV, part.compose), the part alone every navigator's (families/__init__.py). A required rate
+# (required: an RPN read in ft/min, 0 for none, as the G1000 NXi gives one, g1000.py) goes first when it is a descent
+# of 300 ft/min or more; a smaller one, as for a constraint far ahead, gives way to the rate worked out. VNV and
+# SHIFT, VNV are the same: the key has no amber legend, so a stray SHIFT changes nothing.
+_SIZE = "100 / near 100 * 300 max 1500 min"          # a rate's size, rounded to 100 ft/min and clamped
+_SET_VS = k("AP_VS_VAR_SET_ENGLISH")
+_SELECTED = "(A:AUTOPILOT ALTITUDE LOCK VAR:1, feet)"
+
+
+def _set(rate, before, after):
+    """rate (RPN, a size in ft/min) set as a descent, between the autopilot's codes before and after"""
+    return " ".join(filter(None, (before, f"{rate} {_SIZE} neg {_SET_VS}", after)))
+
+
+def descent(before="", after="", distances=(GPS_DISTANCE,), required=None):
+    """VNV's code: the vertical speed to the selected altitude at the active waypoint, by registers 0 (Δ, ft),
+    1 (the distance, nm), 2 (the ground speed, kt) and 3 (the rate, ft/min)"""
+    first, *rest = distances
+    return " ".join([
+        f"{first} sp1", *(f"l1 0 > ! if{{ {d} sp1 }}" for d in rest),
+        f"{_SELECTED} (A:INDICATED ALTITUDE, feet) - sp0 (A:GROUND VELOCITY, knots) sp2",
+        f"{required or 0} sp3 l3 neg 300 < if{{ 0 sp3 l1 0 > l2 30 > and if{{ l0 l2 * l1 60 * / sp3 }} }}",
+        f"l3 0 < l0 neg 100 > and if{{ {_set('l3 abs', before, after)} }}",
+    ])
+
+
 # ---------------- the KAP 140 and the instruments round it (device 1) ----------------
+# the KAP 140 flies VS whenever it is engaged without ALT: VNV leaves ALT hold as its ALT key does, which the sim's
+# KAP140.js turns into AP_PANEL_VS_ON with the autopilot engaged. VNV sends that event itself, ahead of the rate: an
+# H: event runs in the gauge after the code's K: events, so its VS would take the present vertical speed after the
+# rate. The rate it holds is assumed to be the simulator's, which AP_VS_VAR_SET_ENGLISH sets.
+KAP140_VS = "(A:AUTOPILOT MASTER, Bool) (A:AUTOPILOT ALTITUDE LOCK, Bool) and if{ 0 (>K:AP_PANEL_VS_ON) }"
+
+
+KAP140_VNV = partial(descent, before=KAP140_VS)   # VNV's code, of the distances and required rate (part.compose)
+
+
 KAP140 = {
     # autopilot keys
     "AP": h("KAP140_Push_AP"),
@@ -245,6 +298,10 @@ KAP140 = {
     "S_UP": h("KAP140_Push_UP"),
     "BC": h("KAP140_Push_REV"),
     "S_DN": h("KAP140_Push_DN"),
+    # VNV and SHIFT, VNV: the descent calculator, with the GPS distance until families/__init__.py gives the part
+    # every navigator's and part.compose a profile its navigators'
+    "VNV": KAP140_VNV(),
+    "S_VNV": KAP140_VNV(),
     # ALT/HDG knob: the KAP 140's altitude knob (inner 100 ft, outer 1000 ft) and the heading bug
     "ALT_100_UP": h("KAP140_Knob_Inner_INC"),
     "ALT_100_DN": h("KAP140_Knob_Inner_DEC"),
@@ -254,7 +311,6 @@ KAP140 = {
 }
 _VS = "the KAP 140 has no VS key: it engages in VS, and UP and DN set the rate"
 _FLC = "the KAP 140 has no FLC mode"
-_VNV = "the KAP 140 has no VNAV mode"
 KAP140_UNMAPPED = {
     "TEST": "the KAP 140 tests itself at power-up: it has no TEST key",
     "ARM": "the sim's KAP 140 does nothing on ARM: its KAP140.js handles KAP140_Push_ARM with an empty case",
@@ -264,8 +320,6 @@ KAP140_UNMAPPED = {
     "S_VS": _VS,
     "FLC": _FLC,
     "S_FLC": _FLC,
-    "VNV": _VNV,
-    "S_VNV": _VNV,
     "LVL": "the KAP 140 has no level mode",
     "HALF_BANK": "the KAP 140 has no low-bank mode",
     "GPSS": "the KAP 140 has no GPSS key: NAV follows the CDI, on GPS or VLOC",
@@ -292,5 +346,5 @@ def cockpit(key, name, knobs):
 
 
 # the autopilot and cockpit parts round the KAP 140, as in the Cessna 172 Skyhawk Classic and Carenado's C182T
-KAP140_AUTOPILOT = part("kap140", "KAP 140", "autopilot", {1: KAP140}, {1: KAP140_UNMAPPED})
+KAP140_AUTOPILOT = part("kap140", "KAP 140", "autopilot", {1: KAP140}, {1: KAP140_UNMAPPED}, VNV=KAP140_VNV)
 BENDIX_KING = cockpit("bendix-king", "Bendix/King", NAV1_KNOBS)

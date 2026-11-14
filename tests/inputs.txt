@@ -5,7 +5,9 @@
 
 # the simulator's simulation variables (the SDK's lists)
 A:AUTOPILOT ALTITUDE LOCK
+A:AUTOPILOT ALTITUDE LOCK VAR:1
 A:AUTOPILOT FLIGHT LEVEL CHANGE
+A:AUTOPILOT GLIDESLOPE ACTIVE
 A:AUTOPILOT HEADING LOCK DIR:1
 A:AUTOPILOT MASTER
 A:AUTOPILOT NAV SELECTED
@@ -15,7 +17,10 @@ A:COM RECEIVE EX1:1
 A:COM RECEIVE EX1:2
 A:GPS DRIVES NAV1
 A:GPS OBS VALUE
+A:GPS WP DISTANCE
+A:GROUND VELOCITY
 A:HEADING INDICATOR:1
+A:INDICATED ALTITUDE
 A:KOHLSMAN SETTING MB:1
 A:NAV HAS LOCALIZER:1
 A:NAV HAS LOCALIZER:2
@@ -190,6 +195,12 @@ H:GTN750_VolInc
 # the profiles' own
 L:AvionicsPanel_G1000_Engine
 
+# TDS's GTNXi manual (Reading specific TDS GTNXi Data)
+L:TDSGTNXI_NextWaypointDistanceNM
+
+# Working Title's VNAV (sdk/autopilot/vnav/VNavEvents.ts)
+L:WTAP_VNAV_Required_VS
+
 # Black Square's Bonanza guide, or a project the Bonanza is flown with
 H:KLN90B_ALT_Push
 H:KLN90B_ApprArm_Push
@@ -241,6 +252,7 @@ L:var_LIGHTING_Push_Cockpit_6
 L:var_OatMapCompassLightButton_1
 L:var_OatMapCompassLightButton_2
 L:var_PilotTransmitSelector
+L:var_RNAV_DME
 L:var_RadarTilt
 L:var_SubpanelLightingKnob
 L:var_dmeMode

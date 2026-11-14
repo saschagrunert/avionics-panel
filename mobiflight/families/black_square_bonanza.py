@@ -29,8 +29,10 @@ does not list, are Working Title's too. The EDM 800's left button is taken to be
 real unit; the guide does not say. The radios, ADF tuning, transponder codes and the knobs round the autopilot are the
 parts the tables share (parts.py).
 """
+from functools import partial
+
 from mobiflight.families import gtn, parts
-from mobiflight.families.part import part
+from mobiflight.families.part import GPS_DISTANCE, part
 from mobiflight.families.rpn import h, k, lset
 
 NAME = "Black Square Bonanza"
@@ -126,6 +128,21 @@ _ROCKER = ("(A:AUTOPILOT ALTITUDE LOCK, Bool) if{{ 100 (>K:AP_ALT_VAR_{0}) }} el
            "if{{ (>K:AP_VS_VAR_{0}) }} els{{ (A:AUTOPILOT PITCH HOLD, Bool) if{{ (>K:AP_PITCH_REF_INC_{1}) }} }} }}")
 _UP, _DN = _ROCKER.format("INC", "UP"), _ROCKER.format("DEC", "DN")
 _VS = h("kas297b_VsButton")
+# VNV: the descent calculator (parts.descent), with VS ENG pressed after the rate is set, while the autopilot is
+# engaged, not in VS and not on a glideslope (a press there would leave it): the guide says VS ENG takes the rate the
+# KAS 297B shows, which shows a rate set from outside for 2 s, and arms the altitude's capture when that rate leads
+# towards it; with the autopilot off VS ENG would set the flight director's mode instead. The guide also says the KAS
+# 297B keeps its older behaviour for the native AP_VS_VAR_SET_ENGLISH. The distance is first the KNS 81's RNAV DME
+# output (an output the guide lists) while the HSI's source switch is on RNAV, then TDS's GTNXi's and the simulator's
+# GPS WP DISTANCE, as the navigators the tablet may choose give them; the guide names none for the KLN 90B, which is
+# assumed to write GPS WP DISTANCE, if anything
+_VS_ENG = (f"(A:AUTOPILOT MASTER, Bool) (A:AUTOPILOT VERTICAL HOLD, Bool) ! and (A:AUTOPILOT GLIDESLOPE ACTIVE, Bool) "
+           f"! and if{{ {_VS} }}")
+_RNAV_DISTANCE = "(L:var_rnavDrivesHsi, Bool) (L:var_RNAV_DME, Number) *"
+
+
+KFC150_VNV = partial(parts.descent, after=_VS_ENG)   # VNV's code, of the distances and required rate (part.compose)
+_VNV = KFC150_VNV(distances=(_RNAV_DISTANCE, gtn.TDS_DISTANCE, GPS_DISTANCE))   # the Bonanza's, with its KNS 81
 
 
 def _edm(button):
@@ -152,6 +169,7 @@ _KFC150 = {
     "S_VS": _VS,
     "UP": _UP,
     "DN": _DN,
+    "VNV": _VNV,
     # SHIFT, UP and SHIFT, DN: the EDM 800's left (STEP) and right (LEAN FIND) buttons
     "S_UP": _edm("L"),
     "S_DN": _edm("R"),
@@ -172,22 +190,26 @@ _KFC150 = {
 }
 _KFC150_UNMAPPED = {
     "FLC": "the KFC 150 has no FLC mode",
-    "VNV": "the KFC 150 has no VNAV mode",
     "HALF_BANK": "the KFC 150 has no low-bank mode",
 }
 
 # the KFC 150 and KAS 297B as an autopilot part, for Black Square's aircraft with other avionics: the keys and the
-# ALT/HDG knob, with SHIFT, UP and SHIFT, DN as the rocker (a stray SHIFT does no harm) and TEST the self-test alone
+# ALT/HDG knob, with SHIFT, UP and SHIFT, DN as the rocker (a stray SHIFT does no harm), TEST the self-test alone
+# and VNV and SHIFT, VNV the descent calculator without the Bonanza's KNS 81, which another aircraft lacks (with the
+# GPS distance until families/__init__.py gives the part every navigator's and part.compose a profile its
+# navigators')
 AUTOPILOT = part("kfc150", "KFC 150 (Black Square)", "autopilot", {1: {
-    **{b: e for b, e in _KFC150.items() if b not in ("S_UP", "S_DN", "GPSS", "LVL", "S_FLC", "S_VNV", "TEST")},
+    **{b: e for b, e in _KFC150.items()
+       if b not in ("S_UP", "S_DN", "GPSS", "LVL", "S_FLC", "VNV", "S_VNV", "TEST")},
     "S_UP": _UP,
     "S_DN": _DN,
     "TEST": lset("var_AutopilotStartupCounter", 20),
+    "VNV": KFC150_VNV(),
+    "S_VNV": KFC150_VNV(),
 }}, {1: {**_KFC150_UNMAPPED,
          "S_FLC": "the KFC 150 has no FLC mode",
-         "S_VNV": "the KFC 150 has no VNAV mode",
          "LVL": "the KFC 150 has no level mode",
-         "GPSS": "the KFC 150 has no GPSS key: NAV follows the HSI, on GPS or VLOC"}})
+         "GPSS": "the KFC 150 has no GPSS key: NAV follows the HSI, on GPS or VLOC"}}, VNV=KFC150_VNV)
 
 
 # the lighting, as a project the Bonanza is flown with sets it: the outer ring steps the instrument lights, with the
@@ -264,10 +286,7 @@ DEVICE = {
     2: {**_unit(UNIT2), "CDI": h("AS430_CDI_Push"), **parts.RADIO[2], **_ADF},
 }
 UNMAPPED = {
-    1: {
-        "VNV": _KFC150_UNMAPPED["VNV"],
-        **_UNIT_UNMAPPED,
-    },
+    1: dict(_UNIT_UNMAPPED),
     2: {
         "NRST": "neither the GNS nor the GTN has a NRST key: the GNS's nearest pages are a page group, the GTN's on "
                 "its touchscreen",

@@ -23,6 +23,8 @@ from mobiflight.families.rpn import h, k
 # 650Xi, each as unit 1 and unit 2), and what a key adds to it: down, up; the volume knob adds the same to turn down
 # and up
 TDS = {("750", 1): 0, ("650", 1): 8, ("750", 2): 16, ("650", 2): 24}
+# the GTNXi's distance to the next waypoint (TDS's manual, "Reading specific TDS GTNXi Data"), for VNV (parts.descent)
+TDS_DISTANCE = "(L:TDSGTNXI_NextWaypointDistanceNM, Number)"
 KEY_DOWN, KEY_UP = 2, 4
 
 
@@ -74,7 +76,7 @@ def tds(model, tds_unit, unit):
     panel's unit 1 or 2"""
     value = TDS[model, tds_unit]
     return part.navigator(f"gtn{model}-tds{tds_unit}", f"TDS GTN {model}Xi (TDS unit {tds_unit})",
-                          {**_bezel(value), **_map(value)}, _UNMAPPED, unit)
+                          {**_bezel(value), **_map(value)}, _UNMAPPED, unit, (TDS_DISTANCE,))
 
 
 def pms50(model, unit):
