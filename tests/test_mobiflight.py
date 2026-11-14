@@ -6,6 +6,7 @@ import math
 import os
 import re
 import uuid
+from types import SimpleNamespace
 
 import buttonmap as BM
 import pytest
@@ -20,10 +21,12 @@ from mobiflight.families import (
     NAVIGATORS,
     UNIT_NAVIGATORS,
     every_part,
+    gtn,
     navigators,
     part,
     parts,
 )
+from mobiflight.families import black_square_bonanza as bksq
 from mobiflight.families.black_square_bonanza import KFC150_VNV
 from mobiflight.families.rpn import h, k
 from sim import Sim
@@ -48,8 +51,8 @@ def joined_from(*keys):
 
 G1000 = tuple(sorted(set(joined_from("cockpit-g1000")) & set(joined_from("navigator-g1000"))))   # the G1000 NXi's
 GARMIN = joined_from("autopilot-gfc700", "autopilot-gfc500")   # with Garmin's autopilot, the GFC 700 or GFC 500
-BENDIX = (*joined_from("cockpit-bendix-king"), BONANZA)        # with the instruments round a Bendix/King autopilot
-assert G1000 and GARMIN and len(BENDIX) > 1, "no profile joined from these parts: a part's key changed?"
+BENDIX = joined_from("cockpit-bendix-king")                    # with the instruments round a Bendix/King autopilot
+assert G1000 and GARMIN and BONANZA in BENDIX and len(BENDIX) > 1, "no profile joined from these parts: a key changed?"
 
 
 @pytest.fixture(autouse=True)
@@ -694,16 +697,16 @@ SETS = {
         OBS=H:AS530_OBS_Push OBS@2=H:AS430_OBS_Push
         PANEL_LT_DN=5,-,0,L:var_FlightInstrumentsLightingKnob,L:var_EngineInstrumentsLightingKnob,L:var_SubpanelLightingKnob,0,L:bksq_MasterPanelLights
         PANEL_LT_UP=5,+,100,L:var_FlightInstrumentsLightingKnob,L:var_EngineInstrumentsLightingKnob,L:var_SubpanelLightingKnob,0,L:bksq_MasterPanelLights
-        PAN_DN=2,K:GPS_BUTTON2,H:GTN750_VolDec,K:COM1_VOLUME_DEC PAN_LEFT=H:KLN90B_LeftLargeKnob_Left
-        PAN_RIGHT=H:KLN90B_LeftLargeKnob_Right PAN_UP=4,K:GPS_BUTTON2,H:GTN750_VolInc,K:COM1_VOLUME_INC
+        PAN_DN=K:COM1_VOLUME_DEC,2,K:GPS_BUTTON2,H:GTN750_VolDec PAN_LEFT=H:KLN90B_LeftLargeKnob_Left
+        PAN_RIGHT=H:KLN90B_LeftLargeKnob_Right PAN_UP=K:COM1_VOLUME_INC,4,K:GPS_BUTTON2,H:GTN750_VolInc
         PROC=H:AS530_PROC_Push PROC@2=H:AS430_PROC_Push PTR=2,K:GPS_BUTTON1,H:KLN90B_LeftCursor_Toggle/4,K:GPS_BUTTON1
         RANGE_CCW=H:AS530_RNG_Zoom,0,K:GPS_PAGE_KNOB_INC,H:GTN750_KnobSmallInc,H:KLN90B_LeftSmallKnob_Left
         RANGE_CW=H:AS530_RNG_Dezoom,0,K:GPS_PAGE_KNOB_DEC,H:GTN750_KnobSmallDec,H:KLN90B_LeftSmallKnob_Right
         S_DN=H:bksq_JpiButton_1_R_Short/H:bksq_JpiButton_1_R_Long S_ENT=H:AS530_ENT_Push,H:KLN90B_ENT_Push
         S_ENT@2=H:AS430_ENT_Push S_FLC=H:adf_AntAdf
-        S_PAN_DN=10,K:GPS_BUTTON2,26,K:GPS_BUTTON2,H:GTN650_VolDec,K:COM2_VOLUME_DEC
+        S_PAN_DN=K:COM2_VOLUME_DEC,10,K:GPS_BUTTON2,26,K:GPS_BUTTON2,H:GTN650_VolDec
         S_PAN_LEFT=H:bksq_wradar1_radarRangeDec S_PAN_RIGHT=H:bksq_wradar1_radarRangeInc
-        S_PAN_UP=12,K:GPS_BUTTON2,28,K:GPS_BUTTON2,H:GTN650_VolInc,K:COM2_VOLUME_INC
+        S_PAN_UP=K:COM2_VOLUME_INC,12,K:GPS_BUTTON2,28,K:GPS_BUTTON2,H:GTN650_VolInc
         S_PTR=10,K:GPS_BUTTON1,26,K:GPS_BUTTON1/12,K:GPS_BUTTON1,28,K:GPS_BUTTON1
         S_RANGE_CCW=H:AS430_RNG_Zoom,8,K:GPS_PAGE_KNOB_INC,24,K:GPS_PAGE_KNOB_INC,H:GTN650_KnobSmallInc
         S_RANGE_CW=H:AS430_RNG_Dezoom,8,K:GPS_PAGE_KNOB_DEC,24,K:GPS_PAGE_KNOB_DEC,H:GTN650_KnobSmallDec
@@ -1578,6 +1581,86 @@ def test_any_parts_make_a_whole_profile():
         part.compose("x", AUTOPILOTS["kap140"], COCKPITS["g1000"], UNIT_NAVIGATORS["gns530"](1))
     with pytest.raises(ValueError, match="needs one autopilot, one cockpit"):
         part.compose("x", AUTOPILOTS["kap140"], AUTOPILOTS["gfc700"], NAVIGATORS["g1000"])
+
+
+def test_every_profile_is_joined_from_parts():
+    # one shape: compose()'s, with the parts it is made of
+    for key, family in FAMILIES.items():
+        kinds = [p.split("-")[0] for p in family.PARTS]
+        assert sorted(set(kinds)) == ["autopilot", "cockpit", "navigator"] and len(kinds) >= 3, key
+    assert FAMILIES[BONANZA].PARTS == ("autopilot-kfc150", "cockpit-bendix-king",
+                                       "navigator-black-square-bonanza-unit1", "navigator-black-square-bonanza-unit2")
+
+
+def test_joined_navigators_send_every_ones_codes():
+    # each button every navigator's codes that map it, in their order, a key's press and release apart; one that
+    # none maps the first one's reason; rows (as unit 1 has them) replace buttons, reasons the reasons of buttons none
+    # maps; distances each once
+    gns430, tds650, pms650 = (UNIT_NAVIGATORS[key](2) for key in ("gns430", "gtn650-tds1", "gtn650-pms50"))
+    both = part.joined("x", "X", gns430, tds650, pms650, rows={"CDI": "1 (>K:A)", "PTR": "2 (>K:A)"},
+                       reasons={"NRST": "none here"})
+    assert both.KEY == "x-unit2" and both.UNITS == (2,) and both.DISTANCES == (gtn.TDS_DISTANCE, part.GPS_DISTANCE)
+    assert both.DEVICE[2]["FMS_OUTER_CW"] == " ".join(n.DEVICE[2]["FMS_OUTER_CW"] for n in (gns430, tds650, pms650))
+    assert both.DEVICE[2]["DIRECT"] == {
+        "press": f"{gns430.DEVICE[2]['DIRECT']} {tds650.DEVICE[2]['DIRECT']['press']} {pms650.DEVICE[2]['DIRECT']}",
+        "release": tds650.DEVICE[2]["DIRECT"]["release"]}
+    assert both.DEVICE[1]["S_RANGE_CW"].startswith(gns430.DEVICE[1]["S_RANGE_CW"])      # unit 2's map, with SHIFT
+    assert both.UNMAPPED[2]["TERR"] == gns430.UNMAPPED[2]["TERR"]
+    assert both.DEVICE[2]["CDI"] == "1 (>K:A)" and both.UNMAPPED[2]["NRST"] == "none here"
+    assert both.DEVICE[1]["S_PTR"] == "2 (>K:A)" and "PTR" not in both.DEVICE[1]   # unit 2's map: with SHIFT
+    with pytest.raises(ValueError, match="joins navigators of one unit"):
+        part.joined("x", "X", gns430, UNIT_NAVIGATORS["gns530"](1))
+    with pytest.raises(ValueError, match="joins navigators of one unit"):
+        part.joined("x", "X", gns430, AUTOPILOTS["kap140"])
+    with pytest.raises(ValueError, match=r"\['CDI'\] both mapped and unmapped"):
+        part.joined("x", "X", gns430, tds650, rows={"CDI": "1 (>K:A)"}, reasons={"CDI": "none here"})
+    with pytest.raises(ValueError, match=r"\['S_PAN_UP'\] are no buttons of a unit as unit 1 has them"):
+        part.joined("x", "X", gns430, tds650, rows={"S_PAN_UP": "1 (>K:A)"})              # unit 2's name for it
+    with pytest.raises(ValueError, match=r"\['AP'\] are no buttons of a unit"):
+        part.joined("x", "X", gns430, tds650, reasons={"AP": "an autopilot's"})
+    with pytest.raises(ValueError, match="MSG is a navigator's, not for a reason"):        # it would hide its code
+        part.joined("x", "X", gns430, tds650, reasons={"MSG": "none here"})
+    with pytest.raises(ValueError, match="REQUIRED_VS would go unread"):
+        part.joined("x", "X", gns430, SimpleNamespace(**{**vars(tds650), "REQUIRED_VS": "(L:X, number)"}))
+
+
+def test_joined_navigators_send_a_key_up_after_a_hold_too():
+    # one navigator tells a tap from a hold, another sends its key-up on release: after a hold the other's key-up
+    # goes out with the hold's code, so its key is never left down
+    tds = UNIT_NAVIGATORS["gtn650-tds1"](2)
+    held = part.navigator("held", "Held", {"DIRECT": {"release": "1 (>K:A)", "long": "2 (>K:A)"}},
+                          {b: "x" for b in part.UNIT if b != "DIRECT"} | dict.fromkeys(part.MAP, "x"), 2)
+    key = part.joined("x", "X", tds, held).DEVICE[2]["DIRECT"]
+    down, up = tds.DEVICE[2]["DIRECT"]["press"], tds.DEVICE[2]["DIRECT"]["release"]
+    assert key == {"press": down, "release": f"{up} 1 (>K:A)", "long": f"{up} 2 (>K:A)"}
+    acts = profile.actions(key)
+    assert up in acts["onRelease"] and up in acts["onLongRelease"]
+    # a plain code beside a tap and a hold goes out on the press
+    plain = part.navigator("plain", "Plain", {"DIRECT": "3 (>K:A)"},
+                           {b: "x" for b in part.UNIT if b != "DIRECT"} | dict.fromkeys(part.MAP, "x"), 2)
+    assert part.joined("x", "X", plain, held).DEVICE[2]["DIRECT"] == {
+        "press": "3 (>K:A)", "release": "1 (>K:A)", "long": "2 (>K:A)"}
+
+
+def test_the_bonanzas_units_are_their_navigators():
+    # every button of a unit is its navigators' plain join (from the module's tuples, as joined() takes them), but
+    # its own rows: a row of the unit's own over another of a navigator's buttons fails here
+    for unit, joined, navs, own in ((1, bksq.UNIT1, bksq.UNIT1_NAVIGATORS, {"CDI", "NRST", "TERR"}),
+                                    (2, bksq.UNIT2, bksq.UNIT2_NAVIGATORS, set())):
+        plain = part.joined("x", "X", *navs)
+        for d in (1, 2):
+            for button, entry in plain.DEVICE[d].items():
+                if not (d == unit and button in own):
+                    assert joined.DEVICE[d][button] == entry, (unit, d, button)
+
+
+def test_the_kinds_cover_buttons_apart():
+    # what keeps two parts of a profile off one button: part() holds each part to its kind's scope
+    scopes = [part.scope("autopilot"), part.scope("cockpit"), part.scope("navigator", (1,)),
+              part.scope("navigator", (2,))]
+    for device in (1, 2):
+        buttons = [b for sc in scopes for b in sc.get(device, ())]
+        assert len(buttons) == len(set(buttons)), device
 
 
 def test_a_parts_project_names_its_tab_and_keeps_its_own_items():

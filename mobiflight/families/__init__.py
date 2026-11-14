@@ -1,4 +1,4 @@
-"""The profiles, and the avionics parts most of them are made of (part.py). A profile is a namespace with
+"""The profiles, and the avionics parts every one of them is made of (part.py). A profile is a namespace with
 
 - NAME: the profile as the project names it;
 - DEVICE: {1: {button: entry}, 2: {button: entry}}, by the button names of firmware/buttonmap.py. An entry is
@@ -8,10 +8,10 @@
 - UNMAPPED: {1: {button: reason}, 2: {button: reason}}, every other button of the device, with the reason it
   sends nothing in this profile.
 
-A profile of an avionics family joins one autopilot, one cockpit and the navigators of both units (part.compose);
-an aircraft's profile may be a module of its own, as Black Square's Bonanza's, whose tablet selects among several
-navigators at once. Each module names the source of its events; codes beyond a plain key or H: event say theirs
-where they are written.
+Every profile joins one autopilot, one cockpit and the navigators of both units (part.compose), an aircraft's own
+rows over them (aircraft.py, or the aircraft's own module); Black Square's Bonanza, whose tablet selects among
+several navigators at once, joins them in each unit (part.joined, black_square_bonanza.py). Each module names the
+source of its events; codes beyond a plain key or H: event say theirs where they are written.
 
 A new part is one more entry in AUTOPILOTS, COCKPITS or NAVIGATORS, or in UNIT_NAVIGATORS for a navigator of one
 unit (a function of the unit it goes in, as gns.NAVIGATORS and gtn.NAVIGATORS give them); a new profile one more
@@ -57,7 +57,7 @@ FAMILIES = {
     "gtn": compose("GTN 750Xi/650Xi", parts.KAP140_AUTOPILOT, parts.BENDIX_KING,
                    *navigators("gtn750-tds1", "gtn650-tds2"),
                    TOUCHSCREEN=(*gtn.TOUCHSCREEN, *(f"S_{b}" for b in gtn.TOUCHSCREEN if b.startswith("PAN_")))),
-    "black-square-bonanza": black_square_bonanza,
+    "black-square-bonanza": black_square_bonanza.PROFILE,
     "cows-da40": compose("COWS DA40", g1000.AUTOPILOT, g1000.COCKPIT, g1000.NAVIGATOR, rows={1: aircraft.DA40_LIGHTS}),
     "carenado-c182t": compose("Carenado C182T", parts.KAP140_AUTOPILOT, g1000.COCKPIT, g1000.NAVIGATOR,
                               rows={1: aircraft.C182T_LIGHTS}, unmapped={1: aircraft.C182T_UNMAPPED}),

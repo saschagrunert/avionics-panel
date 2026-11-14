@@ -10,7 +10,12 @@ project (compose(), the generator's --autopilot, --cockpit and --navigator or --
   lighting, and the radios and ADF of both units (FREQ knob and flip-flops);
 - navigator: the unit keys (CDI, OBS, HOME and the FMS keys) and the FMS knob of a unit, and that unit's map on the
   RANGE knob: without SHIFT for unit 1, with SHIFT for unit 2. A navigator of one unit (a GNS, a GTN) goes in
-  unit 1 or unit 2; one that has both units (the G1000's MFD and PFD, the G3X Touch's displays) fills both.
+  unit 1 or unit 2; one that has both units (the G1000's MFD and PFD, the G3X Touch's displays) fills both. An
+  aircraft whose own selection puts any of several navigators in a unit (Black Square's Bonanza, by its tablet) joins
+  them there (joined()).
+
+Every profile is compose()'s: one autopilot, one cockpit and the navigators of both units (one part for both, or
+one for each), an aircraft's own rows over them.
 """
 from types import SimpleNamespace
 
@@ -83,6 +88,72 @@ def navigator(key, name, rows, unmapped, unit, distances=(GPS_DISTANCE,)):
                 DISTANCES=tuple(distances))
 
 
+def _sent(entry, event):
+    """What an entry sends on this event ("press", "release", "long"), or None: a code alone is sent on press"""
+    if isinstance(entry, str):
+        return entry if event == "press" else None
+    return entry.get(event)
+
+
+def _joined(entries):
+    """The entries of several navigators for one button as one: each event's codes in their order. Where one tells a
+    tap from a hold ("long"), a release after a hold sends its "long" and the others' plain release: their key-up
+    goes out on every release (profile.actions sends "release" after a tap only)."""
+    if all(isinstance(e, str) for e in entries):
+        return " ".join(entries)
+    held = any(_sent(e, "long") for e in entries)
+    out = {}
+    for event in ("press", "release", "long"):
+        codes = [code for e in entries
+                 if (code := _sent(e, event) or (event == "long" and held and _sent(e, "release")))]
+        if codes:
+            out[event] = " ".join(codes)
+    return out
+
+
+def joined(key, name, *navigators, rows=None, reasons=None):
+    """Navigators of one unit at once, as an aircraft that puts any of them there: a button sends the codes of every
+    one that maps it, in their order, each event apart (a key's press and release), and one that none maps keeps the
+    first one's reason. As unit 1 has them (navigator()), rows replace buttons, and reasons replace the reasons of
+    buttons none of them maps (a reason over a navigator's code would hide what it gains later), none in both.
+    DISTANCES are theirs, in their order, each once, the sim's GPS WP DISTANCE last; a navigator with a REQUIRED_VS
+    is refused, as nothing would read it (none of one unit has one today: the G1000 NXi's is of both units)."""
+    found = {p.UNITS for p in navigators}
+    if len(found) != 1 or any(p.KIND != "navigator" or len(p.UNITS) != 1 for p in navigators):
+        raise ValueError(f"{key}: joins navigators of one unit, not {', '.join(p.KEY for p in navigators)}")
+    if any(getattr(p, "REQUIRED_VS", None) for p in navigators):
+        raise ValueError(f"{key}: a joined navigator's REQUIRED_VS would go unread")
+    (units,) = found
+    (unit,) = units
+    both = sorted(set(rows or {}) & set(reasons or {}))
+    if both:
+        raise ValueError(f"{key}: {both} both mapped and unmapped")
+    stray = sorted((set(rows or {}) | set(reasons or {})) - set(UNIT) - set(MAP))
+    if stray:
+        raise ValueError(f"{key}: {stray} are no buttons of a unit as unit 1 has them (UNIT, MAP: PAN_UP, not "
+                         "S_PAN_UP)")
+    device, rest = {1: {}, 2: {}}, {1: {}, 2: {}}
+    for d, buttons in scope("navigator", units).items():
+        for button in buttons:
+            entries = [p.DEVICE[d][button] for p in navigators if button in p.DEVICE[d]]
+            if entries:
+                device[d][button] = _joined(entries)
+            else:
+                rest[d][button] = next(p.UNMAPPED[d][button] for p in navigators)
+    for d, own in place(rows or {}, unit).items():
+        for button, entry in own.items():
+            rest[d].pop(button, None)
+            device[d][button] = entry
+    for d, own in place(reasons or {}, unit).items():
+        for button, reason in own.items():
+            if button in device[d]:
+                raise ValueError(f"{key}: {button} is a navigator's, not for a reason")
+            rest[d][button] = reason
+    reads = dict.fromkeys(r for p in navigators for r in getattr(p, "DISTANCES", ()))
+    distances = (*(r for r in reads if r != GPS_DISTANCE), *((GPS_DISTANCE,) if GPS_DISTANCE in reads else ()))
+    return part(f"{key}-unit{unit}", name, "navigator", device, rest, units, DISTANCES=distances)
+
+
 def empty(unit):
     """No navigator in this unit: radios alone, as a KX 155"""
     reason = f"no navigator in unit {unit}"
@@ -90,15 +161,23 @@ def empty(unit):
     return part(f"none-unit{unit}", "none", "navigator", {}, place(rows, unit), (unit,), DISTANCES=())
 
 
+def distances(*navigators):
+    """The distances VNV reads with these navigators (compose()): their own, unit 1's first, each once, then the
+    sim's GPS WP DISTANCE if none of them gave it"""
+    reads = [d for p in sorted(navigators, key=lambda p: p.UNITS) for d in getattr(p, "DISTANCES", ())]
+    return tuple(dict.fromkeys((*reads, GPS_DISTANCE)))
+
+
 def compose(name, *parts, rows=None, unmapped=None, **extra):
-    """The profile of these parts, one of each kind and navigators for both units: NAME, DEVICE and UNMAPPED, as a
-    family module has them (families/__init__.py), PARTS (their kinds and keys, as "cockpit-g1000") and extra's
-    attributes. An aircraft's own
-    rows ({device: {button: entry}}) and unmapped buttons ({device: {button: reason}}) replace the parts' for those
+    """The profile of these parts, one of each kind and navigators for both units: NAME, DEVICE and UNMAPPED
+    (families/__init__.py), PARTS (their kinds and keys, as "cockpit-g1000") and extra's attributes. No two parts
+    cover a button: part() holds each part to its kind's scope, and the scopes do not overlap. An aircraft's own rows
+    ({device: {button: entry}}) and unmapped buttons ({device: {button: reason}}) replace the parts' for those
     buttons, as its own lights. An autopilot whose VNV reads the navigator's distance (its VNV: the code of
     distances= and required=, for VNV and SHIFT, VNV alike) gets the distances the navigators give (DISTANCES), unit
-    1's first, then the sim's GPS WP DISTANCE if none gave it, and the first navigator's REQUIRED_VS: no profile
-    reads a variable of a navigator it lacks, which another aircraft of the session may have left."""
+    1's first, then the sim's GPS WP DISTANCE if none gave it, and the REQUIRED_VS of the first navigator with one,
+    unit 1's first: no profile reads a variable of a navigator it lacks, which another aircraft of the session may
+    have left."""
     kinds = [p.KIND for p in parts]
     units = sorted(u for p in parts if p.KIND == "navigator" for u in p.UNITS)
     if sorted(kinds) != sorted(["autopilot", "cockpit", *["navigator"] * (len(kinds) - 2)]) or units != [1, 2]:
@@ -112,10 +191,8 @@ def compose(name, *parts, rows=None, unmapped=None, **extra):
     vnv = [p.VNV for p in parts if getattr(p, "VNV", None)]
     if vnv:
         navigators = sorted((p for p in parts if p.KIND == "navigator"), key=lambda p: p.UNITS)
-        reads = [d for p in navigators for d in getattr(p, "DISTANCES", ())]
         required = next((p.REQUIRED_VS for p in navigators if getattr(p, "REQUIRED_VS", None)), None)
-        device[1]["VNV"] = device[1]["S_VNV"] = vnv[0](distances=tuple(dict.fromkeys((*reads, GPS_DISTANCE))),
-                                                       required=required)
+        device[1]["VNV"] = device[1]["S_VNV"] = vnv[0](distances=distances(*navigators), required=required)
     for d in (1, 2):
         both = set((rows or {}).get(d, {})) & set((unmapped or {}).get(d, {}))
         if both:
