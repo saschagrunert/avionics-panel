@@ -50,8 +50,8 @@ build][rolling]. To use one:
    as two joysticks (in keyboard mode it is a keyboard: [Keyboard mode](keyboard.md)).
 5. Save the project (File, Save). From then on it opens without asking.
 
-Or generate a profile bound to your own joysticks, so MobiFlight opens it without asking, with Python 3 and
-nothing else. MobiFlight knows a joystick by its GUID, so let it find them:
+Or generate a profile bound to your own joysticks, so MobiFlight opens it without asking, with Python 3.10 or
+newer and nothing else. MobiFlight knows a joystick by its GUID, so let it find them:
 
 1. In MobiFlight, start a new project and add two input configs. Bind the first to ENT in unit 1 (device 1,
    Button 83) and the second to ENT in unit 2 (SHIFT, HOME, then ENT: device 2, Button 10) with the input
@@ -166,10 +166,10 @@ with the inner FMS knob on the map page), PROC (the G3X loads no procedures), th
 
 The Working Title GNS 530 as unit 1 and GNS 430 as unit 2 in the KAP 140 cockpit: the KAP 140 with a KR 87
 ADF, a KT 76 transponder and a KMA 28 audio panel, as in the Cessna 172 Skyhawk Classic. The same profile
-drives KX 155/165 radios without a GNS; the FMS keys, CDI, OBS and RANGE then do nothing. With another
-autopilot the autopilot keys do nothing: map them in the project by hand. Two GNS of the same type, two
-GNS 430 for example, are not covered: the profile's events cannot tell the two apart. Differences from the
-real units:
+drives KX 155/165 radios without a GNS; the FMS keys, CDI, OBS and the RANGE turn then do nothing, and the
+RANGE knob tilted up and down still sets the COM volume. With another autopilot the autopilot keys do nothing:
+map them in the project by hand. Two GNS of the same type, two GNS 430 for example, are not covered: the
+profile's events cannot tell the two apart. Differences from the real units:
 
 - The ALT/HDG knob sets the KAP 140's altitude and the heading bug, and its push syncs the bug to the heading,
   as on the G1000. With SHIFT it sets the course of NAV 1 and the altimeter, not the KAP 140's own BARO.

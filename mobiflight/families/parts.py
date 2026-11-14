@@ -132,11 +132,11 @@ RANGE_KNOB = ("RANGE_CW", "RANGE_CCW", "S_RANGE_CW", "S_RANGE_CCW", *PAN)
 # ---------------- the heading bug, the course of NAV 1, the autopilot's level mode ----------------
 # the heading bug of slot 1 and the heading indicator of index 1 (Working Title's APPublisher.ts and Ahrs.ts read
 # both by index)
-HEADING, COURSE = "AUTOPILOT HEADING LOCK DIR:1", "NAV OBS:1"
+HEADING_VAR, COURSE = "AUTOPILOT HEADING LOCK DIR:1", "NAV OBS:1"
 # the fast step of the heading bug, 10° (docs/using/controls.md#knobs)
 HEADING_FAST = {
-    "HDG_10_UP": turn(HEADING, "HEADING_BUG_SET", 10),
-    "HDG_10_DN": turn(HEADING, "HEADING_BUG_SET", -10),
+    "HDG_10_UP": turn(HEADING_VAR, "HEADING_BUG_SET", 10),
+    "HDG_10_DN": turn(HEADING_VAR, "HEADING_BUG_SET", -10),
 }
 SYNC = "(A:HEADING INDICATOR:1, degrees) near dnor (>K:HEADING_BUG_SET)"         # the bug to the heading shown
 # the ALT/HDG knob's heading: the heading bug, whose push syncs it to the heading, in every autopilot part
@@ -283,12 +283,11 @@ AUDIO = {
 }
 
 
-def cockpit(key, name, knobs, **rows):
+def cockpit(key, name, knobs):
     """A cockpit part: the ALT/HDG knob with SHIFT (knobs), the audio panel, transponder and lighting, and the
-    radios and ADF of both units, the parts' rows unless rows replaces some ({button: entry})"""
-    device = {1: {**knobs, **AUDIO, **SQUAWK, **LIGHTS, **RADIO[1], **ADF, **rows}, 2: {**RADIO[2], **ADF}}
-    unmapped = {1: {b: r for b, r in {**LIGHTS_UNMAPPED, **RADIO_UNMAPPED}.items() if b not in device[1]},
-                2: dict(RADIO_UNMAPPED)}
+    radios and ADF of both units (an aircraft's own lights go over it in its profile: compose(rows=))"""
+    device = {1: {**knobs, **AUDIO, **SQUAWK, **LIGHTS, **RADIO[1], **ADF}, 2: {**RADIO[2], **ADF}}
+    unmapped = {1: {**LIGHTS_UNMAPPED, **RADIO_UNMAPPED}, 2: dict(RADIO_UNMAPPED)}
     return part(key, name, "cockpit", device, unmapped)
 
 

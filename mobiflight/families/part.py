@@ -87,7 +87,8 @@ def empty(unit):
 
 def compose(name, *parts, rows=None, unmapped=None, **extra):
     """The profile of these parts, one of each kind and navigators for both units: NAME, DEVICE and UNMAPPED, as a
-    family module has them (families/__init__.py), PARTS (their keys) and extra's attributes. An aircraft's own
+    family module has them (families/__init__.py), PARTS (their kinds and keys, as "cockpit-g1000") and extra's
+    attributes. An aircraft's own
     rows ({device: {button: entry}}) and unmapped buttons ({device: {button: reason}}) replace the parts' for those
     buttons, as its own lights."""
     kinds = [p.KIND for p in parts]
@@ -110,4 +111,5 @@ def compose(name, *parts, rows=None, unmapped=None, **extra):
         for button, reason in (unmapped or {}).get(d, {}).items():
             device[d].pop(button, None)
             rest[d][button] = reason
-    return SimpleNamespace(NAME=name, DEVICE=device, UNMAPPED=rest, PARTS=tuple(p.KEY for p in parts), **extra)
+    return SimpleNamespace(NAME=name, DEVICE=device, UNMAPPED=rest, PARTS=tuple(f"{p.KIND}-{p.KEY}" for p in parts),
+                           **extra)

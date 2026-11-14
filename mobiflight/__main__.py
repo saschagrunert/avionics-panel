@@ -12,6 +12,8 @@ DirectInput instance GUID, which names both "Avionics Panel". For joysticks of a
 vJoy devices, use --from: MobiFlight asks again for two joysticks of one name in a project that it does not find
 by name and serial (ControllerAutoBinder.cs)."""
 import argparse
+import contextlib
+import os
 import sys
 import zipfile
 
@@ -106,8 +108,14 @@ def main(argv=None):
     except (OSError, ValueError) as e:
         parser.error(str(e))
     output = args.output or f"{key}.mfproj"
-    with open(output, "w", encoding="utf-8", newline="\n") as f:
-        f.write(profile.dumps(project))
+    text = profile.dumps(project)
+    try:
+        with open(output, "w", encoding="utf-8", newline="\n") as f:
+            f.write(text)
+    except OSError as e:
+        with contextlib.suppress(OSError):              # no part of a project, which MobiFlight could not load
+            os.remove(output)
+        parser.error(str(e))
     for device in (1, 2):
         name, serial = controllers[device]
         print(f"device {device} ({name}, {serial}): {len(family.DEVICE[device])} buttons mapped", file=sys.stderr)

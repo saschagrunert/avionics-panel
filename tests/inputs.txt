@@ -1,0 +1,248 @@
+# Every H: event, L: variable, B: input event and A: simulation variable the profiles and parts send or read,
+# under the source it was found in (as each table's docstring cites it). tests/test_mobiflight.py keeps this list
+# and the tables in step, so a misspelt name fails: a new one goes in here, under its source, once that source
+# names it; a dropped one goes out.
+
+# the simulator's simulation variables (the SDK's lists)
+A:AUTOPILOT ALTITUDE LOCK
+A:AUTOPILOT FLIGHT LEVEL CHANGE
+A:AUTOPILOT HEADING LOCK DIR:1
+A:AUTOPILOT MASTER
+A:AUTOPILOT NAV SELECTED
+A:AUTOPILOT PITCH HOLD
+A:AUTOPILOT VERTICAL HOLD
+A:COM RECEIVE EX1:1
+A:COM RECEIVE EX1:2
+A:GPS DRIVES NAV1
+A:GPS OBS VALUE
+A:HEADING INDICATOR:1
+A:KOHLSMAN SETTING MB:1
+A:NAV HAS LOCALIZER:1
+A:NAV HAS LOCALIZER:2
+A:NAV HAS NAV:1
+A:NAV HAS NAV:2
+A:NAV LOCALIZER:1
+A:NAV LOCALIZER:2
+A:NAV OBS:1
+A:NAV OBS:2
+A:NAV RADIAL:1
+A:NAV RADIAL:2
+A:TRANSPONDER STATE:1
+
+# the simulator's input events, as projects the aircraft are flown with use them
+B:LIGHTING_CABIN_1
+B:LIGHTING_CABIN_1_Set
+B:LIGHTING_CABIN_2_Set
+B:LIGHTING_CABIN_3_Set
+B:LIGHTING_GLARESHIELD_1
+B:LIGHTING_GLARESHIELD_1_Set
+B:LIGHTING_PANEL_1
+B:LIGHTING_PANEL_1_Set
+B:LIGHTING_PEDESTRAL_1_Set
+B:LIGHTING_POTENTIOMETER_3
+B:LIGHTING_POTENTIOMETER_3_Set
+B:LIGHTING_POTENTIOMETER_4_Set
+
+# Working Title's G1000 NXi (msfs-avionics-mirror)
+H:AS1000_MFD_CLR
+H:AS1000_MFD_DIRECTTO
+H:AS1000_MFD_ENT_Push
+H:AS1000_MFD_FMS_Lower_DEC
+H:AS1000_MFD_FMS_Lower_INC
+H:AS1000_MFD_FMS_Upper_DEC
+H:AS1000_MFD_FMS_Upper_INC
+H:AS1000_MFD_FMS_Upper_PUSH
+H:AS1000_MFD_FPL_Push
+H:AS1000_MFD_JOYSTICK_DOWN
+H:AS1000_MFD_JOYSTICK_LEFT
+H:AS1000_MFD_JOYSTICK_PUSH
+H:AS1000_MFD_JOYSTICK_RIGHT
+H:AS1000_MFD_JOYSTICK_UP
+H:AS1000_MFD_MENU_Push
+H:AS1000_MFD_PROC_Push
+H:AS1000_MFD_RANGE_DEC
+H:AS1000_MFD_RANGE_INC
+H:AS1000_MFD_SOFTKEYS_1
+H:AS1000_MFD_SOFTKEYS_10
+H:AS1000_MFD_SOFTKEYS_11
+H:AS1000_MFD_SOFTKEYS_12
+H:AS1000_PFD_BARO_DEC
+H:AS1000_PFD_BARO_INC
+H:AS1000_PFD_CLR
+H:AS1000_PFD_CRS_DEC
+H:AS1000_PFD_CRS_INC
+H:AS1000_PFD_CRS_PUSH
+H:AS1000_PFD_DIRECTTO
+H:AS1000_PFD_ENT_Push
+H:AS1000_PFD_FMS_Lower_DEC
+H:AS1000_PFD_FMS_Lower_INC
+H:AS1000_PFD_FMS_Upper_DEC
+H:AS1000_PFD_FMS_Upper_INC
+H:AS1000_PFD_FMS_Upper_PUSH
+H:AS1000_PFD_FPL_Push
+H:AS1000_PFD_JOYSTICK_DOWN
+H:AS1000_PFD_JOYSTICK_LEFT
+H:AS1000_PFD_JOYSTICK_PUSH
+H:AS1000_PFD_JOYSTICK_RIGHT
+H:AS1000_PFD_JOYSTICK_UP
+H:AS1000_PFD_MENU_Push
+H:AS1000_PFD_PROC_Push
+H:AS1000_PFD_RANGE_DEC
+H:AS1000_PFD_RANGE_INC
+H:AS1000_PFD_SOFTKEYS_10
+H:AS1000_PFD_SOFTKEYS_11
+H:AS1000_PFD_SOFTKEYS_12
+H:AS1000_PFD_SOFTKEYS_4
+H:AS1000_VNAV_TOGGLE
+L:PFD_CDI_Source
+
+# Working Title's G3X Touch (its H Event List)
+H:AS3X_Touch_1_Back_Push
+H:AS3X_Touch_1_DirectTo_Push
+H:AS3X_Touch_1_Knob_Inner_R_DEC
+H:AS3X_Touch_1_Knob_Inner_R_INC
+H:AS3X_Touch_1_Knob_Inner_R_PUSH
+H:AS3X_Touch_1_Knob_Outer_R_DEC
+H:AS3X_Touch_1_Knob_Outer_R_INC
+H:AS3X_Touch_1_Menu_Push
+H:AS3X_Touch_1_NRST_Push
+H:AS3X_Touch_2_Back_Push
+H:AS3X_Touch_2_DirectTo_Push
+H:AS3X_Touch_2_Knob_Inner_R_DEC
+H:AS3X_Touch_2_Knob_Inner_R_INC
+H:AS3X_Touch_2_Knob_Inner_R_PUSH
+H:AS3X_Touch_2_Knob_Outer_R_DEC
+H:AS3X_Touch_2_Knob_Outer_R_INC
+H:AS3X_Touch_2_Menu_Push
+H:AS3X_Touch_2_NRST_Push
+
+# Working Title's GNS (InteractionEvent.ts)
+H:AS430_CDI_Push
+H:AS430_CLR_Push
+H:AS430_CLR_Push_Long
+H:AS430_DirectTo_Push
+H:AS430_ENT_Push
+H:AS430_FPL_Push
+H:AS430_MENU_Push
+H:AS430_MSG_Push
+H:AS430_OBS_Push
+H:AS430_PROC_Push
+H:AS430_RNG_Dezoom
+H:AS430_RNG_Zoom
+H:AS430_RightLargeKnob_Left
+H:AS430_RightLargeKnob_Right
+H:AS430_RightSmallKnob_Left
+H:AS430_RightSmallKnob_Push
+H:AS430_RightSmallKnob_Right
+H:AS530_CDI_Push
+H:AS530_CLR_Push
+H:AS530_CLR_Push_Long
+H:AS530_DirectTo_Push
+H:AS530_ENT_Push
+H:AS530_FPL_Push
+H:AS530_MENU_Push
+H:AS530_MSG_Push
+H:AS530_OBS_Push
+H:AS530_PROC_Push
+H:AS530_RNG_Dezoom
+H:AS530_RNG_Zoom
+H:AS530_RightLargeKnob_Left
+H:AS530_RightLargeKnob_Right
+H:AS530_RightSmallKnob_Left
+H:AS530_RightSmallKnob_Push
+H:AS530_RightSmallKnob_Right
+H:AS530_VNAV_Push
+
+# the sim's KAP 140 (KAP140.js)
+H:KAP140_Knob_Inner_DEC
+H:KAP140_Knob_Inner_INC
+H:KAP140_Knob_Outer_DEC
+H:KAP140_Knob_Outer_INC
+H:KAP140_Push_ALT
+H:KAP140_Push_AP
+H:KAP140_Push_APR
+H:KAP140_Push_DN
+H:KAP140_Push_HDG
+H:KAP140_Push_NAV
+H:KAP140_Push_REV
+H:KAP140_Push_UP
+
+# pms50's GTN, as Black Square's guide lists it
+H:GTN650_DirectToPush
+H:GTN650_HomePush
+H:GTN650_KnobLargeDec
+H:GTN650_KnobLargeInc
+H:GTN650_KnobPush
+H:GTN650_KnobSmallDec
+H:GTN650_KnobSmallInc
+H:GTN650_VolDec
+H:GTN650_VolInc
+H:GTN750_DirectToPush
+H:GTN750_HomePush
+H:GTN750_KnobLargeDec
+H:GTN750_KnobLargeInc
+H:GTN750_KnobPush
+H:GTN750_KnobSmallDec
+H:GTN750_KnobSmallInc
+H:GTN750_VolDec
+H:GTN750_VolInc
+
+# the profiles' own
+L:AvionicsPanel_G1000_Engine
+
+# Black Square's Bonanza guide, or a project the Bonanza is flown with
+H:KLN90B_ALT_Push
+H:KLN90B_ApprArm_Push
+H:KLN90B_CLR_Push
+H:KLN90B_DCT_Push
+H:KLN90B_ENT_Push
+H:KLN90B_LeftCursor_Toggle
+H:KLN90B_LeftLargeKnob_Left
+H:KLN90B_LeftLargeKnob_Right
+H:KLN90B_LeftSmallKnob_Left
+H:KLN90B_LeftSmallKnob_Right
+H:KLN90B_MSG_Push
+H:KLN90B_RightCursor_Toggle
+H:KLN90B_RightLargeKnob_Left
+H:KLN90B_RightLargeKnob_Right
+H:KLN90B_RightSmallKnob_Left
+H:KLN90B_RightSmallKnob_Right
+H:TRANSPONDER_Push_ALT
+H:TRANSPONDER_Push_STBY
+H:adf_AntAdf
+H:adf_bfo
+H:adf_frqTransfert
+H:bksq_JpiButton_1_L_Long
+H:bksq_JpiButton_1_L_Short
+H:bksq_JpiButton_1_R_Long
+H:bksq_JpiButton_1_R_Short
+H:bksq_wradar1_radarRangeDec
+H:bksq_wradar1_radarRangeInc
+H:kas297b_1000_DEC
+H:kas297b_1000_INC
+H:kas297b_100_DEC
+H:kas297b_100_INC
+H:kas297b_ArmButton
+H:kas297b_VsButton
+L:OatMapCompassLightButton_1
+L:OatMapCompassLightButton_2
+L:bksq_MasterGlareshieldLights
+L:bksq_MasterPanelLights
+L:var_AutopilotStartupCounter
+L:var_EngineInstrumentsLightingKnob
+L:var_FlightInstrumentsLightingKnob
+L:var_GlareshieldLightingKnob
+L:var_LIGHTING_Push_Cockpit_1
+L:var_LIGHTING_Push_Cockpit_2
+L:var_LIGHTING_Push_Cockpit_3
+L:var_LIGHTING_Push_Cockpit_4
+L:var_LIGHTING_Push_Cockpit_5
+L:var_LIGHTING_Push_Cockpit_6
+L:var_OatMapCompassLightButton_1
+L:var_OatMapCompassLightButton_2
+L:var_PilotTransmitSelector
+L:var_RadarTilt
+L:var_SubpanelLightingKnob
+L:var_dmeMode
+L:var_md41Test
+L:var_rnavDrivesHsi

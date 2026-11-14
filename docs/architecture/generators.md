@@ -45,7 +45,7 @@ actions).
 | A timing: SHIFT, the repeats, the pulses | The constants at the top of [panel.py](../../firmware/panel.py) | [Controls](../using/controls.md), [Firmware](firmware.md), [Keyboard mode](../using/keyboard.md), [Mapping](../using/mapping.md) and [Simulator](../using/simulator.md) quote them |
 | A pin | [code.py](../../firmware/code.py) and its net in [pcb/board.py](../../pcb/board.py) | `tests/test_pins.py` compares the two; the board needs `./build.sh --route` |
 | A height, a fit or a tolerance | [mech/stack.py](../../mech/stack.py); the body's own sizes in [make_mech.py](../../mech/make_mech.py) | `check_fit.py` measures the solids against them and rewrites the fits table in [Mechanics](mechanics.md#fits) |
-| What a profile sends to the sim | Its parts' tables in [mobiflight/families/](../../mobiflight/families/), joined in [\_\_init\_\_.py](../../mobiflight/families/__init__.py); the rows several parts share in [parts.py](../../mobiflight/families/parts.py) | `tests/test_mobiflight.py` checks the tables; the `build` workflow publishes the profiles |
+| What a profile sends to the sim | Its parts' tables in [mobiflight/families/](../../mobiflight/families/), joined in [\_\_init\_\_.py](../../mobiflight/families/__init__.py); the rows several parts share in [parts.py](../../mobiflight/families/parts.py) | `tests/test_mobiflight.py` checks the tables; the `build` workflow publishes the profiles; a new key event goes into `tests/key_events.txt` once it is found in the SDK's lists of key events, a new H:, L:, B: or A: name into `tests/inputs.txt` under its source once that source names it, and a new source into `SOURCES` in `tests/test_mobiflight.py` and as a heading in `tests/inputs.txt` |
 
 ## Scripts
 

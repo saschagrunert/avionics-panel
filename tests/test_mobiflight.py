@@ -26,9 +26,18 @@ PARTS = every_part()                                  # every avionics part, a n
 TABLES = {**FAMILIES, **PARTS}
 TABLE = pytest.mark.parametrize("key", sorted(TABLES))    # every profile and every part
 BONANZA = "black-square-bonanza"
-G1000 = ("g1000", "cows-da40", "carenado-c182t")      # the profiles with the G1000 NXi's cockpit and navigator
-GARMIN = ("g1000", "g3x", "cows-da40")                # ... with Garmin's autopilot, the GFC 700 or GFC 500
-BENDIX = ("gns", "gtn", BONANZA)                      # ... with the instruments round a Bendix/King autopilot
+
+
+def joined_from(*keys):
+    """The profiles joined from a part of one of these kinds and keys, as "cockpit-g1000" (part.compose keeps them
+    in PARTS), sorted"""
+    return tuple(sorted(k for k, f in FAMILIES.items() if set(keys) & set(getattr(f, "PARTS", ()))))
+
+
+G1000 = tuple(sorted(set(joined_from("cockpit-g1000")) & set(joined_from("navigator-g1000"))))   # the G1000 NXi's
+GARMIN = joined_from("autopilot-gfc700", "autopilot-gfc500")   # with Garmin's autopilot, the GFC 700 or GFC 500
+BENDIX = (*joined_from("cockpit-bendix-king"), BONANZA)        # with the instruments round a Bendix/King autopilot
+assert G1000 and GARMIN and len(BENDIX) > 1, "no profile joined from these parts: a part's key changed?"
 
 
 def build(controllers=PANEL, key="g1000"):
@@ -211,12 +220,27 @@ PREFIXES = {
 }
 PREFIXES["cows-da40"] = PREFIXES["g1000"]
 PREFIXES["carenado-c182t"] = {1: (*PREFIXES["g1000"][1], "KAP140_"), 2: PREFIXES["g1000"][2]}
-for key, p in PARTS.items():                          # the parts' own, by their prefixes
-    if p.KIND != "cockpit":
-        PREFIXES[key] = {1: ("AS1000_", "AS3X_Touch_", "AS530_", "AS430_", "GTN750_", "GTN650_", "KAP140_",
-                             "kas297b_"), 2: ("AS1000_", "AS3X_Touch_", "AS530_", "AS430_", "GTN750_", "GTN650_")}
+# the parts' own: an autopilot's and a cockpit's on device 1, a navigator's on its units' devices (and its map on
+# device 1), by the model of a navigator of one unit
+_OWN = {"autopilot-gfc700": ("AS1000_PFD_SOFTKEYS_", "AS1000_VNAV_TOGGLE"), "autopilot-gfc500": ("AS1000_VNAV_TOGGLE",),
+        "autopilot-kap140": ("KAP140_",), "autopilot-kfc150": ("kas297b_",), "cockpit-g1000": ("AS1000_PFD_",),
+        "cockpit-g3x": (), "cockpit-bendix-king": ()}
+for key, p in PARTS.items():
+    if p.KIND != "navigator":
+        assert key in _OWN, f"{key}: give its prefixes in _OWN"
+        PREFIXES[key] = {1: _OWN[key], 2: ()}
+    elif key == "navigator-g3x":
+        PREFIXES[key] = {1: ("AS3X_Touch_1_",), 2: ("AS3X_Touch_2_",)}
+    elif key == "navigator-g1000":
+        PREFIXES[key] = {1: ("AS1000_MFD_", "AS1000_PFD_RANGE_", "AS1000_PFD_JOYSTICK_", "AS1000_PFD_SOFTKEYS_"),
+                         2: ("AS1000_MFD_SOFTKEYS_", "AS1000_PFD_")}
     else:
-        PREFIXES[key] = {1: ("AS1000_PFD_",), 2: ()}
+        model = re.match(r"navigator-(gns|gtn)(\d+)-(\w+-)?unit", key)
+        assert model, f"{key}: a navigator of a new kind, give its prefixes here"
+        own = (f"AS{model[2]}_",) if model[1] == "gns" else (f"GTN{model[2]}_",) if "pms50" in key else ()
+        # unit 2's map on device 1: the GNS's RNG keys, the pms50 GTN's inner knob and volume
+        on_1 = tuple(f"{o}{e}" for o in own for e in (("RNG_",) if model[1] == "gns" else ("KnobSmall", "Vol")))
+        PREFIXES[key] = {1: own, 2: ()} if p.UNITS == (1,) else {1: on_1, 2: own}
 
 
 @TABLE
@@ -316,6 +340,72 @@ def radios(code):
         if re.fullmatch(r"\(>K:(CO)?PILOT_TRANSMITTER_SET\)", token):
             out.add(str(int(tokens[i - 1]) + 1))
     return out
+
+
+def test_every_key_event_is_one_the_sdk_lists():
+    # tests/key_events.txt holds the key events checked against the SDK's lists; the tables send those and only
+    # those, so a misspelt event, which the simulator would drop without a word, fails here
+    with open(os.path.join(ROOT, "tests", "key_events.txt"), encoding="utf-8") as f:
+        checked = {line.strip() for line in f if line.strip() and not line.startswith("#")}
+    sent = {name for key in TABLES for *_, code in codes(key) for name in re.findall(r"\(>K:([^)]*)\)", code)}
+    assert sent - checked == set(), "not checked against the SDK: add them to tests/key_events.txt once found there"
+    assert checked - sent == set(), "sent no more: take them out of tests/key_events.txt"
+
+
+# where every H: event, L: variable and B: input event comes from, by its prefix: the avionics' and aircraft's own
+# documentation or sources, as each table's docstring cites them; a name of no such prefix is a typo or an
+# unsourced input
+_WT_G1000 = "Working Title's G1000 NXi (msfs-avionics-mirror)"
+_WT_GNS = "Working Title's GNS (InteractionEvent.ts)"
+_PMS50 = "pms50's GTN, as Black Square's guide lists it"
+_BLACK_SQUARE = "Black Square's Bonanza guide, or a project the Bonanza is flown with"
+SOURCES = {
+    "A:": "the simulator's simulation variables (the SDK's lists)",
+    "B:LIGHTING_": "the simulator's input events, as projects the aircraft are flown with use them",
+    "H:AS1000_": _WT_G1000,
+    "L:PFD_CDI_Source": _WT_G1000,
+    "H:AS3X_Touch_": "Working Title's G3X Touch (its H Event List)",
+    "H:AS530_": _WT_GNS,
+    "H:AS430_": _WT_GNS,
+    "H:KAP140_": "the sim's KAP 140 (KAP140.js)",
+    "H:GTN750_": _PMS50,
+    "H:GTN650_": _PMS50,
+    "L:AvionicsPanel_": "the profiles' own",
+    **dict.fromkeys(("H:KLN90B_", "H:kas297b_", "H:bksq_", "H:adf_", "H:TRANSPONDER_Push_", "L:var_", "L:bksq_",
+                     "L:OatMapCompassLightButton_"), _BLACK_SQUARE),
+}
+
+
+@TABLE
+def test_every_other_input_has_a_source(key):
+    # every set or read names an A:, B:, H:, K: or L: input, in that case; an H:, L: or B: name has the prefix of a
+    # cited source
+    for device, button, _, code in codes(key):
+        assert set(re.findall(r"\(>?([A-Za-z]+):", code)) <= set("ABHKL"), (key, device, button, code)
+        for name in re.findall(r"\(>?([HLB]:\w+)", code):
+            assert name.startswith(tuple(SOURCES)), (f"{name} ({key}, device {device}, {button}): no cited source for "
+                                                     "its prefix; add the source to SOURCES and a heading to "
+                                                     "tests/inputs.txt")
+
+
+def test_every_other_input_is_one_its_source_names():
+    # tests/inputs.txt holds every H:, L:, B: and A: name, each found in its source once and listed under it; the
+    # tables use those and only those, so a misspelt name of a known prefix, or a misspelt simulation variable,
+    # which reads 0 or sets nothing without a word, fails here
+    checked, heading = {}, None                          # name -> the heading it is listed under
+    with open(os.path.join(ROOT, "tests", "inputs.txt"), encoding="utf-8") as f:
+        for line in f:
+            if line.startswith("# ") and line[2:].strip() in SOURCES.values():
+                heading = line[2:].strip()
+            elif line.strip() and not line.startswith("#"):
+                assert line.strip() not in checked, f"{line.strip()} listed twice"
+                checked[line.strip()] = heading
+    for name, under in checked.items():                 # each under its source, as SOURCES names it
+        assert under == next((v for p, v in SOURCES.items() if name.startswith(p)), None), (name, under)
+    checked = set(checked)
+    used = {name for key in TABLES for *_, code in codes(key) for name in re.findall(r"\(>?([AHLB]:[^),]+)", code)}
+    assert used - checked == set(), "not checked against its source: add them to tests/inputs.txt once found there"
+    assert checked - used == set(), "used no more: take them out of tests/inputs.txt"
 
 
 @TABLE
@@ -1225,6 +1315,7 @@ def test_command_line_with_a_vfr_code(tmp_path):
     ["--serials", "JS-x", PANEL[2][1]],
     ["--from", "missing.mfproj"],
     ["--family", "g3000"],
+    ["-o", "missing-folder/out.mfproj"],
     ["--vfr", "7008"],
     ["--vfr"],
 ])
