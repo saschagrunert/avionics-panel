@@ -1,4 +1,4 @@
-"""The MobiFlight project (.mfproj) for one avionics family, for both joysticks.
+"""The MobiFlight project (.mfproj) of a profile or of an avionics part, for both joysticks.
 
 The format is MobiFlight's JSON project, schema "_version" 0.10 (MobiFlight 11.2 and newer; 11.1 reads 0.9 and
 loads a newer project unmigrated), as MobiFlight 11.3.1 reads and writes it
@@ -39,7 +39,7 @@ SERIAL = re.compile(r"JS-[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}")
 BUTTON = re.compile(r"Button ([0-9]+)")
 EVENTS = {"press": "onPress", "release": "onRelease", "long": "onLongRelease"}
 LONG_MS = 350                    # a button held longer than this is a hold: onLongRelease, not onRelease
-WRITES = re.compile(r"\(>[AHKL]:([^),]+)[^)]*\)")   # what a code sets: (>K:EVENT), (>A:VARIABLE, unit) and so on
+WRITES = re.compile(r"\(>[ABHKL]:([^),]+)[^)]*\)")   # what a code sets: (>K:EVENT), (>A:VARIABLE, unit) and so on
 
 
 def _load(name, path):
@@ -78,9 +78,12 @@ def serial(text):
 
 
 def build(family, controllers=UNBOUND, vfr=None):
-    """The project as a dict. controllers: {1: (name, serial), 2: (name, serial)}, the user's joysticks or
-    UNBOUND. vfr: the squawk the VFR key sets, in place of the one in the family's table (None: that one);
-    ValueError for a code that is none, or for a family whose VFR key sets no squawk."""
+    """The project of a profile or a part (families/) as a dict. controllers: {1: (name, serial), 2: (name,
+    serial)}, the user's joysticks or UNBOUND. vfr: the squawk the VFR key sets, in place of the one in the
+    family's table (None: that one); ValueError for a code that is none, or for a family whose VFR key sets no
+    squawk. A part's project names it in its label, which MobiFlight shows as the tab it adds."""
+    part = hasattr(family, "KIND")             # a part, as a tab of its own beside others: named in its label
+    title = family.TITLE if part else family.NAME
     tables = {1: dict(family.DEVICE[1]), 2: family.DEVICE[2]}
     if vfr is not None:
         squawk = parts.vfr(vfr)
@@ -97,7 +100,7 @@ def build(family, controllers=UNBOUND, vfr=None):
                                   for event, code in acts.items()})
             button_config.update(LongReleaseDelay=LONG_MS, HoldDelay=350, RepeatDelay=0)
             items.append({
-                "GUID": str(uuid.uuid5(ITEMS, f"{family.NAME}/{device}/{button}")),
+                "GUID": str(uuid.uuid5(ITEMS, f"{title}/{device}/{button}")),
                 "Active": True,
                 "Name": f"{button}{', unit 2' if device == 2 else ''}: {label(' '.join(acts.values()))}",
                 "Type": "InputConfigItem",
@@ -106,12 +109,12 @@ def build(family, controllers=UNBOUND, vfr=None):
                 "button": button_config,
             })
     return {
-        "Name": f"{NAME}: {family.NAME}",
+        "Name": f"{NAME}: {title}",
         "Sim": "msfs",
         "Features": {"FSUIPC": False, "ProSim": False},
         "Aircraft": [],
-        "ConfigFiles": [{"Label": NAME, "FileName": None, "ReferenceOnly": False, "EmbedContent": True,
-                         "ConfigItems": items}],
+        "ConfigFiles": [{"Label": f"{NAME}: {title}" if part else NAME, "FileName": None, "ReferenceOnly": False,
+                         "EmbedContent": True, "ConfigItems": items}],
         "_version": SCHEMA,
     }
 

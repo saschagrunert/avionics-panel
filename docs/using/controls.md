@@ -31,7 +31,7 @@ shortcuts instead. To try them without a panel, the firmware runs on the PC and 
 | Position | Part | Turn | Push | With SHIFT |
 | --- | --- | --- | --- | --- |
 | Left top | Dual encoder, Ø17 / Ø12 knobs | Outer ALT, inner HDG | HDG SYNC | Outer BARO, inner CRS, push STD |
-| Left bottom | Multi-control: turn, tilt 4 ways, push | RANGE | Map pointer | Own buttons: a second map or a GTN's volume knob in the generated profiles, else free for your own mappings |
+| Left bottom | Multi-control: turn, tilt 4 ways, push | RANGE | Map pointer | Own buttons: the second unit's map in the generated profiles (in the Bonanza's also its weather radar's range), else free for your own mappings |
 | Right top | Dual encoder, Ø17 / Ø12 knobs | Frequency: outer MHz, inner kHz (ADF: outer 100s, inner 1s) | Cycles COM, NAV, ADF (without an ADF in the aircraft, the ADF mode's turns do nothing) | Squawk: outer selects the digit, inner sets it; push XPDR mode |
 | Right bottom | Dual encoder, Ø17 / Ø12 knobs | Outer page group, inner page | Cursor | Lighting: outer panel lights, inner glareshield flood, push cabin light |
 

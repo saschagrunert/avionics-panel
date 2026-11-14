@@ -11,7 +11,7 @@ by `./build.sh` or by the scripts one by one. The files to order and the schemat
 | [mech/](../../mech/) | Body, front plate, knobs, light pipes, key caps, plate artwork | [stack.py](../../mech/stack.py) (the heights and tolerances), [check_fit.py](../../mech/check_fit.py) |
 | [firmware/](../../firmware/) | CircuitPython for the panel's RP2040 | [code.py](../../firmware/code.py), [panel.py](../../firmware/panel.py), [buttonmap.py](../../firmware/buttonmap.py) |
 | [sim/](../../sim/) | The firmware on stand-in hardware, for the tests and live as a HID device ([Firmware](firmware.md#code-and-tests)) | [\_\_init\_\_.py](../../sim/__init__.py), [hardware.py](../../sim/hardware.py), [live.py](../../sim/live.py) |
-| [mobiflight/](../../mobiflight/) | MobiFlight profiles per avionics family, from a table of sim events for each; the `build` workflow puts them on the releases ([Mapping](../using/mapping.md#generated-profiles)) | [profile.py](../../mobiflight/profile.py), [families/parts.py](../../mobiflight/families/parts.py), [families/g1000.py](../../mobiflight/families/g1000.py) |
+| [mobiflight/](../../mobiflight/) | MobiFlight profiles per avionics family or aircraft, joined from avionics parts (autopilot, cockpit, navigators), each a table of sim events, and a zip of the parts; the `build` workflow puts them on the releases ([Mapping](../using/mapping.md#generated-profiles)) | [profile.py](../../mobiflight/profile.py), [families/part.py](../../mobiflight/families/part.py), [families/parts.py](../../mobiflight/families/parts.py), [families/g1000.py](../../mobiflight/families/g1000.py) |
 | [viewer/](../../viewer/) | The 3D view (three.js), [live here](https://saschagrunert.de/avionics-panel/) | [index.html](../../viewer/index.html) |
 | [production/](../../production/) | The files to order | [Ordering](../building/ordering.md) |
 | [renders/](../../renders/) | Pictures | |
@@ -45,7 +45,7 @@ actions).
 | A timing: SHIFT, the repeats, the pulses | The constants at the top of [panel.py](../../firmware/panel.py) | [Controls](../using/controls.md), [Firmware](firmware.md), [Keyboard mode](../using/keyboard.md), [Mapping](../using/mapping.md) and [Simulator](../using/simulator.md) quote them |
 | A pin | [code.py](../../firmware/code.py) and its net in [pcb/board.py](../../pcb/board.py) | `tests/test_pins.py` compares the two; the board needs `./build.sh --route` |
 | A height, a fit or a tolerance | [mech/stack.py](../../mech/stack.py); the body's own sizes in [make_mech.py](../../mech/make_mech.py) | `check_fit.py` measures the solids against them and rewrites the fits table in [Mechanics](mechanics.md#fits) |
-| What a profile sends to the sim | The family's table in [mobiflight/families/](../../mobiflight/families/); the rows several families share in [parts.py](../../mobiflight/families/parts.py) | `tests/test_mobiflight.py` checks the tables; the `build` workflow publishes the profiles |
+| What a profile sends to the sim | Its parts' tables in [mobiflight/families/](../../mobiflight/families/), joined in [\_\_init\_\_.py](../../mobiflight/families/__init__.py); the rows several parts share in [parts.py](../../mobiflight/families/parts.py) | `tests/test_mobiflight.py` checks the tables; the `build` workflow publishes the profiles |
 
 ## Scripts
 
@@ -76,7 +76,7 @@ skip), `python3 -m sim.page`, `python3 -m mobiflight` and `python3 windows/make_
 | `firmware/` | `python3 make_keys.py >KEYS.md` | The shortcuts of the [keyboard mode](../using/keyboard.md) |
 | Repository root | `pytest` | The [firmware tests](firmware.md#code-and-tests); `tests/test_checkers.py` runs the checkers in the gen shell through nix-shell and skips without it |
 | Repository root | `python3 -m sim.page` | The [simulator](../using/simulator.md): the firmware on the PC, played in the browser |
-| Repository root | `python3 -m mobiflight --family g1000` | The MobiFlight profile of a family ([Mapping](../using/mapping.md#generated-profiles)) |
+| Repository root | `python3 -m mobiflight --family g1000` | The MobiFlight profile of a family or aircraft, or of avionics parts, or the parts zip ([Mapping](../using/mapping.md#generated-profiles)) |
 | Repository root | `python3 windows/make_zip.py` | The simulator's zip for Windows ([Simulator](../using/simulator.md#windows)) |
 | Repository root | `python3 viewer/shots.py` | Renders 1 to 4 and 9, in the `shots` shell |
 

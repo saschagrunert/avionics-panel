@@ -1,5 +1,6 @@
-"""The parts several family tables share: {button: code} rows, and {button: reason} for the buttons a part leaves
-unmapped, joined into a table's DEVICE and UNMAPPED dicts (__init__.py).
+"""The rows several parts share: {button: code} rows, and {button: reason} for the buttons a part leaves unmapped,
+joined into the parts' DEVICE and UNMAPPED dicts (part.py); and the parts round the KAP 140, its autopilot and the
+Bendix/King cockpit.
 
 The radios, ADF, transponder, audio panel and the instruments around a Bendix/King autopilot take the simulator's
 own key events (the MSFS 2024 SDK's Key Events) and, for the transponder's mode, its simulation variable, which act
@@ -9,6 +10,7 @@ takes the simulator's autopilot key events (GARMIN_SHARED).
 """
 import re
 
+from mobiflight.families.part import part
 from mobiflight.families.rpn import h, k, turn
 
 VFR = "7000"                     # the squawk the VFR key sets (EASA), unless a profile is made with another (--vfr)
@@ -104,6 +106,22 @@ SQUAWK = {
 LIGHTS = {
     "CABIN_LT": k("TOGGLE_CABIN_LIGHTS"),
 }
+
+
+def dimmer(read, writes, step, switches=()):
+    """A dimmer a step up or down, from 0 to 100 (20 detents end to end): read, the variable it steps (RPN, as
+    "(L:name, Number)" or "(B:NAME)"), set in register 0 and written to every one of writes (as "L:name" or
+    "B:NAME_Set"), and the lights' switches on above 0 and off at 0"""
+    sign, limit = ("+", "100 min") if step > 0 else ("-", "0 max")
+    return " ".join([f"{read} {abs(step)} {sign} {limit} sp0", *(f"l0 (>{w})" for w in writes),
+                     *(f"l0 0 > (>{s})" for s in switches)])
+
+
+def toggle(read, writes, on=1):
+    """A light pushed on or off: read, its state (RPN), and every one of writes set to on or 0 as it goes"""
+    return " ".join([f"{read} 0 > ! {on} * sp0", *(f"l0 (>{w})" for w in writes)])
+
+
 _DIMMERS = "the dimmers differ by aircraft: their key events take the aircraft's own circuit or potentiometer"
 LIGHTS_UNMAPPED = dict.fromkeys(("PANEL_LT_UP", "PANEL_LT_DN", "FLOOD_LT_UP", "FLOOD_LT_DN"), _DIMMERS)
 # the RANGE knob (device 1): its tilts and push pan the map and work its pointer
@@ -121,6 +139,8 @@ HEADING_FAST = {
     "HDG_10_DN": turn(HEADING, "HEADING_BUG_SET", -10),
 }
 SYNC = "(A:HEADING INDICATOR:1, degrees) near dnor (>K:HEADING_BUG_SET)"         # the bug to the heading shown
+# the ALT/HDG knob's heading: the heading bug, whose push syncs it to the heading, in every autopilot part
+HEADING = {"HDG_1_UP": k("HEADING_BUG_INC"), "HDG_1_DN": k("HEADING_BUG_DEC"), **HEADING_FAST, "HDG_SYNC": SYNC}
 
 
 def nav(code):
@@ -164,7 +184,7 @@ _WHEEL = ("(A:AUTOPILOT VERTICAL HOLD, Bool) if{{ (>K:AP_VS_VAR_{0}) }} els{{ (A
           "if{{ (>K:AP_SPD_VAR_{1}) }} els{{ (A:AUTOPILOT PITCH HOLD, Bool) if{{ (>K:AP_PITCH_REF_INC_{2}) }} }} }}")
 _NOSE_UP = _WHEEL.format("INC", "DEC", "UP")
 _NOSE_DN = _WHEEL.format("DEC", "INC", "DN")
-# the autopilot keys, the yaw damper, the ALT/HDG knob and STD
+# the autopilot keys, the yaw damper and the ALT/HDG knob
 GARMIN_SHARED = {
     # autopilot keys
     "AP": k("AP_MASTER"),
@@ -193,33 +213,25 @@ GARMIN_SHARED = {
     "ALT_100_DN": k("AP_ALT_VAR_DEC"),
     "ALT_1000_UP": k("AP_ALT_VAR_INC", 1000),
     "ALT_1000_DN": k("AP_ALT_VAR_DEC", 1000),
-    "HDG_1_UP": k("HEADING_BUG_INC"),
-    "HDG_1_DN": k("HEADING_BUG_DEC"),
-    **HEADING_FAST,
-    "HDG_SYNC": SYNC,
-    "BARO_STD": k("BAROMETRIC_STD_PRESSURE", 1),
+    **HEADING,
 }
+STD = {"BARO_STD": k("BAROMETRIC_STD_PRESSURE", 1)}         # the altimeter of index 1
 
 # ---------------- the instruments round a Bendix/King autopilot (device 1) ----------------
-# the heading bug, which the push syncs to the heading as on the G1000, and with SHIFT the course of NAV 1 and the
-# altimeter (KOHLSMAN_INC and _DEC without an index, as the SDK's Key Events list them; STD names the first
-# altimeter), as the simulator's key events; CRS CTR centres the course of NAV 1
+# with SHIFT, the course of NAV 1 and the altimeter (KOHLSMAN_INC and _DEC without an index, as the SDK's Key Events
+# list them; STD names the first altimeter), as the simulator's key events; CRS CTR centres the course of NAV 1
 NAV1_KNOBS = {
     "CRS_CTR": CENTRE.replace("#", "1"),
-    "HDG_1_UP": k("HEADING_BUG_INC"),
-    "HDG_1_DN": k("HEADING_BUG_DEC"),
-    **HEADING_FAST,
-    "HDG_SYNC": SYNC,
     "CRS_1_UP": k("VOR1_OBI_INC"),
     "CRS_1_DN": k("VOR1_OBI_DEC"),
     "CRS_10_UP": turn(COURSE, "VOR1_SET", 10),
     "CRS_10_DN": turn(COURSE, "VOR1_SET", -10),
     "BARO_UP": k("KOHLSMAN_INC"),
     "BARO_DN": k("KOHLSMAN_DEC"),
-    "BARO_STD": k("BAROMETRIC_STD_PRESSURE", 1),      # the altimeter of index 1
+    **STD,
 }
 
-# ---------------- the KAP 140 cockpit around a navigator (device 1) ----------------
+# ---------------- the KAP 140 and the instruments round it (device 1) ----------------
 KAP140 = {
     # autopilot keys
     "AP": h("KAP140_Push_AP"),
@@ -233,13 +245,12 @@ KAP140 = {
     "S_UP": h("KAP140_Push_UP"),
     "BC": h("KAP140_Push_REV"),
     "S_DN": h("KAP140_Push_DN"),
-    # ALT/HDG knob: the KAP 140's altitude knob (inner 100 ft, outer 1000 ft), the heading bug, the course and the
-    # altimeter
+    # ALT/HDG knob: the KAP 140's altitude knob (inner 100 ft, outer 1000 ft) and the heading bug
     "ALT_100_UP": h("KAP140_Knob_Inner_INC"),
     "ALT_100_DN": h("KAP140_Knob_Inner_DEC"),
     "ALT_1000_UP": h("KAP140_Knob_Outer_INC"),
     "ALT_1000_DN": h("KAP140_Knob_Outer_DEC"),
-    **NAV1_KNOBS,
+    **HEADING,
 }
 _VS = "the KAP 140 has no VS key: it engages in VS, and UP and DN set the rate"
 _FLC = "the KAP 140 has no FLC mode"
@@ -270,6 +281,17 @@ AUDIO = {
     "DME_AUDIO": k("RADIO_DME1_IDENT_TOGGLE"),
     "NAV2_AUDIO": k("RADIO_VOR2_IDENT_TOGGLE"),
 }
-# everything on device 1 but the units and the RANGE knob
-KAP140_COCKPIT = {**KAP140, **AUDIO, **SQUAWK, **LIGHTS}
-KAP140_COCKPIT_UNMAPPED = {**KAP140_UNMAPPED, **LIGHTS_UNMAPPED}
+
+
+def cockpit(key, name, knobs, **rows):
+    """A cockpit part: the ALT/HDG knob with SHIFT (knobs), the audio panel, transponder and lighting, and the
+    radios and ADF of both units, the parts' rows unless rows replaces some ({button: entry})"""
+    device = {1: {**knobs, **AUDIO, **SQUAWK, **LIGHTS, **RADIO[1], **ADF, **rows}, 2: {**RADIO[2], **ADF}}
+    unmapped = {1: {b: r for b, r in {**LIGHTS_UNMAPPED, **RADIO_UNMAPPED}.items() if b not in device[1]},
+                2: dict(RADIO_UNMAPPED)}
+    return part(key, name, "cockpit", device, unmapped)
+
+
+# the autopilot and cockpit parts round the KAP 140, as in the Cessna 172 Skyhawk Classic and Carenado's C182T
+KAP140_AUTOPILOT = part("kap140", "KAP 140", "autopilot", {1: KAP140}, {1: KAP140_UNMAPPED})
+BENDIX_KING = cockpit("bendix-king", "Bendix/King", NAV1_KNOBS)
