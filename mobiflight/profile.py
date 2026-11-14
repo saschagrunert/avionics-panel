@@ -1,17 +1,16 @@
 """The MobiFlight project (.mfproj) of a profile or of an avionics part, for both joysticks.
 
-The format is MobiFlight's JSON project, schema "_version" 0.10 (MobiFlight 11.2 and newer; 11.1 reads 0.9 and
-loads a newer project unmigrated), as MobiFlight 11.3.1 reads and writes it
-(src/MobiFlightConnector/ in its repository: Base/Project.cs, Base/ConfigFile.cs, Base/ConfigItem.cs,
-Base/Controller.cs, MobiFlight/InputConfigItem.cs, MobiFlight/InputConfig/ButtonInputConfig.cs and
-MSFS2020CustomInputAction.cs; the shape is that of its Joysticks/wingflex/projects/msfs/*.mfproj). Every
-button is one InputConfigItem: the joystick as Controller {Name, Serial "JS-" + DirectInput instance GUID},
-the button as Device {"Type": "Button", "Name": "Button N"} (N from 1, as BUTTONS.md numbers them), and its
-actions as MSFS2020CustomInputAction {Command}, which MobiFlight 11 uses for MSFS 2020 and 2024. Without a
-PresetId, MobiFlight runs the Command as it is and shows it as custom code. With onLongRelease empty it runs
-onRelease however long the button was held (ButtonInputConfig.ResolveDispatchedEvent), which a key held on
-purpose relies on; with onLongRelease it runs that one instead for a button held longer than LongReleaseDelay
-(LONG_MS), so a key tells a tap from a hold.
+The format is MobiFlight's JSON project, schema "_version" 0.10 (MobiFlight 11.2 and newer; 11.1 reads 0.9 and loads a
+newer project unmigrated), as MobiFlight 11.3.1 reads and writes it (src/MobiFlightConnector/ in its repository:
+Base/Project.cs, Base/ConfigFile.cs, Base/ConfigItem.cs, Base/Controller.cs, MobiFlight/InputConfigItem.cs,
+MobiFlight/InputConfig/ButtonInputConfig.cs and MSFS2020CustomInputAction.cs; the shape is that of its
+Joysticks/wingflex/projects/msfs/*.mfproj). Every button is one InputConfigItem: the joystick as Controller {Name,
+Serial "JS-" + DirectInput instance GUID}, the button as Device {"Type": "Button", "Name": "Button N"} (N from 1, as
+BUTTONS.md numbers them), and its actions as MSFS2020CustomInputAction {Command}, which MobiFlight 11 uses for MSFS 2020
+and 2024. Without a PresetId, MobiFlight runs the Command as it is and shows it as custom code. With onLongRelease empty
+it runs onRelease however long the button was held (ButtonInputConfig, ResolveDispatchedEvent from 11.3, alike in 11.2),
+which a key held on purpose relies on; with onLongRelease it runs that one instead for a button held longer than
+LongReleaseDelay (LONG_MS), so a key tells a tap from a hold.
 
 MobiFlight matches an event to an item by the serial and the button name. On loading a project it binds each of
 its controllers to a connected one (Controllers/ControllerAutoBinder.cs): the one of the same name and serial,
@@ -32,13 +31,14 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SCHEMA = "0.10"
 NAME = "Avionics Panel"          # both joysticks' DirectInput instance name (boot.py)
 UNBOUND = {1: (NAME, "JS-device-1"), 2: (NAME, "JS-device-2")}
-# the item GUIDs depend on the family, device and button only, so a project for other joysticks differs from
-# this one in the controllers alone
+# the item GUIDs depend on the profile's name or the part's title, the device and the button only, so a project for
+# other joysticks differs from this one in the controllers alone
 ITEMS = uuid.uuid5(uuid.NAMESPACE_URL, "avionics-panel/mobiflight")
 SERIAL = re.compile(r"JS-[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}")
 BUTTON = re.compile(r"Button ([0-9]+)")
 EVENTS = {"press": "onPress", "release": "onRelease", "long": "onLongRelease"}
 LONG_MS = 350                    # a button held longer than this is a hold: onLongRelease, not onRelease
+HOLD_MS = 350                    # MobiFlight's default for onHold, which no profile uses
 WRITES = re.compile(r"\(>[ABHKL]:([^),]+)[^)]*\)")   # what a code sets: (>K:EVENT), (>A:VARIABLE, unit) and so on
 
 
@@ -98,7 +98,7 @@ def build(family, controllers=UNBOUND, vfr=None):
             button_config = dict.fromkeys(("onPress", "onRelease", "onLongRelease", "onHold"))
             button_config.update({event: {"Type": "MSFS2020CustomInputAction", "Command": code}
                                   for event, code in acts.items()})
-            button_config.update(LongReleaseDelay=LONG_MS, HoldDelay=350, RepeatDelay=0)
+            button_config.update(LongReleaseDelay=LONG_MS, HoldDelay=HOLD_MS, RepeatDelay=0)
             items.append({
                 "GUID": str(uuid.uuid5(ITEMS, f"{title}/{device}/{button}")),
                 "Active": True,

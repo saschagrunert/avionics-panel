@@ -117,8 +117,9 @@ jobs:
           if-no-files-found: error
           # the release keeps its own copy; a run's zip is only for trying a change
           retention-days: 7
-  # The profile of every family in mobiflight/families/ and a zip with a project of every avionics part, bound to
-  # no joysticks: MobiFlight asks for both when it opens one (docs/using/mapping.md#generated-profiles).
+  # The profile of every avionics family and aircraft in mobiflight/families/ and a zip with a project of every
+  # avionics part, bound to no joysticks: MobiFlight asks for both when it opens one
+  # (docs/using/mapping.md#generated-profiles).
   profiles:
     name: MobiFlight profiles
     runs-on: ubuntu-24.04
@@ -286,11 +287,11 @@ jobs:
           gh release upload "$TAG" avionics-panel-sim-windows.zip avionics-panel-*.mfproj avionics-panel-parts.zip \
             --repo "$GITHUB_REPOSITORY" --clobber
   # Keeps the files of the newest commit on main that passed at releases/download/rolling/<file>. The first run
-  # makes the release "Latest build" and its tag rolling; each run replaces the files, names its commit in their
-  # labels and the notes, and moves the tag to it, so the release's source code is the commit the files were
-  # built from. Needs immutable releases off. Updates run one at a time, and every one waits its turn (queue:
-  # max), so the next one to queue, which can be an older commit's, cancels none of them: the tip's always runs,
-  # and only it replaces the files. A re-run repairs a failed update.
+  # makes the release "Latest build" and its tag rolling; each run replaces the files, then moves the tag to its
+  # commit, so the tag, and the release's source code, name the commit the files were built from. Needs immutable
+  # releases off. Updates run one at a time, and every one waits its turn (queue: max), so the next one to queue,
+  # which can be an older commit's, cancels none of them: the tip's always runs, and only it replaces the files. A
+  # re-run repairs a failed update.
   rolling:
     name: update the latest build
     needs: [build, windows, zip, windows-zip, profiles]
@@ -319,29 +320,29 @@ jobs:
             echo "::notice::main moved on to $tip: leaving the latest build as it is"
             exit 0
           fi
-          short=${GITHUB_SHA:0:7}
-          url=$GITHUB_SERVER_URL/$GH_REPO
-          docs=$url/blob/main/docs/using
-          notes="Built from [$short]($url/commit/$GITHUB_SHA) on main; each push to main replaces the files"
-          notes+=" and moves the tag, so the source code here is that commit."
+          docs=$GITHUB_SERVER_URL/$GH_REPO/blob/main/docs/using
+          notes="Built from main: each push to main replaces the files and moves the tag to its commit, so the tag"
+          notes+=" and the source code here are the commit the files were built from."
           notes+=" [Simulator]($docs/simulator.md) and [Mapping]($docs/mapping.md#generated-profiles) have the steps."
           gh release view rolling >/dev/null 2>&1 ||
             gh release create rolling --latest --target "$GITHUB_SHA" --title "Latest build" --notes "$notes"
-          # the tag goes first, right after the check that this commit is the tip: this token may only move it there,
-          # and a ref it moves starts no workflow
-          gh api -X PATCH "repos/$GH_REPO/git/refs/tags/rolling" -f sha="$GITHUB_SHA" -F force=true >/dev/null
-          # every file to download, built in this workflow, goes up in this one call, labelled with the commit
+          # every file to download, built in this workflow, goes up in this one call, under its own name
           names=(avionics-panel-sim-windows.zip avionics-panel-*.mfproj avionics-panel-parts.zip)
-          files=()
-          for file in "${names[@]}"; do
-            files+=("$file#$file ($short)")
-          done
-          gh release upload rolling --clobber "${files[@]}"
-          # then a file this run did not build goes, such as the profile of a family that was removed (the names
-          # are letters, digits, dots and hyphens, which GitHub keeps as they are)
+          gh release upload rolling --clobber "${names[@]}"
+          # then a file this run did not build goes, such as a profile that was removed (the names are
+          # letters, digits, dots and hyphens, which GitHub keeps as they are)
           assets=$(gh release view rolling --json assets --jq '.assets[].name')
           while IFS= read -r name; do
             [[ -z $name || " ${names[*]} " == *" $name "* ]] || gh release delete-asset rolling "$name" --yes </dev/null
           done <<<"$assets"
+          # the tag goes last, once every file is up, so it never names a commit whose files are not all there (a
+          # failed upload leaves it on the commit before, and a re-run repairs it), and only while this commit is
+          # still the tip; a ref this token moves starts no workflow
+          tip=$(gh api "repos/$GH_REPO/git/ref/heads/main" --jq .object.sha)
+          if [ "$tip" != "$GITHUB_SHA" ]; then
+            echo "::notice::main moved on to $tip during the upload: its run moves the tag"
+            exit 0
+          fi
+          gh api -X PATCH "repos/$GH_REPO/git/refs/tags/rolling" -f sha="$GITHUB_SHA" -F force=true >/dev/null
           gh release edit rolling --title "Latest build" --prerelease=false --latest --target "$GITHUB_SHA" \
             --notes "$notes" >/dev/null
