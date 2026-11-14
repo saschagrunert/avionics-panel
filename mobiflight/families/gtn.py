@@ -7,13 +7,13 @@ load the 650Xi as unit 1, as Black Square's do, are not covered: the KFC 150 pro
 the profile does differently from the real units is in docs/using/mapping.md#tds-gtn-750xi-and-650xi.
 
 TDS takes only the GTNs' bezel from outside, as the simulator's GPS key events with a value that names the unit (the
-manual's "Interfacing with Hardware"): a knob detent sends the unit's value, a key that value plus 2 when it goes
-down and plus 4 when it comes up. The radios are tuned with the simulator's own key events: the manual says the GTNs
-"are able to control the Flight Simulator COM and NAV radio frequencies", and that they show frequencies set from
-outside is assumed (docs/using/mapping.md). SHIFT with the RANGE knob, which the GTN has no use for, works the GTN
-750Xi's volume knob ("Top Left Knob"), whose key events take the unit's value plus 2 to turn it down and plus 4 to
-turn it up (the values a key sends when it goes down and up), and its push. The rest is the parts the tables share
-(parts.py).
+manual's "Interfacing with Hardware"): a knob detent sends the unit's value, a key that value plus 2 when it goes down
+and plus 4 when it comes up. The radios are tuned with the simulator's own key events: the manual says the GTNs "are
+able to control the Flight Simulator COM and NAV radio frequencies", and that they show frequencies set from outside is
+assumed (docs/using/mapping.md). RANGE turns the GTN 750Xi's inner knob, which zooms its map on the map page, and SHIFT
+with the RANGE knob works its volume knob ("Top Left Knob"), whose key events take the unit's value plus 2 to turn it
+down and plus 4 to turn it up (the values a key sends when it goes down and up), and its push. The rest is the parts the
+tables share (parts.py).
 """
 from mobiflight.families import parts
 from mobiflight.families.rpn import k
@@ -50,10 +50,14 @@ _VOLUME = {
     "S_RANGE_CCW": k("GPS_BUTTON2", GTN750_1 + _DOWN),
     "S_PTR": _held("GPS_BUTTON1", GTN750_1),
 }
+# RANGE: the GTN 750Xi's inner knob (GPS_PAGE_KNOB), which zooms its map on the map page. Clockwise zooms out, as the
+# GNS's and the G1000's RANGE do, so it turns the inner knob the other way: on Garmin's touchscreen units the inner
+# knob zooms in clockwise (the AXIS pilot's guide, "Adjusting the MFW Map Range"), assumed for the GTN too
+_RANGE = {"RANGE_CW": k("GPS_PAGE_KNOB_DEC", GTN750_1), "RANGE_CCW": k("GPS_PAGE_KNOB_INC", GTN750_1)}
 _TOUCH = "a touchscreen function of the GTN: TDS takes only its bezel (HOME, D→, the knobs) from outside"
 _TOUCH_KEYS = ("CDI", "OBS", "FPL", "MENU", "PROC", "CLR", "ENT", "S_ENT", "VNAV", "MSG", "NRST", "TERR", "MAP")
 # what the GTN has on its touchscreen only (docs/using/compatibility.md)
-_MAP = tuple(b for b in parts.RANGE_KNOB if b not in _VOLUME)       # the RANGE knob without the volume knob
+_MAP = tuple(b for b in parts.RANGE_KNOB if b not in {**_VOLUME, **_RANGE})   # the pan and pointer: touchscreen
 TOUCHSCREEN = (*_TOUCH_KEYS, *_MAP)
 _UNIT_UNMAPPED = {
     **dict.fromkeys(_TOUCH_KEYS, _TOUCH),
@@ -61,14 +65,13 @@ _UNIT_UNMAPPED = {
 }
 
 DEVICE = {
-    1: {**parts.KAP140_COCKPIT, **_VOLUME, **_bezel(GTN750_1), **parts.RADIO[1], **parts.ADF},
+    1: {**parts.KAP140_COCKPIT, **_RANGE, **_VOLUME, **_bezel(GTN750_1), **parts.RADIO[1], **parts.ADF},
     2: {**_bezel(GTN650_2), **parts.RADIO[2], **parts.ADF},
 }
 UNMAPPED = {
     1: {
         **parts.KAP140_COCKPIT_UNMAPPED,
-        **dict.fromkeys(_MAP, "the GTN pans its map on the touchscreen, and zooms it there or with the inner FMS "
-                              "knob on the map page"),
+        **dict.fromkeys(_MAP, "the GTN pans its map on the touchscreen"),
         **_UNIT_UNMAPPED,
     },
     2: _UNIT_UNMAPPED,

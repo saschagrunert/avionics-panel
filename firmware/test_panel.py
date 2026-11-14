@@ -700,6 +700,24 @@ def test_up_dn_repeat():
     assert 4 <= n <= 7, n                    # 1 at once, then from 400 ms about 8 per second
 
 
+def test_shifted_up_dn_are_held_not_repeated():
+    # S_UP and S_DN stay down as long as the key, as other keys do, so a profile can tell a tap from a hold; the
+    # keyboard mode repeats them as before
+    for key, button in (("UP", "S_UP"), ("DN", "S_DN")):
+        s = Sim()
+        s.key("SHIFT"); s.take()
+        s.p.key(key, True, s.t); s.run(P.SHIFT_MS + 1000)            # past SHIFT's time out: still down, once
+        assert s.take() == [(1, button)] and button in s.down(1)
+        s.p.key(key, False, s.t); s.run(100)
+        assert button not in s.down(1) and not s.take()
+        s.p.key(key, True, s.t); s.run(1000); s.p.key(key, False, s.t); s.run(100)
+        assert len([n for _, n in s.take()]) > 3                # without SHIFT again: it repeats
+    s = Sim(solo=True)                                          # as a keyboard it repeats with SHIFT too
+    s.key("SHIFT"); s.take()
+    s.p.key("UP", True, s.t); s.run(1000); s.p.key("UP", False, s.t); s.run(100)
+    assert len(s.take()) > 3
+
+
 def test_repeats_due_together_queue_in_a_fixed_order():
     # UP and DN held together repeat in the same ms: they queue in the same order whichever went down first.
     # CircuitPython's dicts keep no insertion order, so on the board an order by insertion would differ

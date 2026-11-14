@@ -69,7 +69,7 @@ TOKEN = re.compile(r"\([^()]*\)|[^\s()]+")
 READ = re.compile(r"\((?:A:([A-Z0-9 ]+(?::[1-9])?)|(L:[A-Za-z0-9_]+)), [A-Za-z]+\)")
 WRITE = re.compile(r"\(>(?:(K:[A-Z0-9_]+|H:[A-Za-z0-9_]+|L:[A-Za-z0-9_]+)|(A:[A-Z ]+:[1-9]), Enum)\)")
 NUMBER = re.compile(r"[0-9]+(?:\.[0-9]+)?|0x[0-9A-F]+")
-VALUE = re.compile(NUMBER.pattern + r"|[-+!<>]|==|abs|min|max|dnor|near|if\{|els\{|\}")
+VALUE = re.compile(NUMBER.pattern + r"|[-+!<>%]|==|abs|min|max|dnor|near|if\{|els\{|\}")
 
 
 def sets(token):
@@ -92,9 +92,11 @@ def uses(code):
 
 def run(code, variables=()):
     """Runs a code as the simulator's RPN does, on these variables ({name: value}, an L: variable with its
-    prefix): [(what it set, value)], with None for an event sent without a value"""
+    prefix): [(what it set, value)], with None for an event sent without a value. An L: variable it sets reads
+    as set after that."""
     variables, stack, out = dict(variables), [], []
-    binary = {"+": lambda x, y: x + y, "-": lambda x, y: x - y, ">": lambda x, y: x > y, "<": lambda x, y: x < y,
+    binary = {"+": lambda x, y: x + y, "-": lambda x, y: x - y, "%": lambda x, y: x % y,
+              ">": lambda x, y: x > y, "<": lambda x, y: x < y,
               "==": lambda x, y: x == y, "min": min, "max": max}
     # near rounds half up, as the SDK's RPN page says (Python's round() goes to the even number)
     unary = {"!": lambda x: not x, "near": lambda x: math.floor(x + 0.5), "dnor": lambda x: x % 360, "abs": abs}
@@ -115,6 +117,8 @@ def run(code, variables=()):
                 stack.append(variables[read[1] or read[2]])
             elif sets(token):
                 out.append((sets(token), stack.pop() if stack else None))
+                if out[-1][0].startswith("L:"):          # an L: variable reads as set from then on
+                    variables[out[-1][0]] = out[-1][1]
             elif token in binary:
                 right = stack.pop()
                 stack.append(binary[token](stack.pop(), right))
@@ -149,12 +153,12 @@ def test_codes_are_well_formed(key):
 
 def unit(variable):
     """The unit a variable is read in: degrees for a heading or course, millibars for the altimeter's setting,
-    number for an index, the G1000's CDI source or a dimmer, enum for a state, bool for a flag"""
+    number for an index, the G1000's CDI source, a dimmer or a selector, enum for a state, bool for a flag"""
     if re.search(r"HEADING|OBS|RADIAL|NAV LOCALIZER", variable):
         return "degrees"
     if variable.startswith("KOHLSMAN SETTING MB"):
         return "millibars"
-    if variable.endswith(("SELECTED", "PFD_CDI_Source", "LightingKnob")):
+    if variable.endswith(("SELECTED", "PFD_CDI_Source", "LightingKnob", "dmeMode")):
         return "number"
     return "enum" if variable.endswith("STATE") else "bool"
 
@@ -172,7 +176,9 @@ def test_reads_use_the_unit_of_their_kind(key):
 # the H: events of each device by their prefixes, in their exact case, and the TDS GTN's L: variables in Black
 # Square's aircraft: unit 1 works the MFD of the G1000 (unit 2 the PFD; on device 1 the PFD's CRS and BARO knobs,
 # softkeys and, with SHIFT, RANGE, its inset map), the G3X Touch of index 1, the GNS 530 (SHIFT, RANGE the GNS 430's
-# RNG) and the GTN 750, unit 2 the second
+# RNG), the GTN 750 and the KLN 90B, unit 2 the second; in the Bonanza, SHIFT with the RANGE knob works the second
+# navigator, and the KR 87, the EDM 800 and the GTX 327 are on device 1 (the KR 87's FRQ key on both)
+_BONANZA = ("kas297b_", "TRANSPONDER_Push_", "bksq_JpiButton_1_", "adf_")
 PREFIXES = {
     "g1000": {1: ("AS1000_MFD_", *(f"AS1000_PFD_{p}_" for p in ("CRS", "BARO", "SOFTKEYS", "RANGE", "JOYSTICK")),
                   "AS1000_VNAV_TOGGLE"),
@@ -180,9 +186,11 @@ PREFIXES = {
     "g3x": {1: ("AS3X_Touch_1_", "AS1000_VNAV_TOGGLE"), 2: ("AS3X_Touch_2_",)},
     "gns": {1: ("AS530_", "AS430_RNG_", "KAP140_"), 2: ("AS430_",)},
     "gtn": {1: ("KAP140_",), 2: ()},
-    "kfc150": {1: ("AS530_", "GTN750_", "kas297b_", "TRANSPONDER_Push_"), 2: ("AS430_", "GTN650_")},
+    "kfc150": {1: ("AS530_", "GTN750_", "KLN90B_", "AS430_RNG_", "GTN650_Knob", "GTN650_Vol", *_BONANZA),
+               2: ("AS430_", "GTN650_", "adf_frqTransfert")},
 }
-TDS_VARIABLES = {1: "TDSGTNXI750U1_", 2: "TDSGTNXI650U1_"}
+_GTN650 = ("TDSGTNXI650U1_", "TDSGTNXI650U2_")       # the GTN 650's, as unit 1 and as unit 2 of TDS
+TDS_VARIABLES = {1: ("TDSGTNXI750U1_", *(p + v for p in _GTN650 for v in ("RKnobInner", "LKnob"))), 2: _GTN650}
 
 
 @FAMILY
@@ -213,8 +221,10 @@ def words(name):
 
 
 # the words of an event that increases or goes up (a GNS knob turned right, its map zoomed out, a step added), and
-# of one that decreases or goes down; of several, as in AS1000_MFD_RANGE_INC, the last one counts
+# of one that decreases or goes down; of several, as in AS1000_MFD_RANGE_INC, the last one counts. A GTN's inner
+# knob zooms in clockwise: RANGE turns it the other way (GTN_ZOOM), so clockwise zooms out on every map.
 UP, DOWN = {"inc", "up", "right", "dezoom", "+"}, {"dec", "down", "dn", "left", "zoom", "-"}
+GTN_ZOOM = re.compile(r"GPS_PAGE_KNOB_|RKnobInner|GTN[67]50_KnobSmall")
 
 
 @FAMILY
@@ -223,11 +233,17 @@ def test_turns_and_tilts_use_codes_of_their_direction(key):
     # and the other way round; a tilt left or right sends events that go left or right
     for _, button, _, code in codes(key):
         last = button.rsplit("_", 1)[-1]
+        if key == "kfc150" and button in ("S_UP", "S_DN"):   # the EDM 800's buttons in the Bonanza: no direction
+            continue
         for name, sign in writes(code):
+            if name.startswith("bksq_Master"):       # the Bonanza's lights switch, on with its dimmer above 0
+                continue
             way = [w for w in [*words(name), sign] if w in UP | DOWN]
             if name in TDS_VALUE_WAY:                # TDS's volume knob: its value says the way
                 way = [TDS_VALUE_WAY[name][dict(run(code))["K:" + name] % 8]]
-            up, down = (DOWN, UP) if re.search(r"_(SPD|MACH)_VAR_", name) else (UP, DOWN)  # nose up slows it
+            zoom = button.removeprefix("S_") in ("RANGE_CW", "RANGE_CCW") and GTN_ZOOM.search(name)
+            reverse = re.search(r"_(SPD|MACH)_VAR_", name) or zoom
+            up, down = (DOWN, UP) if reverse else (UP, DOWN)          # nose up slows it; a GTN zooms in clockwise
             if last in ("CCW", "DN"):
                 assert way and way[-1] in down, (button, name)
             elif last in ("CW", "UP"):
@@ -313,17 +329,23 @@ def test_the_gtn_bezel_is_the_key_events_tds_documents():
 def test_a_held_key_is_let_go(key):
     # a button that sends on release is a key or push (no knob detent, repeat, tilt or RANGE push, which are short
     # presses) of TDS's GTN, and lets go of what its press holds down: the event of its press with another value
-    # (TDS's own key events, down and up), or the L: variable set back to 0 (in Black Square's aircraft). The one
-    # short press among them is the GTN's volume push on SHIFT, RANGE push: a tap, whose down and up still reach TDS.
+    # (TDS's own key events, down and up), or the L: variable set back to 0 (in Black Square's aircraft, also the
+    # MD41's test on TEST). The short presses among them are the GTN's volume push on a RANGE push: a tap, whose
+    # down and up still reach TDS. A key that tells a tap from a hold (the Bonanza's EDM 800 on SHIFT, UP and
+    # SHIFT, DN) sends on its release only.
     for buttons in FAMILIES[key].DEVICE.values():
         for button, entry in buttons.items():
             acts = profile.actions(entry)
-            if "onRelease" in acts:
+            if "onLongRelease" in acts:
+                assert key == "kfc150" and button in ("S_UP", "S_DN") and "onPress" not in acts, button
+            elif "onRelease" in acts:
                 short = re.search(r"(?:^|_)(?:CW|CCW|UP|DN|LEFT|RIGHT)$|PTR$", button)
-                assert key in ("gtn", "kfc150") and (not short or button == "S_PTR"), button
+                ptr = button == "S_PTR" or key == "kfc150" and button == "PTR"   # the GTNs' volume push
+                assert key in ("gtn", "kfc150") and (not short or ptr), button
                 pressed, released = dict(run(acts["onPress"])), run(acts["onRelease"])
                 assert released and all(pressed.get(name) not in (None, value) for name, value in released), button
-                assert all("TDSGTNXI" in name or name.startswith("K:GPS_") for name, _ in released), button
+                assert all("TDSGTNXI" in name or name.startswith("K:GPS_") or name == "L:var_md41Test"
+                           for name, _ in released), button
 
 
 @FAMILY
@@ -342,11 +364,14 @@ def test_units_share_only_the_adf_and_one_cdi(key):
 def test_no_two_functions_send_the_same_code(key):
     # a button's codes are its own: only a function's copy with SHIFT (S_ENT and ENT, S_RANGE_CW and RANGE_CW) and
     # its copy in unit 2 (the test above) send what it sends. So no button sends another one's valid event.
+    # The GTN profile's RANGE turns the GTN 750Xi's inner knob, which zooms its map on the map page: there it sends
+    # what the FMS knob's inner ring sends the other way in unit 1 (it zooms in clockwise).
     functions = {}
     for buttons in FAMILIES[key].DEVICE.values():
         for button, entry in buttons.items():
             functions.setdefault(tuple(sorted(profile.actions(entry).items())), set()).add(button.removeprefix("S_"))
-    assert [names for names in functions.values() if len(names) > 1] == []
+    shared = [{"RANGE_CW", "FMS_INNER_CCW"}, {"RANGE_CCW", "FMS_INNER_CW"}] if key == "gtn" else []
+    assert sorted(map(sorted, (n for n in functions.values() if len(n) > 1))) == sorted(map(sorted, shared))
 
 
 # What every function sets, as uses() gives it (a release after a /; @2 marks the function in unit 2, on device 2):
@@ -358,18 +383,15 @@ def test_no_two_functions_send_the_same_code(key):
 # L:AvionicsPanel_G1000_Engine is the G1000 profile's own.
 EVERY = """
     ADF_100_DN=K:ADF_100_DEC ADF_100_DN@2=K:ADF_100_DEC ADF_100_UP=K:ADF_100_INC ADF_100_UP@2=K:ADF_100_INC
-    ADF_10_DN=K:ADF_10_DEC ADF_10_DN@2=K:ADF_10_DEC ADF_10_UP=K:ADF_10_INC ADF_10_UP@2=K:ADF_10_INC
-    ADF_1_DN=K:ADF_1_DEC ADF_1_DN@2=K:ADF_1_DEC ADF_1_UP=K:ADF_1_INC ADF_1_UP@2=K:ADF_1_INC
-    ADF_AUDIO=K:RADIO_ADF_IDENT_TOGGLE ADF_SWAP=K:ADF1_RADIO_SWAP ADF_SWAP@2=K:ADF1_RADIO_SWAP
-    CABIN_LT=K:TOGGLE_CABIN_LIGHTS COM1=K:COM1_RECEIVE_SELECT COM2=K:COM2_RECEIVE_SELECT
-    COM_121_5=121500000,K:COM_RADIO_SET_HZ COM_121_5@2=121500000,K:COM2_RADIO_SET_HZ COM_KHZ_DN=K:COM_RADIO_FRACT_DEC
-    COM_KHZ_DN@2=K:COM2_RADIO_FRACT_DEC COM_KHZ_UP=K:COM_RADIO_FRACT_INC COM_KHZ_UP@2=K:COM2_RADIO_FRACT_INC
-    COM_MHZ_DN=K:COM_RADIO_WHOLE_DEC COM_MHZ_DN@2=K:COM2_RADIO_WHOLE_DEC COM_MHZ_UP=K:COM_RADIO_WHOLE_INC
-    COM_MHZ_UP@2=K:COM2_RADIO_WHOLE_INC COM_SWAP=K:COM1_RADIO_SWAP COM_SWAP@2=K:COM2_RADIO_SWAP
-    DME_AUDIO=K:RADIO_DME1_IDENT_TOGGLE HDG_10_DN=10,-,K:HEADING_BUG_SET HDG_10_UP=10,+,K:HEADING_BUG_SET
-    HDG_1_DN=K:HEADING_BUG_DEC HDG_1_UP=K:HEADING_BUG_INC HDG_SYNC=K:HEADING_BUG_SET IDENT=K:XPNDR_IDENT_ON
-    MIC1=0,K:PILOT_TRANSMITTER_SET,0,K:COPILOT_TRANSMITTER_SET
-    MIC2=1,K:PILOT_TRANSMITTER_SET,1,K:COPILOT_TRANSMITTER_SET NAV1_AUDIO=K:RADIO_VOR1_IDENT_TOGGLE
+    ADF_10_DN=K:ADF_10_DEC ADF_10_DN@2=K:ADF_10_DEC ADF_10_UP=K:ADF_10_INC ADF_10_UP@2=K:ADF_10_INC ADF_1_DN=K:ADF_1_DEC
+    ADF_1_DN@2=K:ADF_1_DEC ADF_1_UP=K:ADF_1_INC ADF_1_UP@2=K:ADF_1_INC ADF_AUDIO=K:RADIO_ADF_IDENT_TOGGLE
+    COM1=K:COM1_RECEIVE_SELECT COM2=K:COM2_RECEIVE_SELECT COM_121_5=121500000,K:COM_RADIO_SET_HZ
+    COM_121_5@2=121500000,K:COM2_RADIO_SET_HZ COM_KHZ_DN=K:COM_RADIO_FRACT_DEC COM_KHZ_DN@2=K:COM2_RADIO_FRACT_DEC
+    COM_KHZ_UP=K:COM_RADIO_FRACT_INC COM_KHZ_UP@2=K:COM2_RADIO_FRACT_INC COM_MHZ_DN=K:COM_RADIO_WHOLE_DEC
+    COM_MHZ_DN@2=K:COM2_RADIO_WHOLE_DEC COM_MHZ_UP=K:COM_RADIO_WHOLE_INC COM_MHZ_UP@2=K:COM2_RADIO_WHOLE_INC
+    COM_SWAP=K:COM1_RADIO_SWAP COM_SWAP@2=K:COM2_RADIO_SWAP DME_AUDIO=K:RADIO_DME1_IDENT_TOGGLE
+    HDG_10_DN=10,-,K:HEADING_BUG_SET HDG_10_UP=10,+,K:HEADING_BUG_SET HDG_1_DN=K:HEADING_BUG_DEC
+    HDG_1_UP=K:HEADING_BUG_INC HDG_SYNC=K:HEADING_BUG_SET IDENT=K:XPNDR_IDENT_ON NAV1_AUDIO=K:RADIO_VOR1_IDENT_TOGGLE
     NAV2_AUDIO=K:RADIO_VOR2_IDENT_TOGGLE NAV_KHZ_DN=K:NAV1_RADIO_FRACT_DEC NAV_KHZ_DN@2=K:NAV2_RADIO_FRACT_DEC
     NAV_KHZ_UP=K:NAV1_RADIO_FRACT_INC NAV_KHZ_UP@2=K:NAV2_RADIO_FRACT_INC NAV_MHZ_DN=K:NAV1_RADIO_WHOLE_DEC
     NAV_MHZ_DN@2=K:NAV2_RADIO_WHOLE_DEC NAV_MHZ_UP=K:NAV1_RADIO_WHOLE_INC NAV_MHZ_UP@2=K:NAV2_RADIO_WHOLE_INC
@@ -379,11 +401,11 @@ EVERY = """
 """
 SETS = {
     "g1000": """
-        ALT=K:AP_ALT_HOLD ALT_1000_DN=1000,K:AP_ALT_VAR_DEC ALT_1000_UP=1000,K:AP_ALT_VAR_INC
-        ALT_100_DN=K:AP_ALT_VAR_DEC ALT_100_UP=K:AP_ALT_VAR_INC AP=K:AP_MASTER APR=K:AP_APR_HOLD
-        ARM=H:AS1000_PFD_SOFTKEYS_10 BARO_DN=H:AS1000_PFD_BARO_DEC
+        ADF_SWAP=K:ADF1_RADIO_SWAP ADF_SWAP@2=K:ADF1_RADIO_SWAP ALT=K:AP_ALT_HOLD ALT_1000_DN=1000,K:AP_ALT_VAR_DEC
+        ALT_1000_UP=1000,K:AP_ALT_VAR_INC ALT_100_DN=K:AP_ALT_VAR_DEC ALT_100_UP=K:AP_ALT_VAR_INC AP=K:AP_MASTER
+        APR=K:AP_APR_HOLD ARM=H:AS1000_PFD_SOFTKEYS_10 BARO_DN=H:AS1000_PFD_BARO_DEC
         BARO_STD=1013.2,-,0.5,H:AS1000_PFD_SOFTKEYS_4,H:AS1000_PFD_SOFTKEYS_10,1,K:BAROMETRIC_STD_PRESSURE
-        BARO_UP=H:AS1000_PFD_BARO_INC BC=K:AP_BC_HOLD
+        BARO_UP=H:AS1000_PFD_BARO_INC BC=K:AP_BC_HOLD CABIN_LT=K:TOGGLE_CABIN_LIGHTS
         CDI=3,1,K:AP_NAV_SELECT_SET,1,2,K:AP_NAV_SELECT_SET,K:TOGGLE_GPS_DRIVES_NAV1
         CDI@2=3,1,K:AP_NAV_SELECT_SET,1,2,K:AP_NAV_SELECT_SET,K:TOGGLE_GPS_DRIVES_NAV1 CLR=H:AS1000_MFD_CLR
         CLR@2=H:AS1000_PFD_CLR CRS_10_DN=3,10,-,K:GPS_OBS_SET,2,10,-,K:VOR2_SET,10,-,K:VOR1_SET
@@ -401,27 +423,30 @@ SETS = {
         HOME@2=H:AS1000_MFD_SOFTKEYS_11,0,L:AvionicsPanel_G1000_Engine,H:AS1000_MFD_SOFTKEYS_1,1,L:AvionicsPanel_G1000_Engine
         LVL=K:AP_WING_LEVELER_ON,K:AP_PITCH_LEVELER_ON,K:AUTOPILOT_ON MAP=H:AS1000_MFD_SOFTKEYS_11
         MAP@2=H:AS1000_MFD_SOFTKEYS_11 MENU=H:AS1000_MFD_MENU_Push MENU@2=H:AS1000_PFD_MENU_Push
-        MSG=H:AS1000_PFD_SOFTKEYS_12 MSG@2=H:AS1000_PFD_SOFTKEYS_12 NAV=K:AP_NAV1_HOLD NRST=H:AS1000_PFD_SOFTKEYS_11
-        NRST@2=H:AS1000_PFD_SOFTKEYS_11 OBS=K:GPS_OBS OBS@2=K:GPS_OBS PAN_DN=H:AS1000_MFD_JOYSTICK_DOWN
-        PAN_LEFT=H:AS1000_MFD_JOYSTICK_LEFT PAN_RIGHT=H:AS1000_MFD_JOYSTICK_RIGHT PAN_UP=H:AS1000_MFD_JOYSTICK_UP
-        PROC=H:AS1000_MFD_PROC_Push PROC@2=H:AS1000_PFD_PROC_Push PTR=H:AS1000_MFD_JOYSTICK_PUSH
-        RANGE_CCW=H:AS1000_MFD_RANGE_DEC RANGE_CW=H:AS1000_MFD_RANGE_INC
-        S_DN=K:AP_VS_VAR_DEC,K:AP_SPD_VAR_INC,K:AP_PITCH_REF_INC_DN S_ENT=H:AS1000_MFD_ENT_Push
-        S_ENT@2=H:AS1000_PFD_ENT_Push S_FLC=K:FLIGHT_LEVEL_CHANGE S_PAN_DN=H:AS1000_PFD_JOYSTICK_DOWN
-        S_PAN_LEFT=H:AS1000_PFD_JOYSTICK_LEFT S_PAN_RIGHT=H:AS1000_PFD_JOYSTICK_RIGHT
-        S_PAN_UP=H:AS1000_PFD_JOYSTICK_UP S_PTR=H:AS1000_PFD_JOYSTICK_PUSH S_RANGE_CCW=H:AS1000_PFD_RANGE_DEC
-        S_RANGE_CW=H:AS1000_PFD_RANGE_INC S_UP=K:AP_VS_VAR_INC,K:AP_SPD_VAR_DEC,K:AP_PITCH_REF_INC_UP
-        S_VNV=H:AS1000_VNAV_TOGGLE S_VS=K:AP_VS_HOLD TERR=H:AS1000_MFD_SOFTKEYS_12 TERR@2=H:AS1000_MFD_SOFTKEYS_12
+        MIC1=0,K:PILOT_TRANSMITTER_SET,0,K:COPILOT_TRANSMITTER_SET
+        MIC2=1,K:PILOT_TRANSMITTER_SET,1,K:COPILOT_TRANSMITTER_SET MSG=H:AS1000_PFD_SOFTKEYS_12
+        MSG@2=H:AS1000_PFD_SOFTKEYS_12 NAV=K:AP_NAV1_HOLD NRST=H:AS1000_PFD_SOFTKEYS_11 NRST@2=H:AS1000_PFD_SOFTKEYS_11
+        OBS=K:GPS_OBS OBS@2=K:GPS_OBS PAN_DN=H:AS1000_MFD_JOYSTICK_DOWN PAN_LEFT=H:AS1000_MFD_JOYSTICK_LEFT
+        PAN_RIGHT=H:AS1000_MFD_JOYSTICK_RIGHT PAN_UP=H:AS1000_MFD_JOYSTICK_UP PROC=H:AS1000_MFD_PROC_Push
+        PROC@2=H:AS1000_PFD_PROC_Push PTR=H:AS1000_MFD_JOYSTICK_PUSH RANGE_CCW=H:AS1000_MFD_RANGE_DEC
+        RANGE_CW=H:AS1000_MFD_RANGE_INC S_DN=K:AP_VS_VAR_DEC,K:AP_SPD_VAR_INC,K:AP_PITCH_REF_INC_DN
+        S_ENT=H:AS1000_MFD_ENT_Push S_ENT@2=H:AS1000_PFD_ENT_Push S_FLC=K:FLIGHT_LEVEL_CHANGE
+        S_PAN_DN=H:AS1000_PFD_JOYSTICK_DOWN S_PAN_LEFT=H:AS1000_PFD_JOYSTICK_LEFT
+        S_PAN_RIGHT=H:AS1000_PFD_JOYSTICK_RIGHT S_PAN_UP=H:AS1000_PFD_JOYSTICK_UP S_PTR=H:AS1000_PFD_JOYSTICK_PUSH
+        S_RANGE_CCW=H:AS1000_PFD_RANGE_DEC S_RANGE_CW=H:AS1000_PFD_RANGE_INC
+        S_UP=K:AP_VS_VAR_INC,K:AP_SPD_VAR_DEC,K:AP_PITCH_REF_INC_UP S_VNV=H:AS1000_VNAV_TOGGLE S_VS=K:AP_VS_HOLD
+        TERR=H:AS1000_MFD_SOFTKEYS_12 TERR@2=H:AS1000_MFD_SOFTKEYS_12
         UP=K:AP_VS_VAR_INC,K:AP_SPD_VAR_DEC,K:AP_PITCH_REF_INC_UP VNAV=H:AS1000_MFD_SOFTKEYS_10
         VNAV@2=H:AS1000_MFD_SOFTKEYS_10 VNV=H:AS1000_VNAV_TOGGLE VS=K:AP_VS_HOLD XPDR_MODE=1,1,4,A:TRANSPONDER_STATE:1
         YD=K:YAW_DAMPER_TOGGLE
     """,
     "g3x": """
-        ALT=K:AP_ALT_HOLD ALT_1000_DN=1000,K:AP_ALT_VAR_DEC ALT_1000_UP=1000,K:AP_ALT_VAR_INC
-        ALT_100_DN=K:AP_ALT_VAR_DEC ALT_100_UP=K:AP_ALT_VAR_INC AP=K:AP_MASTER APR=K:AP_APR_HOLD
-        BARO_DN=1,K:KOHLSMAN_DEC BARO_STD=1,K:BAROMETRIC_STD_PRESSURE BARO_UP=1,K:KOHLSMAN_INC
-        CDI=K:TOGGLE_GPS_DRIVES_NAV1 CDI@2=K:TOGGLE_GPS_DRIVES_NAV1 CLR=H:AS3X_Touch_1_Back_Push
-        CLR@2=H:AS3X_Touch_2_Back_Push CRS_10_DN=10,-,K:GPS_OBS_SET,2,10,-,K:VOR2_SET,10,-,K:VOR1_SET
+        ADF_SWAP=K:ADF1_RADIO_SWAP ADF_SWAP@2=K:ADF1_RADIO_SWAP ALT=K:AP_ALT_HOLD ALT_1000_DN=1000,K:AP_ALT_VAR_DEC
+        ALT_1000_UP=1000,K:AP_ALT_VAR_INC ALT_100_DN=K:AP_ALT_VAR_DEC ALT_100_UP=K:AP_ALT_VAR_INC AP=K:AP_MASTER
+        APR=K:AP_APR_HOLD BARO_DN=1,K:KOHLSMAN_DEC BARO_STD=1,K:BAROMETRIC_STD_PRESSURE BARO_UP=1,K:KOHLSMAN_INC
+        CABIN_LT=K:TOGGLE_CABIN_LIGHTS CDI=K:TOGGLE_GPS_DRIVES_NAV1 CDI@2=K:TOGGLE_GPS_DRIVES_NAV1
+        CLR=H:AS3X_Touch_1_Back_Push CLR@2=H:AS3X_Touch_2_Back_Push
+        CRS_10_DN=10,-,K:GPS_OBS_SET,2,10,-,K:VOR2_SET,10,-,K:VOR1_SET
         CRS_10_UP=10,+,K:GPS_OBS_SET,2,10,+,K:VOR2_SET,10,+,K:VOR1_SET
         CRS_1_DN=K:GPS_OBS_DEC,2,K:VOR2_OBI_DEC,K:VOR1_OBI_DEC CRS_1_UP=K:GPS_OBS_INC,2,K:VOR2_OBI_INC,K:VOR1_OBI_INC
         CRS_CTR=2,K:VOR2_SET,180,+,K:VOR2_SET,K:VOR1_SET,180,+,K:VOR1_SET DIRECT=H:AS3X_Touch_1_DirectTo_Push
@@ -433,7 +458,8 @@ SETS = {
         FMS_OUTER_CCW@2=H:AS3X_Touch_2_Knob_Outer_R_DEC FMS_OUTER_CW=H:AS3X_Touch_1_Knob_Outer_R_INC
         FMS_OUTER_CW@2=H:AS3X_Touch_2_Knob_Outer_R_INC HDG=K:AP_HDG_HOLD
         LVL=K:AP_WING_LEVELER_ON,K:AP_PITCH_LEVELER_ON,K:AUTOPILOT_ON MENU=H:AS3X_Touch_1_Menu_Push
-        MENU@2=H:AS3X_Touch_2_Menu_Push NAV=K:AP_NAV1_HOLD NRST=H:AS3X_Touch_1_NRST_Push
+        MENU@2=H:AS3X_Touch_2_Menu_Push MIC1=0,K:PILOT_TRANSMITTER_SET,0,K:COPILOT_TRANSMITTER_SET
+        MIC2=1,K:PILOT_TRANSMITTER_SET,1,K:COPILOT_TRANSMITTER_SET NAV=K:AP_NAV1_HOLD NRST=H:AS3X_Touch_1_NRST_Push
         NRST@2=H:AS3X_Touch_2_NRST_Push OBS=K:GPS_OBS OBS@2=K:GPS_OBS
         S_DN=K:AP_VS_VAR_DEC,K:AP_SPD_VAR_INC,K:AP_PITCH_REF_INC_DN S_FLC=K:FLIGHT_LEVEL_CHANGE
         S_UP=K:AP_VS_VAR_INC,K:AP_SPD_VAR_DEC,K:AP_PITCH_REF_INC_UP S_VNV=H:AS1000_VNAV_TOGGLE S_VS=K:AP_VS_HOLD
@@ -441,10 +467,11 @@ SETS = {
         XPDR_MODE=1,1,4,A:TRANSPONDER_STATE:1 YD=K:YAW_DAMPER_TOGGLE
     """,
     "gns": """
-        ALT=H:KAP140_Push_ALT ALT_1000_DN=H:KAP140_Knob_Outer_DEC ALT_1000_UP=H:KAP140_Knob_Outer_INC
-        ALT_100_DN=H:KAP140_Knob_Inner_DEC ALT_100_UP=H:KAP140_Knob_Inner_INC AP=H:KAP140_Push_AP
-        APR=H:KAP140_Push_APR BARO_DN=K:KOHLSMAN_DEC BARO_STD=1,K:BAROMETRIC_STD_PRESSURE BARO_UP=K:KOHLSMAN_INC
-        BC=H:KAP140_Push_REV CDI=H:AS530_CDI_Push CDI@2=H:AS430_CDI_Push CLR=H:AS530_CLR_Push CLR@2=H:AS430_CLR_Push
+        ADF_SWAP=K:ADF1_RADIO_SWAP ADF_SWAP@2=K:ADF1_RADIO_SWAP ALT=H:KAP140_Push_ALT
+        ALT_1000_DN=H:KAP140_Knob_Outer_DEC ALT_1000_UP=H:KAP140_Knob_Outer_INC ALT_100_DN=H:KAP140_Knob_Inner_DEC
+        ALT_100_UP=H:KAP140_Knob_Inner_INC AP=H:KAP140_Push_AP APR=H:KAP140_Push_APR BARO_DN=K:KOHLSMAN_DEC
+        BARO_STD=1,K:BAROMETRIC_STD_PRESSURE BARO_UP=K:KOHLSMAN_INC BC=H:KAP140_Push_REV CABIN_LT=K:TOGGLE_CABIN_LIGHTS
+        CDI=H:AS530_CDI_Push CDI@2=H:AS430_CDI_Push CLR=H:AS530_CLR_Push CLR@2=H:AS430_CLR_Push
         CRS_10_DN=10,-,K:VOR1_SET CRS_10_UP=10,+,K:VOR1_SET CRS_1_DN=K:VOR1_OBI_DEC CRS_1_UP=K:VOR1_OBI_INC
         CRS_CTR=K:VOR1_SET,180,+,K:VOR1_SET DIRECT=H:AS530_DirectTo_Push DIRECT@2=H:AS430_DirectTo_Push
         DN=H:KAP140_Push_DN ENT=H:AS530_ENT_Push ENT@2=H:AS430_ENT_Push FMS_CRSR=H:AS530_RightSmallKnob_Push
@@ -454,64 +481,84 @@ SETS = {
         FMS_OUTER_CCW@2=H:AS430_RightLargeKnob_Left FMS_OUTER_CW=H:AS530_RightLargeKnob_Right
         FMS_OUTER_CW@2=H:AS430_RightLargeKnob_Right FPL=H:AS530_FPL_Push FPL@2=H:AS430_FPL_Push HDG=H:KAP140_Push_HDG
         MAP=H:AS530_CLR_Push_Long MAP@2=H:AS430_CLR_Push_Long MENU=H:AS530_MENU_Push MENU@2=H:AS430_MENU_Push
-        MSG=H:AS530_MSG_Push MSG@2=H:AS430_MSG_Push NAV=H:KAP140_Push_NAV OBS=H:AS530_OBS_Push OBS@2=H:AS430_OBS_Push
-        PROC=H:AS530_PROC_Push PROC@2=H:AS430_PROC_Push RANGE_CCW=H:AS530_RNG_Zoom RANGE_CW=H:AS530_RNG_Dezoom
-        S_DN=H:KAP140_Push_DN S_ENT=H:AS530_ENT_Push S_ENT@2=H:AS430_ENT_Push S_RANGE_CCW=H:AS430_RNG_Zoom
-        S_RANGE_CW=H:AS430_RNG_Dezoom S_UP=H:KAP140_Push_UP UP=H:KAP140_Push_UP VNAV=H:AS530_VNAV_Push
-        XPDR_MODE=1,1,4,A:TRANSPONDER_STATE:1
+        MIC1=0,K:PILOT_TRANSMITTER_SET,0,K:COPILOT_TRANSMITTER_SET
+        MIC2=1,K:PILOT_TRANSMITTER_SET,1,K:COPILOT_TRANSMITTER_SET MSG=H:AS530_MSG_Push MSG@2=H:AS430_MSG_Push
+        NAV=H:KAP140_Push_NAV OBS=H:AS530_OBS_Push OBS@2=H:AS430_OBS_Push PROC=H:AS530_PROC_Push
+        PROC@2=H:AS430_PROC_Push RANGE_CCW=H:AS530_RNG_Zoom RANGE_CW=H:AS530_RNG_Dezoom S_DN=H:KAP140_Push_DN
+        S_ENT=H:AS530_ENT_Push S_ENT@2=H:AS430_ENT_Push S_RANGE_CCW=H:AS430_RNG_Zoom S_RANGE_CW=H:AS430_RNG_Dezoom
+        S_UP=H:KAP140_Push_UP UP=H:KAP140_Push_UP VNAV=H:AS530_VNAV_Push XPDR_MODE=1,1,4,A:TRANSPONDER_STATE:1
     """,
     "gtn": """
-        ALT=H:KAP140_Push_ALT ALT_1000_DN=H:KAP140_Knob_Outer_DEC ALT_1000_UP=H:KAP140_Knob_Outer_INC
-        ALT_100_DN=H:KAP140_Knob_Inner_DEC ALT_100_UP=H:KAP140_Knob_Inner_INC AP=H:KAP140_Push_AP
-        APR=H:KAP140_Push_APR BARO_DN=K:KOHLSMAN_DEC BARO_STD=1,K:BAROMETRIC_STD_PRESSURE BARO_UP=K:KOHLSMAN_INC
-        BC=H:KAP140_Push_REV CRS_10_DN=10,-,K:VOR1_SET CRS_10_UP=10,+,K:VOR1_SET CRS_1_DN=K:VOR1_OBI_DEC
-        CRS_1_UP=K:VOR1_OBI_INC CRS_CTR=K:VOR1_SET,180,+,K:VOR1_SET
-        DIRECT=2,K:GPS_DIRECTTO_BUTTON/4,K:GPS_DIRECTTO_BUTTON
+        ADF_SWAP=K:ADF1_RADIO_SWAP ADF_SWAP@2=K:ADF1_RADIO_SWAP ALT=H:KAP140_Push_ALT
+        ALT_1000_DN=H:KAP140_Knob_Outer_DEC ALT_1000_UP=H:KAP140_Knob_Outer_INC ALT_100_DN=H:KAP140_Knob_Inner_DEC
+        ALT_100_UP=H:KAP140_Knob_Inner_INC AP=H:KAP140_Push_AP APR=H:KAP140_Push_APR BARO_DN=K:KOHLSMAN_DEC
+        BARO_STD=1,K:BAROMETRIC_STD_PRESSURE BARO_UP=K:KOHLSMAN_INC BC=H:KAP140_Push_REV CABIN_LT=K:TOGGLE_CABIN_LIGHTS
+        CRS_10_DN=10,-,K:VOR1_SET CRS_10_UP=10,+,K:VOR1_SET CRS_1_DN=K:VOR1_OBI_DEC CRS_1_UP=K:VOR1_OBI_INC
+        CRS_CTR=K:VOR1_SET,180,+,K:VOR1_SET DIRECT=2,K:GPS_DIRECTTO_BUTTON/4,K:GPS_DIRECTTO_BUTTON
         DIRECT@2=26,K:GPS_DIRECTTO_BUTTON/28,K:GPS_DIRECTTO_BUTTON DN=H:KAP140_Push_DN
         FMS_CRSR=2,K:GPS_CURSOR_BUTTON/4,K:GPS_CURSOR_BUTTON FMS_CRSR@2=26,K:GPS_CURSOR_BUTTON/28,K:GPS_CURSOR_BUTTON
         FMS_INNER_CCW=0,K:GPS_PAGE_KNOB_DEC FMS_INNER_CCW@2=24,K:GPS_PAGE_KNOB_DEC FMS_INNER_CW=0,K:GPS_PAGE_KNOB_INC
         FMS_INNER_CW@2=24,K:GPS_PAGE_KNOB_INC FMS_OUTER_CCW=0,K:GPS_GROUP_KNOB_DEC
         FMS_OUTER_CCW@2=24,K:GPS_GROUP_KNOB_DEC FMS_OUTER_CW=0,K:GPS_GROUP_KNOB_INC
         FMS_OUTER_CW@2=24,K:GPS_GROUP_KNOB_INC HDG=H:KAP140_Push_HDG HOME=2,K:GPS_MENU_BUTTON/4,K:GPS_MENU_BUTTON
-        HOME@2=26,K:GPS_MENU_BUTTON/28,K:GPS_MENU_BUTTON NAV=H:KAP140_Push_NAV S_DN=H:KAP140_Push_DN
-        S_PTR=2,K:GPS_BUTTON1/4,K:GPS_BUTTON1 S_RANGE_CCW=2,K:GPS_BUTTON2 S_RANGE_CW=4,K:GPS_BUTTON2
-        S_UP=H:KAP140_Push_UP UP=H:KAP140_Push_UP XPDR_MODE=1,1,4,A:TRANSPONDER_STATE:1
+        HOME@2=26,K:GPS_MENU_BUTTON/28,K:GPS_MENU_BUTTON MIC1=0,K:PILOT_TRANSMITTER_SET,0,K:COPILOT_TRANSMITTER_SET
+        MIC2=1,K:PILOT_TRANSMITTER_SET,1,K:COPILOT_TRANSMITTER_SET NAV=H:KAP140_Push_NAV RANGE_CCW=0,K:GPS_PAGE_KNOB_INC
+        RANGE_CW=0,K:GPS_PAGE_KNOB_DEC S_DN=H:KAP140_Push_DN S_PTR=2,K:GPS_BUTTON1/4,K:GPS_BUTTON1
+        S_RANGE_CCW=2,K:GPS_BUTTON2 S_RANGE_CW=4,K:GPS_BUTTON2 S_UP=H:KAP140_Push_UP UP=H:KAP140_Push_UP
+        XPDR_MODE=1,1,4,A:TRANSPONDER_STATE:1
     """,
     "kfc150": """
-        ALT=K:AP_ALT_HOLD ALT_1000_DN=H:kas297b_1000_DEC ALT_1000_UP=H:kas297b_1000_INC ALT_100_DN=H:kas297b_100_DEC
-        ALT_100_UP=H:kas297b_100_INC AP=K:AP_MASTER APR=K:AP_APR_HOLD ARM=H:kas297b_ArmButton BARO_DN=K:KOHLSMAN_DEC
-        BARO_STD=1,K:BAROMETRIC_STD_PRESSURE BARO_UP=K:KOHLSMAN_INC BC=K:AP_BC_HOLD CDI=K:TOGGLE_GPS_DRIVES_NAV1
-        CDI@2=H:AS430_CDI_Push CLR=H:AS530_CLR_Push CLR@2=H:AS430_CLR_Push CRS_10_DN=10,-,K:VOR1_SET
-        CRS_10_UP=10,+,K:VOR1_SET CRS_1_DN=K:VOR1_OBI_DEC CRS_1_UP=K:VOR1_OBI_INC CRS_CTR=K:VOR1_SET,180,+,K:VOR1_SET
-        DIRECT=H:AS530_DirectTo_Push,1,L:TDSGTNXI750U1_DTOKey,H:GTN750_DirectToPush/0,L:TDSGTNXI750U1_DTOKey
-        DIRECT@2=H:AS430_DirectTo_Push,1,L:TDSGTNXI650U1_DTOKey,H:GTN650_DirectToPush/0,L:TDSGTNXI650U1_DTOKey
-        DN=100,K:AP_ALT_VAR_DEC,K:AP_VS_VAR_DEC,K:AP_PITCH_REF_INC_DN ENT=H:AS530_ENT_Push ENT@2=H:AS430_ENT_Push
-        FD=K:TOGGLE_FLIGHT_DIRECTOR FLOOD_LT_DN=5,-,0,L:var_GlareshieldLightingKnob
-        FLOOD_LT_UP=5,+,100,L:var_GlareshieldLightingKnob
-        FMS_CRSR=H:AS530_RightSmallKnob_Push,1,L:TDSGTNXI750U1_RKnobCRSR,H:GTN750_KnobPush/0,L:TDSGTNXI750U1_RKnobCRSR
-        FMS_CRSR@2=H:AS430_RightSmallKnob_Push,1,L:TDSGTNXI650U1_RKnobCRSR,H:GTN650_KnobPush/0,L:TDSGTNXI650U1_RKnobCRSR
-        FMS_INNER_CCW=H:AS530_RightSmallKnob_Left,1,L:TDSGTNXI750U1_RKnobInnerDec,H:GTN750_KnobSmallDec
-        FMS_INNER_CCW@2=H:AS430_RightSmallKnob_Left,1,L:TDSGTNXI650U1_RKnobInnerDec,H:GTN650_KnobSmallDec
-        FMS_INNER_CW=H:AS530_RightSmallKnob_Right,1,L:TDSGTNXI750U1_RKnobInnerInc,H:GTN750_KnobSmallInc
-        FMS_INNER_CW@2=H:AS430_RightSmallKnob_Right,1,L:TDSGTNXI650U1_RKnobInnerInc,H:GTN650_KnobSmallInc
-        FMS_OUTER_CCW=H:AS530_RightLargeKnob_Left,1,L:TDSGTNXI750U1_RKnobOuterDec,H:GTN750_KnobLargeDec
-        FMS_OUTER_CCW@2=H:AS430_RightLargeKnob_Left,1,L:TDSGTNXI650U1_RKnobOuterDec,H:GTN650_KnobLargeDec
-        FMS_OUTER_CW=H:AS530_RightLargeKnob_Right,1,L:TDSGTNXI750U1_RKnobOuterInc,H:GTN750_KnobLargeInc
-        FMS_OUTER_CW@2=H:AS430_RightLargeKnob_Right,1,L:TDSGTNXI650U1_RKnobOuterInc,H:GTN650_KnobLargeInc
-        FPL=H:AS530_FPL_Push FPL@2=H:AS430_FPL_Push HDG=K:AP_PANEL_HEADING_HOLD
+        ADF_SWAP=H:adf_frqTransfert ADF_SWAP@2=H:adf_frqTransfert ALT=K:AP_ALT_HOLD ALT_1000_DN=H:kas297b_1000_DEC
+        ALT_1000_UP=H:kas297b_1000_INC ALT_100_DN=H:kas297b_100_DEC ALT_100_UP=H:kas297b_100_INC AP=K:AP_MASTER
+        APR=K:AP_APR_HOLD ARM=H:kas297b_ArmButton BARO_DN=K:KOHLSMAN_DEC BARO_STD=1,K:BAROMETRIC_STD_PRESSURE
+        BARO_UP=K:KOHLSMAN_INC BC=K:AP_BC_HOLD CABIN_LT=L:var_LIGHTING_Push_Cockpit_1,L:var_LIGHTING_Push_Cockpit_2
+        CDI=K:TOGGLE_GPS_DRIVES_NAV1 CDI@2=H:AS430_CDI_Push CLR=H:AS530_CLR_Push,H:KLN90B_CLR_Push
+        CLR@2=H:AS430_CLR_Push CRS_10_DN=10,-,K:VOR1_SET CRS_10_UP=10,+,K:VOR1_SET CRS_1_DN=K:VOR1_OBI_DEC
+        CRS_1_UP=K:VOR1_OBI_INC CRS_CTR=K:VOR1_SET,180,+,K:VOR1_SET
+        DIRECT=H:AS530_DirectTo_Push,1,L:TDSGTNXI750U1_DTOKey,H:GTN750_DirectToPush,H:KLN90B_DCT_Push/0,L:TDSGTNXI750U1_DTOKey
+        DIRECT@2=H:AS430_DirectTo_Push,1,L:TDSGTNXI650U1_DTOKey,1,L:TDSGTNXI650U2_DTOKey,H:GTN650_DirectToPush/0,L:TDSGTNXI650U1_DTOKey,0,L:TDSGTNXI650U2_DTOKey
+        DN=100,K:AP_ALT_VAR_DEC,K:AP_VS_VAR_DEC,K:AP_PITCH_REF_INC_DN ENT=H:AS530_ENT_Push,H:KLN90B_ENT_Push
+        ENT@2=H:AS430_ENT_Push FD=K:TOGGLE_FLIGHT_DIRECTOR
+        FLOOD_LT_DN=5,-,0,L:var_GlareshieldLightingKnob,0,L:bksq_MasterGlareshieldLights
+        FLOOD_LT_UP=5,+,100,L:var_GlareshieldLightingKnob,0,L:bksq_MasterGlareshieldLights
+        FMS_CRSR=H:AS530_RightSmallKnob_Push,1,L:TDSGTNXI750U1_RKnobCRSR,H:GTN750_KnobPush,H:KLN90B_RightCursor_Toggle/0,L:TDSGTNXI750U1_RKnobCRSR
+        FMS_CRSR@2=H:AS430_RightSmallKnob_Push,1,L:TDSGTNXI650U1_RKnobCRSR,1,L:TDSGTNXI650U2_RKnobCRSR,H:GTN650_KnobPush/0,L:TDSGTNXI650U1_RKnobCRSR,0,L:TDSGTNXI650U2_RKnobCRSR
+        FMS_INNER_CCW=H:AS530_RightSmallKnob_Left,1,L:TDSGTNXI750U1_RKnobInnerDec,H:GTN750_KnobSmallDec,H:KLN90B_RightSmallKnob_Left
+        FMS_INNER_CCW@2=H:AS430_RightSmallKnob_Left,1,L:TDSGTNXI650U1_RKnobInnerDec,1,L:TDSGTNXI650U2_RKnobInnerDec,H:GTN650_KnobSmallDec
+        FMS_INNER_CW=H:AS530_RightSmallKnob_Right,1,L:TDSGTNXI750U1_RKnobInnerInc,H:GTN750_KnobSmallInc,H:KLN90B_RightSmallKnob_Right
+        FMS_INNER_CW@2=H:AS430_RightSmallKnob_Right,1,L:TDSGTNXI650U1_RKnobInnerInc,1,L:TDSGTNXI650U2_RKnobInnerInc,H:GTN650_KnobSmallInc
+        FMS_OUTER_CCW=H:AS530_RightLargeKnob_Left,1,L:TDSGTNXI750U1_RKnobOuterDec,H:GTN750_KnobLargeDec,H:KLN90B_RightLargeKnob_Left
+        FMS_OUTER_CCW@2=H:AS430_RightLargeKnob_Left,1,L:TDSGTNXI650U1_RKnobOuterDec,1,L:TDSGTNXI650U2_RKnobOuterDec,H:GTN650_KnobLargeDec
+        FMS_OUTER_CW=H:AS530_RightLargeKnob_Right,1,L:TDSGTNXI750U1_RKnobOuterInc,H:GTN750_KnobLargeInc,H:KLN90B_RightLargeKnob_Right
+        FMS_OUTER_CW@2=H:AS430_RightLargeKnob_Right,1,L:TDSGTNXI650U1_RKnobOuterInc,1,L:TDSGTNXI650U2_RKnobOuterInc,H:GTN650_KnobLargeInc
+        FPL=H:AS530_FPL_Push FPL@2=H:AS430_FPL_Push GPSS=L:var_rnavDrivesHsi HDG=K:AP_PANEL_HEADING_HOLD
         HOME=1,L:TDSGTNXI750U1_HomeKey,H:GTN750_HomePush/0,L:TDSGTNXI750U1_HomeKey
-        HOME@2=1,L:TDSGTNXI650U1_HomeKey,H:GTN650_HomePush/0,L:TDSGTNXI650U1_HomeKey MAP=H:AS530_CLR_Push_Long
-        MAP@2=H:AS430_CLR_Push_Long MENU=H:AS530_MENU_Push MENU@2=H:AS430_MENU_Push MSG=H:AS530_MSG_Push
-        MSG@2=H:AS430_MSG_Push NAV=K:AP_NAV1_HOLD OBS=H:AS530_OBS_Push OBS@2=H:AS430_OBS_Push
-        PANEL_LT_DN=5,-,0,L:var_FlightInstrumentsLightingKnob PANEL_LT_UP=5,+,100,L:var_FlightInstrumentsLightingKnob
-        PROC=H:AS530_PROC_Push PROC@2=H:AS430_PROC_Push RANGE_CCW=H:AS530_RNG_Zoom RANGE_CW=H:AS530_RNG_Dezoom
-        S_DN=100,K:AP_ALT_VAR_DEC,K:AP_VS_VAR_DEC,K:AP_PITCH_REF_INC_DN S_ENT=H:AS530_ENT_Push
-        S_ENT@2=H:AS430_ENT_Push S_PTR=1,L:TDSGTNXI750U1_LKnobCRSR/0,L:TDSGTNXI750U1_LKnobCRSR
-        S_RANGE_CCW=1,L:TDSGTNXI750U1_LKnobDec,H:GTN750_VolDec S_RANGE_CW=1,L:TDSGTNXI750U1_LKnobInc,H:GTN750_VolInc
-        S_UP=100,K:AP_ALT_VAR_INC,K:AP_VS_VAR_INC,K:AP_PITCH_REF_INC_UP S_VS=H:kas297b_VsButton
-        TEST=20,L:var_AutopilotStartupCounter UP=100,K:AP_ALT_VAR_INC,K:AP_VS_VAR_INC,K:AP_PITCH_REF_INC_UP
-        VNAV=H:AS530_VNAV_Push VS=H:kas297b_VsButton XPDR_MODE=1,H:TRANSPONDER_Push_STBY,H:TRANSPONDER_Push_ALT
-        YD=K:YAW_DAMPER_TOGGLE
+        HOME@2=1,L:TDSGTNXI650U1_HomeKey,1,L:TDSGTNXI650U2_HomeKey,H:GTN650_HomePush/0,L:TDSGTNXI650U1_HomeKey,0,L:TDSGTNXI650U2_HomeKey
+        LVL=1,+,5,L:var_dmeMode MAP=H:AS530_CLR_Push_Long MAP@2=H:AS430_CLR_Push_Long
+        MENU=H:AS530_MENU_Push,H:KLN90B_ALT_Push MENU@2=H:AS430_MENU_Push
+        MIC1=0,K:PILOT_TRANSMITTER_SET,0,K:COPILOT_TRANSMITTER_SET,0,L:var_PilotTransmitSelector
+        MIC2=1,K:PILOT_TRANSMITTER_SET,1,K:COPILOT_TRANSMITTER_SET,1,L:var_PilotTransmitSelector
+        MSG=H:AS530_MSG_Push,H:KLN90B_MSG_Push MSG@2=H:AS430_MSG_Push NAV=K:AP_NAV1_HOLD NRST=H:KLN90B_ApprArm_Push
+        OBS=H:AS530_OBS_Push OBS@2=H:AS430_OBS_Push
+        PANEL_LT_DN=5,-,0,L:var_FlightInstrumentsLightingKnob,0,L:bksq_MasterPanelLights
+        PANEL_LT_UP=5,+,100,L:var_FlightInstrumentsLightingKnob,0,L:bksq_MasterPanelLights
+        PAN_DN=1,L:TDSGTNXI750U1_LKnobDec,H:GTN750_VolDec,K:COM1_VOLUME_DEC PAN_LEFT=H:KLN90B_LeftLargeKnob_Left
+        PAN_RIGHT=H:KLN90B_LeftLargeKnob_Right PAN_UP=1,L:TDSGTNXI750U1_LKnobInc,H:GTN750_VolInc,K:COM1_VOLUME_INC
+        PROC=H:AS530_PROC_Push PROC@2=H:AS430_PROC_Push
+        PTR=1,L:TDSGTNXI750U1_LKnobCRSR,H:KLN90B_LeftCursor_Toggle/0,L:TDSGTNXI750U1_LKnobCRSR
+        RANGE_CCW=H:AS530_RNG_Zoom,1,L:TDSGTNXI750U1_RKnobInnerInc,H:GTN750_KnobSmallInc,H:KLN90B_LeftSmallKnob_Left
+        RANGE_CW=H:AS530_RNG_Dezoom,1,L:TDSGTNXI750U1_RKnobInnerDec,H:GTN750_KnobSmallDec,H:KLN90B_LeftSmallKnob_Right
+        S_DN=H:bksq_JpiButton_1_R_Short/H:bksq_JpiButton_1_R_Long S_ENT=H:AS530_ENT_Push,H:KLN90B_ENT_Push
+        S_ENT@2=H:AS430_ENT_Push S_FLC=H:adf_AntAdf
+        S_PAN_DN=1,L:TDSGTNXI650U1_LKnobDec,1,L:TDSGTNXI650U2_LKnobDec,H:GTN650_VolDec,K:COM2_VOLUME_DEC
+        S_PAN_UP=1,L:TDSGTNXI650U1_LKnobInc,1,L:TDSGTNXI650U2_LKnobInc,H:GTN650_VolInc,K:COM2_VOLUME_INC
+        S_PTR=1,L:TDSGTNXI650U1_LKnobCRSR,1,L:TDSGTNXI650U2_LKnobCRSR/0,L:TDSGTNXI650U1_LKnobCRSR,0,L:TDSGTNXI650U2_LKnobCRSR
+        S_RANGE_CCW=H:AS430_RNG_Zoom,1,L:TDSGTNXI650U1_RKnobInnerInc,1,L:TDSGTNXI650U2_RKnobInnerInc,H:GTN650_KnobSmallInc
+        S_RANGE_CW=H:AS430_RNG_Dezoom,1,L:TDSGTNXI650U1_RKnobInnerDec,1,L:TDSGTNXI650U2_RKnobInnerDec,H:GTN650_KnobSmallDec
+        S_UP=H:bksq_JpiButton_1_L_Short/H:bksq_JpiButton_1_L_Long S_VNV=H:adf_bfo S_VS=H:kas297b_VsButton TERR=K:GPS_OBS
+        TEST=20,L:var_AutopilotStartupCounter,1,L:var_md41Test/0,L:var_md41Test
+        UP=100,K:AP_ALT_VAR_INC,K:AP_VS_VAR_INC,K:AP_PITCH_REF_INC_UP VNAV=H:AS530_VNAV_Push VS=H:kas297b_VsButton
+        XPDR_MODE=1,H:TRANSPONDER_Push_STBY,H:TRANSPONDER_Push_ALT YD=K:YAW_DAMPER_TOGGLE
     """,
 }
 
@@ -714,17 +761,32 @@ def test_the_kfc_150_rocker_steps_the_reference_of_the_mode():
                          ((0, 0, 1), ("AP_PITCH_REF_INC_UP", None), ("AP_PITCH_REF_INC_DN", None)),
                          ((0, 0, 0), None, None)):
         variables = dict(zip(modes, on, strict=True))
-        for button, sent in (("UP", up), ("S_UP", up), ("DN", down), ("S_DN", down)):
+        for button, sent in (("UP", up), ("DN", down)):
             assert run(table[button], variables) == ([(f"K:{sent[0]}", sent[1])] if sent else [])
 
 
-def test_the_kfc_150_dimmers_step_5_from_0_to_100():
+def test_the_kfc_150_dimmers_step_5_from_0_to_100_and_switch_their_lights():
+    # the lights' switch is on while the dimmer is above 0
     table = FAMILIES["kfc150"].DEVICE[1]
-    for button, variable in (("PANEL_LT", "L:var_FlightInstrumentsLightingKnob"),
-                             ("FLOOD_LT", "L:var_GlareshieldLightingKnob")):
+    for button, variable, switch in (("PANEL_LT", "L:var_FlightInstrumentsLightingKnob", "L:bksq_MasterPanelLights"),
+                                     ("FLOOD_LT", "L:var_GlareshieldLightingKnob", "L:bksq_MasterGlareshieldLights")):
         for value, up, down in ((50, 55, 45), (98, 100, 93), (3, 8, 0), (100, 100, 95), (0, 5, 0)):
-            assert run(table[f"{button}_UP"], {variable: value}) == [(variable, up)]
-            assert run(table[f"{button}_DN"], {variable: value}) == [(variable, down)]
+            assert run(table[f"{button}_UP"], {variable: value}) == [(variable, up), (switch, up > 0)]
+            assert run(table[f"{button}_DN"], {variable: value}) == [(variable, down), (switch, down > 0)]
+
+
+def test_the_bonanza_switches_step_and_toggle():
+    # the DME's selector one position on and round, the HSI's source and both reading lights toggled, the EDM 800's
+    # buttons by tap and hold, and TEST with the MD41's test held
+    table = FAMILIES["kfc150"].DEVICE[1]
+    assert [run(table["LVL"], {"L:var_dmeMode": n}) for n in (0, 3, 4)] == [[("L:var_dmeMode", n)] for n in (1, 4, 0)]
+    for on in (0, 1):
+        assert run(table["GPSS"], {"L:var_rnavDrivesHsi": on}) == [("L:var_rnavDrivesHsi", not on)]
+        assert run(table["CABIN_LT"], {"L:var_LIGHTING_Push_Cockpit_1": on}) == [
+            ("L:var_LIGHTING_Push_Cockpit_1", not on), ("L:var_LIGHTING_Push_Cockpit_2", not on)]
+    assert table["S_UP"] == {"release": "(>H:bksq_JpiButton_1_L_Short)", "long": "(>H:bksq_JpiButton_1_L_Long)"}
+    assert table["S_DN"] == {"release": "(>H:bksq_JpiButton_1_R_Short)", "long": "(>H:bksq_JpiButton_1_R_Long)"}
+    assert run(table["TEST"]["press"]) == [("L:var_AutopilotStartupCounter", 20), ("L:var_md41Test", 1)]
 
 
 def test_the_g1000_std_push_toggles_std():
@@ -752,6 +814,7 @@ def test_actions_take_a_press_a_release_or_both():
     assert profile.actions("a") == {"onPress": "a"}
     assert profile.actions({"press": "a", "release": "b"}) == {"onPress": "a", "onRelease": "b"}
     assert profile.actions({"release": "b"}) == {"onRelease": "b"}
+    assert profile.actions({"release": "b", "long": "c"}) == {"onRelease": "b", "onLongRelease": "c"}
     for bad in ({}, {"hold": "a"}):
         with pytest.raises(ValueError):
             profile.actions(bad)
@@ -769,6 +832,7 @@ DOC_NAMES = {
     "the map's pan": ("PAN_UP", "PAN_DN", "PAN_LEFT", "PAN_RIGHT"),
     "the FREQ push": ("FREQ_PUSH",),
     "the dimmers": ("PANEL_LT_UP", "PANEL_LT_DN", "FLOOD_LT_UP", "FLOOD_LT_DN"),
+    "SHIFT with the RANGE knob tilted left or right": ("S_PAN_LEFT", "S_PAN_RIGHT"),
 }
 SECTIONS = {"g1000": "G1000 NXi", "g3x": "GFC 500 and G3X Touch", "gns": "GNS 530/430",
             "gtn": "TDS GTN 750Xi and 650Xi", "kfc150": "KFC 150 (Black Square)"}
@@ -853,9 +917,10 @@ def test_the_project_has_the_structure_mobiflight_reads(key):
         seen.add((device, number))
         button = item["button"]
         assert tuple(button) == BUTTON and (button["LongReleaseDelay"], button["HoldDelay"]) == (350, 350)
-        assert button["RepeatDelay"] == 0 and button["onLongRelease"] is None and button["onHold"] is None
+        assert button["RepeatDelay"] == 0 and button["onHold"] is None
         entry = profile.actions(FAMILIES[key].DEVICE[device][numbers[device, number]])
-        assert {event: act["Command"] for event in ("onPress", "onRelease") if (act := button[event])} == entry
+        events = ("onPress", "onRelease", "onLongRelease")
+        assert {event: act["Command"] for event in events if (act := button[event])} == entry
         for event in entry:
             assert tuple(button[event]) == ("Type", "Command")
             assert button[event]["Type"] == "MSFS2020CustomInputAction"

@@ -65,7 +65,8 @@ def main():
     print("show them (1-based). Every knob detent that sends a button is a short press (with SHIFT, the FREQ")
     print("outer ring only selects the squawk digit and sends none). UP, DN, the PAN buttons and PTR are short")
     print("presses too, however long the control is held (UP, DN and PAN repeat). Map all of these as")
-    print("\"on press\". The numbers are frozen from the first build on: new buttons only go at the end.\n")
+    print("\"on press\". S_UP and S_DN do not repeat: they are held as long as the key, as the other keys are.")
+    print("The numbers are frozen from the first build on: new buttons only go at the end.\n")
     print("| Name | Control | Device 1 | Device 2 |")
     print("| --- | --- | --- | --- |")
     for n in DEVICE[1]:

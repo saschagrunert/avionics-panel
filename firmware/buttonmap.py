@@ -24,7 +24,7 @@ SHIFTED = {
     "FPL": "VNAV", "DIRECT": "MSG", "MENU": "NRST", "PROC": "TERR", "CLR": "MAP",
 }
 UNIT_KEYS = ("CDI", "COM_SWAP", "NAV_SWAP", "HOME", "FPL", "DIRECT", "MENU", "PROC", "CLR", "ENT")
-REPEAT_KEYS = ("UP", "DN")
+REPEAT_KEYS = ("UP", "DN")         # repeat while held, without SHIFT (S_UP and S_DN are held: a tap or a hold)
 # keys on device 1 only; their order is the order of their button numbers (DEVICE1_ONLY), frozen with them
 PLAIN_KEYS = ("AP", "ALT", "HDG", "FD", "VS", "NAV", "UP", "FLC", "APR", "DN", "VNV", "LVL",
               "MIC1", "COM1", "MIC2", "COM2", "VFR")

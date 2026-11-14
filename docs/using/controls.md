@@ -106,8 +106,10 @@ Autopilot. The columns are engage, vertical and lateral:
   while many GA aircraft have no yaw damper, and where one is installed it is switched once per flight.
 
 UP and DN are keys, as on the G1000. They auto-repeat while held (first repeat after 400 ms, then about 8
-steps per second), so -1000 ft/min takes about 1.4 s. UP has a small raised bar at the back edge of its cap
-and DN one at the front edge, so they are told apart without looking.
+steps per second), so -1000 ft/min takes about 1.4 s. With SHIFT they do not repeat: SHIFT, UP and SHIFT, DN
+stay down as long as the key, as the other keys do, so a mapping can tell a tap from a hold (in the [keyboard
+mode](keyboard.md) they repeat). UP has a small raised bar at the back edge of its cap and DN one at the front
+edge, so they are told apart without looking.
 
 One laser-marked frame surrounds all keys and single lines split it into AUTOPILOT, AUDIO, RADIO and FMS.
 
