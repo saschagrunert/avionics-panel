@@ -42,8 +42,15 @@ preconditions and cannot get out of sync with the panel:
 - UNIT: the firmware keeps the state and drives the white light; what moves to device 2 is in
   [Mapping](../using/mapping.md#two-joysticks). Button numbers are frozen; a snapshot test in
   `firmware/test_panel.py` checks it.
-- FREQ knob: the push cycles COM, NAV, ADF, and each mode sends its own turn buttons. The mode stays
-  until the next push.
+- FREQ knob: the push cycles COM, NAV, ADF, and each mode sends its own turn buttons. The mode stays until the
+  next push. It changes at the press, so a turn right after it already tunes the next radio. A plain push held
+  1 s (`FREQ_HOLD_MS`) sets COM: a hold first steps to the next mode, then returns to COM, and needs no button
+  of its own, so profiles stay as they are. A FREQ detent while the push is held ends the hold, so no radio
+  changes under a turning hand (a detent the loop reads late, after the hold, counts after it: detents carry
+  no scan time). The hold counts from the scan of the press until the scan of the release, not the end of its
+  30 ms bounce window, also when the loop reads both late ([Keys and switch bounce](#keys-and-switch-bounce)).
+  A shifted push is XPDR mode, held or not, and leaves the mode alone. The keyboard mode does the same; there
+  the push's shortcut stays down while it is held, as a key's does, and holds back what follows.
 - Knob acceleration ([table](../using/controls.md#knobs)), UP / DN auto-repeat and the pan tilt repeat rate
   are done in the firmware.
 - Squawk with SHIFT: the outer ring selects the digit (1 to 4; it stops at both ends and sends no button), the
@@ -135,8 +142,8 @@ What the queue does:
 - A spin faster than its steps go out can lose detents beyond the 8 waiting and runs on for up to about
   0.9 s. That holds for knobs with one step per detent (FMS, COM, NAV, the ADF outer ring, BARO, squawk, the
   dimmers, RANGE), and for the coarse step faster than about 16 detents per second.
-- Turning the other way drops the steps of that ring at the end of the queue, so the knob stops at once.
-  Steps that a key, a push or another ring followed stay, since what followed builds on them (ENT confirms the
+- Turning the other way drops the steps of that ring at the end of the queue, so the knob stops at once. Steps
+  that a key, a push or another ring followed stay, since what followed builds on them (ENT confirms the
   character they dialled), or changed what the ring does: after a SHIFT tap, UNIT or a FREQ push the step back
   belongs to another function, and the steps of the one before all go out.
 

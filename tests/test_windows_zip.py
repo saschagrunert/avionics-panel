@@ -126,11 +126,12 @@ def test_the_simulator_runs_from_the_unpacked_zip(built, tmp_path):
     with zipfile.ZipFile(built) as z:
         z.extractall(tmp_path)
     code = ("import sys; sys.path.insert(0, sys.argv[1]); import sim.page, sim.vjoy; from sim import Sim; "
-            "sim.page.inputs(); s = Sim(); s.tap('AP'); print(s.presses(1), sim.page.__file__); "
-            "print(sim.page.version())")
+            "sim.page.inputs(); s = Sim(); s.tap('AP'); print(s.presses(1), sim.page.legend('g1000')[1]['AP'], "
+            "sim.page.__file__); print(sim.page.version())")
     out = subprocess.run([sys.executable, "-I", "-c", code, str(tmp_path / TOP)], cwd=tmp_path, check=True,
                          capture_output=True, text=True).stdout
-    assert out.splitlines()[-2:] == [f"['AP'] {tmp_path / TOP / 'sim' / 'page.py'}", make_zip.stamp("%cs, %h")]
+    assert out.splitlines()[-2:] == [f"['AP'] AP_MASTER {tmp_path / TOP / 'sim' / 'page.py'}",
+                                     make_zip.stamp("%cs, %h")]
     assert f"Avionics Panel rev 1 ready ({make_zip.stamp('%cs, %h')})\n" in out       # the firmware's console
 
 

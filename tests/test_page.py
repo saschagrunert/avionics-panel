@@ -17,6 +17,8 @@ import pytest
 
 import sim.page
 from conftest import load
+from mobiflight import profile
+from mobiflight.families import FAMILIES
 from sim import BM, TILT, key_name
 from sim.hardware import RINGS, SWITCHES, keys, make_keys
 from sim.live import DETENTS, TURN_MAX, Live
@@ -69,10 +71,10 @@ class Stream:
 
 
 @contextlib.contextmanager
-def serve(speed=SPEED, keyboard=False):
+def serve(speed=SPEED, keyboard=False, family=None):
     live = Live(speed=speed, keyboard=keyboard)
     page = Page(live, forward=lambda device, report: page.sent.append(
-        (device, report if keyboard else names(device, report))))
+        (device, report if keyboard else names(device, report))), family=family)
     page.sent = []                             # every report: (device, buttons by name; the keyboard's as sent)
     live.start(page.output)
     threading.Thread(target=page.serve_forever, args=(0.02,), daemon=True).start()
@@ -134,11 +136,55 @@ def test_the_page_gets_the_programs_numbers_with_hello(page):
     # sim.js copies none of them: it reads each by its name
     hello = Stream(page).hello
     assert {k: v for k, v in hello.items() if k not in ("client", "inputs")} == {
-        "build": sim.page.build(), "version": sim.page.version(), "detents": DETENTS, "turn_max": TURN_MAX,
-        "acts_max": sim.page.ACTS_MAX, "beat_ms": 1000}
+        "build": sim.page.build(), "version": sim.page.version(), "legend": None, "detents": DETENTS,
+        "turn_max": TURN_MAX, "acts_max": sim.page.ACTS_MAX, "beat_ms": 1000}
     assert all(re.search(rf"\b{key}\b", viewer("sim.js")) for key in hello)
     assert DETENTS == load("_page_stack", "mech/stack.py").ENC_DETENTS     # a turn of the knob, as built
     assert 2 * sim.page.BEAT_S < sim.page.LEASE_S                          # a beat may be lost
+
+
+@pytest.mark.parametrize("family", FAMILIES)
+def test_the_legend_says_what_every_button_does_in_the_profile(family):
+    # every button of both joysticks, once: the label MobiFlight's list shows for its codes, or "nothing" and why
+    legend, table = sim.page.legend(family), FAMILIES[family]
+    for device in (1, 2):
+        assert sorted(legend[device]) == sorted(BM.DEVICE[device]), device
+        for button, what in legend[device].items():
+            entry = table.DEVICE[device].get(button)
+            if entry is None:
+                assert what == f"{sim.page.NOTHING} ({table.UNMAPPED[device][button]})", button
+            else:
+                assert what == profile.label(" ".join(profile.actions(entry).values())) and what, button
+    if family == "g1000":
+        assert legend[1]["HDG_SYNC"] == "HEADING_BUG_SET" and legend[1]["FREQ_PUSH"] == (
+            "nothing (the FREQ knob's mode is the panel's: each mode sends buttons of its own)")
+
+
+def test_the_page_gets_the_legend_with_hello():
+    # by device and button, as the page looks up the button pressed last; sim.js shows it in a line of its own,
+    # for the joysticks only
+    with serve(family="g1000") as page:
+        hello = Stream(page).hello
+    assert hello["legend"] == {str(d): what for d, what in sim.page.legend("g1000").items()}
+    assert "legend[last[0]][last[1]]" in viewer("sim.js") and "!buttons.keyboard" in viewer("sim.js")
+
+
+def test_family_takes_a_profile_and_goes_to_the_page(monkeypatch, capsys):
+    # a family FAMILIES has, not with the keyboard mode, whose lines show shortcuts, not joystick buttons
+    for args in (["--family", "g1001"], ["--keyboard", "--family", "g1000"]):
+        with pytest.raises(SystemExit) as refused:
+            sim.page.main([*args, "--port", "0"])
+        assert refused.value.code == 2 and "argument --family" in capsys.readouterr().err
+    families = []
+
+    def page(live, address, forward, family):
+        families.append(family)
+        raise OSError("stop here")
+    monkeypatch.setattr(sim.page, "Page", page)
+    for args in ([], ["--family", "cows-da40"]):
+        with pytest.raises(SystemExit, match="sim.page: stop here"):
+            sim.page.main([*args, "--port", "0"])
+    assert families == [None, "cows-da40"]
 
 
 def test_the_build_names_the_files_the_page_gets(tmp_path):

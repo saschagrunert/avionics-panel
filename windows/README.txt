@@ -33,6 +33,11 @@ For a tablet beside the PC, run start.bat --host 0.0.0.0 from a command prompt i
 right-click firewall.bat and choose Run as administrator: it lets the simulator through Windows' firewall on
 private networks, whatever was chosen when Windows asked.
 
+To see what each button does in one of the generated profiles, run start.bat --family g1000 from a
+command prompt in this folder (or gns, gtn, g3x, black-square-bonanza, cows-da40, carenado-c182t): one more
+line at the bottom left of the page names what the button pressed last does there, or "nothing" and why. It
+shows joystick buttons, so the keyboard mode has none.
+
 The panel's keyboard mode, for MSFS without MobiFlight, runs too, without vJoy: see Keyboard mode on the
 page linked below.
 

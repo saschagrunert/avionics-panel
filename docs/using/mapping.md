@@ -377,9 +377,10 @@ MobiFlight show them.
 ## Per avionics
 
 - FREQ knob: its push cycles COM, NAV and ADF, and each mode sends turn buttons of its own. The mode stays
-  until the next push, and the panel has no light for it. Map each mode to its radio (COM and NAV 1 or 2 by
-  unit, and the one ADF), as the [generated profiles](#generated-profiles) do; a GNS shows the frequencies
-  whichever field its cursor is on; for a GTN see [TDS GTN 750Xi and 650Xi](#tds-gtn-750xi-and-650xi).
+  until the next push, or a push held 1 s, which returns it to COM; the panel has no light for it. Map each
+  mode to its radio (COM and NAV 1 or 2 by unit, and the one ADF), as the
+  [generated profiles](#generated-profiles) do; a GNS shows the frequencies whichever field its cursor is on;
+  for a GTN see [TDS GTN 750Xi and 650Xi](#tds-gtn-750xi-and-650xi).
 - G1000: map the FMS keys and knob of device 1 to the MFD and of device 2 to the PFD, as the generated profile
   does ([why](controls.md#keys-label-shift-legend-in-parentheses)).
 - GNS 430 as unit 2 has its own CDI and OBS, so they are on device 2 too.

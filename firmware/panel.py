@@ -28,6 +28,7 @@ REPEAT_DELAY_MS = 400    # UP / DN: first repeat ...
 REPEAT_MS = 125          # ... then about 8 per second
 PAN_DELAY_MS = 300       # RANGE tilt: first repeat ...
 PAN_MS = 120             # ... then this often (both: no faster than the steps go through, see tick())
+FREQ_HOLD_MS = 1000      # a plain FREQ push held this long returns the knob to COM
 # RANGE tilt switches -> pan direction: a tilt away closes A, left B, towards the user C, right D (Alps drawing)
 PAN_DIRS = {"RANGE_A": "UP", "RANGE_B": "LEFT", "RANGE_C": "DN", "RANGE_D": "RIGHT"}
 # The sources that repeat while held, in a fixed order: repeats due in the same pass queue in it (the second one
@@ -58,6 +59,7 @@ class Panel:
         self.shift_until = 0
         self.unit = 1
         self.freq_mode = 0           # index into FREQ_MODES: kept until the FREQ push changes it
+        self.freq_since = None       # ms of the press of a plain FREQ push held, until FREQ_HOLD_MS set COM
         self.digit = 1               # squawk digit (1 to 4) the shifted FREQ inner ring steps
         self.held = {}               # source -> (device, button) held while the source is held
         self.pending = {}            # key or push -> scan ms of its release, not applied for BOUNCE_MS
@@ -193,17 +195,21 @@ class Panel:
         if not pressed:
             self.pending[name] = at
             return
+        self._freq_hold(t)                                 # a FREQ hold read late, before its release is applied
         last = self.pending.pop(name, None)
         if last is not None:
             if at - last < BOUNCE_MS:
                 return                                     # a bounce: the press goes on
             self._apply(name, False, t)                    # the release was real, tick() hasn't seen it yet
         self._apply(name, True, t)
+        if name == "FREQ_PUSH" and self.freq_since == t:   # a FREQ hold runs from the scan, as its release does
+            self.freq_since = at
 
     def release(self, name, t):
         """A release that is no bounce (code.py lets go of every key after a keypad overflow): applied at once,
-        and a press right after it is a new press."""
+        and a press right after it is a new press. A FREQ push held long enough counts before it."""
         self._expire(t)
+        self._freq_hold(t)
         self._apply(name, False, t)
 
     def _apply(self, name, pressed, t):
@@ -242,6 +248,8 @@ class Panel:
         if not pressed:
             self.held.pop(name, None)
             self.sessions.pop(name, None)
+            if name == "FREQ_PUSH":
+                self.freq_since = None
             return
         knob = name[:-5]                                   # ALTHDG, FMS, FREQ
         shifted = self._knob_shift(knob, t)
@@ -253,8 +261,9 @@ class Panel:
             k = self._btn(1, "CABIN_LT") if shifted else self._btn(self.unit, "FMS_CRSR")
         elif shifted:
             k = self._btn(1, "XPDR_MODE")
-        else:                                              # FREQ push: next mode
+        else:                                              # FREQ push: next mode at once, COM once held long
             self.freq_mode = (self.freq_mode + 1) % len(FREQ_MODES)
+            self.freq_since = t
             k = self._btn(self.unit, "FREQ_PUSH")
         self._hold(name, k)
 
@@ -275,6 +284,9 @@ class Panel:
         fast = (abs(steps) > 1 and not stalled) or (since is not None and since < FAST_MS)
         self.last_detent[ring] = (t, up)
         knob = ring.split("_")[0]
+        if knob == "FREQ":                                  # a turn ends a FREQ hold: no change of radio under it,
+            self._freq_hold(t)                              # unless the hold was long already (a late read)
+            self.freq_since = None
         shifted = self._knob_shift(knob, t)
         dev, slow, quick = 1, None, None
         if ring == "ALTHDG_OUTER":
@@ -346,7 +358,8 @@ class Panel:
     def tick(self, t):
         self._expire(t)                                    # extends a session held by a push or tilt
         self.last_tick = t
-        if self.pending:
+        self._freq_hold(t)                                 # before a pending release ends the push: read late,
+        if self.pending:                                   # a long hold still counts
             for name in list(self.pending):                # a copy: applying a release ends its entry
                 if t - self.pending[name] >= BOUNCE_MS:
                     del self.pending[name]
@@ -356,6 +369,12 @@ class Panel:
         self._show(t)
         if self.order and t >= self.order_ms:
             self._next(t)
+
+    def _freq_hold(self, t):
+        """A plain FREQ push held FREQ_HOLD_MS returns the knob to COM. A release still waiting out BOUNCE_MS
+        counts as held until its scan: the push is long if it was down that long before it."""
+        if self.freq_since is not None and self.pending.get("FREQ_PUSH", t) - self.freq_since >= FREQ_HOLD_MS:
+            self.freq_mode, self.freq_since = 0, None      # (no FREQ step is queued: a turn ended the hold)
 
     def _repeat(self, t):
         for src in REPEAT_SOURCES:

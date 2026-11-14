@@ -1,12 +1,15 @@
 // The panel page: index.html loads this when python3 -m sim.page (sim/page.py) serves it with ?sim. The firmware
 // runs in that program; this page sends it raw input events as they happen and shows what comes back: the lights,
-// the buttons each joystick reports, a firmware error and a lost connection. The camera stays put.
+// the buttons each joystick reports (with --family, a line of what the one pressed last does in that profile), a firmware
+// error and a lost connection. The camera stays put.
 //   key cap: pointer down presses it, up (or cancel) lets go
 //   knob: the inner knob, or the outer ring round it, by the pointer's distance from the knob's axis. The wheel
 //     turns that ring, a detent per notch; a mouse button pushes the knob as long as it is down. A finger turns the
-//     ring it touched by moving round the knob, a detent per 12 degrees as the real one, and a quick tap that does
-//     not move, not even a quarter detent round the knob, pushes it; anything else a finger does on a knob does
-//     nothing. One finger per knob at a time: a second one takes the knob over if the first has not moved.
+//     ring it touched by moving round the knob, a detent per 12 degrees as the real one. A finger that does not
+//     move, not even a quarter detent round the knob, pushes it: a quick tap for a moment, one that stays longer
+//     than HOLD_MS until it lifts, and turns the ring if it then moves round the knob, as a push and turn on the
+//     panel. One finger per knob at a time: a second one takes the
+//     knob over if the first has neither moved nor started to hold the push.
 //   the pan arrows round RANGE: held, RANGE tilts that way
 // A key or push clicks as it goes down and up, a ring ticks at each detent, unless "sound on" beside the lines at
 // the bottom left is clicked to "sound off" (the browser remembers it).
@@ -16,8 +19,9 @@
 window.playPanel = function playPanel(V) {
   const { G, camera, controls, canvas, assembly, go, invalidate } = V;
   const RANGE = V.knobs.range, KNOBS = Object.values(V.knobs);
-  const MOVE_PX = 8;                   // a finger that moves this far from where it touched is no tap
-  const TAP_MS = 400;                  // ... nor one that stays longer than this
+  const MOVE_PX = 8;                   // a finger that moves this far from where it touched is no push
+  const HOLD_MS = 1000;                // one that stays still longer than this holds the push until it lifts: longer
+                                       // than a tap takes, so a finger that rests before it turns rarely pushes
   const AXIS_MM = 2.5;                 // closer to the axis than this the angle round it is a finger's jitter
   const AXIS_OUT_MM = 1;               // ... and a finger leaves that middle this much further out
   const WHEEL_GAP_MS = 300;            // a wheel event this long after the last starts a new spin: a notch at least
@@ -30,11 +34,18 @@ window.playPanel = function playPanel(V) {
                                        // ellipsis: they never wrap, so the panel does not move for them.
   const SPEAKER_PX = 84;               // the speaker button beside them, where there is sound, takes this more
   const SHORT_PX = 500;                // a window lower than this (a phone turned sideways) has them on one line
+  const TOLD_SHORT = 48;               // ... where a legend line takes this many characters at most
   const FOV = 10;                      // degrees: from about straight above everywhere, so the knobs lean little
   const SPIN_TAU_MS = 25;              // a ring eases to its detent: most of the way in about 80 ms (3 of these)
   const SPIN_DONE = 0.001;             // radians from the target: there
-  const TRAVEL = 1;                    // mm a pressed cap or pushed knob goes down
-  const PRESSED = 0x505050;            // the glow of a pressed cap's legend face
+  const TRAVEL = 1;                    // mm a pressed cap or pushed knob goes down ...
+  const PRESS_TAU_MS = 8;              // ... at once, most of the way in a frame,
+  const LIFT_TAU_MS = 20;              // ... and its spring brings it back a little slower
+  const PRESS_DONE = 0.01;             // of the travel from where it goes: there
+  const SHOWN_MS = 60;                 // a part pressed for less (a tap on a knob, at once) is shown down this long
+  const PRESSED = 0.55;                // the light on a pressed cap, in the finger's shade ...
+  const PRESSED_SIZE = 0.95;           // ... and its size: from above, going down is getting smaller
+  const TILT = G.rkjxt.tilt * Math.PI / 180;   // RANGE leans this far towards an arrow, about the lever's fulcrum
   const FADE_MS = 1000;                // a button stays in the list, dimmed, this long after it went
   const ALERT_MS = 10000;              // a firmware error shows this long
   const Z = G.plate.z1, R_IN = G.inner_knob.d / 2 + 0.5;    // the inner knob, with its edge leaning out a little
@@ -83,7 +94,8 @@ window.playPanel = function playPanel(V) {
   // lines at the bottom left or with all it operates above them, whichever shows it larger; in a window lower than
   // SHORT_PX the lines are one line across it, with the panel above. The lines may lie over the plate's edge below
   // the RANGE arrows, the alert over the top keys. Again after a resize, and when the number of lines changes.
-  let lines = 3, width = LINES_W_PX;   // the lines: UNIT and each joystick's buttons, or UNIT and the keyboard's
+  let lines = 3, width = LINES_W_PX;   // the lines: UNIT and each joystick's buttons (with a legend, and what the
+                                       // last one pressed does), or UNIT and the keyboard's
   let short = false;                   // all of them on one line, across the window
   const rows = () => short ? 1 : lines;
   const SIDES = 'max(16px, env(safe-area-inset-left, 0px)) - max(16px, env(safe-area-inset-right, 0px))';
@@ -119,6 +131,8 @@ window.playPanel = function playPanel(V) {
   // the lights and each device's buttons as the program last sent them (update()), and when each button went
   let lights = {}, buttons = {}, fadeTimer;
   let version = null;                  // the commit of the files the program serves (hello), the last line, dimmed
+  let last = null;                     // [device, button] that went down last, for the legend
+  let legend = null;                   // with --family: device: { button: what it does in that profile }
   let went = {};                       // device: { button: when it went }
   function place() {
     const was = short;
@@ -210,7 +224,8 @@ window.playPanel = function playPanel(V) {
   }
 
   // the lights in words, and each joystick's buttons (in keyboard mode the keyboard's function and shortcut); one
-  // that went stays a while, dimmed
+  // that went stays a while, dimmed. With a legend, one more line says what the button pressed last does, until
+  // the next goes down.
   function render() {
     clearTimeout(fadeTimer);
     box.textContent = '';
@@ -220,22 +235,37 @@ window.playPanel = function playPanel(V) {
     const one = short && document.createElement('div');
     if (one) box.appendChild(one);
     const line = (...parts) => {
-      if (one) { one.append(...(one.childNodes.length ? [' | '] : []), ...parts); return; }
-      const d = document.createElement('div'); d.append(...parts); box.appendChild(d);
+      if (one) { if (parts.length) one.append(...(one.childNodes.length ? [' | '] : []), ...parts); return; }
+      const d = document.createElement('div'); d.append(...(parts.length ? parts : ['\u00a0'])); box.appendChild(d);
     };
     line(`UNIT ${lights.UNIT ? 2 : 1}${lights.SHIFT ? ' · SHIFT' : ''}`);
+    // what the button pressed last does: after the joysticks' lines, but in one line across a low window right
+    // after UNIT, where the ellipsis cuts it last
+    // ... in a short window cut to TOLD_SHORT characters, so the buttons down still show after it; all of it as the
+    // line's title. (last may be a keyboard's, from before a reconnect to the same build in joystick mode.)
+    const does = last && legend && legend[last[0]] && legend[last[0]][last[1]];
+    const told = legend && !buttons.keyboard && [];
+    if (told && does) {
+      const full = `${last[1]}${last[0] === '2' ? ' (J2)' : ''}: ${does}`, t = document.createElement('span');
+      t.textContent = short && full.length > TOLD_SHORT ? `${full.slice(0, TOLD_SHORT - 1)}…` : full;
+      t.title = full;
+      told.push(t);
+    }
+    if (told && short) line(...told);
     const now = performance.now();
     let next = Infinity;
     for (const [device, names] of Object.entries(buttons)) {
       const old = Object.entries(went[device] || {}).filter(([n, at]) => now - at < FADE_MS && !names.includes(n));
       for (const [, at] of old) next = Math.min(next, at + FADE_MS - now);
-      const parts = [...names.map(n => [n, '']), ...old.map(([n]) => [n, 'gone'])].flatMap(([n, cls], i) => {
-        const s = document.createElement('span'); s.textContent = n; s.className = cls;
+      const listed = [...names.map(n => [n, '']), ...old.map(([n]) => [n, 'gone'])];
+      const spans = text => listed.flatMap(([n, cls], i) => {
+        const s = document.createElement('span'); s.textContent = text(n); s.className = cls;
         return i ? [' · ', s] : [s];
       });
       const name = device === 'keyboard' ? 'keyboard' : `J${device}`;
-      line(`${name}: `, ...(parts.length ? parts : ['none']));
+      line(`${name}: `, ...(listed.length ? spans(n => n) : ['none']));
     }
+    if (told && !short) line(...told);
     if (version) {
       const s = document.createElement('span'); s.textContent = `build ${version}`; s.className = 'version';
       line(s);
@@ -244,12 +274,15 @@ window.playPanel = function playPanel(V) {
   }
   function update(state) {
     const now = performance.now();
+    for (const [device, names] of Object.entries(state.buttons)) {
+      for (const n of names) if (!(buttons[device] || []).includes(n)) last = [device, n];
+    }
     for (const [device, names] of Object.entries(buttons)) {
       const still = state.buttons[device] || [];
       for (const n of names) if (!still.includes(n)) (went[device] = went[device] || {})[n] = now;
     }
     ({ lights, buttons } = state);
-    const count = 1 + Object.keys(buttons).length + (version ? 1 : 0);
+    const count = 1 + Object.keys(buttons).length + (legend && !buttons.keyboard ? 1 : 0) + (version ? 1 : 0);
     if (Object.keys(buttons).length && count !== lines) {   // the mode is known: the lines' number and width
       lines = count; width = (buttons.keyboard ? KEYS_W_PX : LINES_W_PX) + (speaker.parentNode ? SPEAKER_PX : 0);
       fitStrip(); go('P', true);
@@ -258,17 +291,17 @@ window.playPanel = function playPanel(V) {
     render(); invalidate();
   }
   function clear() {
-    went = {}; buttons = {};
+    went = {}; buttons = {};           // (last stays: a reconnect to the same build keeps its line)
     update({ lights: { SHIFT: 0, UNIT: 0 }, buttons: {} });
   }
   clear();
 
   // ---------------- the program ----------------
   // hello names this page (client), the build of the files the program serves and their commit (version, null in a
-  // git checkout), the firmware's inputs under the caps
-  // and knobs, and the program's numbers: the angle of a detent, the detents one action takes and the actions one
-  // request takes at most, and how often the page tells the program that it is still there. A page that reconnects
-  // to another build, as after a newer simulator was unpacked and started, reloads: its files go with the old one.
+  // git checkout), the firmware's inputs under the caps and knobs, the legend (null without --family), and the
+  // program's numbers: the angle of a detent, the detents one action takes and the actions one request takes at
+  // most, and how often the page tells the program that it is still there. A page that reconnects to another build,
+  // as after a newer simulator was unpacked and started, reloads: its files go with the old one.
   let events, client = null, build = null, inputs = null, busy = false, beat = false, beatTimer;
   let DETENT, TURN_MAX, ACTS_MAX, BEAT_MS;
   const queue = [];
@@ -278,7 +311,7 @@ window.playPanel = function playPanel(V) {
     events.addEventListener('hello', e => {
       const hello = JSON.parse(e.data);
       if (build !== null && hello.build !== build) { events.close(); location.reload(); return; }
-      ({ client, build, version, inputs, turn_max: TURN_MAX, acts_max: ACTS_MAX, beat_ms: BEAT_MS } = hello);
+      ({ client, build, version, inputs, legend, turn_max: TURN_MAX, acts_max: ACTS_MAX, beat_ms: BEAT_MS } = hello);
       DETENT = 2 * Math.PI / hello.detents;
       clearInterval(beatTimer);
       beatTimer = setInterval(() => { beat = true; flush(); }, BEAT_MS);
@@ -359,14 +392,73 @@ window.playPanel = function playPanel(V) {
   const count = (map, k, d) => { const n = (map.get(k) || 0) + d; map.set(k, n); return n; };
   const names = at => at.key ? [inputs.keys[at.key.label]] : at.tilt
     ? [inputs.knobs.RANGE.push, inputs.knobs.RANGE.tilt[at.tilt]] : [inputs.knobs[at.knob.name].push];
+  // A cap or knob eases down and back up, shrinking a little round its middle and a cap darkening as it goes.
+  // RANGE leans towards the arrow held instead, on a group round its parts at the lever's fulcrum (the RKJXT's,
+  // over the PCB top as the panel's heights are), so it still turns and pushes in it. With reduced motion it jumps.
+  const presses = new Map();           // a key or knob: its meshes, where they rest, how far down it is drawn
+  const lean = new THREE.Group();
+  {
+    const [first] = RANGE.rings.ring;
+    first.parent.add(lean);
+    lean.position.set(V.px(RANGE.x), G.rkjxt.fulcrum, V.pz(RANGE.y));
+    lean.updateMatrixWorld(true);
+    for (const m of RANGE.rings.ring) lean.attach(m);
+  }
+  const LEAN = { RIGHT: [1, 0], LEFT: [-1, 0], DN: [0, 1], UP: [0, -1] };   // towards x, towards the user
+  const leans = [];                    // the arrows held, in the order they went down: RANGE leans to the last one
+  function tilt(at, d) {
+    const n = count(shown, lean, d);
+    if (d > 0) leans.push(at.tilt);
+    else leans.splice(leans.lastIndexOf(at.tilt), 1);
+    if (!presses.has(lean)) presses.set(lean, { lean: true, target: [0, 0], drawn: [0, 0] });
+    const s = presses.get(lean);
+    clearTimeout(s.upTimer);
+    const move = () => { s.target = leans.length ? LEAN[leans.at(-1)] : [0, 0]; animate(); };
+    if (d > 0) { s.downAt = performance.now(); move(); if (n === 1) sound('down'); }
+    else if (n) move();
+    else s.upTimer = setTimeout(() => { move(); sound('up'); }, V.reduce ? 0 : Math.max(s.downAt + SHOWN_MS - performance.now(), 0));
+  }
   function show(at, d) {
+    if (at.tilt) return tilt(at, d);
     const part = at.key || at.knob, n = count(shown, part, d);
     if (n !== (d > 0 ? 1 : 0)) return;
-    const meshes = at.key ? at.key.meshes : Object.values(at.knob.rings).flat();
-    for (const m of meshes) m.position.y -= d * TRAVEL;
-    if (at.key) { const [, legend] = at.key.meshes; legend.material.emissive.setHex(d > 0 ? PRESSED : 0); }
-    sound(d > 0 ? 'down' : 'up');
+    if (!presses.has(part)) {
+      const meshes = at.key ? at.key.meshes : Object.values(at.knob.rings).flat();
+      // a cap's own materials, to darken it alone (its body's is shared by every cap)
+      const lit = at.key ? meshes.map(m => (m.material = m.material.clone()).color.clone()) : [];
+      presses.set(part, { meshes, rest: meshes.map(m => m.position.clone()), lit, face: at.key && meshes[1],
+        target: 0, drawn: 0 });
+    }
+    const s = presses.get(part);
+    clearTimeout(s.upTimer);
+    const move = () => { s.target = d > 0 ? 1 : 0; sound(d > 0 ? 'down' : 'up'); animate(); };
+    if (d > 0) { s.downAt = performance.now(); move(); }
+    else s.upTimer = setTimeout(move, V.reduce ? 0 : Math.max(s.downAt + SHOWN_MS - performance.now(), 0));
+  }
+  function press(dt) {                 // the drawn travels dt ms on, closer to their targets; true while one moves
+    let moving = false;
+    for (const s of presses.values()) {
+      if (s.lean) {                    // RANGE's lean, [towards x, towards the user], to the arrow or back up
+        const k = Math.exp(-dt / (s.target[0] || s.target[1] ? PRESS_TAU_MS : LIFT_TAU_MS));
+        s.drawn = s.drawn.map((v, i) => s.target[i] + (v - s.target[i]) * k);
+        if (Math.hypot(s.drawn[0] - s.target[0], s.drawn[1] - s.target[1]) < PRESS_DONE) s.drawn = [...s.target];
+        else moving = true;
+        lean.rotation.set(TILT * s.drawn[1], 0, -TILT * s.drawn[0]);   // its top towards the arrow
+        continue;
+      }
+      s.drawn = s.target + (s.drawn - s.target) * Math.exp(-dt / (s.target ? PRESS_TAU_MS : LIFT_TAU_MS));
+      if (Math.abs(s.target - s.drawn) < PRESS_DONE) s.drawn = s.target;
+      else moving = true;
+      const size = 1 - (1 - PRESSED_SIZE) * s.drawn, light = 1 - (1 - PRESSED) * s.drawn, mid = s.rest[0];
+      s.meshes.forEach((m, i) => {
+        const r = s.rest[i];
+        m.position.set(mid.x + (r.x - mid.x) * size, r.y - s.drawn * TRAVEL, mid.z + (r.z - mid.z) * size);
+        if (m === s.face) m.scale.set(size, size, 1); else m.scale.set(size, 1, size);   // (the face lies turned)
+        if (s.lit[i]) m.material.color.copy(s.lit[i]).multiplyScalar(light);
+      });
+    }
     invalidate();
+    return moving;
   }
   function hold(g) {
     g.held = names(g);
@@ -379,17 +471,15 @@ window.playPanel = function playPanel(V) {
   }
   // A ring turns smoothly to where its detents put it, as the eye would match each flute to the nearest one after
   // a jump of 12 degrees and see the ring step backwards. A fast spin moves the target on and the ring follows it.
-  // Frames are drawn only while a ring moves; with reduced motion it jumps.
+  // With reduced motion it jumps.
   const spins = new Map();             // a ring's meshes: { target angle, angle drawn }
-  let spinAt = null;
   function turn(knob, ring, n) {
     send(`turn ${inputs.knobs[knob.name][ring]} ${n}`);
     sound('detent', Math.abs(n));
     const meshes = knob.rings[ring];
     if (!spins.has(meshes)) spins.set(meshes, { target: meshes[0].rotation.y, drawn: meshes[0].rotation.y });
     spins.get(meshes).target -= n * DETENT;                          // clockwise seen from above
-    if (V.reduce) spin(Infinity);
-    else if (spinAt === null) { spinAt = performance.now(); requestAnimationFrame(spinFrame); }
+    animate();
   }
   function spin(dt) {                  // the drawn angles dt ms on, closer to their targets; true while one moves
     let moving = false;
@@ -402,14 +492,21 @@ window.playPanel = function playPanel(V) {
     invalidate();
     return moving;
   }
-  function spinFrame(now) {
-    const moving = spin(Math.max(now - spinAt, 0));   // (a frame's time can be from before the turn)
-    spinAt = moving ? now : null;
-    if (moving) requestAnimationFrame(spinFrame);
+  // frames are drawn only while a ring turns or a part goes down or up
+  let frameAt = null;
+  const step = dt => [spin(dt), press(dt)].some(Boolean);
+  function animate() {
+    if (V.reduce) step(Infinity);
+    else if (frameAt === null) { frameAt = performance.now(); requestAnimationFrame(frame); }
+  }
+  function frame(now) {
+    const moving = step(Math.max(now - frameAt, 0));   // (a frame's time can be from before the press or turn)
+    frameAt = moving ? now : null;
+    if (moving) requestAnimationFrame(frame);
   }
   const gestures = new Map();          // pointer ID: what it holds or turns
   function letGo() {
-    for (const g of gestures.values()) release(g);
+    for (const g of gestures.values()) { clearTimeout(g.timer); release(g); }
     gestures.clear();
   }
 
@@ -427,21 +524,23 @@ window.playPanel = function playPanel(V) {
     // one finger per knob, and two on it are no tap: one that has not moved yet hands the knob to the next one
     const [id, first] = [...gestures].find(([, g]) => at.ring && g.knob === at.knob) || [];
     if (first && (first.moved || first.held)) { first.moved = true; return; }
-    if (first) gestures.delete(id);
+    if (first) { clearTimeout(first.timer); gestures.delete(id); }
     canvas.setPointerCapture(e.pointerId);
-    const g = { ...at, x: e.clientX, y: e.clientY, t: e.timeStamp, held: null, moved: !!first };
+    const g = { ...at, x: e.clientX, y: e.clientY, held: null, moved: !!first };
     gestures.set(e.pointerId, g);
     if (!g.ring || e.pointerType === 'mouse') return hold(g);
-    // a finger on a knob: turns it if it moves round it, pushes it on a quick tap (up())
+    // a finger on a knob: turns it if it moves round it, pushes it if it stays still: held from HOLD_MS on, or for
+    // a moment when it lifts before (up())
     g.angle = angleOf(g, 0);
     g.sum = 0;
+    g.timer = setTimeout(() => { if (gestures.get(e.pointerId) === g && !g.moved && !g.held) hold(g); }, HOLD_MS);
   });
   const still = (g, e) => !g.moved && Math.hypot(e.clientX - g.x, e.clientY - g.y) < MOVE_PX;
   canvas.addEventListener('pointermove', e => {
     const g = gestures.get(e.pointerId);
     // the left button let go while another is down: no pointerup comes until that one goes up too
     if (g && e.pointerType === 'mouse' && !(e.buttons & 1)) return up(e);
-    if (!g || !g.ring || g.held) return;
+    if (!g || !g.ring || e.pointerType === 'mouse') return;     // (a mouse turns with the wheel)
     if (!still(g, e)) g.moved = true;
     aim(e);
     const a = angleOf(g, g.angle === null ? AXIS_OUT_MM : 0);
@@ -455,9 +554,11 @@ window.playPanel = function playPanel(V) {
     const g = gestures.get(e.pointerId);
     if (!g) return;
     gestures.delete(e.pointerId);
+    clearTimeout(g.timer);
     wake();                            // a finger lifting is a gesture, where audio may start (a touch going down is none)
-    // a quick tap that did not move, judged by the events' own times: the knob's push
-    if (g.ring && !g.held && e.type === 'pointerup' && still(g, e) && e.timeStamp - g.t < TAP_MS) hold(g);
+    // a finger that did not move and is not holding the push yet: a quick tap, or one that lifts before its hold
+    // came round (a busy page runs the timer late), pushes the knob for a moment
+    if (g.ring && !g.held && e.type === 'pointerup' && still(g, e)) hold(g);
     release(g);
   };
   canvas.addEventListener('pointerup', up);
