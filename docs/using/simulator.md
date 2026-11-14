@@ -50,10 +50,15 @@ everything that can be operated:
   pushes the knob; a finger that moves round it, even by a fraction of a detent, never does. A push held by
   touch is not possible; the mouse can hold one.
 - RANGE turns and pushes like the other knobs; holding one of the four arrows round it tilts it that way.
+- A key or push clicks as it goes down and as it comes up, and a knob ticks at each detent. "sound on" beside
+  the lines at the bottom left turns the sounds off and on again; the browser remembers it. The browser plays
+  them from the first click, or the first finger lifted off a key or knob; until then the page is silent.
+  After two minutes without a sound the page lets go of the audio, to save a tablet's battery, and takes it
+  again with the next. An iPhone or iPad with its silent switch on plays none.
 - The SHIFT and UNIT lights follow the firmware. The lines at the bottom left say the same in words and show
-  the buttons each joystick reports, by their [BUTTONS.md](../../firmware/BUTTONS.md) names; a button that
-  went off stays there dimmed for a second. In a low window, as a phone turned sideways, they are one line
-  across the bottom, the joysticks as 1 and 2. A firmware error shows its message; when the program stops, the
+  the buttons each joystick reports, J1 and J2, by their [BUTTONS.md](../../firmware/BUTTONS.md) names; a
+  button that went off stays there dimmed for a second. In a low window, as a phone turned sideways, they are
+  one line across the bottom. A firmware error shows its message; when the program stops, the
   page says it is disconnected and reconnects once it runs again. If the program then serves another version
   of the page, as a newer zip can, the page reloads.
 
@@ -67,9 +72,18 @@ For a tablet or a phone in landscape beside the sim, serve the page to the netwo
 close the `start.bat` window, open a command prompt in the folder (type `cmd` in Explorer's address bar,
 Enter) and run `start.bat --host 0.0.0.0`; on Linux, add `--host 0.0.0.0` to the command in [Linux](#linux).
 Open the address it prints on the tablet, by its IP address, not a host name. If that is 127.0.0.1 or a VPN
-address, use the computer's Wi-Fi address with the same port instead. Windows asks to let Python through its
-firewall: allow it on private networks only. Anyone on that network can then press the panel's keys. A page
-that goes, also one that drops off the network, lets go of what it holds within a few seconds.
+address, use the computer's Wi-Fi address with the same port instead. Anyone on that network can then press the
+panel's keys. A page that goes, also one that drops off the network, lets go of what it holds within a few
+seconds.
+
+On Windows the firewall lets the tablet in only once it allows the simulator's Python. Whatever was chosen
+when Windows asked about Python, right-click `firewall.bat` in the folder and choose Run as administrator,
+once: it removes the rules Windows made for that `python.exe` (Cancel there blocks it), allows it on private
+networks only, and lists the PC's networks with their category. If the network says Public and is your own,
+open it in Settings, Network & internet, and choose Private network; a DomainAuthenticated one, a company's,
+stays closed. Run it again after moving the folder. To take the rule out again, in a command prompt run as
+administrator:
+`netsh advfirewall firewall delete rule name="Avionics Panel simulator"`.
 
 ## What MobiFlight shows
 

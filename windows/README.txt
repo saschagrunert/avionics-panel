@@ -22,6 +22,10 @@ joysticks apart by an ID Windows gives each one.
 To try the page without vJoy, open a command prompt in this folder (type cmd in Explorer's address bar,
 Enter) and run python\python.exe -m sim.page --open. MobiFlight then sees no joysticks.
 
+For a tablet beside the PC, run start.bat --host 0.0.0.0 from a command prompt in this folder. Then, once,
+right-click firewall.bat and choose Run as administrator: it lets the simulator through Windows' firewall on
+private networks, whatever was chosen when Windows asked.
+
 The panel's keyboard mode, for MSFS without MobiFlight, runs too, without vJoy: see Keyboard mode on the
 page linked below.
 

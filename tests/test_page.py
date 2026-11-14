@@ -458,6 +458,19 @@ def test_the_host_is_an_address_or_localhost_with_the_port():
                                                            "[::1]", "", ":8000"))
 
 
+def test_served_to_the_network_on_windows_it_names_firewall_bat(tmp_path):
+    # Windows' firewall keeps a tablet out until firewall.bat lets the zip's python.exe in (windows/firewall.bat):
+    # the hint is for the zip's Python, with firewall.bat beside its folder
+    zipped = tmp_path / "python" / "python.exe"
+    zipped.parent.mkdir()
+    (tmp_path / "firewall.bat").write_text("")
+    assert "run the zip's firewall.bat as administrator" in sim.page.firewall("0.0.0.0", "win32", zipped)
+    assert "firewall.bat" in sim.page.firewall("192.168.1.20", "win32", zipped)
+    assert sim.page.firewall("127.0.0.1", "win32", zipped) is None
+    assert sim.page.firewall("0.0.0.0", "linux", zipped) is None
+    assert sim.page.firewall("0.0.0.0", "win32", tmp_path / "py" / "bin" / "python.exe") is None   # a Python of its own
+
+
 def test_a_switch_two_pages_hold_stays_held_until_both_let_go(page):
     a, b = Stream(page), Stream(page)
     post(page, "press AP", a.client)

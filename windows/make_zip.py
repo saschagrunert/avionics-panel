@@ -1,13 +1,13 @@
 """Builds the simulator for Windows (docs/using/simulator.md): one zip with Python's embeddable package for Windows
-(amd64), the firmware, the simulator and the viewer, and start.bat, vjoy-setup.bat and README.txt from here.
-Python's standard library only; runs on Linux.
+(amd64), the firmware, the simulator and the viewer, and start.bat, vjoy-setup.bat, firewall.bat and README.txt
+from here. Python's standard library only; runs on Linux.
 
     python3 windows/make_zip.py [--python ZIP] [--out ZIP]
 
 downloads the embeddable package from PYTHON_URL (--python takes a copy downloaded before), checks its SHA-256
 and writes --out (dist/avionics-panel-sim-windows.zip). In the zip, under avionics-panel-sim/:
 
-    start.bat  vjoy-setup.bat  README.txt  LICENSE  python/  firmware/  sim/  viewer/
+    start.bat  vjoy-setup.bat  firewall.bat  README.txt  LICENSE  python/  firmware/  sim/  viewer/
 
 The package's ._pth file gets the line `..`, the zip's folder: there `python -m sim.page` finds sim/ (a ._pth
 replaces sys.path, without the current directory). LICENSE, firmware/, sim/ and viewer/ are the files git
@@ -35,7 +35,7 @@ TOP = "avionics-panel-sim"
 OUT = os.path.join(ROOT, "dist", f"{TOP}-windows.zip")
 SOURCES = ("LICENSE", "firmware", "sim", "viewer")
 LEFT_OUT = ("firmware/test_", "viewer/shots.py")             # of SOURCES: not for the simulator's users
-WINDOWS = ("start.bat", "vjoy-setup.bat", "README.txt")      # text with CRLF line ends
+WINDOWS = ("start.bat", "vjoy-setup.bat", "firewall.bat", "README.txt")    # text with CRLF line ends
 
 
 def fetch(path=None, sha256=PYTHON_SHA256):

@@ -163,7 +163,8 @@ jobs:
         env:
           REQUIRE_ZIP_PYTHON: "1"
   # The zip of this run as it is published, unpacked on Windows: the Python it ships with imports the simulator
-  # and runs the firmware, then serves the page (vJoy is not installed here).
+  # and runs the firmware, then serves the page (vJoy is not installed here). firewall.bat runs as the runner's
+  # administrator and leaves its one rule for the zip's python.exe.
   windows-zip:
     name: simulator zip on Windows
     needs: zip
@@ -192,6 +193,18 @@ jobs:
             if ($page.HasExited) { throw "the simulator ended" }
           } finally {
             Stop-Process -Id $page.Id
+          }
+      - run: |
+          $python = (Resolve-Path .\avionics-panel-sim\python\python.exe).Path
+          # Windows' own rule can hold the path in another case: the delete must match it all the same
+          New-NetFirewallRule -DisplayName "blocked when Windows asked" -Direction Inbound -Action Block -Program $python.ToLower() | Out-Null
+          "" | cmd /c .\avionics-panel-sim\firewall.bat
+          if ($LASTEXITCODE) { throw "firewall.bat failed" }
+          $filters = @(Get-NetFirewallApplicationFilter | Where-Object Program -eq $python)
+          if ($filters.Count -ne 1) { throw "$($filters.Count) rules for python.exe, not 1" }
+          $rule = $filters[0] | Get-NetFirewallRule
+          if ($rule.DisplayName -ne "Avionics Panel simulator" -or $rule.Action -ne "Allow" -or $rule.Profile -ne "Private") {
+            throw "not the rule: $($rule | Out-String)"
           }
   # Packs the viewer without write access; pages-deploy publishes the artifact. A push to main or a manual run
   # on main publishes, once its build has passed; forks have no Pages of this repository to deploy to.
