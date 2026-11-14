@@ -27,7 +27,6 @@ from sim.vjoy import (
 )
 
 REPORT_ID = {1: 4, 2: 5}
-BUTTONS = os.path.join(FIRMWARE, "BUTTONS.md")
 # JOYSTICK_POSITION_V3, public.h L316-361 at vJoy's tag v2.2.2.0, field by field: (name, offset, size)
 HEADER = [("bDevice", 0, 1)] + [(name, 4 * i, 4) for i, name in enumerate((
     "wThrottle", "wRudder", "wAileron", "wAxisX", "wAxisY", "wAxisZ", "wAxisXRot", "wAxisYRot", "wAxisZRot",
@@ -51,25 +50,12 @@ def pressed(p):
     return [n + 1 for n in range(128) if bits >> n & 1]
 
 
-def documented():
-    """{device: {name: button number}} of BUTTONS.md's table"""
-    out = {1: {}, 2: {}}
-    with open(BUTTONS, encoding="utf-8") as f:
-        for line in f:
-            cells = [c.strip() for c in line.strip().strip("|").split("|")]
-            if line.startswith("|") and cells[2:] != ["Device 1", "Device 2"] and cells[0] != "---":
-                for device, cell in zip((1, 2), cells[2:], strict=True):
-                    if cell:
-                        out[device][cells[0]] = int(cell)
-    return out
-
-
-def test_every_button_of_both_joysticks_is_its_vjoy_button():
+def test_every_button_of_both_joysticks_is_its_vjoy_button(buttons_md):
     # each bit of each report, read with boot.py's descriptor (hid-tools' parser), is vJoy's button of the same
     # number on the device of the same number, alone; for the buttons buttonmap.py names, BUTTONS.md's number
     hid = hid_parser()
     rdesc = hid.ReportDescriptor.from_bytes(list(b"".join(d.report_descriptor for d in Board().boot().devices)))
-    numbers = documented()
+    numbers = buttons_md
     for device, report_id in REPORT_ID.items():
         size, named = BM.SIZE[device], BM.DEVICE[device]
         assert set(numbers[device]) == set(named)

@@ -28,7 +28,9 @@ aircraft each. The steps below follow MobiFlight 11.3. The profiles to download:
 - [COWS DA40](#cows-da40), the G1000 NXi with its autopilot: [avionics-panel-cows-da40.mfproj][da40]
 - [Carenado C182T](#carenado-c182t), the G1000 with the KAP 140: [avionics-panel-carenado-c182t.mfproj][c182t]
 
-For other avionics, join [avionics parts](#avionics-parts) instead. The downloads are on the release [Latest
+For other avionics, join [avionics parts](#avionics-parts) instead. Each profile has a
+[quick-reference card](#quick-reference-cards) to print, and MobiFlight can show the buttons by their names
+([Button names in MobiFlight](#button-names-in-mobiflight)). The downloads are on the release [Latest
 build][rolling]. To use one:
 
 1. Install MobiFlight 11.2 or newer. Every command of the profiles goes through MobiFlight's WASM module in
@@ -427,6 +429,20 @@ Two ways to join them:
   project again without saving and bind them the other way. Never add two parts of one kind, except one
   navigator for unit 1 and one for unit 2: they map the same buttons.
 
+## Quick-reference cards
+
+[avionics-panel-cards.zip][cards] holds a card for each profile above, `avionics-panel-g1000-card.html` and
+the like: one page with what every key, ring, push and tilt sets in that profile, plain, with SHIFT (amber)
+and in unit 2. A control that does nothing in the profile says "nothing" with a number, and the foot of the
+card gives the reason. What a control sets is named as MobiFlight lists it, by the events and variables of its
+code, so the card also tells which row of the project to open. Unpack the zip, open a card in a browser and
+print it on A4 in landscape; on Letter, scale it to fit the page. The cards are of the profiles to download,
+not of [avionics parts](#avionics-parts) or a profile changed in MobiFlight.
+
+The cards of main are also on the web, to open and print without the zip: [G1000 NXi][card-g1000], [GFC 500
+and G3X Touch][card-g3x], [GNS 530/430][card-gns], [GTN 750Xi/650Xi][card-gtn], [Black Square
+Bonanza][card-black-square-bonanza], [COWS DA40][card-cows-da40] and [Carenado C182T][card-carenado-c182t].
+
 ## Two joysticks
 
 | Device | Buttons | Carries |
@@ -452,6 +468,29 @@ MobiFlight show them.
 - The cockpit lighting (SHIFT, FMS knob) stays on device 1 whatever unit is selected.
 - The button numbers stay fixed: new buttons only go at the end of a device, and retired ones keep their slot,
   so mappings survive firmware updates.
+
+### Button names in MobiFlight
+
+MobiFlight shows the panel's buttons as "Button 1" to "Button 128" on device 1 and "Button 1" to "Button 64"
+on device 2. [avionics-panel.joystick.json][joystick], a joystick definition for MobiFlight 11.2 or newer,
+names the 117 that device 1 sends as [BUTTONS.md](../../firmware/BUTTONS.md) does, after their number (118 to
+128 stay "Button 118" and so on). MobiFlight finds a definition by the joystick's name, and both devices are
+"Avionics Panel", so one definition names the buttons of both: buttons 1 to 39 carry device 1's name and then
+device 2's, as "Button 10: DN | unit 2: ENT"; the others say "device 1 only", as "Button 50: BARO_STD | device
+1 only", since device 2 lists its buttons 40 to 64 but never sends them. The definition could also match by
+the USB vendor and product ID, but the two devices share them, and so does every Pico running CircuitPython,
+so it does not. It changes only the names MobiFlight shows: projects, their rows and the bindings stay as they
+are. It follows MobiFlight's source and has not yet been tried in MobiFlight. To install it:
+
+1. Close MobiFlight.
+2. Open MobiFlight's `Joysticks` folder: for MobiFlight installed by its setup, enter
+   `%LOCALAPPDATA%\MobiFlight\MobiFlight Connector\Joysticks` in the address bar of File Explorer. Make a folder
+   `avionics-panel` in it and put the file there. A definition in `Joysticks` itself works too, but MobiFlight
+   moves it into a folder `_MIGRATED_` when it starts.
+3. Start MobiFlight. The names show where the panel's joysticks are named "Avionics Panel"
+   ([Device name](#device-name)).
+
+To remove it, delete the folder and restart MobiFlight.
 
 ## Per avionics
 
@@ -533,5 +572,14 @@ tap as that input is lost; [why](../architecture/firmware.md#usb)). Set its `pow
 [da40]: https://github.com/saschagrunert/avionics-panel/releases/download/rolling/avionics-panel-cows-da40.mfproj
 [c182t]: https://github.com/saschagrunert/avionics-panel/releases/download/rolling/avionics-panel-carenado-c182t.mfproj
 [parts]: https://github.com/saschagrunert/avionics-panel/releases/download/rolling/avionics-panel-parts.zip
+[cards]: https://github.com/saschagrunert/avionics-panel/releases/download/rolling/avionics-panel-cards.zip
+[joystick]: https://github.com/saschagrunert/avionics-panel/releases/download/rolling/avionics-panel.joystick.json
 [rolling]: https://github.com/saschagrunert/avionics-panel/releases/tag/rolling
 [sim-zip]: https://github.com/saschagrunert/avionics-panel/releases/download/rolling/avionics-panel-sim-windows.zip
+[card-g1000]: https://saschagrunert.de/avionics-panel/cards/avionics-panel-g1000-card.html
+[card-g3x]: https://saschagrunert.de/avionics-panel/cards/avionics-panel-g3x-card.html
+[card-gns]: https://saschagrunert.de/avionics-panel/cards/avionics-panel-gns-card.html
+[card-gtn]: https://saschagrunert.de/avionics-panel/cards/avionics-panel-gtn-card.html
+[card-black-square-bonanza]: https://saschagrunert.de/avionics-panel/cards/avionics-panel-black-square-bonanza-card.html
+[card-cows-da40]: https://saschagrunert.de/avionics-panel/cards/avionics-panel-cows-da40-card.html
+[card-carenado-c182t]: https://saschagrunert.de/avionics-panel/cards/avionics-panel-carenado-c182t-card.html

@@ -6,6 +6,7 @@
 extend-exclude = [
     "viewer/vendor/", # three.js, vendored
     "/production/",   # generated from the code checked here
+    "/tests/mfjoystick.schema.json",   # MobiFlight's schema, copied as it is
 ]
 
 [default.extend-identifiers]
