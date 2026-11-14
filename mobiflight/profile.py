@@ -18,6 +18,10 @@ else the one connected controller of its name. Where two connected controllers h
 joysticks do, it asks for the binding instead (Extras, Controller Bindings). A project made without the user's
 GUIDs names both joysticks as the panel does, each with a serial that says which device it is (UNBOUND), so
 MobiFlight asks once for both.
+
+A stamp in the project's name, as "Avionics Panel: G1000 NXi (2026-11-14, 5d1c305)", says which commit made it:
+the one firmware/version.py names in a release's files (VERSION), or any other text. The item GUIDs leave it out,
+as they leave out the joysticks.
 """
 import importlib.util
 import json
@@ -52,6 +56,19 @@ def _load(name, path):
 BM = _load("_mobiflight_buttonmap", os.path.join(HERE, "..", "firmware", "buttonmap.py"))
 
 
+VERSION_PY = os.path.join(HERE, "..", "firmware", "version.py")
+
+
+def version(path=VERSION_PY):
+    """The commit of these files as firmware/version.py names it ("2026-11-14, 5d1c305"), which git archive (a
+    release's source code) and windows/make_zip.py fill in; None in a git checkout, which keeps the placeholder"""
+    text = str(getattr(_load("_mobiflight_version", path), "VERSION", "$")) if os.path.isfile(path) else "$"
+    return None if text.startswith("$") else text
+
+
+VERSION = version()
+
+
 def actions(entry):
     """A table entry -> {"onPress": code, "onRelease": code, "onLongRelease": code}, without the events that send
     nothing. An entry is a code (sent on press) or a dict with "press", "release" and/or "long" (sent on a release
@@ -77,11 +94,12 @@ def serial(text):
     return out
 
 
-def build(family, controllers=UNBOUND, vfr=None):
+def build(family, controllers=UNBOUND, vfr=None, stamp=None):
     """The project of a profile or a part (families/) as a dict. controllers: {1: (name, serial), 2: (name,
     serial)}, the user's joysticks or UNBOUND. vfr: the squawk the VFR key sets, in place of the one in the
     family's table (None: that one); ValueError for a code that is none, or for a family whose VFR key sets no
-    squawk. A part's project names it in its label, which MobiFlight shows as the tab it adds."""
+    squawk. stamp: the text in brackets after the project's name, as the commit (None: none). A part's project
+    names it in its label, which MobiFlight shows as the tab it adds."""
     part = hasattr(family, "KIND")             # a part, as a tab of its own beside others: named in its label
     title = family.TITLE if part else family.NAME
     tables = {1: dict(family.DEVICE[1]), 2: family.DEVICE[2]}
@@ -109,7 +127,7 @@ def build(family, controllers=UNBOUND, vfr=None):
                 "button": button_config,
             })
     return {
-        "Name": f"{NAME}: {title}",
+        "Name": f"{NAME}: {title}{f' ({stamp})' if stamp else ''}",
         "Sim": "msfs",
         "Features": {"FSUIPC": False, "ProSim": False},
         "Aircraft": [],

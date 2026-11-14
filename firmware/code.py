@@ -16,6 +16,15 @@ try:                               # the pad's drive strength (drive_12ma below)
     import memorymap
 except ImportError:
     memorymap = None
+# the commit of these files, printed at startup (version.py); a file missing, cut short or of another shape only
+# costs the console line, never the panel
+try:
+    from version import VERSION
+    VERSION = str(VERSION)
+except Exception:
+    VERSION = "$"
+if VERSION.startswith("$"):        # without the file, or a git checkout's placeholder
+    VERSION = "version unknown"
 
 P = microcontroller.pin            # GPIO names work on any RP2040 build (the Pico board renames some)
 
@@ -339,7 +348,7 @@ try:
     retry = [0, 0]
     woke = [0, 0]                        # the same for asking a suspended host to resume (wake)
 
-    print("Avionics Panel rev 1 ready")
+    print("Avionics Panel rev 1 ready (" + VERSION + ")")
     if KEYBOARD:                   # the lights take turns at each start (keys.START), also with USB down; the loop
         for on in keys.START:      # then sets them, dark while USB is down
             for i in (0, 1):

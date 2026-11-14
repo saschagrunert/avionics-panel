@@ -50,27 +50,44 @@ build][rolling]. To use one:
    as two joysticks (in keyboard mode it is a keyboard: [Keyboard mode](keyboard.md)).
 5. Save the project (File, Save). From then on it opens without asking.
 
-Or generate a profile bound to your own joysticks, so MobiFlight opens it without asking, with Python 3.10 or
-newer and nothing else. MobiFlight knows a joystick by its GUID, so let it find them:
+Each project names the commit it was built from at the end of its name, its first `"Name"` in the file (a text
+file), as "Avionics Panel: G1000 NXi (2026-11-14, 5d1c305)": the date and the short hash. A download with a
+later date is newer; on the same day, the hash tells them apart, and the release's tag names the latest.
+
+Or generate a profile bound to your own joysticks, so MobiFlight opens it without asking. On Windows the
+[simulator's zip][sim-zip] does it with the Python it carries, so nothing needs installing; on Linux and macOS
+it takes Python 3.10 or newer and nothing else. MobiFlight knows a joystick by its GUID, so let it find them:
 
 1. In MobiFlight, start a new project and add two input configs. Bind the first to ENT in unit 1 (device 1,
    Button 83) and the second to ENT in unit 2 (SHIFT, HOME, then ENT: device 2, Button 10) with the input
    scan. They need no action. Then SHIFT, HOME again for unit 1.
 2. Save the project, for example as `guids.mfproj`, and note where.
-3. Download this repository (on GitHub: Code, Download ZIP) and unpack it. On Windows, install Python 3 from
-   [python.org](https://www.python.org/downloads/).
-4. Open the folder that holds `mobiflight` (Extract All puts it one level down, in `avionics-panel-main`),
-   right-click an empty spot and choose Open in Terminal. There, generate the project of your profile
-   (`--family g1000`, `g3x`, `gns`, `gtn`, `black-square-bonanza`, `cows-da40` or `carenado-c182t`), here the
-   G1000 (into `g1000.mfproj`), or of your [avionics parts](#avionics-parts). On Windows:
+3. On Windows, download [avionics-panel-sim-windows.zip][sim-zip], unblock and extract it as in step 2 of
+   [Simulator](simulator.md#windows), and open its `avionics-panel-sim` folder. On Linux and macOS, download
+   this repository (on GitHub: Code, Download ZIP), unpack it and open the folder that holds `mobiflight`
+   (`avionics-panel-main`).
+4. Right-click an empty spot in that folder and choose Open in Terminal. There, generate the project of your
+   profile (`--family g1000`, `g3x`, `gns`, `gtn`, `black-square-bonanza`, `cows-da40` or `carenado-c182t`),
+   here the G1000 (into `g1000.mfproj`), or of your [avionics parts](#avionics-parts). On Windows, with the
+   zip's `profile.bat` (double-clicked, it shows these steps and lists the profiles and the parts):
 
    ```bat
-   py -m mobiflight --family g1000 --from "C:\path\to\guids.mfproj"
+   .\profile.bat --family g1000 --from "C:\path\to\guids.mfproj"
    ```
 
-   On Linux and macOS, `python3` instead of `py`. Without `--from` it makes the profile of the download.
-   `--vfr 1200` makes the VFR key squawk 1200 (US), or any other code of four digits from 0 to 7.
+   On Linux and macOS:
+
+   ```sh
+   python3 -m mobiflight --family g1000 --from /path/to/guids.mfproj
+   ```
+
+   Without `--from` it makes the profile of the download. `--vfr 1200` makes the VFR key squawk 1200 (US), or
+   any other code of four digits from 0 to 7. `--list` lists the profiles and the parts. With Python
+   installed on Windows, `py -m mobiflight` in the repository's folder does the same as `profile.bat`.
 5. Open the new project in MobiFlight (File, Open).
+
+The project's name ends in the commit of the zip or the download, as for the profiles to download. One made
+in a git checkout has none (git log names the commit there), unless `--stamp TEXT` gives one.
 
 Using it:
 
@@ -314,9 +331,11 @@ Two ways to join them:
   `avionics.mfproj`:
 
   ```bat
-  py -m mobiflight --autopilot kap140 --cockpit g1000 --navigator g1000 --from "C:\path\to\guids.mfproj"
-  py -m mobiflight --autopilot kap140 --cockpit bendix-king --unit1 gtn750-tds1 --unit2 gns430
+  .\profile.bat --autopilot kap140 --cockpit g1000 --navigator g1000 --from "C:\path\to\guids.mfproj"
+  .\profile.bat --autopilot kap140 --cockpit bendix-king --unit1 gtn750-tds1 --unit2 gns430
   ```
+
+  On Linux and macOS, `python3 -m mobiflight` instead of `.\profile.bat`.
 
 - Or download [avionics-panel-parts.zip][parts] and unpack it: it holds a project of every part, to add to one
   MobiFlight project as its tabs. Start a new project and, for each part, choose the + beside the tabs, From
@@ -435,3 +454,4 @@ tap as that input is lost; [why](../architecture/firmware.md#usb)). Set its `pow
 [c182t]: https://github.com/saschagrunert/avionics-panel/releases/download/rolling/avionics-panel-carenado-c182t.mfproj
 [parts]: https://github.com/saschagrunert/avionics-panel/releases/download/rolling/avionics-panel-parts.zip
 [rolling]: https://github.com/saschagrunert/avionics-panel/releases/tag/rolling
+[sim-zip]: https://github.com/saschagrunert/avionics-panel/releases/download/rolling/avionics-panel-sim-windows.zip

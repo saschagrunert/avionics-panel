@@ -134,8 +134,8 @@ def test_the_page_gets_the_programs_numbers_with_hello(page):
     # sim.js copies none of them: it reads each by its name
     hello = Stream(page).hello
     assert {k: v for k, v in hello.items() if k not in ("client", "inputs")} == {
-        "build": sim.page.build(), "detents": DETENTS, "turn_max": TURN_MAX, "acts_max": sim.page.ACTS_MAX,
-        "beat_ms": 1000}
+        "build": sim.page.build(), "version": sim.page.version(), "detents": DETENTS, "turn_max": TURN_MAX,
+        "acts_max": sim.page.ACTS_MAX, "beat_ms": 1000}
     assert all(re.search(rf"\b{key}\b", viewer("sim.js")) for key in hello)
     assert DETENTS == load("_page_stack", "mech/stack.py").ENC_DETENTS     # a turn of the knob, as built
     assert 2 * sim.page.BEAT_S < sim.page.LEASE_S                          # a beat may be lost
@@ -152,6 +152,17 @@ def test_the_build_names_the_files_the_page_gets(tmp_path):
     (tmp_path / "vendor" / "three.min.js").write_text("")
     builds.append(sim.page.build(tmp_path))
     assert builds[0] == builds[1] and len(set(builds)) == 3
+
+
+def test_the_version_names_the_commit_of_a_releases_files(tmp_path):
+    # firmware/version.py as git archive and the zip fill it in, which the page shows in its last line; a git
+    # checkout keeps the placeholder, and the page shows none
+    path = tmp_path / "version.py"
+    path.write_text('VERSION = "$Format:%cs, %h$"\n')
+    assert sim.page.version(path) is None and sim.page.version(tmp_path / "missing.py") is None
+    path.write_text('VERSION = "2026-11-14, 5d1c305"\n')
+    assert sim.page.version(path) == "2026-11-14, 5d1c305"
+    assert "s.textContent = `build ${version}`" in viewer("sim.js")
 
 
 def test_the_page_asks_for_nothing_that_older_tablets_lack():

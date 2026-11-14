@@ -40,6 +40,13 @@ BENDIX = (*joined_from("cockpit-bendix-king"), BONANZA)        # with the instru
 assert G1000 and GARMIN and len(BENDIX) > 1, "no profile joined from these parts: a part's key changed?"
 
 
+@pytest.fixture(autouse=True)
+def unstamped(monkeypatch):
+    # the command line's default stamp is the commit of firmware/version.py, which git archive fills in: none, as
+    # in a git checkout, so the tests compare the same projects in an archive too
+    monkeypatch.setattr(profile, "VERSION", None)
+
+
 def build(controllers=PANEL, key="g1000"):
     return profile.build(FAMILIES[key], controllers)
 
@@ -1306,6 +1313,54 @@ def test_command_line_with_a_vfr_code(tmp_path):
     cli.main(["--family", "gns", "--vfr", "1200", "-o", str(out)])
     assert out.read_text(encoding="utf-8") == profile.dumps(profile.build(FAMILIES["gns"], profile.UNBOUND, "1200"))
     assert '"0x1200 (>K:XPNDR_SET)"' in out.read_text(encoding="utf-8")
+
+
+def test_the_stamp_goes_in_the_name_alone(tmp_path):
+    # the commit names the project; the items stay as they are, GUIDs and all, so a newer profile replaces them
+    stamped, plain = profile.build(FAMILIES["g1000"], stamp="2026-11-14, 5d1c305"), profile.build(FAMILIES["g1000"])
+    assert stamped["Name"] == "Avionics Panel: G1000 NXi (2026-11-14, 5d1c305)"
+    assert plain["Name"] == "Avionics Panel: G1000 NXi"
+    assert {**stamped, "Name": plain["Name"]} == plain
+    out = tmp_path / "out.mfproj"
+    cli.main(["--family", "g1000", "--stamp", "2026-11-14, 5d1c305", "-o", str(out)])
+    assert out.read_text(encoding="utf-8") == profile.dumps(stamped)
+
+
+def test_the_command_line_stamps_with_the_commit_of_version_py(tmp_path, monkeypatch):
+    # a release's files (git archive, the simulator's zip) name their commit in firmware/version.py; a git
+    # checkout keeps the placeholder, and a project made there has no stamp unless --stamp gives one
+    path = tmp_path / "version.py"
+    path.write_text('VERSION = "$Format:%cs, %h$"\n')
+    assert profile.version(path) is None and profile.version(tmp_path / "missing.py") is None
+    path.write_text('VERSION = "2026-11-14, 5d1c305"\n')
+    assert profile.version(path) == "2026-11-14, 5d1c305"
+    monkeypatch.setattr(profile, "VERSION", profile.version(path))
+    out, parts = tmp_path / "out.mfproj", tmp_path / "parts.zip"
+    cli.main(["--autopilot", "kap140", "--cockpit", "g1000", "--navigator", "g1000", "-o", str(out)])
+    assert json.loads(out.read_text(encoding="utf-8"))["Name"].endswith(" (2026-11-14, 5d1c305)")
+    cli.main(["--family", "g1000", "--stamp", "test", "-o", str(out)])
+    assert json.loads(out.read_text(encoding="utf-8"))["Name"] == "Avionics Panel: G1000 NXi (test)"
+    cli.main(["--parts-zip", str(parts)])
+    import zipfile
+    with zipfile.ZipFile(parts) as z:
+        assert all(json.loads(z.read(n))["Name"].endswith(" (2026-11-14, 5d1c305)") for n in z.namelist())
+    assert profile.version() is None or re.fullmatch(r"\d{4}-\d\d-\d\d, [0-9a-f]{7,40}", profile.version())
+
+
+def test_the_command_line_lists_the_profiles_and_the_parts(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    cli.main(["--list"])
+    lines = capsys.readouterr().out.splitlines()
+    units = " ".join(sorted(UNIT_NAVIGATORS) + ["none"])
+    assert lines == [f"--family: {' '.join(sorted(FAMILIES))}", f"--autopilot: {' '.join(sorted(AUTOPILOTS))}",
+                     f"--cockpit: {' '.join(sorted(COCKPITS))}", f"--navigator: {' '.join(sorted(NAVIGATORS))}",
+                     f"--unit1, --unit2: {units}"]
+    assert not os.listdir(tmp_path)
+    with pytest.raises(SystemExit):
+        cli.main(["--list", "--family", "g1000"])
+    for other in (["--cockpit", "g1000"], ["-o", "x.mfproj"], ["--stamp", "x"]):    # what --list would ignore
+        with pytest.raises(SystemExit):
+            cli.main(["--list", *other])
 
 
 @pytest.mark.parametrize("args", [

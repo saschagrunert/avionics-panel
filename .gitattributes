@@ -1,0 +1,2 @@
+# git archive (GitHub's Download ZIP, a release's source code) writes the commit into the firmware's version
+firmware/version.py export-subst

@@ -275,6 +275,25 @@ def test_lights_work_without_memorymap():
     assert hw.regs == {} and hw.leds[0].duty_cycle > 0 and not hw.printed
 
 
+@pytest.mark.parametrize("version, shown", [
+    ("2026-11-14, 5d1c305", "2026-11-14, 5d1c305"),     # filled in by git archive or make_zip.py
+    ("$Format:%cs, %h$", "version unknown"),             # a git checkout's placeholder
+    (None, "version unknown"),                           # no version.py on CIRCUITPY
+])
+def test_the_console_names_the_version_at_the_start(capsys, version, shown):
+    hw = hardware()
+    hw.modules["version"] = None if version is None else SimpleNamespace(VERSION=version)
+    hw.run(10)
+    assert f"Avionics Panel rev 1 ready ({shown})\n" in capsys.readouterr().out and not hw.printed
+
+
+def test_version_py_holds_a_placeholder_or_a_commit():
+    # git keeps the placeholder that git archive fills in (.gitattributes); an archive has the date and hash
+    with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "version.py"), encoding="utf-8") as f:
+        version = re.search(r'^VERSION = "(.*)"$', f.read(), re.M)[1]
+    assert re.fullmatch(r"\$Format:%cs, %h\$|\d{4}-\d\d-\d\d, [0-9a-f]{7,40}", version), version
+
+
 def test_lights_work_when_the_pad_register_cannot_be_written(capsys):
     # a build whose memorymap refuses the pad registers: code.py says so on the console, once, and runs on, and
     # the lights still follow SHIFT and UNIT, at the pads' default drive
@@ -409,7 +428,7 @@ def test_the_pass_time_lines_of_firmware_md_run(capsys):
         section = f.read().split("\n## Loop pass time\n")[1].split("\n## ")[0]
     first = re.search(r"the line `([^`]+)`", " ".join(section.split())).group(1)
     lines = section.split("```python\n")[1].split("```")[0]
-    ready, loop = '    print("Avionics Panel rev 1 ready")\n', "    while True:\n        t = now()\n"
+    ready, loop = '    print("Avionics Panel rev 1 ready (" + VERSION + ")")\n', "    while True:\n        t = now()\n"
     hw = hardware({2300: [step(0, 1), stall]})
     hw.run(3100, [(ready, "    " + first + "\n" + ready), (loop, loop + lines)])
     printed = [line for line in capsys.readouterr().out.splitlines() if "passes" in line]

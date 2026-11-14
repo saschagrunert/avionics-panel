@@ -1,5 +1,5 @@
-"""The panel without the hardware: the firmware's own files (boot.py, code.py, panel.py, buttonmap.py, keys.py) on
-the stand-in hardware of sim/hardware.py, on virtual time.
+"""The panel without the hardware: the firmware's own files (boot.py, code.py, panel.py, buttonmap.py, keys.py,
+version.py) on the stand-in hardware of sim/hardware.py, on virtual time.
 
 A Sim is a scenario. Each action happens at the scenario's current ms, `now`, which starts at START_MS after
 code.py's start and only moves on, with wait() and with the actions that take time. Reading what the PC saw runs

@@ -1,25 +1,29 @@
 """Builds the simulator for Windows (docs/using/simulator.md): one zip with Python's embeddable package for Windows
-(amd64), the firmware, the simulator and the viewer, and start.bat, vjoy-setup.bat, firewall.bat and README.txt
-from here. Python's standard library only; runs on Linux.
+(amd64), the firmware, the simulator, the viewer and the MobiFlight profiles, and start.bat, profile.bat,
+vjoy-setup.bat, firewall.bat and README.txt from here. Python's standard library only; runs on Linux.
 
     python3 windows/make_zip.py [--python ZIP] [--out ZIP]
 
 downloads the embeddable package from PYTHON_URL (--python takes a copy downloaded before), checks its SHA-256
 and writes --out (dist/avionics-panel-sim-windows.zip). In the zip, under avionics-panel-sim/:
 
-    start.bat  vjoy-setup.bat  firewall.bat  README.txt  LICENSE  python/  firmware/  sim/  viewer/
+    start.bat  profile.bat  vjoy-setup.bat  firewall.bat  README.txt  LICENSE
+    python/  firmware/  sim/  viewer/  mobiflight/
 
 The package's ._pth file gets the line `..`, the zip's folder: there `python -m sim.page` finds sim/ (a ._pth
-replaces sys.path, without the current directory). LICENSE, firmware/, sim/ and viewer/ are the files git
-tracks, without the firmware's tests and the script for the renders, so it needs a git checkout. They go in as
-they are in the working tree, with any change that is not committed. The batch files and README.txt get
-Windows' line ends. Every file has the time of the last commit, so a clean checkout of a commit builds the same
-files (the compressed bytes can differ with another zlib).
+replaces sys.path, without the current directory). LICENSE, firmware/, sim/, viewer/ and mobiflight/ are the
+files git tracks, without the firmware's tests and the script for the renders, so it needs a git checkout. They
+go in as they are in the working tree, with any change that is not committed. The batch files and README.txt get
+Windows' line ends. firmware/version.py gets the commit's date and short hash, as git archive writes them
+(SUBST, .gitattributes), which the page, the firmware's console and the profiles show; with -dirty after the hash
+when a file that goes in differs from the commit. Every file has the time of the last commit, so a clean checkout
+of a commit builds the same files (the compressed bytes can differ with another zlib).
 """
 import argparse
 import hashlib
 import io
 import os
+import re
 import subprocess
 import sys
 import time
@@ -33,9 +37,11 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 TOP = "avionics-panel-sim"
 OUT = os.path.join(ROOT, "dist", f"{TOP}-windows.zip")
-SOURCES = ("LICENSE", "firmware", "sim", "viewer")
-LEFT_OUT = ("firmware/test_", "viewer/shots.py")             # of SOURCES: not for the simulator's users
-WINDOWS = ("start.bat", "vjoy-setup.bat", "firewall.bat", "README.txt")    # text with CRLF line ends
+SOURCES = ("LICENSE", "firmware", "sim", "viewer", "mobiflight")
+LEFT_OUT = ("firmware/test_", "viewer/shots.py")   # of SOURCES: not for the simulator's users
+WINDOWS = ("start.bat", "profile.bat", "vjoy-setup.bat", "firewall.bat", "README.txt")   # text with CRLF line ends
+SUBST = ("firmware/version.py",)          # of SOURCES: git archive fills in their placeholders (export-subst)
+PLACEHOLDER = re.compile(r"\$Format:([^$]*)\$")
 
 
 def fetch(path=None, sha256=PYTHON_SHA256):
@@ -59,9 +65,31 @@ def sources():
     return sorted({n for n in names if n and os.path.isfile(os.path.join(ROOT, n)) and not n.startswith(LEFT_OUT)})
 
 
+def log(fmt):
+    """The last commit by git log's --format"""
+    command = ["git", "-c", "core.abbrev=7", "log", "-1", f"--format={fmt}"]      # 7 characters in every clone
+    return subprocess.run(command, cwd=ROOT, capture_output=True, check=True, text=True).stdout.rstrip("\n")
+
+
+def changed():
+    """True when a file that goes in differs from the last commit"""
+    return bool(subprocess.run(["git", "diff", "--name-only", "HEAD", "--", *sources()], cwd=ROOT,
+                               capture_output=True, check=True, text=True).stdout)
+
+
+def stamp(fmt):
+    """What a $Format:fmt$ placeholder in the zip becomes: the last commit in that format, -dirty after it when
+    a file that goes in differs from the commit"""
+    return log(fmt) + ("-dirty" if changed() else "")
+
+
 def commit_time():
-    return time.gmtime(int(subprocess.run(["git", "log", "-1", "--format=%ct"], cwd=ROOT, capture_output=True,
-                                          check=True, text=True).stdout))[:6]
+    return time.gmtime(int(log("%ct")))[:6]
+
+
+def substitute(data):
+    """A file's bytes with each $Format:...$ replaced by stamp(), as git archive does for a clean commit"""
+    return PLACEHOLDER.sub(lambda m: stamp(m[1]), data.decode()).encode()
 
 
 def build(embeddable, out):
@@ -91,7 +119,8 @@ def build(embeddable, out):
                 add(z, f"python/{info.filename}", data)
             for name in sources():
                 with open(os.path.join(ROOT, name), "rb") as f:
-                    add(z, name, f.read())
+                    data = f.read()
+                add(z, name, substitute(data) if name in SUBST else data)
 
 
 def main(argv=None):
