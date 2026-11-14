@@ -385,7 +385,9 @@ try:
             read_keys(t)
             turns(t)
         panel.tick(t)
-        show(panel.shift_level(t), connected and panel.unit_light)   # the amber light pulses before SHIFT drops
+        # the amber light pulses before SHIFT drops; the UNIT light counts (on the Pico bench, which prints the
+        # unit instead, it does not)
+        show(panel.shift_level(t), connected and (panel.unit_lit(t) if leds[1] else panel.unit_light))
         for n, dev in OUTPUTS:
             rep = reports[n]
             if n:

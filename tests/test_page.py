@@ -282,7 +282,7 @@ def test_a_request_that_stalls_is_closed_without_a_word(page, monkeypatch, capsy
 def test_keys_and_knobs_reach_the_reports_and_the_lights(page):
     stream = Stream(page)
     first = stream.until(lambda s: s["buttons"].keys() == {"1", "2"})
-    assert first["lights"] == {"SHIFT": 0, "UNIT": 0}
+    assert first["lights"] == {"SHIFT": 0, "UNIT": 0} and first["unit"] == 1
     # held and let go
     assert post(page, "press AP", stream.client) == 204
     stream.until(pressed(1, "AP"))
@@ -299,7 +299,14 @@ def test_keys_and_knobs_reach_the_reports_and_the_lights(page):
     post(page, "press SHIFT\nrelease SHIFT", stream.client)
     stream.until(lambda s: s["lights"]["SHIFT"] == 1)
     post(page, "press HOME\nrelease HOME", stream.client)
-    stream.until(lambda s: s["lights"] == {"SHIFT": 0, "UNIT": 1})
+    stream.until(lambda s: s["lights"] == {"SHIFT": 0, "UNIT": 1} and s["unit"] == 2)
+    # the unit comes from the panel, not from the UNIT light, whose counts blip it dark in unit 2
+    light = page.live.light
+    page.live.light = lambda name: 0 if name == "UNIT" else light(name)
+    try:
+        assert page.state()["lights"]["UNIT"] == 0 and page.state()["unit"] == 2
+    finally:
+        page.live.light = light
     # unit 2's COM ⇆ is on device 2
     post(page, "press COM_SWAP", stream.client)
     stream.until(pressed(2, "COM_SWAP"))

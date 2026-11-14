@@ -58,15 +58,16 @@ everything that can be operated:
   them from the first click, or the first finger lifted off a key or knob; until then the page is silent.
   After two minutes without a sound the page lets go of the audio, to save a tablet's battery, and takes it
   again with the next. An iPhone or iPad with its silent switch on plays none.
-- The SHIFT and UNIT lights follow the firmware. The lines at the bottom left say the same in words and show
-  the buttons each joystick reports, J1 and J2, by their [BUTTONS.md](../../firmware/BUTTONS.md) names; a
-  button that went off stays there dimmed for a second. With a [legend](#legend), one more line says what the
-  button pressed last does. The last line, dimmed, names the build: the date and short hash of the commit the
-  zip was built from, as in `firmware\version.py` in its folder, which the release names too. Run from a git
-  checkout, the page has no such line (git log names the commit there). In a low window, as a phone turned
-  sideways, they are one line across the bottom. A firmware error shows its message; when the program stops,
-  the page says it is disconnected and reconnects once it runs again. If the program then serves another
-  version of the page, as a newer zip can, the page reloads.
+- The SHIFT and UNIT lights follow the firmware, the UNIT light's short counts of the FREQ mode and the squawk
+  digit included ([Controls](controls.md)). The lines at the bottom left say the same in words (the unit, not
+  the counts) and show the buttons each joystick reports, J1 and J2, by their
+  [BUTTONS.md](../../firmware/BUTTONS.md) names; a button that went off stays there dimmed for a second. With
+  a [legend](#legend), one more line says what the button pressed last does. The last line, dimmed, names the
+  build: the date and short hash of the commit the zip was built from, as in `firmware\version.py` in its
+  folder, which the release names too. Run from a git checkout, the page has no such line (git log names the
+  commit there). In a low window, as a phone turned sideways, they are one line across the bottom. A firmware
+  error shows its message; when the program stops, the page says it is disconnected and reconnects once it
+  runs again. If the program then serves another version of the page, as a newer zip can, the page reloads.
 
 The page is played with a mouse or a touch screen only: the keyboard does not operate it, and a screen reader
 does not announce the lines at the bottom left.

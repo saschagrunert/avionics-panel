@@ -29,6 +29,14 @@ REPEAT_MS = 125          # ... then about 8 per second
 PAN_DELAY_MS = 300       # RANGE tilt: first repeat ...
 PAN_MS = 120             # ... then this often (both: no faster than the steps go through, see tick())
 FREQ_HOLD_MS = 1000      # a plain FREQ push held this long returns the knob to COM
+# The UNIT light counts what it tells: n short flashes, on in unit 1 and off in unit 2, after a FREQ push its new
+# mode (1 COM, 2 NAV, 3 ADF, also when a hold returns to COM) and for the squawk's outer ring its digit (1 to 4).
+# Short enough to read as blips, not as a change of unit. A new count takes the old one's place, after a pause
+# clearly longer than the gaps inside a count, so two never run together into a wrong number.
+FLASH_MS = 60            # each flash ...
+FLASH_EVERY_MS = 200     # ... starts this long after the one before: 3 flashes take 460 ms
+FLASH_PAUSE_MS = 2 * FLASH_EVERY_MS   # from a count's last flash shown to the first of the next
+SQUAWK_REST_MS = 300     # the squawk digit is counted once its ring has rested this long: a spin shows only the last
 # RANGE tilt switches -> pan direction: a tilt away closes A, left B, towards the user C, right D (Alps drawing)
 PAN_DIRS = {"RANGE_A": "UP", "RANGE_B": "LEFT", "RANGE_C": "DN", "RANGE_D": "RIGHT"}
 # The sources that repeat while held, in a fixed order: repeats due in the same pass queue in it (the second one
@@ -61,6 +69,9 @@ class Panel:
         self.freq_mode = 0           # index into FREQ_MODES: kept until the FREQ push changes it
         self.freq_since = None       # ms of the press of a plain FREQ push held, until FREQ_HOLD_MS set COM
         self.digit = 1               # squawk digit (1 to 4) the shifted FREQ inner ring steps
+        self.flash = (0, 0)          # the UNIT light's count: (ms of its first flash, flashes)
+        self.flash_squawk = False    # it is a squawk digit's: dropped while still to come if the entry ends
+        self.flash_free = 0          # no count starts before: FLASH_PAUSE_MS after the last flash shown
         self.held = {}               # source -> (device, button) held while the source is held
         self.pending = {}            # key or push -> scan ms of its release, not applied for BOUNCE_MS
         self.shown = {}              # (device, button) -> [down?, ms of its last edge, presses owed]: every
@@ -130,6 +141,8 @@ class Panel:
             self.repeat[src][1] += ms
         self.order_ms += ms
         self.shift_until += ms
+        self.flash = (self.flash[0] + ms, self.flash[1])   # the count, as the light stayed during the wait
+        self.flash_free += ms
 
     def shift_active(self, t):
         """Whether SHIFT applies at time t, the one place that decides it: inputs, tick() and the light agree,
@@ -165,6 +178,7 @@ class Panel:
             self.shift_until = t + SHIFT_MS
             return True
         self.shift = self.under = None   # another knob ends this session, also one a held push or tilt keeps
+        self._drop_squawk(t)             # (a squawk digit's count is the FREQ session's: a SHIFT tap dropped it)
         return False
 
     def shift_level(self, t):
@@ -182,7 +196,37 @@ class Panel:
 
     @property
     def unit_light(self):
+        """Whether the unit is 2, as the UNIT light shows it between its counts"""
         return self.unit == 2
+
+    def unit_lit(self, t):
+        """The UNIT light at time t: unit_light, turned over during each flash of its count"""
+        start, n = self.flash
+        since = t - start
+        flashing = 0 <= since < n * FLASH_EVERY_MS and since % FLASH_EVERY_MS < FLASH_MS
+        return self.unit_light != flashing
+
+    def _drop_squawk(self, t):
+        """The squawk entry ended or starts anew: a digit's count still to come would tell a digit no longer
+        selected"""
+        if self.flash_squawk and self.flash[0] >= t:      # (one due this very ms is not shown yet: _count)
+            self.flash = (0, 0)
+        self.flash_squawk = False
+
+    def _count(self, n, t, squawk=False):
+        """The UNIT light counts n, from t, the time now, on (a squawk digit once its ring has rested). It takes
+        the place of a count still to come (also one due this very ms, which code.py has not shown yet: a late
+        read's press and its hold), and starts FLASH_PAUSE_MS after the last flash shown of one under way or just
+        over (cut short where it is). tick() clears one made while dark: the light is off."""
+        self.flash_squawk = squawk
+        start, old = self.flash
+        at = max(t + SQUAWK_REST_MS if squawk else t, self.flash_free)   # (kept when a squawk count is dropped)
+        if old and t > start:                              # (one still to come: this one comes instead, at was
+                                                           # already at or past its start)
+            last = min((t - start - 1) // FLASH_EVERY_MS, old - 1)   # (one starting now is not shown yet)
+            self.flash_free = start + last * FLASH_EVERY_MS + FLASH_MS + FLASH_PAUSE_MS
+            at = max(at, self.flash_free)
+        self.flash = (at, n)
 
     # ---------------- inputs ----------------
     def key(self, name, pressed, t, at=None):
@@ -223,6 +267,7 @@ class Panel:
             self.held.pop(name, None)
             self.repeat.pop(name, None)
             return
+        self._drop_squawk(t)                             # a key or SHIFT tap ends the squawk entry, or starts anew
         held = self._held_session()
         if name == "SHIFT":
             if self.shift == "any":                      # a second tap cancels SHIFT, except for a held control
@@ -234,6 +279,7 @@ class Panel:
         self.shift, self.under = held, None              # a key ends a knob's session, unless a control holds it
         if name == "HOME" and shifted:                    # UNIT: firmware state, white light
             self.unit = 2 if self.unit == 1 else 1
+            self.flash, self.flash_free = (0, 0), 0        # a count under way would blip against the new state
             return
         k = self._btn(self.unit if name in BM.UNIT_KEYS else 1, BM.shifted(name) if shifted else name)
         # with SHIFT, as joysticks, UP and DN are held as other keys, so a mapping tells a tap from a hold; as a
@@ -264,6 +310,7 @@ class Panel:
         else:                                              # FREQ push: next mode at once, COM once held long
             self.freq_mode = (self.freq_mode + 1) % len(FREQ_MODES)
             self.freq_since = t
+            self._count(self.freq_mode + 1, t)
             k = self._btn(self.unit, "FREQ_PUSH")
         self._hold(name, k)
 
@@ -301,6 +348,8 @@ class Panel:
                     # The inner ring's queued steps stay with their digit: its next reversal lets them finish
                     # there, also after the selection has come back to that digit before they are sent.
                     self.ring_keys.pop("FREQ_INNER", None)
+                # counted once the ring rests, also at an end: the light shows where it stopped
+                self._count(digit, t, squawk=True)
                 return
             slow = "SQK_D" + str(self.digit)
         elif knob == "FMS" and shifted:                     # lighting: device 1 in every unit, one step per detent
@@ -369,12 +418,15 @@ class Panel:
         self._show(t)
         if self.order and t >= self.order_ms:
             self._next(t)
+        if self.dark:     # the light is off: no count made now or under way shows when USB is back (code.py ticks
+            self.flash, self.flash_squawk, self.flash_free = (0, 0), False, 0   # before it shows the lights)
 
     def _freq_hold(self, t):
         """A plain FREQ push held FREQ_HOLD_MS returns the knob to COM. A release still waiting out BOUNCE_MS
         counts as held until its scan: the push is long if it was down that long before it."""
         if self.freq_since is not None and self.pending.get("FREQ_PUSH", t) - self.freq_since >= FREQ_HOLD_MS:
             self.freq_mode, self.freq_since = 0, None      # (no FREQ step is queued: a turn ended the hold)
+            self._count(1, t)
 
     def _repeat(self, t):
         for src in REPEAT_SOURCES:

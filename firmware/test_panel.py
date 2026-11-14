@@ -1614,3 +1614,323 @@ def test_button_numbers_are_frozen():
     for dev, names in FROZEN.items():
         assert tuple(BM.DEVICE[dev][:len(names)]) == names, f"device {dev}: a button number moved"
 
+
+# ---------------- the UNIT light's counts ----------------
+def flashes(p, t0, ms=1500):
+    """ms from t0 to the start of each flash of the UNIT light (each a time it differs from the unit)"""
+    out, was = [], False
+    for t in range(t0, t0 + ms):
+        flash = p.unit_lit(t) != p.unit_light
+        if flash and not was:
+            out.append(t - t0)
+        was = flash
+    return out
+
+
+EVERY = P.FLASH_EVERY_MS
+
+
+def watch(s, ms, lit):
+    """runs s ms, appending the UNIT light's flash state of each ms to lit (as code.py reads it, pass by pass)"""
+    for _ in range(ms):
+        s.run(1)
+        lit.append(s.p.unit_lit(s.t) != s.p.unit_light)
+
+
+def starts(lit):
+    """the indices where a flash starts in lit"""
+    return [i for i, on in enumerate(lit) if on and (i == 0 or not lit[i - 1])]
+
+
+def test_a_freq_push_counts_its_new_mode():
+    # NAV twice, ADF three times, COM once: short flashes, FLASH_EVERY_MS apart
+    s = Sim()
+    for mode, n in ((1, 2), (2, 3), (0, 1)):
+        t0 = s.t
+        s.key("FREQ_PUSH")
+        assert s.p.freq_mode == mode and flashes(s.p, t0) == [i * EVERY for i in range(n)]
+        s.run(1000)
+    t0 = s.t
+    assert flashes(s.p, t0) == []                                      # done: the light shows the unit again
+
+
+def test_a_flash_is_short():
+    s = Sim()
+    t0 = s.t
+    s.p.key("FREQ_PUSH", True, t0)
+    lit = [s.p.unit_lit(t) for t in range(t0, t0 + 2 * EVERY + 1)]
+    assert lit[:P.FLASH_MS] == [True] * P.FLASH_MS and not any(lit[P.FLASH_MS:EVERY])
+    assert lit[EVERY:EVERY + P.FLASH_MS] == [True] * P.FLASH_MS and not any(lit[EVERY + P.FLASH_MS:])
+    assert not s.p.unit_lit(t0 - 1)
+
+
+PAUSE = P.FLASH_MS + P.FLASH_PAUSE_MS        # from a flash's start to the next count's first
+
+
+def double_push(gap):
+    """the starts of the UNIT light's flashes (lit[i]: the light at i + 1 ms) for two FREQ pushes gap ms apart"""
+    s, lit = Sim(), []
+    s.p.key("FREQ_PUSH", True, s.t); s.p.key("FREQ_PUSH", False, s.t + 1)   # NAV: 2, cut short by the next push
+    watch(s, gap, lit)
+    s.p.key("FREQ_PUSH", True, s.t); s.p.key("FREQ_PUSH", False, s.t + 1)   # ADF: 3, after a pause
+    watch(s, 1500, lit)
+    assert s.p.freq_mode == 2
+    return starts(lit)
+
+
+def test_a_new_count_waits_for_a_pause():
+    # a second push while the first count runs: the first stops where it is, and the latest mode is counted after
+    # a pause clearly longer than the gaps inside a count, so the two never read as one number
+    assert double_push(100) == [0, PAUSE - 1, PAUSE - 1 + EVERY, PAUSE - 1 + 2 * EVERY]       # in a gap
+    assert double_push(40) == [0, PAUSE - 1, PAUSE - 1 + EVERY, PAUSE - 1 + 2 * EVERY]        # in a flash
+    late = EVERY + PAUSE - 1                                                                  # in the second
+    assert double_push(210) == [0, EVERY - 1, late, late + EVERY, late + 2 * EVERY]
+    assert P.FLASH_PAUSE_MS > 2 * (EVERY - P.FLASH_MS)
+
+
+def test_a_count_after_one_just_over_waits_too():
+    s, lit = Sim(), []
+    s.p.key("FREQ_PUSH", True, s.t); s.p.key("FREQ_PUSH", False, s.t + 1)
+    watch(s, EVERY + P.FLASH_MS + 10, lit)                             # NAV's two flashes, just over
+    s.p.key("FREQ_PUSH", True, s.t); s.p.key("FREQ_PUSH", False, s.t + 1)
+    watch(s, 1500, lit)
+    assert starts(lit) == [0, EVERY - 1, EVERY + PAUSE - 1, EVERY + PAUSE - 1 + EVERY, EVERY + PAUSE - 1 + 2 * EVERY]
+
+
+def test_a_bounce_does_not_restart_a_count():
+    s = Sim()
+    t0 = s.t
+    s.p.key("FREQ_PUSH", True, t0)
+    s.p.key("FREQ_PUSH", False, t0 + 5)                                # bounces within BOUNCE_MS
+    s.p.key("FREQ_PUSH", True, t0 + 10)
+    s.p.key("FREQ_PUSH", False, t0 + 100)
+    s.run(1)
+    assert s.p.freq_mode == 1 and s.p.flash == (t0, 2)
+
+
+def test_a_hold_read_late_counts_com_once():
+    # after a wait for the host the loop reads a long hold at once: NAV's count is due the same ms and never shown,
+    # so the light counts COM alone, at once
+    s = Sim()
+    s.t = 4000
+    s.p.key("FREQ_PUSH", True, s.t, at=2000)
+    s.p.key("FREQ_PUSH", False, s.t, at=3500)
+    s.p.tick(s.t)
+    assert s.p.freq_mode == 0 and flashes(s.p, s.t) == [0]
+
+
+def test_a_wait_for_the_host_moves_the_count():
+    s = Sim()
+    t0 = s.t
+    s.p.key("FREQ_PUSH", True, t0)
+    s.p.stalled(500)
+    assert flashes(s.p, t0, 1500) == [500, 500 + EVERY]
+
+
+def test_a_unit_change_ends_a_count():
+    # SHIFT, HOME in NAV's second flash: the light shows unit 2 at once, without the rest of the count
+    s = Sim()
+    t0 = s.t
+    s.p.key("FREQ_PUSH", True, t0); s.p.key("FREQ_PUSH", False, t0 + 1)   # NAV: flashes at 0 and EVERY
+    s.run(100)
+    s.p.key("SHIFT", True, s.t); s.run(40); s.p.key("SHIFT", False, s.t)
+    s.run(EVERY + 5 - (s.t - t0))
+    s.p.key("HOME", True, s.t)                                             # UNIT, in the second flash
+    assert s.p.unit_light and s.p.unit_lit(s.t) and flashes(s.p, s.t) == []
+
+
+def test_a_third_push_comes_in_place_of_the_count_still_to_come():
+    # three pushes 100 ms apart: the third's count (COM) takes the place of the second's, which waits for its pause,
+    # and keeps its start: one flash after the pause, never NAV's or ADF's number
+    s = Sim()
+    t0 = s.t
+    for at in (0, 100, 200):
+        s.p.key("FREQ_PUSH", True, t0 + at); s.p.key("FREQ_PUSH", False, t0 + at + 1)
+    assert s.p.freq_mode == 0 and s.p.flash == (t0 + PAUSE, 1) and flashes(s.p, t0 + 201) == [PAUSE - 201]
+
+
+def test_a_key_keeps_a_freq_count_still_to_come():
+    # COM ⇆ in the pause before ADF's count: only a squawk digit's count is dropped by a key
+    s = Sim()
+    t0 = s.t
+    for at in (0, 100):
+        s.p.key("FREQ_PUSH", True, t0 + at); s.p.key("FREQ_PUSH", False, t0 + at + 1)
+    s.p.key("COM_SWAP", True, t0 + 150)
+    assert s.p.flash == (t0 + PAUSE, 3)
+
+
+def test_a_key_does_not_cut_a_squawk_count_under_way():
+    # a key in the flashes of a digit already counted ends the entry, but the count shown goes on
+    s = Sim()
+    s.key("SHIFT")
+    t0 = s.t
+    s.p.turn("FREQ_OUTER", 2, t0)                                          # digit 3, counted after its rest
+    s.p.key("AP", True, t0 + P.SQUAWK_REST_MS + 10)
+    assert s.p.flash == (t0 + P.SQUAWK_REST_MS, 3)
+
+
+def test_a_hold_that_runs_out_while_dark_shows_no_count():
+    # USB drops for the pass in which the hold returns to COM: its count is never shown, also once USB is back
+    s = Sim()
+    t0 = s.t
+    s.p.key("FREQ_PUSH", True, t0)
+    s.run(P.FREQ_HOLD_MS - 1)
+    s.p.dark = True
+    s.run(1)                                                               # the hold runs out
+    s.p.dark = False
+    assert s.p.freq_mode == 0 and s.p.flash == (0, 0) and flashes(s.p, s.t) == []
+
+
+def test_a_freq_hold_counts_com():
+    # the push counts its mode at once; held, the return to COM counts one when the hold runs out
+    s, lit = Sim(), []
+    s.p.key("FREQ_PUSH", True, s.t)
+    watch(s, P.FREQ_HOLD_MS + 500, lit)
+    assert s.p.freq_mode == 0 and starts(lit) == [0, EVERY - 1, P.FREQ_HOLD_MS - 1]   # (lit[i]: the ms after i + 1)
+
+
+def test_a_shifted_freq_push_counts_nothing():
+    # XPDR mode: the FREQ mode stays, and the light says nothing about it
+    s = Sim()
+    s.key("SHIFT")
+    t0 = s.t
+    s.key("FREQ_PUSH")
+    assert s.p.freq_mode == 0 and flashes(s.p, t0) == []
+
+
+def test_the_squawk_outer_ring_counts_its_digit():
+    # the digit it selects, once the ring rests, also when it finds the ring at an end
+    s = Sim()
+    s.key("SHIFT")
+    rest = P.SQUAWK_REST_MS
+    for steps, digit in ((1, 2), (1, 3), (1, 4), (1, 4), (-3, 1), (-1, 1)):
+        t0 = s.t
+        s.p.turn("FREQ_OUTER", steps, t0)
+        assert s.p.digit == digit and flashes(s.p, t0, 1500) == [rest + i * EVERY for i in range(digit)], digit
+        s.run(1500)
+    t0 = s.t
+    s.turn("FREQ_INNER", 1)                                            # the inner ring sets the digit: no count
+    assert flashes(s.p, t0) == []
+
+
+def test_a_squawk_spin_counts_the_last_digit_once():
+    # detents 100 ms apart, 1 to 4: no flash while the ring turns, then four, once
+    s = Sim()
+    s.key("SHIFT")
+    t0 = s.t
+    for i in range(3):
+        s.p.turn("FREQ_OUTER", 1, t0 + 100 * i)
+    assert s.p.digit == 4 and flashes(s.p, t0, 2000) == [200 + P.SQUAWK_REST_MS + i * EVERY for i in range(4)]
+
+
+def test_in_unit_2_the_flashes_are_dark():
+    s = Sim()
+    s.key("SHIFT"); s.key("HOME")
+    t0 = s.t
+    s.p.key("FREQ_PUSH", True, t0)
+    assert s.p.unit_light and [s.p.unit_lit(t0 + ms) for ms in (0, P.FLASH_MS - 1, P.FLASH_MS, EVERY)] == [
+        False, False, True, False]
+
+
+def test_no_count_while_dark():
+    # the lights are off while USB is down: a push then counts nothing, neither then nor once the host is back
+    s = Sim()
+    s.p.dark = True
+    t0 = s.t
+    s.key("FREQ_PUSH")
+    s.p.dark = False
+    assert s.p.freq_mode == 1 and flashes(s.p, t0) == []
+
+
+def test_a_count_under_way_ends_while_dark():
+    # USB drops during a count: nothing of it resumes when the host is back
+    s = Sim()
+    t0 = s.t
+    s.p.key("FREQ_PUSH", True, t0); s.p.key("FREQ_PUSH", False, t0 + 1)   # NAV: 2
+    s.run(30)
+    s.p.dark = True
+    s.run(20)
+    s.p.dark = False
+    assert s.p.flash == (0, 0) and flashes(s.p, s.t) == []
+
+
+def test_a_push_at_a_flash_boundary_pauses_after_the_flash_shown():
+    # at start + FLASH_EVERY_MS the next flash is not shown yet: the pause runs from the one before
+    s = Sim()
+    t0 = s.t
+    s.p.key("FREQ_PUSH", True, t0); s.p.key("FREQ_PUSH", False, t0 + 1)   # NAV: 2, from t0
+    s.t = t0 + EVERY
+    s.p.key("FREQ_PUSH", True, s.t); s.p.key("FREQ_PUSH", False, s.t + 1)  # ADF
+    assert s.p.flash == (t0 + PAUSE, 3)
+
+
+def squawk_rest(*then):
+    """SHIFT, the outer ring to digit 3, then `then` (Sim calls) within its rest: the flashes from the turn on"""
+    s = Sim()
+    s.key("SHIFT")
+    t0 = s.t
+    s.p.turn("FREQ_OUTER", 2, t0)
+    for step in then:
+        step(s)
+    return s, flashes(s.p, t0, 2000)
+
+
+def test_a_squawk_count_still_to_come_goes_with_its_entry():
+    # the entry ends (a key, a SHIFT tap starting a new one, a cancel, another knob) before the ring rested: the
+    # digit it selected is not counted, as it no longer is the one the inner ring sets
+    for then in ((lambda s: s.key("AP", 20),),
+                 (lambda s: s.key("SHIFT", 20),),
+                 (lambda s: s.key("SHIFT", 20), lambda s: s.key("SHIFT", 20)),
+                 (lambda s: s.turn("ALTHDG_OUTER", 1),),
+                 (lambda s: s.key("FMS_PUSH", 20),)):
+        s, seen = squawk_rest(*then)
+        assert seen == [], then
+    s, seen = squawk_rest(lambda s: s.key("SHIFT", 20), lambda s: s.turn("FREQ_INNER", 1))
+    assert s.take()[-1:] == [(1, "SQK_D1_UP")] and seen == []                   # the new entry, on digit 1
+    s, seen = squawk_rest(lambda s: s.turn("FREQ_INNER", 1))                    # the same entry: counted
+    assert seen == [P.SQUAWK_REST_MS + i * EVERY for i in range(3)]
+
+
+def test_a_freq_push_after_a_squawk_entry_counts_from_its_press():
+    # a plain push once a key ended the entry: its count does not wait for the dropped squawk rest
+    s = Sim()
+    s.key("SHIFT")
+    s.p.turn("FREQ_OUTER", 2, s.t)
+    s.key("AP", 20)
+    t0 = s.t
+    s.p.key("FREQ_PUSH", True, t0)
+    assert s.p.flash == (t0, 2)
+
+
+def test_a_dropped_squawk_count_keeps_the_pause_after_the_count_before():
+    # NAV's count, then a squawk digit put back behind it and dropped by a key: ADF still waits for the pause after
+    # NAV's last flash, so the two counts do not read as five
+    s = Sim()
+    t0 = s.t
+    s.p.key("FREQ_PUSH", True, t0); s.p.key("FREQ_PUSH", False, t0 + 1)   # NAV: flashes at t0, t0 + 200
+    s.p.key("SHIFT", True, t0 + 270); s.p.key("SHIFT", False, t0 + 280)
+    s.p.turn("FREQ_OUTER", 1, t0 + 290)                                  # digit 2, after the pause
+    s.p.key("AP", True, t0 + 320)                                          # ends the entry: the digit is dropped
+    s.p.key("FREQ_PUSH", True, t0 + 350)                                   # ADF
+    assert s.p.flash == (t0 + EVERY + PAUSE, 3)
+
+
+def test_a_key_read_as_the_squawk_count_is_due_drops_it():
+    # a key read in the pass the digit's count is due: code.py has not shown it yet, so the ended entry's digit is
+    # not shown at all
+    s = Sim()
+    s.key("SHIFT")
+    t0 = s.t
+    s.p.turn("FREQ_OUTER", 1, t0)                                          # digit 2, due at its rest's end
+    s.p.key("AP", True, t0 + P.SQUAWK_REST_MS)
+    assert s.p.flash == (0, 0)
+
+
+def test_a_squawk_count_arriving_during_a_freq_count_waits_for_a_pause():
+    # NAV's count runs when the squawk ring rests: it is cut where it is, and the digit follows after a pause
+    s = Sim()
+    t0 = s.t
+    s.p.key("FREQ_PUSH", True, t0); s.p.key("FREQ_PUSH", False, t0 + 1)   # NAV: 2, from t0
+    s.p.key("SHIFT", True, t0 + 100); s.p.key("SHIFT", False, t0 + 110)
+    s.p.turn("FREQ_OUTER", 1, t0 + 120)                                  # digit 2, in NAV's first gap
+    assert s.p.flash == (t0 + PAUSE, 2)                                  # (not at its rest's end, t0 + 420)

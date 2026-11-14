@@ -65,19 +65,22 @@ pointing away from you is hidden behind the RANGE knob; the other three are enou
 The cockpit lighting sits behind SHIFT on the FMS knob for the same reason as BARO and CRS: it is set once or
 twice per flight, and more knobs would break the symmetric layout.
 
-Frequency mode: the FREQ push cycles the knob through COM, NAV and ADF, always all three. The panel has no
-light for the mode; it starts at COM after plugging in or a firmware restart and stays until the next push,
-and both units share it, so watch which frequency moves. When unsure, hold the push for 1 s: the knob is back
-at COM, whatever mode it was in. The push changes the mode as it goes down, so a hold first steps to the next
-mode and returns to COM at 1 s, unless the knob turns while the push is held: that turn tunes the mode the
-push stepped to, and the knob stays there. With SHIFT a held push stays XPDR mode and leaves the mode as it
-was.
+Frequency mode: the FREQ push cycles the knob through COM, NAV and ADF, always all three. The mode starts at
+COM after plugging in or a firmware restart and stays until the next push, and both units share it. There is
+no mode light; the white UNIT light counts the mode after each push instead: one short flash for COM, two for
+NAV, three for ADF (dark blips in unit 2, where it is lit), and a push during a count shows the new mode after
+a short pause. The radio whose frequency moves confirms it. When unsure, hold the push for 1 s: the knob is back
+at COM, whatever mode it was in, and the light flashes once. The push changes the mode as it goes down, so a
+hold first counts the next mode and returns to COM at 1 s, unless the knob turns while the push is held: that
+turn tunes the mode the push stepped to, and the knob stays there. With SHIFT a held push stays XPDR mode,
+leaves the mode as it was and counts nothing.
 
 Squawk (SHIFT, FREQ knob): the outer ring selects the digit and the inner ring sets it, one step per detent.
 Every entry starts at the first digit. Turning the outer ring clockwise moves on to the next digit,
-counter-clockwise back; it stops at the first and the fourth. The panel does not show the selected digit: the
-transponder shows which one moves. The entry ends 3 s after the last detent of either ring, and the knob tunes
-frequencies again. A SHIFT tap during an entry starts a new one: the next detent is on the first digit again.
+counter-clockwise back; it stops at the first and the fourth. Once the outer ring rests, the white UNIT light
+counts the selected digit, one to four short flashes, also after a turn against an end; the transponder shows
+which one moves too. The entry ends 3 s after the last detent of either ring, and the knob tunes frequencies
+again. A SHIFT tap during an entry starts a new one: the next detent is on the first digit again.
 
 Acceleration: on ALT, HDG, CRS and the ADF inner ring the first detent of a turn makes the fine step, and
 detents that follow within 60 ms in the same direction make the coarse one; turned faster than about 9
@@ -147,9 +150,10 @@ MAP returns to the default map page, like holding CLR on the G1000 and GNS 530/4
 Charts instead, [Mapping](mapping.md#g1000-nxi)).
 
 28 keys. UNIT (SHIFT, HOME) switches between unit 1 and unit 2 for the FMS keys and knob (GTN or GNS 530 /
-second unit), for CDI and OBS, and for the radio the FREQ knob and flip-flops tune (COM 1 / NAV 1 or
-COM 2 / NAV 2). A white light beside the amber UNIT legend is on while unit 2 is selected. There is no
-automatic return to unit 1, because a timeout would interrupt long flight plan edits.
+second unit), for CDI and OBS, and for the radio the FREQ knob and flip-flops tune (COM 1 / NAV 1 or COM 2 /
+NAV 2). A white light beside the amber UNIT legend is on while unit 2 is selected; short flashes of it count
+the FREQ mode and the squawk digit (above), dark blips in unit 2. There is no automatic return to unit 1,
+because a timeout would interrupt long flight plan edits.
 
 On the G1000 unit 1 is the MFD with radio 1 and unit 2 the PFD with radio 2: UNIT switches the display and
 the radio together, so while you edit on the PFD the FREQ knob tunes COM 2 / NAV 2.

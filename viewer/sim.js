@@ -129,7 +129,7 @@ window.playPanel = function playPanel(V) {
     return short ? [below] : [below, [top, side, bottom, beside, flat]];   // one line across the window: below only
   };
   // the lights and each device's buttons as the program last sent them (update()), and when each button went
-  let lights = {}, buttons = {}, fadeTimer;
+  let lights = {}, unit = 1, buttons = {}, fadeTimer;
   let version = null;                  // the commit of the files the program serves (hello), the last line, dimmed
   let last = null;                     // [device, button] that went down last, for the legend
   let legend = null;                   // with --family: device: { button: what it does in that profile }
@@ -238,7 +238,7 @@ window.playPanel = function playPanel(V) {
       if (one) { if (parts.length) one.append(...(one.childNodes.length ? [' | '] : []), ...parts); return; }
       const d = document.createElement('div'); d.append(...(parts.length ? parts : ['\u00a0'])); box.appendChild(d);
     };
-    line(`UNIT ${lights.UNIT ? 2 : 1}${lights.SHIFT ? ' · SHIFT' : ''}`);
+    line(`UNIT ${unit}${lights.SHIFT ? ' · SHIFT' : ''}`);   // the panel's unit: the light also counts
     // what the button pressed last does: after the joysticks' lines, but in one line across a low window right
     // after UNIT, where the ellipsis cuts it last
     // ... in a short window cut to TOLD_SHORT characters, so the buttons down still show after it; all of it as the
@@ -281,7 +281,7 @@ window.playPanel = function playPanel(V) {
       const still = state.buttons[device] || [];
       for (const n of names) if (!still.includes(n)) (went[device] = went[device] || {})[n] = now;
     }
-    ({ lights, buttons } = state);
+    ({ lights, unit, buttons } = state);
     const count = 1 + Object.keys(buttons).length + (legend && !buttons.keyboard ? 1 : 0) + (version ? 1 : 0);
     if (Object.keys(buttons).length && count !== lines) {   // the mode is known: the lines' number and width
       lines = count; width = (buttons.keyboard ? KEYS_W_PX : LINES_W_PX) + (speaker.parentNode ? SPEAKER_PX : 0);
@@ -292,7 +292,7 @@ window.playPanel = function playPanel(V) {
   }
   function clear() {
     went = {}; buttons = {};           // (last stays: a reconnect to the same build keeps its line)
-    update({ lights: { SHIFT: 0, UNIT: 0 }, buttons: {} });
+    update({ lights: { SHIFT: 0, UNIT: 0 }, unit: 1, buttons: {} });
   }
   clear();
 

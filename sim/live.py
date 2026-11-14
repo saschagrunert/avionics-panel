@@ -91,8 +91,8 @@ def from_stdin(live, output, prog):
             for line in sys.stdin:
                 try:
                     action = parse(line, LINES)
-                    if action and action[0] == "lights":
-                        live.act("wait", SETTLE_MS)
+                    if action and action[0] == "lights":       # the duties as the LEDs get them: UNIT's
+                        live.act("wait", SETTLE_MS)            # with a count's flashes, not the unit alone
                         live.do(lambda b: print(f"SHIFT {b.light('SHIFT'):#06x} UNIT {b.light('UNIT'):#06x}",
                                                 flush=True))
                     elif action:
