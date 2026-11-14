@@ -130,7 +130,13 @@ COCKPIT = parts.cockpit("g1000", "G1000 NXi", {
 })
 
 # the navigator: unit 1 the MFD, unit 2 the PFD, each with its FMS keys and knob; the RANGE knob and joystick on the
-# MFD, with SHIFT the PFD's, on its inset map
+# MFD, with SHIFT the PFD's, on its inset map.
+#
+# The NXi's required vertical speed, the VSR its PFD shows, for VNV with an autopilot without VNAV (the C182T's KAP
+# 140, parts.descent): Working Title's GarminVNavComputer.ts (garminsdk/autopilot/vnav) writes it to
+# L:WTAP_VNAV_Required_VS (0 for none, below 0 for a descent) while the flight plan has an altitude constraint ahead.
+# The NXi's MFD (WTG1000_MFD.tsx) runs that computer with its own autopilot every frame, also with a KAP 140 installed
+# (G1000Autopilot.ts then only clears its FMA), so it is taken to be written there too.
 NAVIGATOR = part("g1000", "G1000 NXi", "navigator",
                  {1: {**_UNIT, **_fms("MFD"), **_range("MFD"), **_range("PFD", "S_")}, 2: {**_UNIT, **_fms("PFD")}},
-                 {})
+                 {}, DISTANCES=(parts.GPS_DISTANCE,), REQUIRED_VS="(L:WTAP_VNAV_Required_VS, feet per minute)")

@@ -12,7 +12,19 @@ import pytest
 
 from mobiflight import __main__ as cli
 from mobiflight import profile
-from mobiflight.families import AUTOPILOTS, COCKPITS, FAMILIES, NAVIGATORS, UNIT_NAVIGATORS, every_part, part
+from mobiflight.families import (
+    ALONE_DISTANCES,
+    AUTOPILOTS,
+    COCKPITS,
+    FAMILIES,
+    NAVIGATORS,
+    UNIT_NAVIGATORS,
+    every_part,
+    navigators,
+    part,
+    parts,
+)
+from mobiflight.families.black_square_bonanza import KFC150_VNV
 from mobiflight.families.rpn import h, k
 from sim import Sim
 
@@ -89,11 +101,12 @@ def test_every_button_is_mapped_or_listed_as_unmapped(key):
 # a code's tokens: a variable, read as (A:NAME:INDEX, unit) or (L:NAME, unit) or set as (>X:NAME) or
 # (>A:NAME:INDEX, unit), a number or an operator
 TOKEN = re.compile(r"\([^()]*\)|[^\s()]+")
-READ = re.compile(r"\((?:(?:A:([A-Z0-9 ]+(?::[1-9])?)|(L:[A-Za-z0-9_]+)), [A-Za-z]+|(B:[A-Z0-9_]+))\)")
+READ = re.compile(r"\((?:(?:A:([A-Z0-9 ]+(?::[1-9])?)|(L:[A-Za-z0-9_]+)), [A-Za-z][A-Za-z ]*|(B:[A-Z0-9_]+))\)")
 WRITE = re.compile(r"\(>(?:(K:[A-Z0-9_]+|H:[A-Za-z0-9_]+|L:[A-Za-z0-9_]+|B:[A-Z0-9_]+_Set)|(A:[A-Z ]+:[1-9]), Enum)\)")
 REGISTER = re.compile(r"(sp|s|l)([0-9])")         # a register: store and pop, store, load
 NUMBER = re.compile(r"[0-9]+(?:\.[0-9]+)?|0x[0-9A-F]+")
-VALUE = re.compile(NUMBER.pattern + r"|[-+!<>%*]|==|abs|min|max|dnor|near|if\{|els\{|\}|" + REGISTER.pattern)
+VALUE = re.compile(NUMBER.pattern + r"|[-+!<>%*/]|==|and|neg|abs|min|max|dnor|near|if\{|els\{|\}|" +
+                   REGISTER.pattern)
 
 
 def sets(token):
@@ -121,10 +134,12 @@ def run(code, variables=()):
     code: sN keeps the top of the stack in N, spN takes it there, lN puts it back."""
     variables, stack, out, registers = dict(variables), [], [], {}
     binary = {"+": lambda x, y: x + y, "-": lambda x, y: x - y, "%": lambda x, y: x % y, "*": lambda x, y: x * y,
-              ">": lambda x, y: x > y, "<": lambda x, y: x < y,
-              "==": lambda x, y: x == y, "min": min, "max": max}
+              "/": lambda x, y: x / y, ">": lambda x, y: x > y, "<": lambda x, y: x < y,
+              "==": lambda x, y: x == y, "and": lambda x, y: bool(x and y),
+              "min": min, "max": max}
     # near rounds half up, as the SDK's RPN page says (Python's round() goes to the even number)
-    unary = {"!": lambda x: not x, "near": lambda x: math.floor(x + 0.5), "dnor": lambda x: x % 360, "abs": abs}
+    unary = {"!": lambda x: not x, "near": lambda x: math.floor(x + 0.5), "dnor": lambda x: x % 360, "abs": abs,
+             "neg": lambda x: -x}
 
     def block(tokens, live):
         """Runs the tokens up to the } that closes their block, if live, and returns the ones after it"""
@@ -187,12 +202,23 @@ def test_codes_are_well_formed(key):
 
 def unit(variable):
     """The unit a variable is read in: degrees for a heading or course, millibars for the altimeter's setting,
-    number for an index, the G1000's CDI source, a dimmer or a selector, enum for a state, bool for a flag"""
+    feet for an altitude, knots for the ground speed, nmiles for the GPS's distance, number for an index, the
+    G1000's CDI source, a dimmer, a selector or an L: variable's distance, feet per minute for a rate, enum for a
+    state, bool for a flag"""
     if re.search(r"HEADING|OBS|RADIAL|NAV LOCALIZER", variable):
         return "degrees"
     if variable.startswith("KOHLSMAN SETTING MB"):
         return "millibars"
-    if variable.endswith(("SELECTED", "PFD_CDI_Source", "LightingKnob", "dmeMode", "RadarTilt")):
+    if variable in ("INDICATED ALTITUDE", "AUTOPILOT ALTITUDE LOCK VAR"):
+        return "feet"
+    if variable == "GROUND VELOCITY":
+        return "knots"
+    if variable == "GPS WP DISTANCE":
+        return "nmiles"
+    if variable.endswith("Required_VS"):
+        return "feet per minute"
+    if variable.endswith(("SELECTED", "PFD_CDI_Source", "LightingKnob", "dmeMode", "RadarTilt", "DistanceNM",
+                          "RNAV_DME")):
         return "number"
     return "enum" if variable.endswith("STATE") else "bool"
 
@@ -255,7 +281,7 @@ def test_h_events_go_to_their_unit(key):
     for device, button, _, code in codes(key):
         for name in re.findall(r"\(>H:(\w+)\)", code):
             assert name.startswith(PREFIXES[key][device]), (device, button, name)
-        assert "TDSGTNXI" not in code, (device, button)         # TDS's GTN by its key events, everywhere
+        assert "(>L:TDSGTNXI" not in code, (device, button)     # TDS's GTN by its key events (VNV reads one)
 
 
 def writes(code):
@@ -378,6 +404,8 @@ SOURCES = {
     "H:GTN750_": _PMS50,
     "H:GTN650_": _PMS50,
     "L:AvionicsPanel_": "the profiles' own",
+    "L:TDSGTNXI_": "TDS's GTNXi manual (Reading specific TDS GTNXi Data)",
+    "L:WTAP_": "Working Title's VNAV (sdk/autopilot/vnav/VNavEvents.ts)",
     **dict.fromkeys(("H:KLN90B_", "H:kas297b_", "H:bksq_", "H:adf_", "H:TRANSPONDER_Push_", "L:var_", "L:bksq_",
                      "L:OatMapCompassLightButton_"), _BLACK_SQUARE),
 }
@@ -615,7 +643,10 @@ SETS = {
         PAN_UP=K:COM1_VOLUME_INC PROC=H:AS530_PROC_Push PROC@2=H:AS430_PROC_Push RANGE_CCW=H:AS530_RNG_Zoom
         RANGE_CW=H:AS530_RNG_Dezoom S_DN=H:KAP140_Push_DN S_ENT=H:AS530_ENT_Push S_ENT@2=H:AS430_ENT_Push
         S_PAN_DN=K:COM2_VOLUME_DEC S_PAN_UP=K:COM2_VOLUME_INC S_RANGE_CCW=H:AS430_RNG_Zoom S_RANGE_CW=H:AS430_RNG_Dezoom
-        S_UP=H:KAP140_Push_UP UP=H:KAP140_Push_UP VNAV=H:AS530_VNAV_Push XPDR_MODE=1,1,4,A:TRANSPONDER_STATE:1
+        S_UP=H:KAP140_Push_UP S_VNV=-,0,300,0,0,30,60,0,100,0,K:AP_PANEL_VS_ON,100,100,300,1500,K:AP_VS_VAR_SET_ENGLISH
+        UP=H:KAP140_Push_UP VNAV=H:AS530_VNAV_Push
+        VNV=-,0,300,0,0,30,60,0,100,0,K:AP_PANEL_VS_ON,100,100,300,1500,K:AP_VS_VAR_SET_ENGLISH
+        XPDR_MODE=1,1,4,A:TRANSPONDER_STATE:1
     """,
     "gtn": """
         ADF_SWAP=K:ADF1_RADIO_SWAP ADF_SWAP@2=K:ADF1_RADIO_SWAP ALT=H:KAP140_Push_ALT
@@ -635,7 +666,10 @@ SETS = {
         PAN_UP=4,K:GPS_BUTTON2 PTR=2,K:GPS_BUTTON1/4,K:GPS_BUTTON1 RANGE_CCW=0,K:GPS_PAGE_KNOB_INC
         RANGE_CW=0,K:GPS_PAGE_KNOB_DEC S_DN=H:KAP140_Push_DN S_PAN_DN=26,K:GPS_BUTTON2 S_PAN_UP=28,K:GPS_BUTTON2
         S_PTR=26,K:GPS_BUTTON1/28,K:GPS_BUTTON1 S_RANGE_CCW=24,K:GPS_PAGE_KNOB_INC S_RANGE_CW=24,K:GPS_PAGE_KNOB_DEC
-        S_UP=H:KAP140_Push_UP UP=H:KAP140_Push_UP XPDR_MODE=1,1,4,A:TRANSPONDER_STATE:1
+        S_UP=H:KAP140_Push_UP
+        S_VNV=0,-,0,300,0,0,30,60,0,100,0,K:AP_PANEL_VS_ON,100,100,300,1500,K:AP_VS_VAR_SET_ENGLISH UP=H:KAP140_Push_UP
+        VNV=0,-,0,300,0,0,30,60,0,100,0,K:AP_PANEL_VS_ON,100,100,300,1500,K:AP_VS_VAR_SET_ENGLISH
+        XPDR_MODE=1,1,4,A:TRANSPONDER_STATE:1
     """,
     BONANZA: """
         ADF_SWAP=H:adf_frqTransfert ADF_SWAP@2=H:adf_frqTransfert ALT=K:AP_ALT_HOLD ALT_1000_DN=H:kas297b_1000_DEC
@@ -688,8 +722,9 @@ SETS = {
         S_RANGE_CW=H:AS430_RNG_Dezoom,8,K:GPS_PAGE_KNOB_DEC,24,K:GPS_PAGE_KNOB_DEC,H:GTN650_KnobSmallDec
         S_UP=H:bksq_JpiButton_1_L_Short/H:bksq_JpiButton_1_L_Long S_VNV=H:adf_bfo S_VS=H:kas297b_VsButton TERR=K:GPS_OBS
         TEST=20,L:var_AutopilotStartupCounter,1,L:var_md41Test/0,L:var_md41Test
-        UP=100,K:AP_ALT_VAR_INC,K:AP_VS_VAR_INC,K:AP_PITCH_REF_INC_UP VNAV=H:AS530_VNAV_Push VS=H:kas297b_VsButton
-        XPDR_MODE=1,H:TRANSPONDER_Push_STBY,H:TRANSPONDER_Push_ALT YD=K:YAW_DAMPER_TOGGLE
+        UP=100,K:AP_ALT_VAR_INC,K:AP_VS_VAR_INC,K:AP_PITCH_REF_INC_UP VNAV=H:AS530_VNAV_Push
+        VNV=0,0,-,0,300,0,0,30,60,0,100,100,100,300,1500,K:AP_VS_VAR_SET_ENGLISH,H:kas297b_VsButton
+        VS=H:kas297b_VsButton XPDR_MODE=1,H:TRANSPONDER_Push_STBY,H:TRANSPONDER_Push_ALT YD=K:YAW_DAMPER_TOGGLE
     """,
     "cows-da40": """
         ADF_SWAP=K:ADF1_RADIO_SWAP ADF_SWAP@2=K:ADF1_RADIO_SWAP ALT=K:AP_ALT_HOLD ALT_1000_DN=1000,K:AP_ALT_VAR_DEC
@@ -768,8 +803,11 @@ SETS = {
         S_PAN_DN=H:AS1000_PFD_JOYSTICK_DOWN S_PAN_LEFT=H:AS1000_PFD_JOYSTICK_LEFT
         S_PAN_RIGHT=H:AS1000_PFD_JOYSTICK_RIGHT S_PAN_UP=H:AS1000_PFD_JOYSTICK_UP S_PTR=H:AS1000_PFD_JOYSTICK_PUSH
         S_RANGE_CCW=H:AS1000_PFD_RANGE_DEC S_RANGE_CW=H:AS1000_PFD_RANGE_INC S_UP=H:KAP140_Push_UP
+        S_VNV=-,300,0,0,30,60,0,100,0,K:AP_PANEL_VS_ON,100,100,300,1500,K:AP_VS_VAR_SET_ENGLISH
         TERR=H:AS1000_MFD_SOFTKEYS_12 TERR@2=H:AS1000_MFD_SOFTKEYS_12 UP=H:KAP140_Push_UP VNAV=H:AS1000_MFD_SOFTKEYS_10
-        VNAV@2=H:AS1000_MFD_SOFTKEYS_10 XPDR_MODE=1,1,4,A:TRANSPONDER_STATE:1
+        VNAV@2=H:AS1000_MFD_SOFTKEYS_10
+        VNV=-,300,0,0,30,60,0,100,0,K:AP_PANEL_VS_ON,100,100,300,1500,K:AP_VS_VAR_SET_ENGLISH
+        XPDR_MODE=1,1,4,A:TRANSPONDER_STATE:1
     """,
 }
 
@@ -974,6 +1012,143 @@ def test_the_kfc_150_rocker_steps_the_reference_of_the_mode():
         variables = dict(zip(modes, on, strict=True))
         for button, sent in (("UP", up), ("DN", down)):
             assert run(table[button], variables) == ([(f"K:{sent[0]}", sent[1])] if sent else [])
+
+
+# VNV's descent calculator in the autopilots without VNAV: by table, what enters VS (the KAP 140's event, before the
+# rate; the KAS 297B's VS ENG key, after it) and the flags of the autopilot engaged in ALT hold, where it enters VS,
+# in VS, where it does not, and off, where the KFC 150's VS ENG would set the flight director's mode and the KAP 140
+# is in no ALT hold to leave
+_AP = {"AUTOPILOT MASTER": 1, "AUTOPILOT PITCH HOLD": 0, "AUTOPILOT GLIDESLOPE ACTIVE": 0}
+_OFF = {"AUTOPILOT MASTER": 0, "AUTOPILOT ALTITUDE LOCK": 0, "AUTOPILOT VERTICAL HOLD": 0, "AUTOPILOT PITCH HOLD": 0,
+        "AUTOPILOT GLIDESLOPE ACTIVE": 0}
+_IN_ALT = {**_AP, "AUTOPILOT ALTITUDE LOCK": 1, "AUTOPILOT VERTICAL HOLD": 0}
+_IN_VS = {**_AP, "AUTOPILOT ALTITUDE LOCK": 0, "AUTOPILOT VERTICAL HOLD": 1}
+KAP140_VS = (("K:AP_PANEL_VS_ON", 0), "before")
+KFC150_VS = (("H:kas297b_VsButton", None), "after")
+VNV = {"gns": KAP140_VS, "gtn": KAP140_VS, "carenado-c182t": KAP140_VS, "autopilot-kap140": KAP140_VS,
+       BONANZA: KFC150_VS, "autopilot-kfc150": KFC150_VS}
+
+
+def vnv_sends(key, rate, engages=True):
+    """What VNV or SHIFT, VNV sends in this table for a rate (None: nothing), entering VS or not"""
+    if rate is None:
+        return []
+    (engage, where), set_vs = VNV[key], ("K:AP_VS_VAR_SET_ENGLISH", rate)
+    if not engages:
+        return [set_vs]
+    return [engage, set_vs] if where == "before" else [set_vs, engage]
+
+
+def flight(altitude=8000, selected=4000, speed=120, tds=0, gps=0, **more):
+    """The variables VNV and SHIFT, VNV read: the altimeter's and the selected altitude (ft), the ground speed (kt),
+    TDS's GTNXi's and the GPS's distance to the active waypoint (nm), and more of them by name"""
+    return {"INDICATED ALTITUDE": altitude, "AUTOPILOT ALTITUDE LOCK VAR:1": selected, "GROUND VELOCITY": speed,
+            "L:TDSGTNXI_NextWaypointDistanceNM": tds, "GPS WP DISTANCE": gps, "L:var_rnavDrivesHsi": 0,
+            "L:var_RNAV_DME": 0, "L:WTAP_VNAV_Required_VS": 0, **more}
+
+
+@pytest.mark.parametrize("key", sorted(VNV))
+def test_vnv_sets_the_rate_to_the_selected_altitude_at_the_waypoint(key):
+    # (selected - altitude) / (distance / ground speed in minutes), rounded to 100 ft/min and kept between 300 and
+    # 1500 ft/min, down only; VS entered unless it is on; nothing without a distance, at 30 knots or less, or unless
+    # the selected altitude is more than 100 ft below
+    code = TABLES[key].DEVICE[1]["VNV"]
+    for case, rate in ((flight(gps=20), -400),                                    # 4000 ft in 10 min
+                       (flight(9000, 4000, 140, gps=20), -600),                    # 583 ft/min, rounded
+                       (flight(gps=5), -1500),                                     # 3000 ft/min, clamped
+                       (flight(5000, 4000, 100, gps=20), -300),                    # 83 ft/min, clamped
+                       (flight(3000, 7500, gps=10), None),                         # a climb
+                       (flight(3000, 3500, 100, gps=20), None),
+                       (flight(), None),                                           # no distance
+                       (flight(gps=-1), None),
+                       (flight(speed=30, gps=20), None),                           # too slow
+                       (flight(speed=0, gps=20), None),
+                       (flight(4080, 4000, gps=20), None),                         # at the selected altitude
+                       (flight(3920, 4000, gps=20), None),
+                       (flight(4000, 4000, gps=20), None)):
+        assert run(code, {**case, **_IN_ALT}) == vnv_sends(key, rate), (case, rate)
+        assert run(code, {**case, **_IN_VS}) == vnv_sends(key, rate, False), (case, rate)   # VS is on: the rate
+        assert run(code, {**case, **_OFF}) == vnv_sends(key, rate, False), (case, rate)     # off: the rate alone
+        if VNV[key] == KFC150_VS:                                             # in pitch mode: VS ENG
+            pitch = {**_AP, "AUTOPILOT ALTITUDE LOCK": 0, "AUTOPILOT VERTICAL HOLD": 0, "AUTOPILOT PITCH HOLD": 1}
+            assert run(code, {**case, **pitch}) == vnv_sends(key, rate), (case, rate)
+            glideslope = {**pitch, "AUTOPILOT GLIDESLOPE ACTIVE": 1}               # on a glideslope: not
+            assert run(code, {**case, **glideslope}) == vnv_sends(key, rate, False), (case, rate)
+
+
+@pytest.mark.parametrize("key", sorted(VNV))
+def test_vnv_takes_the_first_distance_above_0(key):
+    # TDS's GTNXi's where a TDS GTN is fitted (or the autopilot part alone does not know), then the GPS's (Working
+    # Title's GNS and G1000 NXi write it); in the Bonanza first the KNS 81's RNAV distance, while the HSI shows RNAV
+    code = TABLES[key].DEVICE[1]["VNV"]
+
+    def rate(**case):
+        return [v for name, v in run(code, flight(**case, **_IN_VS)) if name == "K:AP_VS_VAR_SET_ENGLISH"]
+    if key in ("gns", "carenado-c182t"):                    # the GPS alone: a TDS variable there is left over
+        assert rate(tds=20, gps=40) == [-300] and rate(tds=20) == []
+        return
+    assert rate(tds=20, gps=40) == [-400]
+    assert rate(tds=0, gps=40) == [-300]                    # 4000 ft in 20 min, clamped to 300
+    assert rate(tds=-1, gps=10) == [-800]
+    rnav = {"L:var_rnavDrivesHsi": 1, "L:var_RNAV_DME": 10}
+    assert rate(tds=20, **rnav) == ([-800] if key == BONANZA else [-400])   # the Bonanza's own KNS 81
+    assert rate(tds=20, **{**rnav, "L:var_rnavDrivesHsi": 0}) == [-400]
+
+
+def test_vnv_reads_the_distances_of_the_navigators_it_is_composed_with():
+    # unit 1's first (a GNS's, PMS50's GTN's and the NXi's: the GPS's; a TDS GTN's: TDS's), then unit 2's, then the
+    # GPS's if neither gave it; none adds nothing
+    def reads(unit1, unit2):
+        family = part.compose("x", AUTOPILOTS["kap140"], COCKPITS["bendix-king"], *navigators(unit1, unit2))
+        vnv = family.DEVICE[1]["VNV"]
+        return sorted((d for d in ("TDSGTNXI", "GPS WP DISTANCE") if d in vnv), key=vnv.index)
+    assert reads("gns530", "gtn650-tds2") == ["GPS WP DISTANCE", "TDSGTNXI"]
+    assert reads("gtn750-tds1", "gns430") == reads("gtn750-tds1", "none") == ["TDSGTNXI", "GPS WP DISTANCE"]
+    assert reads("gtn750-pms50", "none") == reads("gns530", "gns430") == reads("none", "none") == ["GPS WP DISTANCE"]
+    assert "TDSGTNXI" in AUTOPILOTS["kap140"].DEVICE[1]["VNV"]            # alone: it cannot know
+    # the NXi's required vertical speed, with its navigator whatever the profile; the KFC 150 without the KNS 81
+    nxi = part.compose("x", AUTOPILOTS["kap140"], COCKPITS["g1000"], NAVIGATORS["g1000"]).DEVICE[1]["VNV"]
+    assert nxi == FAMILIES["carenado-c182t"].DEVICE[1]["VNV"] and "WTAP_VNAV_Required_VS" in nxi
+    assert not any("WTAP" in p.DEVICE[1].get("VNV", "") for p in AUTOPILOTS.values())
+    assert "RNAV" not in AUTOPILOTS["kfc150"].DEVICE[1]["VNV"] and "RNAV" in FAMILIES[BONANZA].DEVICE[1]["VNV"]
+
+
+def test_an_autopilot_part_alone_reads_every_navigators_distance():
+    # the parts zip's kap140 and kfc150 cannot know the navigator: every distance a navigator gives, then the GPS's
+    declared = {d for make in UNIT_NAVIGATORS.values() for unit in (1, 2) for d in make(unit).DISTANCES}
+    declared |= {d for p in NAVIGATORS.values() for d in getattr(p, "DISTANCES", ())}
+    assert set(ALONE_DISTANCES) == declared and ALONE_DISTANCES[-1] == part.GPS_DISTANCE
+    assert len(ALONE_DISTANCES) == len(declared) > 1
+    for key, vnv in (("kap140", parts.KAP140_VNV), ("kfc150", KFC150_VNV)):
+        assert AUTOPILOTS[key].DEVICE[1]["VNV"] == vnv(distances=ALONE_DISTANCES), key
+
+
+def test_the_c182t_vnv_takes_the_g1000_nxis_required_rate_first():
+    # the NXi's VSR, rounded and clamped, when it descends at 300 ft/min or more; else the calculation
+    code = FAMILIES["carenado-c182t"].DEVICE[1]["VNV"]
+    for vsr, case, rate in ((-650, flight(gps=20), -700), (-650, flight(), -700), (-2000, flight(), -1500),
+                            (-300, flight(gps=20), -300), (-300, flight(), -300),
+                            (-20, flight(gps=20), -400), (-250, flight(gps=20), -400),   # a constraint far ahead
+                            (-20, flight(), None),
+                            (650, flight(gps=20), -400),             # a climb: the calculation
+                            (650, flight(), None), (0, flight(gps=20), -400), (900, flight(3000, 7500), None),
+                            (-650, flight(3950, 4000, gps=20), None), (-650, flight(3000, 4000, gps=20), None)):
+        sent = [("K:AP_VS_VAR_SET_ENGLISH", rate)] if rate else []
+        assert run(code, {**case, **_IN_VS, "L:WTAP_VNAV_Required_VS": vsr}) == sent, (vsr, case)
+    # the KAP 140 part, as in the GNS and GTN profiles, has no VSR
+    assert "WTAP" not in FAMILIES["gns"].DEVICE[1]["VNV"] + PARTS["autopilot-kap140"].DEVICE[1]["VNV"]
+
+
+@pytest.mark.parametrize("key", sorted(set(VNV) - {BONANZA}))
+def test_shift_vnv_is_vnv(key):
+    # VNV has no amber legend: a stray SHIFT changes nothing (controls.md), also in a profile joined from the parts
+    assert TABLES[key].DEVICE[1]["S_VNV"] == TABLES[key].DEVICE[1]["VNV"]
+    joined = part.compose("x", AUTOPILOTS["kap140"], COCKPITS["bendix-king"], *navigators("gtn750-tds1", "gns430"))
+    assert joined.DEVICE[1]["S_VNV"] == joined.DEVICE[1]["VNV"]
+
+
+def test_the_bonanza_keeps_shift_vnv_for_the_kr_87s_bfo():
+    assert FAMILIES[BONANZA].DEVICE[1]["S_VNV"] == h("adf_bfo")
 
 
 # the dimmers of the aircraft that know theirs: each ring's first variable (as read), what it sets alike and the
@@ -1409,8 +1584,8 @@ def test_any_parts_make_a_whole_profile():
         (unit(a, 1), unit(b, 2)) for a in [*UNIT_NAVIGATORS, "none"] for b in [*UNIT_NAVIGATORS, "none"]]
     for autopilot in AUTOPILOTS.values():
         for cockpit in COCKPITS.values():
-            for navigators in pairs:
-                whole = part.compose("x", autopilot, cockpit, *navigators)
+            for units in pairs:
+                whole = part.compose("x", autopilot, cockpit, *units)
                 for device in (1, 2):
                     assert set(whole.DEVICE[device]) | set(whole.UNMAPPED[device]) == set(BM.DEVICE[device])
     with pytest.raises(ValueError, match="needs one autopilot, one cockpit"):
