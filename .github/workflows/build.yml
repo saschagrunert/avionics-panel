@@ -117,8 +117,8 @@ jobs:
           if-no-files-found: error
           # the release keeps its own copy; a run's zip is only for trying a change
           retention-days: 7
-  # The profile of every family in mobiflight/families/, bound to no joysticks: MobiFlight asks for both when it
-  # opens one (docs/using/mapping.md#generated-profiles).
+  # The profile of every family in mobiflight/families/ and a zip with a project of every avionics part, bound to
+  # no joysticks: MobiFlight asks for both when it opens one (docs/using/mapping.md#generated-profiles).
   profiles:
     name: MobiFlight profiles
     runs-on: ubuntu-24.04
@@ -134,10 +134,13 @@ jobs:
           for family in $families; do
             python3 -m mobiflight --family "$family" -o "avionics-panel-$family.mfproj"
           done
+          python3 -m mobiflight --parts-zip avionics-panel-parts.zip
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: avionics-panel-mobiflight
-          path: avionics-panel-*.mfproj
+          path: |
+            avionics-panel-*.mfproj
+            avionics-panel-parts.zip
           if-no-files-found: error
           retention-days: 7
   # The simulator's Windows code on Windows: the vJoy and keystroke outputs, against stand-ins for the DLLs, the
@@ -280,7 +283,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.event.release.tag_name }}
         run: |
-          gh release upload "$TAG" avionics-panel-sim-windows.zip avionics-panel-*.mfproj \
+          gh release upload "$TAG" avionics-panel-sim-windows.zip avionics-panel-*.mfproj avionics-panel-parts.zip \
             --repo "$GITHUB_REPOSITORY" --clobber
   # Keeps the files of the newest commit on main that passed at releases/download/rolling/<file>. The first run
   # makes the release "Latest build" and its tag rolling; each run replaces the files, names its commit in their
@@ -328,7 +331,7 @@ jobs:
           # and a ref it moves starts no workflow
           gh api -X PATCH "repos/$GH_REPO/git/refs/tags/rolling" -f sha="$GITHUB_SHA" -F force=true >/dev/null
           # every file to download, built in this workflow, goes up in this one call, labelled with the commit
-          names=(avionics-panel-sim-windows.zip avionics-panel-*.mfproj)
+          names=(avionics-panel-sim-windows.zip avionics-panel-*.mfproj avionics-panel-parts.zip)
           files=()
           for file in "${names[@]}"; do
             files+=("$file#$file ($short)")

@@ -33,3 +33,6 @@ THR = "THR"                       # the router's clearance threshold in cells
 THR_VIA = "THR_VIA"
 rin = "rin"                       # R_IN's node in the USB protection diagram
 GPn = "GPn"                       # a GPIO by its number
+
+[default.extend-words]
+PEDESTRAL = "PEDESTRAL"           # the simulator's own spelling: its input event LIGHTING_PEDESTRAL_1 (the C182T's)

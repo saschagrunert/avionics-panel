@@ -14,18 +14,22 @@ from MobiFlight's presets. Or map the buttons by hand: [Two joysticks](#two-joys
 
 ## Generated profiles
 
-Ready projects for MSFS 2024 and MobiFlight 11.2 or newer map both joysticks, one avionics family each. The
-steps below follow MobiFlight 11.3. The families, with the profile to download:
+Ready projects for MSFS 2024 and MobiFlight 11.2 or newer map both joysticks, for one avionics family or one
+aircraft each. The steps below follow MobiFlight 11.3. The profiles to download:
 
 - [G1000 NXi](#g1000-nxi): [avionics-panel-g1000.mfproj][g1000]
 - [GFC 500 and G3X Touch](#gfc-500-and-g3x-touch): [avionics-panel-g3x.mfproj][g3x]
 - [GNS 530/430](#gns-530430) with the KAP 140, also for KX 155/165 radios without a GNS:
   [avionics-panel-gns.mfproj][gns]
 - [TDS GTN 750Xi and 650Xi](#tds-gtn-750xi-and-650xi) with the KAP 140: [avionics-panel-gtn.mfproj][gtn]
-- [KFC 150 (Black Square)](#kfc-150-black-square), the KFC 150 and KAS 297B with a GNS 530/430 or a GTN
-  750/650: [avionics-panel-kfc150.mfproj][kfc150]
+- [Black Square Bonanza](#black-square-bonanza), its KFC 150 and KAS 297B with every avionics selection of its
+  tablet: [avionics-panel-black-square-bonanza.mfproj][bonanza] (formerly the KFC 150 profile,
+  `avionics-panel-kfc150.mfproj` and `--family kfc150`)
+- [COWS DA40](#cows-da40), the G1000 NXi with its autopilot: [avionics-panel-cows-da40.mfproj][da40]
+- [Carenado C182T](#carenado-c182t), the G1000 with the KAP 140: [avionics-panel-carenado-c182t.mfproj][c182t]
 
-The downloads are on the release [Latest build][rolling]. To use one:
+For other avionics, join [avionics parts](#avionics-parts) instead. The downloads are on the release [Latest
+build][rolling]. To use one:
 
 1. Install MobiFlight 11.2 or newer. Every command of the profiles goes through MobiFlight's WASM module in
    the sim's Community folder: when MobiFlight offers it, choose Install Now with the sim closed (later:
@@ -56,8 +60,9 @@ nothing else. MobiFlight knows a joystick by its GUID, so let it find them:
 3. Download this repository (on GitHub: Code, Download ZIP) and unpack it. On Windows, install Python 3 from
    [python.org](https://www.python.org/downloads/).
 4. Open the folder that holds `mobiflight` (Extract All puts it one level down, in `avionics-panel-main`),
-   right-click an empty spot and choose Open in Terminal. There, generate the project of your family
-   (`--family g1000`, `g3x`, `gns`, `gtn` or `kfc150`), here the G1000 (into `g1000.mfproj`). On Windows:
+   right-click an empty spot and choose Open in Terminal. There, generate the project of your profile
+   (`--family g1000`, `g3x`, `gns`, `gtn`, `black-square-bonanza`, `cows-da40` or `carenado-c182t`), here the
+   G1000 (into `g1000.mfproj`), or of your [avionics parts](#avionics-parts). On Windows:
 
    ```bat
    py -m mobiflight --family g1000 --from "C:\path\to\guids.mfproj"
@@ -170,25 +175,28 @@ real units:
   as on the G1000. With SHIFT it sets the course of NAV 1 and the altimeter, not the KAP 140's own BARO.
 - CRS CTR (SHIFT, HDG) sets the course of NAV 1 to its VOR or localizer; the KAP 140 cockpit's CDI has no
   such push.
-- RANGE is the GNS 530's RNG key, and SHIFT, RANGE the GNS 430's, in both units.
+- RANGE is the GNS 530's RNG key, and SHIFT, RANGE the GNS 430's, in both units. Tilted up and down, the RANGE
+  knob sets the volume of COM 1 (the GNS 530's volume knob), and with SHIFT that of COM 2.
 - The XPDR mode push turns the KT 76's mode knob: to ALT from OFF or SBY, to SBY from any other position.
 
 Does nothing in this profile: TEST, FD, YD, VS, FLC, VNV, LVL, GPSS and ½ BANK (the KAP 140 has none of these
 keys; it engages in VS, and UP and DN set the rate), ARM (the sim's KAP 140 does nothing on it), HOME (the GNS
-has none), NRST and TERR (the GNS has pages for them, not keys), the map's pan and PTR (the GNS has no
-joystick), VNAV in unit 2 (the GNS 430 has none), the dimmers.
+has none), NRST and TERR (the GNS has pages for them, not keys), the RANGE knob tilted left or right and PTR
+(the GNS has no joystick), VNAV in unit 2 (the GNS 430 has none), the dimmers.
 
 ### TDS GTN 750Xi and 650Xi
 
-The KAP 140 cockpit of the [GNS profile](#gns-530430) with TDS's GTN 750Xi as unit 1 and GTN 650Xi as unit 2.
-Aircraft that load the 650Xi as unit 1, as Black Square's do, are not covered: there the 650Xi's bezel does
-nothing in unit 2; the [KFC 150 profile](#kfc-150-black-square) covers the Bonanza's. TDS takes only the bezel
+The KAP 140 cockpit of the [GNS profile](#gns-530430) with TDS's GTN 750Xi as unit 1 and GTN 650Xi as unit 2,
+which TDS numbers as its GTN 750Xi unit 1 and GTN 650Xi unit 2. For an aircraft that loads them otherwise, as
+a GTN 650Xi unit 1 beside the GTN 750Xi, join [avionics parts](#avionics-parts) with the GTN of TDS's unit it
+has; the [Black Square Bonanza profile](#black-square-bonanza) covers the Bonanza's. TDS takes only the bezel
 from outside, so the profile sends HOME, D→, the FMS knob and its push; held, the push flips the frequencies.
-RANGE turns the GTN 750Xi's inner knob the other way round, as Garmin's touchscreen units zoom in clockwise
-(assumed for the GTN): so clockwise zooms the map out on the map page, as on the GNS and the G1000. On other
-pages it works as the FMS knob's inner ring does there, the other way round. SHIFT with the RANGE knob works
-the GTN 750Xi's volume knob: turned, the volume; pushed, squelch. The panel sends the RANGE push as a tap, so
-holding it does not tune 121.5: SHIFT, COM ⇆ (121.5) does.
+The RANGE knob works the GTN 750Xi, and with SHIFT the GTN 650Xi. Turned, it turns the GTN's inner knob the
+other way round, as Garmin's touchscreen units zoom in clockwise (assumed for the GTN): so clockwise zooms the
+map out on the map page, as on the GNS and the G1000; on other pages it works as the FMS knob's inner ring
+does there, the other way round. Tilted up and down, it turns the GTN's volume knob; pushed, it is the volume
+knob's push, squelch. The panel sends the RANGE push as a tap, so holding it does not tune 121.5: SHIFT, COM ⇆
+(121.5) does.
 
 COM ⇆ and NAV ⇆ are the sim's flip-flops, as the GTN has no such keys. TDS says the GTNs control the sim's COM
 and NAV radios; if a frequency set with the FREQ knob does not show on the GTN, tune it there with the FMS
@@ -196,19 +204,20 @@ knob, whose push toggles between COM and NAV. The XPDR mode push works the cockp
 simulator's variable; a transponder that the GTN runs itself may not follow it.
 
 Does nothing in this profile: TEST, FD, YD, VS, FLC, VNV, LVL, GPSS, ½ BANK and ARM (as in the GNS profile),
-FPL, PROC, MENU, CLR, ENT, MSG, NRST, TERR, VNAV, MAP, CDI, OBS, PTR without SHIFT, the map's pan (on the
+FPL, PROC, MENU, CLR, ENT, MSG, NRST, TERR, VNAV, MAP, CDI, OBS, the RANGE knob tilted left or right (on the
 touchscreen), the dimmers.
 
-### KFC 150 (Black Square)
+### Black Square Bonanza
 
 Black Square's Bonanza with the Bendix/King KFC 150 and the KAS 297B altitude selector, by the inputs Black
 Square's guide lists for home cockpits, for every avionics selection on the options page of its tablet. Unit 1
 is the primary selection (KX 155B, KLN 90B, GNS 530 or GTN 750) with COM 1 / NAV 1, unit 2 the secondary (KX
 155B, GNS 430 or GTN 650) with COM 2 / NAV 2, and either GTN is PMS50's or TDS's. A control sends the inputs
-of every navigator its unit may hold at once (the GNS's as in the GNS profile); each takes only its own, so
-the profile works with whatever the tablet selected, without a change. With a GTN, of the FMS keys only HOME,
-D→, the FMS knob and its push work, the rest is on its touchscreen; with a GNS, HOME does nothing. Differences
-from the real units:
+of every navigator its unit may hold at once (the GNS's as in the GNS profile, TDS's GTN by TDS's own key
+events as in the GTN profile, the GTN 650 as either of TDS's units); each takes only its own, so the profile
+works with whatever the tablet selected, without a change. With a GTN, of the FMS keys only HOME, D→, the FMS
+knob and its push work, the rest is on its touchscreen; with a GNS, HOME does nothing. Differences from the
+real units:
 
 - The ALT/HDG knob sets the KAS 297B's altitude (or its rate while its knob is pulled in the cockpit) and the
   heading bug, and its push syncs the bug to the heading. With SHIFT it sets the course of NAV 1 and the
@@ -240,18 +249,85 @@ from the real units:
 - LVL turns the KDI 572R DME's selector one position on, and from the last to the first.
 - ADF ⇆ is the KR 87's FRQ key. SHIFT, FLC presses its ADF (antenna) key and SHIFT, VNV its BFO key; its timer
   stays in the cockpit.
+- The RDR 1150XL weather radar: SHIFT with the RANGE knob tilted left and right steps its range down and up,
+  and FLC and ½ BANK (SHIFT, LVL) tilt its antenna down and up in steps of 5 % of its travel (a higher value
+  up, assumed). Its mode, gain, brightness and other keys stay in the cockpit.
 - YD sends the simulator's yaw damper event, for the aircraft that have one.
-- MIC 1 and MIC 2 also set the pilot's transmit selector, and the cabin light push toggles the pilot's and the
-  copilot's reading lights.
+- MIC 1 and MIC 2 also set the pilot's transmit selector.
 - The XPDR mode push presses the GTX 327's ALT key from OFF or SBY, its STBY key from any other mode.
-- The dimmers are the instrument lights (outer ring) and the glareshield flood lights (inner ring), in steps
-  of 5 %. Each also switches its lights on above 0 and off at 0, as the lights need their switch and their
-  dimmer.
+- The lighting is as a project the Bonanza is flown with sets it. The outer ring steps the instrument lights'
+  dimmer, and the engine instruments' and the subpanel's alike, in steps of 5 %, with the master panel
+  lighting switch on above 0 and off at 0. The inner ring steps the glareshield flood lights, with their
+  switch and the pilot's yoke map light. The lights need both their switch and their dimmer. The cabin light
+  push turns the six reading lights and the copilot's yoke map light on or off, as the pilot's reading light
+  goes.
 
-Does nothing in this profile: FLC without SHIFT, VNV without SHIFT and ½ BANK (the KFC 150 has none of these
-modes), SHIFT with the RANGE knob tilted left or right (the secondary navigator has no second knob), NRST in
-unit 2 and TERR in unit 2 (neither the GNS nor the GTN has such keys), VNAV in unit 2 (the GNS 430 and the GTN
-have none).
+Does nothing in this profile: VNV without SHIFT (the KFC 150 has no VNAV mode), NRST in unit 2 and TERR in
+unit 2 (neither the GNS nor the GTN has such keys), VNAV in unit 2 (the GNS 430 and the GTN have none).
+
+### COWS DA40
+
+The COWS DA40 (XLS and NG) with Working Title's G1000 NXi and its autopilot: the [G1000 NXi
+profile](#g1000-nxi) under the DA40's name, so a project of its own can be linked to the aircraft, with the
+same differences from the real units, and the DA40's lighting as a project it is flown with sets it: the
+dimmers are the panel lights (outer ring) and the glareshield lights (inner ring), in steps of 5 %, and the
+cabin light push turns the three cabin lights on or off.
+
+Does nothing in this profile: TEST, GPSS and ½ BANK (as in the G1000 NXi profile).
+
+### Carenado C182T
+
+Carenado's CT182T Skylane with the G1000 and the KAP 140. Both are taken to be the sim's own: its product
+pages name the "default MSFS G1000" and the "default KAP140" autopilot, and in MSFS 2024 that G1000 is Working
+Title's NXi, as users report; that its KAP 140 takes the sim's KAP 140 events is assumed. The profile has the
+KAP 140's keys and altitude knob as in the [GNS profile](#gns-530430), the G1000's cockpit and navigator as in
+the [G1000 NXi profile](#g1000-nxi), with the same differences from the real units. The ALT/HDG knob with
+SHIFT sets the PFD's CRS and BARO knobs, and the heading bug is the sim's. The C182T dims all its panel lights
+with one knob: the outer ring steps its four dimmers alike (two potentiometers, the panel and the pedestal),
+in steps of 5 %, and the cabin light push turns its two cabin lights fully on or off, as a project the C182T
+is flown with sets them.
+
+Does nothing in this profile: TEST, FD, YD, VS, FLC, VNV, LVL, GPSS, ½ BANK and ARM (as in the GNS profile), the
+flood dimmer (the C182T has one dimmer for all its panel lights).
+
+## Avionics parts
+
+For avionics the profiles above do not join, the panel's buttons come in parts. Each part covers buttons of its
+own, so one of each kind makes a whole profile:
+
+- An autopilot (the autopilot keys, UP and DN, the ALT/HDG knob's altitude and heading): `gfc700` (the G1000
+  NXi's), `gfc500` (the G3X Touch's), `kap140`, or `kfc150` (Black Square's KFC 150 and KAS 297B).
+- A cockpit (the ALT/HDG knob with SHIFT, the audio panel, transponder and lighting, the radios and ADF of both
+  units): `g1000` (the PFD's CRS and BARO knobs), `g3x`, or `bendix-king` (the course of NAV 1 and the
+  altimeter).
+- Navigators: `g1000` or `g3x` for both units, or one for each unit: `gns530`, `gns430`, TDS's GTN as TDS
+  numbers it in the aircraft (`gtn750-tds1`, `gtn750-tds2`, `gtn650-tds1`, `gtn650-tds2`), pms50's GTN
+  (`gtn750-pms50`, `gtn650-pms50`, by the events Black Square's guide lists for it), or `none` for radios
+  alone. A navigator of one unit takes that unit's keys and FMS knob and its map on the RANGE knob, without
+  SHIFT in unit 1 and with SHIFT in unit 2: turned, the map's range; tilted up and down, the COM volume;
+  pushed, a TDS GTN's squelch, as in the [GTN profile](#tds-gtn-750xi-and-650xi).
+
+Two ways to join them:
+
+- Generate one project as in the steps above (with `--from` bound to your joysticks, without it bound as a
+  download is, in steps 2 to 5 of the first list), with the parts instead of `--family`. It writes
+  `avionics.mfproj`:
+
+  ```bat
+  py -m mobiflight --autopilot kap140 --cockpit g1000 --navigator g1000 --from "C:\path\to\guids.mfproj"
+  py -m mobiflight --autopilot kap140 --cockpit bendix-king --unit1 gtn750-tds1 --unit2 gns430
+  ```
+
+- Or download [avionics-panel-parts.zip][parts] and unpack it: it holds a project of every part, to add to one
+  MobiFlight project as its tabs. Start a new project and, for each part, choose the + beside the tabs, From
+  existing project, and its file: `avionics-panel-autopilot-kap140.mfproj` and the like, one
+  `avionics-panel-cockpit-*.mfproj`, and `avionics-panel-navigator-g1000.mfproj` (or `-g3x`) or one
+  `avionics-panel-navigator-*-unit1.mfproj` and one `*-unit2.mfproj`. Each tab is named after its part, as
+  "Avionics Panel: KAP 140 autopilot" or "Avionics Panel: GNS 430 in unit 2"; for a unit without a navigator,
+  add no navigator tab. Save the project (File, Save As) before you bind the joysticks, then bind them once
+  for all of the tabs and check them (steps 3 and 4 above): if they are the wrong way round, open the saved
+  project again without saving and bind them the other way. Never add two parts of one kind, except one
+  navigator for unit 1 and one for unit 2: they map the same buttons.
 
 ## Two joysticks
 
@@ -272,8 +348,9 @@ MobiFlight show them.
   the RANGE knob (turn, tilt, push) still send a shifted button of their own: these are free for your own
   mappings. Map the keys you do not use to the same function as the plain control, so a stray SHIFT before DN
   or ENT does no harm; held, SHIFT, DN then steps once, as it does not repeat. The generated profiles use
-  SHIFT with the RANGE knob for a second map or a GTN's volume knob, where the family has one, and the KFC 150
-  profile SHIFT, UP and SHIFT, DN for the Bonanza's engine monitor.
+  SHIFT with the RANGE knob for the second unit's map, where the profile has one; the Bonanza profile uses
+  SHIFT, UP and SHIFT, DN for its engine monitor, SHIFT, FLC and SHIFT, VNV for its ADF's keys and SHIFT with
+  the RANGE knob tilted left and right for its weather radar's range.
 - The cockpit lighting (SHIFT, FMS knob) stays on device 1 whatever unit is selected.
 - The button numbers stay fixed: new buttons only go at the end of a device, and retired ones keep their slot,
   so mappings survive firmware updates.
@@ -353,5 +430,8 @@ tap as that input is lost; [why](../architecture/firmware.md#usb)). Set its `pow
 [g3x]: https://github.com/saschagrunert/avionics-panel/releases/download/rolling/avionics-panel-g3x.mfproj
 [gns]: https://github.com/saschagrunert/avionics-panel/releases/download/rolling/avionics-panel-gns.mfproj
 [gtn]: https://github.com/saschagrunert/avionics-panel/releases/download/rolling/avionics-panel-gtn.mfproj
-[kfc150]: https://github.com/saschagrunert/avionics-panel/releases/download/rolling/avionics-panel-kfc150.mfproj
+[bonanza]: https://github.com/saschagrunert/avionics-panel/releases/download/rolling/avionics-panel-black-square-bonanza.mfproj
+[da40]: https://github.com/saschagrunert/avionics-panel/releases/download/rolling/avionics-panel-cows-da40.mfproj
+[c182t]: https://github.com/saschagrunert/avionics-panel/releases/download/rolling/avionics-panel-carenado-c182t.mfproj
+[parts]: https://github.com/saschagrunert/avionics-panel/releases/download/rolling/avionics-panel-parts.zip
 [rolling]: https://github.com/saschagrunert/avionics-panel/releases/tag/rolling

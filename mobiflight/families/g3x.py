@@ -13,9 +13,8 @@ sends (MFD/Views/AfcsControlsView/AfcsControlsView.tsx, parts.GARMIN_SHARED) and
 MSFS 2024 SDK. The radios, ADF, transponder, audio panel and cabin light are the parts the tables share (parts.py).
 """
 from mobiflight.families import parts
+from mobiflight.families.part import part
 from mobiflight.families.rpn import h, k
-
-NAME = "GFC 500 and G3X Touch"
 
 
 def _gdu(index):
@@ -39,23 +38,31 @@ def _gdu(index):
 # (ActiveNavSourceManager.ts), and the GPS's OBS mode, from both units
 _CDI = {"CDI": k("TOGGLE_GPS_DRIVES_NAV1"), "OBS": k("GPS_OBS")}
 
-_AFCS = {
-    # the autopilot keys, the GMC 507's wheel as UP and DN, the yaw damper, the ALT/HDG knob, whose push syncs the
-    # heading bug as the G3X's knob does, and STD (parts.py)
-    **parts.GARMIN_SHARED,
-    # CRS CTR: the course to the VOR, or the localizer's, on the NAV the CDI shows, as the G3X's Course knob push
-    # sets it
+# the GFC 500: the autopilot keys, the GMC 507's wheel as UP and DN, the yaw damper and the ALT/HDG knob, whose push
+# syncs the heading bug as the G3X's knob does (parts.py)
+AUTOPILOT = part("gfc500", "GFC 500", "autopilot", {1: parts.GARMIN_SHARED}, {1: {
+    "TEST": "the GFC 500 tests itself at power-up: it has no TEST key",
+    "ARM": "the GFC 500 has no ARM key",
+    "GPSS": "the GFC 500 flies GPS steering in NAV mode",
+    "BC": "the GFC 500 has no BC key",
+    "HALF_BANK": "the GFC 500 has no low-bank key",
+}})
+
+# the cockpit: CRS CTR, the course to the VOR, or the localizer's, on the NAV the CDI shows, as the G3X's Course
+# knob push sets it; with SHIFT the course of what the CDI shows and the altimeter of index 1, the G3X's
+# (GduDefsConfig.ts), and STD; the G3X's GPS follows the sim's GPS OBS (use-sim-obs by default: FmsConfig.ts,
+# GarminObsLNavModule.ts). KOHLSMAN_INC and _DEC with the altimeter's index, as the G3X's own knob sends them
+# (Gdu460PfdInstrumentsView.tsx), though the SDK's Key Events list no parameter for them. The radios, ADF,
+# transponder and audio panel are the sim's own, on its data bar (parts.py).
+COCKPIT = parts.cockpit("g3x", "G3X Touch", {
     "CRS_CTR": f"(A:GPS DRIVES NAV1, Bool) ! if{{ {parts.nav(parts.CENTRE)} }}",
-    # with SHIFT the course of what the CDI shows and the altimeter of index 1, the G3X's (GduDefsConfig.ts); the
-    # G3X's GPS follows the sim's GPS OBS (use-sim-obs by default: FmsConfig.ts, GarminObsLNavModule.ts)
     "CRS_1_UP": parts.cdi(k("GPS_OBS_INC"), k("VOR#_OBI_INC")),
     "CRS_1_DN": parts.cdi(k("GPS_OBS_DEC"), k("VOR#_OBI_DEC")),
     **parts.course_fast(parts.cdi),
-    # KOHLSMAN_INC and _DEC with the altimeter's index, as the G3X's own knob sends them
-    # (Gdu460PfdInstrumentsView.tsx), though the SDK's Key Events list no parameter for them
     "BARO_UP": k("KOHLSMAN_INC", 1),
     "BARO_DN": k("KOHLSMAN_DEC", 1),
-}
+    **parts.STD,
+})
 
 _TOUCH = "a touchscreen function of the G3X Touch: its bezel has only D→, MENU, BACK (CLR), NRST and the knobs"
 _TOUCH_KEYS = ("FPL", "ENT", "S_ENT", "VNAV", "MSG", "TERR", "MAP")
@@ -65,34 +72,12 @@ _UNIT_UNMAPPED = {
     "HOME": "the G3X Touch has no HOME key: free for your own mapping (docs/using/compatibility.md)",
     "PROC": "the G3X Touch is VFR only: it loads no procedures",
     **dict.fromkeys(_TOUCH_KEYS, _TOUCH),
-    **parts.RADIO_UNMAPPED,
 }
 
-DEVICE = {
-    1: {
-        **_AFCS,
-        **parts.AUDIO,
-        **parts.SQUAWK,
-        **parts.LIGHTS,
-        # unit 1: the G3X Touch of index 1, radio 1
-        **_gdu(1),
-        **_CDI,
-        **parts.RADIO[1],
-        **parts.ADF,
-    },
-    2: {**_gdu(2), **_CDI, **parts.RADIO[2], **parts.ADF},
-}
-UNMAPPED = {
-    1: {
-        "TEST": "the GFC 500 tests itself at power-up: it has no TEST key",
-        "ARM": "the GFC 500 has no ARM key",
-        "GPSS": "the GFC 500 flies GPS steering in NAV mode",
-        "BC": "the GFC 500 has no BC key",
-        "HALF_BANK": "the GFC 500 has no low-bank key",
-        **dict.fromkeys(parts.RANGE_KNOB, "the G3X Touch zooms its map with the inner FMS knob on the map page and "
+# the navigator: unit 1 the G3X Touch of index 1, unit 2 the one of index 2, each with its bezel and the one CDI
+NAVIGATOR = part("g3x", "G3X Touch", "navigator", {1: {**_gdu(1), **_CDI}, 2: {**_gdu(2), **_CDI}}, {
+    1: {**dict.fromkeys(parts.RANGE_KNOB, "the G3X Touch zooms its map with the inner FMS knob on the map page and "
                                           "pans it on the touchscreen"),
-        **_UNIT_UNMAPPED,
-        **parts.LIGHTS_UNMAPPED,
-    },
+        **_UNIT_UNMAPPED},
     2: _UNIT_UNMAPPED,
-}
+})

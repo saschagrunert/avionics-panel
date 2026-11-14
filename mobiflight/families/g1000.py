@@ -14,9 +14,8 @@ and audio panel are the parts the tables share (parts.py). The keys without an a
 with SHIFT too, so a stray SHIFT does no harm (docs/using/mapping.md#two-joysticks).
 """
 from mobiflight.families import parts
+from mobiflight.families.part import part
 from mobiflight.families.rpn import h, k, lset
-
-NAME = "G1000 NXi"
 
 # what the CDI shows, as the NXi's PFD keeps it in L:PFD_CDI_Source on every change and at start (HSI.tsx): 3 for
 # GPS, 1 or 2 for NAV 1 or NAV 2. AUTOPILOT NAV SELECTED would not do: the NXi may start its CDI on NAV 1 without
@@ -106,21 +105,21 @@ _UNIT = {
     "VNAV": h("AS1000_MFD_SOFTKEYS_10"),
     "MSG": h("AS1000_PFD_SOFTKEYS_12"),
     "NRST": h("AS1000_PFD_SOFTKEYS_11"),
-    **parts.ADF,
-}
-_UNIT_UNMAPPED = {
-    **parts.RADIO_UNMAPPED,
 }
 
-_DEVICE1 = {
-    # the autopilot keys, NOSE UP and NOSE DN, the yaw damper and the ALT/HDG knob (parts.py), with BC
-    **parts.GARMIN_SHARED,
-    "BC": k("AP_BC_HOLD"),
-    # ARM: the PFD's 10th softkey, Tmr/Ref at the top level of its softkeys, where the minimums are set; it opens the
-    # window and closes it again (RootMenu.ts, PFDViewService.ts)
-    "ARM": h("AS1000_PFD_SOFTKEYS_10"),
-    # the PFD's CRS knob and its push (CourseKnobInputHandler.ts): the course of the GPS's OBS or of the NAV radio
-    # the CDI shows, and its push centres it; and its BARO knob (Altimeter.tsx)
+# the GFC 700: the autopilot keys, NOSE UP and NOSE DN, the yaw damper and the ALT/HDG knob (parts.py), with BC and
+# ARM: the PFD's 10th softkey, Tmr/Ref at the top level of its softkeys, where the minimums are set; it opens the
+# window and closes it again (RootMenu.ts, PFDViewService.ts)
+AUTOPILOT = part("gfc700", "GFC 700", "autopilot",
+                 {1: {**parts.GARMIN_SHARED, "BC": k("AP_BC_HOLD"), "ARM": h("AS1000_PFD_SOFTKEYS_10")}},
+                 {1: {"TEST": "the GFC 700 has no TEST key",
+                      "GPSS": "the GFC 700 flies GPS steering in NAV mode",
+                      "HALF_BANK": "no G1000 NXi aircraft in MSFS has a low-bank key"}})
+
+# the cockpit: the PFD's CRS knob and its push (CourseKnobInputHandler.ts), the course of the GPS's OBS or of the NAV
+# radio the CDI shows, and its push centres it; its BARO knob (Altimeter.tsx) and STD; the GMA 1347 as the
+# simulator's audio panel, the radios, ADF and transponder (parts.py)
+COCKPIT = parts.cockpit("g1000", "G1000 NXi", {
     "CRS_CTR": h("AS1000_PFD_CRS_PUSH"),
     "CRS_1_UP": h("AS1000_PFD_CRS_INC"),
     "CRS_1_DN": h("AS1000_PFD_CRS_DEC"),
@@ -128,29 +127,10 @@ _DEVICE1 = {
     "BARO_UP": h("AS1000_PFD_BARO_INC"),
     "BARO_DN": h("AS1000_PFD_BARO_DEC"),
     "BARO_STD": _STD,
-    # audio (GMA 1347): the simulator's audio panel
-    **parts.AUDIO,
-    # RANGE knob and joystick, on the MFD; with SHIFT the PFD's, on its inset map
-    **_range("MFD"),
-    **_range("PFD", "S_"),
-    **parts.SQUAWK,
-    # unit 1: the MFD, radio 1
-    **_UNIT,
-    **_fms("MFD"),
-    **parts.RADIO[1],
-    **parts.LIGHTS,
-}
+})
 
-_DEVICE2 = {**_UNIT, **_fms("PFD"), **parts.RADIO[2]}   # unit 2: the PFD, radio 2
-
-DEVICE = {1: _DEVICE1, 2: _DEVICE2}
-UNMAPPED = {
-    1: {
-        "TEST": "the GFC 700 has no TEST key",
-        "GPSS": "the GFC 700 flies GPS steering in NAV mode",
-        "HALF_BANK": "no G1000 NXi aircraft in MSFS has a low-bank key",
-        **_UNIT_UNMAPPED,
-        **parts.LIGHTS_UNMAPPED,
-    },
-    2: _UNIT_UNMAPPED,
-}
+# the navigator: unit 1 the MFD, unit 2 the PFD, each with its FMS keys and knob; the RANGE knob and joystick on the
+# MFD, with SHIFT the PFD's, on its inset map
+NAVIGATOR = part("g1000", "G1000 NXi", "navigator",
+                 {1: {**_UNIT, **_fms("MFD"), **_range("MFD"), **_range("PFD", "S_")}, 2: {**_UNIT, **_fms("PFD")}},
+                 {})
