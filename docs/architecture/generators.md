@@ -93,7 +93,7 @@ not committed. The firmware prints it on its console, the page shows it, and the
 
 A profile is a table per device of button names ([buttonmap.py](../../firmware/buttonmap.py)) to MobiFlight
 calculator code, written with [rpn.py](../../mobiflight/families/rpn.py), plus every other button with the
-reason it sends nothing. Most profiles are joined from parts ([part.py](../../mobiflight/families/part.py)), and
+reason it sends nothing. Every profile is joined from parts ([part.py](../../mobiflight/families/part.py)), and
 every part has a kind, which fixes the buttons it covers (`part.scope()`):
 
 - autopilot: the autopilot keys and their SHIFT functions except HDG's (CRS CTR), UP and DN with and without
@@ -105,8 +105,9 @@ every part has a kind, which fixes the buttons it covers (`part.scope()`):
   unit 1: `part.navigator()` moves its rows to device 2 and to the shifted RANGE buttons for unit 2.
 
 `part.part()` checks that a part's rows and unmapped buttons cover its scope exactly, none twice, and
-`part.compose()` that a profile has one autopilot, one cockpit and the navigators of both units. So one part of
-each kind is always a whole profile, and parts of different kinds stack as tabs of one MobiFlight project.
+`part.compose()` that a profile has one autopilot, one cockpit and the navigators of both units. The kinds'
+scopes do not overlap (a test checks it), so no button is covered twice. So one part of each kind is always a
+whole profile, and parts of different kinds stack as tabs of one MobiFlight project.
 
 To add:
 
@@ -124,11 +125,13 @@ To add:
   `windows/README.txt`.
 - An aircraft: the same, with `rows=` for what the aircraft does its own way (its lighting, say) and
   `unmapped=` for what it lacks, as the DA40's and the C182T's lines in `FAMILIES` do with the tables in
-  [aircraft.py](../../mobiflight/families/aircraft.py).
-  An aircraft whose avionics do not fit the parts, as Black Square's Bonanza, whose tablet switches between
-  navigators, is a module of its own with `NAME`, `DEVICE` and `UNMAPPED`
-  ([black_square_bonanza.py](../../mobiflight/families/black_square_bonanza.py)). Its download needs the
-  same as a family's.
+  [aircraft.py](../../mobiflight/families/aircraft.py). An aircraft that puts any of several navigators in a
+  unit, as Black Square's Bonanza by its tablet, joins them there with `part.joined()`: each button sends the
+  codes of every one that maps it, in their order; its own rows replace theirs, and its reasons replace those
+  of buttons none of them maps. Rows and reasons are written as for unit 1, as for `part.navigator()`
+  (`PAN_UP`, not `S_PAN_UP`, for unit 2's map). The Bonanza's module
+  ([black_square_bonanza.py](../../mobiflight/families/black_square_bonanza.py)) does that with the GNS, GTN
+  and KLN 90B navigators, and joins them to its KFC 150 part and the Bendix/King cockpit with its own rows.
 - An event or variable that no profile used before: its line in `tests/key_events.txt` or `tests/inputs.txt`,
   as the table [above](#where-to-change-what) says.
 
