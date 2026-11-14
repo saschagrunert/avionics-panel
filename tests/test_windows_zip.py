@@ -40,8 +40,8 @@ def built(tmp_path_factory):
 def test_the_layout(built):
     with zipfile.ZipFile(built) as z:
         names = set(z.namelist())
-        assert {f"{TOP}/{n}" for n in ("start.bat", "vjoy-setup.bat", "README.txt", "LICENSE", "python/python.exe",
-                                       "firmware/boot.py", "firmware/code.py", "firmware/keys.py",
+        assert {f"{TOP}/{n}" for n in ("start.bat", "vjoy-setup.bat", "firewall.bat", "README.txt", "LICENSE",
+                                       "python/python.exe", "firmware/boot.py", "firmware/code.py", "firmware/keys.py",
                                        "firmware/BUTTONS.md", "firmware/KEYS.md", "sim/vjoy.py", "sim/sendinput.py",
                                        "sim/page.py", "viewer/index.html")} <= names
         assert all(n.startswith(f"{TOP}/") for n in names)
@@ -52,6 +52,12 @@ def test_the_layout(built):
             assert text.count(b"\n") == text.count(b"\r\n") > 0
         # start.bat passes its arguments on, as the docs use it: start.bat --host 0.0.0.0
         assert b"python\\python.exe -m sim.page --vjoy --open %*\r\n" in z.read(f"{TOP}/start.bat")
+        # firewall.bat allows the zip's own python.exe, on private networks only, after the rules from before
+        firewall = z.read(f"{TOP}/firewall.bat").decode()
+        assert 'set "PYTHON=%~dp0python\\python.exe"' in firewall
+        add = firewall.index("add rule")
+        assert firewall.index("delete rule name=all program=") < add < firewall.index("profile=private")
+        assert firewall.index('delete rule name="%RULE%"') < add          # its own, also for a folder moved since
 
 
 def test_the_zips_python_is_the_one_the_tests_run_on():

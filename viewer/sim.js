@@ -8,6 +8,8 @@
 //     not move, not even a quarter detent round the knob, pushes it; anything else a finger does on a knob does
 //     nothing. One finger per knob at a time: a second one takes the knob over if the first has not moved.
 //   the pan arrows round RANGE: held, RANGE tilts that way
+// A key or push clicks as it goes down and up, a ring ticks at each detent, unless "sound on" beside the lines at
+// the bottom left is clicked to "sound off" (the browser remembers it).
 // Over any of these the mouse pointer is a hand. Everything the page holds is let go when it is hidden or loses
 // the focus; the program lets go of it when the page goes, also when the page stops telling it that it is still
 // there (a tablet off the network).
@@ -22,10 +24,11 @@ window.playPanel = function playPanel(V) {
   const NOTCH_MIN_PX = 20;             // a spin whose first event is this large is a mouse's; a smaller one is a
                                        // touchpad's ...
   const WHEEL_PX = 100;                // ... which sums up to a notch this large (and Firefox's lines count as one)
-  const LINE_PX = 21;                  // a line at the bottom left: 14 px type, 1.5 high ...
-  const LINES_W_PX = 324;              // ... their width at most: three buttons a line ...
-  const KEYS_W_PX = 480;               // ... in keyboard mode the longest shortcut's line. A longer line ends in an
+  const LINE_PX = 18;                  // a line at the bottom left: 12 px type, 1.5 high ...
+  const LINES_W_PX = 230;              // ... their width at most: two or three buttons a line ...
+  const KEYS_W_PX = 412;               // ... in keyboard mode the longest shortcut's line. A longer line ends in an
                                        // ellipsis: they never wrap, so the panel does not move for them.
+  const SPEAKER_PX = 84;               // the speaker button beside them, where there is sound, takes this more
   const SHORT_PX = 500;                // a window lower than this (a phone turned sideways) has them on one line
   const FOV = 10;                      // degrees: from about straight above everywhere, so the knobs lean little
   const SPIN_TAU_MS = 25;              // a ring eases to its detent: most of the way in about 80 ms (3 of these)
@@ -38,6 +41,8 @@ window.playPanel = function playPanel(V) {
   const R_OUT = 1.5 * G.outer_knob.d / 2;                    // the outer ring, and a margin round it as large again
   const TOP = { inner: Z + G.inner_knob.z1, outer: Z + G.outer_knob.z1, ring: Z + G.range_knob.z1 };
   const ARROWS = [G.plate_art.range.arrow_r - 1.5, G.plate_art.range.arrow_r + 5];   // the arrows' ring round RANGE
+  const TICK_MS = 15;                  // the ticks of detents turned at once follow each other this far apart
+  const QUIET = 'avionics-panel-quiet';   // the browser's storage key for the speaker off
 
   // ---------------- what the page shows ----------------
   const style = document.createElement('style');
@@ -45,20 +50,28 @@ window.playPanel = function playPanel(V) {
     body.play .bar, body.play .legend, body.play .hdr { display: none; }
     /* the lines can lie over the plate and the banner over the top keys: a ground of their own, and no taps taken */
     .sim { position: fixed; left: max(16px, env(safe-area-inset-left, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px));
-           font: 14px var(--mono); color: var(--panel-fg); pointer-events: none; line-height: 1.5;
+           font: 12px var(--mono); color: var(--panel-fg); pointer-events: none; line-height: 1.5;
            max-width: min(calc(100% - 32px), ${LINES_W_PX}px);
-           background: var(--panel); padding: 4px 8px; border-radius: 8px; box-sizing: border-box; }
-    .sim > div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+           background: var(--panel); padding: 3px 7px; border-radius: 7px; box-sizing: border-box;
+           display: flex; align-items: flex-start; }
+    .sim .lines { min-width: 0; }
+    .sim .lines > div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .sim .gone { opacity: .45; }
+    .sim .speaker { pointer-events: auto; cursor: pointer; font: inherit; color: inherit; background: none; border: 0;
+                    padding: 0 4px; margin-left: 1ch; flex: none; line-height: inherit;
+                    text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 3px; }
+    .sim .speaker.off { opacity: .45; }
     /* at the top, where the 3D view has its name */
     .sim-alert { position: fixed; top: calc(16px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%); max-width: calc(100% - 32px);
                  padding: 8px 14px; border-radius: 9px; background: var(--on); color: var(--on-fg); font: 500 14px var(--font);
                  pointer-events: none; }
-    .sim:empty, .sim-alert:empty { display: none; }`;
+    .sim.none, .sim-alert:empty { display: none; }`;
   document.head.appendChild(style);
   document.body.classList.add('play');
   const strip = document.createElement('div'), alert = document.createElement('div');
-  strip.className = 'sim'; alert.className = 'sim-alert'; alert.setAttribute('role', 'alert');
+  const box = document.createElement('div');                    // the lines, beside the speaker button (sounds)
+  strip.className = 'sim none'; box.className = 'lines'; alert.className = 'sim-alert'; alert.setAttribute('role', 'alert');
+  strip.appendChild(box);
   document.body.append(strip, alert);
   for (const L of V.lights) if (L.name === 'UNIT') L.lens.color.setHex(0x1d1e21).convertSRGBToLinear();   // dark when off
   controls.enableRotate = controls.enableZoom = controls.enablePan = false;
@@ -100,7 +113,7 @@ window.playPanel = function playPanel(V) {
     // clear of the safe areas, the same on both sides so the panel stays in the middle
     const css = getComputedStyle(strip), [top, right, , left] = insets(), side = Math.max(left, right);
     const bottom = parseFloat(css.bottom), beside = parseFloat(css.left) + width;
-    const below = [top, side, bottom + rows() * LINE_PX + 8, side, above];                    // (8: their padding)
+    const below = [top, side, bottom + rows() * LINE_PX + 6, side, above];                    // (6: their padding)
     return short ? [below] : [below, [top, side, bottom, beside, flat]];   // one line across the window: below only
   };
   // the lights and each device's buttons as the program last sent them (update()), and when each button went
@@ -118,18 +131,96 @@ window.playPanel = function playPanel(V) {
   let alertTimer;
   const say = (text, ms) => { clearTimeout(alertTimer); alert.textContent = text; if (ms) alertTimer = setTimeout(() => say(''), ms); };
 
+  // ---------------- sounds ----------------
+  // a click: a few ms of noise through a band-pass filter, its pitch and loudness by what made it. The audio
+  // starts with the first press (a browser lets it start only in a click or as a finger lifts off; a wheel does
+  // not count before one) and takes a moment: a sound meanwhile waits for it, up to WAIT_MS. After IDLE_MS without a sound
+  // it pauses, so a tablet left beside the sim saves its battery, and the next sound starts it again, as after
+  // Safari interrupts it (a call). The ticks of a fast spin follow each other TICK_MS apart. The speaker button
+  // turns the sounds off and on; without Web Audio, or where it fails to start, there is neither sound nor button.
+  let AudioContext = window.AudioContext || window.webkitAudioContext;
+  const SOUNDS = { down: [3200, 0.5, 0.012], up: [2400, 0.25, 0.010], detent: [4000, 0.6, 0.008] };   // Hz, gain, s
+  const UP_AFTER_S = 0.04;             // a tap's release clicks at least this long after its press, not on top of it
+  const WAIT_MS = 300, IDLE_MS = 120000;
+  let audio = null, noise = null, quiet = false, downAt = -1, tickAt = 0, idleTimer;
+  const waiting = [];                  // [kind, n, when] sounded while the audio starts
+  try { quiet = localStorage.getItem(QUIET) === '1'; } catch (e) { /* no storage: sounds on */ }
+  const speaker = document.createElement('button');
+  speaker.className = 'speaker'; speaker.type = 'button';
+  const showSpeaker = () => {
+    speaker.textContent = quiet ? 'sound off' : 'sound on';
+    speaker.classList.toggle('off', quiet);
+    speaker.title = quiet ? 'Sounds off: click to turn them on' : 'Sounds on: click to turn them off';
+  };
+  showSpeaker();
+  if (AudioContext) { strip.appendChild(speaker); width += SPEAKER_PX; }   // (not in the lines: render() makes those anew)
+  fitStrip();
+  speaker.addEventListener('click', () => {
+    quiet = !quiet; showSpeaker();
+    try { localStorage.setItem(QUIET, quiet ? '1' : '0'); } catch (e) { /* not remembered */ }
+    if (quiet) pause(); else wake();
+  });
+  const settle = promise => { if (promise) promise.catch(() => {}); };   // (refused outside a gesture: the next tries)
+  function pause() { clearTimeout(idleTimer); if (audio && audio.state === 'running' && audio.suspend) settle(audio.suspend()); }
+  function wake() {                    // in a press or a click: a browser lets audio start there
+    if (quiet || !AudioContext) return;
+    try {
+      if (!audio) {
+        audio = new AudioContext();
+        noise = audio.createBuffer(1, Math.ceil(audio.sampleRate * 0.02), audio.sampleRate);
+        const data = noise.getChannelData(0);
+        for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+        audio.onstatechange = () => {  // running: what sounded while it started, unless that is long gone
+          if (!audio || audio.state !== 'running') return;
+          const now = performance.now();
+          for (const [kind, n, at] of waiting.splice(0)) if (now - at < WAIT_MS) play(kind, n);
+        };
+      }
+      if (audio.state !== 'running') settle(audio.resume());   // suspended, paused, or Safari's interrupted
+    } catch (e) {                        // no audio device, too many contexts: the panel plays on without sound
+      AudioContext = null; audio = null; waiting.length = 0;
+      if (speaker.parentNode) { speaker.remove(); width -= SPEAKER_PX; fitStrip(); go('P', true); }
+    }
+  }
+  function sound(kind, n = 1) {
+    if (quiet || !audio) return;
+    if (audio.state === 'running') return play(kind, n);
+    waiting.push([kind, n, performance.now()]);
+    if (waiting.length > 8) waiting.shift();
+    wake();
+  }
+  function play(kind, n) {             // n of them, TICK_MS apart
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(pause, IDLE_MS);
+    const [hz, gain, s] = SOUNDS[kind];
+    for (let i = 0; i < n; i++) {
+      let at = audio.currentTime;
+      if (kind === 'down') downAt = at;
+      else if (kind === 'up') at = Math.max(at, downAt + UP_AFTER_S);
+      else { at = Math.max(at, tickAt); tickAt = at + TICK_MS / 1000; }
+      const src = audio.createBufferSource(), filter = audio.createBiquadFilter(), level = audio.createGain();
+      src.buffer = noise;
+      filter.type = 'bandpass'; filter.frequency.value = hz; filter.Q.value = 4;
+      level.gain.setValueAtTime(gain, at);
+      level.gain.exponentialRampToValueAtTime(0.001, at + s);
+      src.connect(filter); filter.connect(level); level.connect(audio.destination);   // (older Safari: no chaining)
+      src.start(at); src.stop(at + s);
+    }
+  }
+
   // the lights in words, and each joystick's buttons (in keyboard mode the keyboard's function and shortcut); one
   // that went stays a while, dimmed
   function render() {
     clearTimeout(fadeTimer);
-    strip.textContent = '';
+    box.textContent = '';
+    strip.classList.toggle('none', !Object.keys(buttons).length);
     if (!Object.keys(buttons).length) return;
     // a line each, or in a short window one line for all, the parts apart by a bar
     const one = short && document.createElement('div');
-    if (one) strip.appendChild(one);
+    if (one) box.appendChild(one);
     const line = (...parts) => {
       if (one) { one.append(...(one.childNodes.length ? [' | '] : []), ...parts); return; }
-      const d = document.createElement('div'); d.append(...parts); strip.appendChild(d);
+      const d = document.createElement('div'); d.append(...parts); box.appendChild(d);
     };
     line(`UNIT ${lights.UNIT ? 2 : 1}${lights.SHIFT ? ' · SHIFT' : ''}`);
     const now = performance.now();
@@ -141,7 +232,7 @@ window.playPanel = function playPanel(V) {
         const s = document.createElement('span'); s.textContent = n; s.className = cls;
         return i ? [' · ', s] : [s];
       });
-      const name = device === 'keyboard' ? 'keyboard' : short ? device : `joystick ${device}`;
+      const name = device === 'keyboard' ? 'keyboard' : `J${device}`;
       line(`${name}: `, ...(parts.length ? parts : ['none']));
     }
     if (next < Infinity) fadeTimer = setTimeout(render, Math.ceil(next) + 1);
@@ -155,7 +246,7 @@ window.playPanel = function playPanel(V) {
     ({ lights, buttons } = state);
     const count = 1 + Object.keys(buttons).length;
     if (count > 1 && count !== lines) {          // the mode is known: the lines' number and width
-      lines = count; width = buttons.keyboard ? KEYS_W_PX : LINES_W_PX;
+      lines = count; width = (buttons.keyboard ? KEYS_W_PX : LINES_W_PX) + (speaker.parentNode ? SPEAKER_PX : 0);
       fitStrip(); go('P', true);
     }
     for (const L of V.lights) L.lens.emissiveIntensity = lights[L.name];
@@ -268,6 +359,7 @@ window.playPanel = function playPanel(V) {
     const meshes = at.key ? at.key.meshes : Object.values(at.knob.rings).flat();
     for (const m of meshes) m.position.y -= d * TRAVEL;
     if (at.key) { const [, legend] = at.key.meshes; legend.material.emissive.setHex(d > 0 ? PRESSED : 0); }
+    sound(d > 0 ? 'down' : 'up');
     invalidate();
   }
   function hold(g) {
@@ -286,6 +378,7 @@ window.playPanel = function playPanel(V) {
   let spinAt = null;
   function turn(knob, ring, n) {
     send(`turn ${inputs.knobs[knob.name][ring]} ${n}`);
+    sound('detent', Math.abs(n));
     const meshes = knob.rings[ring];
     if (!spins.has(meshes)) spins.set(meshes, { target: meshes[0].rotation.y, drawn: meshes[0].rotation.y });
     spins.get(meshes).target -= n * DETENT;                          // clockwise seen from above
@@ -322,6 +415,7 @@ window.playPanel = function playPanel(V) {
   };
   canvas.addEventListener('pointerdown', e => {
     if (e.button !== 0 || !client) return;
+    wake();
     const at = pick(e);
     if (!at) return;
     // one finger per knob, and two on it are no tap: one that has not moved yet hands the knob to the next one
@@ -355,6 +449,7 @@ window.playPanel = function playPanel(V) {
     const g = gestures.get(e.pointerId);
     if (!g) return;
     gestures.delete(e.pointerId);
+    wake();                            // a finger lifting is a gesture, where audio may start (a touch going down is none)
     // a quick tap that did not move, judged by the events' own times: the knob's push
     if (g.ring && !g.held && e.type === 'pointerup' && still(g, e) && e.timeStamp - g.t < TAP_MS) hold(g);
     release(g);
@@ -372,6 +467,7 @@ window.playPanel = function playPanel(V) {
     const at = client && pick(e);
     const dy = e.deltaMode ? Math.sign(e.deltaY) * WHEEL_PX : e.deltaY, size = Math.abs(dy);
     if (!at || !at.ring || !dy) return;
+    wake();                            // (no gesture: audio starts here only once the page has had one)
     if (!wheel || e.timeStamp - wheel.at > WHEEL_GAP_MS) {
       const mouse = size >= NOTCH_MIN_PX;
       wheel = { mouse, notch: mouse ? size : WHEEL_PX, total: mouse ? dy : Math.sign(dy) * WHEEL_PX, sent: 0 };

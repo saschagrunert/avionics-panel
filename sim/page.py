@@ -143,6 +143,17 @@ def lan_address():
             return "127.0.0.1"
 
 
+def firewall(host, platform=sys.platform, python=sys.executable):
+    """What to do when a tablet cannot open the page: Windows' firewall lets nothing in for python.exe on a network
+    marked public, nor where its user did not allow it (windows/firewall.bat). None on loopback, off Windows, and
+    for a Python other than the zip's, which firewall.bat beside its python folder lets through."""
+    bat = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(python))), "firewall.bat")
+    if platform == "win32" and not ipaddress.ip_address(host).is_loopback and os.path.isfile(bat):
+        return ("If a tablet cannot open it, run the zip's firewall.bat as administrator (right-click it, Run as "
+                "administrator): it lets the simulator through Windows' firewall on private networks.")
+    return None
+
+
 class Page(ThreadingHTTPServer):
     daemon_threads = True
     # Windows' SO_REUSEADDR lets a second server bind a port that another one listens on, and either then gets
@@ -377,6 +388,8 @@ def main(argv=None):
     threading.Thread(target=page.serve_forever, name="page", daemon=True).start()
     on = f" ({out.name}{' on uhid' if args.uhid else ''})" if out else ""
     print(f"The panel{' in keyboard mode' if args.keyboard else ''}{on}: {page.url} (Ctrl-C ends it)", flush=True)
+    if hint := firewall(page.server_address[0]):
+        print(hint, flush=True)
     if args.open:
         webbrowser.open(page.url)
     try:
