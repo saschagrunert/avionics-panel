@@ -29,8 +29,8 @@ reported to tell apart from the left ones; its menu may show both sides alike.
   shortcut.
 - In unit 2 the COM and NAV functions (frequencies, flip-flops), except COM 121.5, send shortcuts of their
   own; everything else sends unit 1's. The sim's controls have one set of FMS keys, the G1000's.
-- A knob detent, a step of a held UP or DN, a pan step of a RANGE tilt and the RANGE push (PTR) are short
-  presses of their shortcut; a key or push holds its shortcut as long as it is held.
+- A knob detent, a step of a held UP or DN (with SHIFT too), a pan step of a RANGE tilt and the RANGE push
+  (PTR) are short presses of their shortcut; a key or push holds its shortcut as long as it is held.
 - One shortcut goes out at a time. A key held down holds back what follows, knob steps included, until it is
   let go.
 

@@ -230,7 +230,9 @@ class Panel:
             self.unit = 2 if self.unit == 1 else 1
             return
         k = self._btn(self.unit if name in BM.UNIT_KEYS else 1, BM.shifted(name) if shifted else name)
-        if name in BM.REPEAT_KEYS:
+        # with SHIFT, as joysticks, UP and DN are held as other keys, so a mapping tells a tap from a hold; as a
+        # keyboard (solo), which has no hold of its own, they repeat their shortcut as without SHIFT
+        if name in BM.REPEAT_KEYS and (self.solo or not shifted):
             self._owe(k)
             self.repeat[name] = [k, t + REPEAT_DELAY_MS, REPEAT_MS]
         else:

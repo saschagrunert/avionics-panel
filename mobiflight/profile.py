@@ -10,7 +10,8 @@ the button as Device {"Type": "Button", "Name": "Button N"} (N from 1, as BUTTON
 actions as MSFS2020CustomInputAction {Command}, which MobiFlight 11 uses for MSFS 2020 and 2024. Without a
 PresetId, MobiFlight runs the Command as it is and shows it as custom code. With onLongRelease empty it runs
 onRelease however long the button was held (ButtonInputConfig.ResolveDispatchedEvent), which a key held on
-purpose relies on.
+purpose relies on; with onLongRelease it runs that one instead for a button held longer than LongReleaseDelay
+(LONG_MS), so a key tells a tap from a hold.
 
 MobiFlight matches an event to an item by the serial and the button name. On loading a project it binds each of
 its controllers to a connected one (Controllers/ControllerAutoBinder.cs): the one of the same name and serial,
@@ -36,7 +37,8 @@ UNBOUND = {1: (NAME, "JS-device-1"), 2: (NAME, "JS-device-2")}
 ITEMS = uuid.uuid5(uuid.NAMESPACE_URL, "avionics-panel/mobiflight")
 SERIAL = re.compile(r"JS-[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}")
 BUTTON = re.compile(r"Button ([0-9]+)")
-EVENTS = {"press": "onPress", "release": "onRelease"}
+EVENTS = {"press": "onPress", "release": "onRelease", "long": "onLongRelease"}
+LONG_MS = 350                    # a button held longer than this is a hold: onLongRelease, not onRelease
 WRITES = re.compile(r"\(>[AHKL]:([^),]+)[^)]*\)")   # what a code sets: (>K:EVENT), (>A:VARIABLE, unit) and so on
 
 
@@ -51,8 +53,9 @@ BM = _load("_mobiflight_buttonmap", os.path.join(HERE, "..", "firmware", "button
 
 
 def actions(entry):
-    """A table entry -> {"onPress": code, "onRelease": code}, without the events that send nothing. An entry is
-    a code (sent on press) or a dict with "press" and/or "release"."""
+    """A table entry -> {"onPress": code, "onRelease": code, "onLongRelease": code}, without the events that send
+    nothing. An entry is a code (sent on press) or a dict with "press", "release" and/or "long" (sent on a release
+    after a hold, when "release" goes after a tap only)."""
     if isinstance(entry, str):
         entry = {"press": entry}
     if not entry or set(entry) - set(EVENTS):
@@ -61,7 +64,8 @@ def actions(entry):
 
 
 def label(code):
-    """What a code is named by in MobiFlight's list: the events and variables it sets"""
+    """What a code is named by in MobiFlight's list: the events and variables it sets, each once (an item's
+    codes joined: its press, release and long release)"""
     return ", ".join(dict.fromkeys(WRITES.findall(code)))
 
 
@@ -88,15 +92,14 @@ def build(family, controllers=UNBOUND, vfr=None):
         name, joystick = controllers[device]
         for button, entry in sorted(tables[device].items(), key=lambda kv: BM.BUTTON[device][kv[0]]):
             acts = actions(entry)
-            first = acts.get("onPress", acts.get("onRelease"))
             button_config = dict.fromkeys(("onPress", "onRelease", "onLongRelease", "onHold"))
             button_config.update({event: {"Type": "MSFS2020CustomInputAction", "Command": code}
                                   for event, code in acts.items()})
-            button_config.update(LongReleaseDelay=350, HoldDelay=350, RepeatDelay=0)
+            button_config.update(LongReleaseDelay=LONG_MS, HoldDelay=350, RepeatDelay=0)
             items.append({
                 "GUID": str(uuid.uuid5(ITEMS, f"{family.NAME}/{device}/{button}")),
                 "Active": True,
-                "Name": f"{button}{', unit 2' if device == 2 else ''}: {label(first)}",
+                "Name": f"{button}{', unit 2' if device == 2 else ''}: {label(' '.join(acts.values()))}",
                 "Type": "InputConfigItem",
                 "Controller": {"Name": name, "Serial": joystick},
                 "Device": {"Type": "Button", "Name": f"Button {BM.BUTTON[device][button] + 1}"},

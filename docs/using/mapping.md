@@ -184,7 +184,9 @@ The KAP 140 cockpit of the [GNS profile](#gns-530430) with TDS's GTN 750Xi as un
 Aircraft that load the 650Xi as unit 1, as Black Square's do, are not covered: there the 650Xi's bezel does
 nothing in unit 2; the [KFC 150 profile](#kfc-150-black-square) covers the Bonanza's. TDS takes only the bezel
 from outside, so the profile sends HOME, D→, the FMS knob and its push; held, the push flips the frequencies.
-The map zooms on the touchscreen or with the inner FMS knob on the map page. SHIFT with the RANGE knob works
+RANGE turns the GTN 750Xi's inner knob the other way round, as Garmin's touchscreen units zoom in clockwise
+(assumed for the GTN): so clockwise zooms the map out on the map page, as on the GNS and the G1000. On other
+pages it works as the FMS knob's inner ring does there, the other way round. SHIFT with the RANGE knob works
 the GTN 750Xi's volume knob: turned, the volume; pushed, squelch. The panel sends the RANGE push as a tap, so
 holding it does not tune 121.5: SHIFT, COM ⇆ (121.5) does.
 
@@ -194,43 +196,62 @@ knob, whose push toggles between COM and NAV. The XPDR mode push works the cockp
 simulator's variable; a transponder that the GTN runs itself may not follow it.
 
 Does nothing in this profile: TEST, FD, YD, VS, FLC, VNV, LVL, GPSS, ½ BANK and ARM (as in the GNS profile),
-FPL, PROC, MENU, CLR, ENT, MSG, NRST, TERR, VNAV, MAP, CDI, OBS, RANGE without SHIFT, PTR without SHIFT, the
-map's pan (on the touchscreen), the dimmers.
+FPL, PROC, MENU, CLR, ENT, MSG, NRST, TERR, VNAV, MAP, CDI, OBS, PTR without SHIFT, the map's pan (on the
+touchscreen), the dimmers.
 
 ### KFC 150 (Black Square)
 
-The Bendix/King KFC 150 with the KAS 297B altitude selector in Black Square's aircraft, as in the Bonanza, by
-the inputs Black Square's guide lists for home cockpits. Unit 1 is the first navigator, a GNS 530 or a GTN
-750, with COM 1 / NAV 1, unit 2 the second, a GNS 430 or a GTN 650, with COM 2 / NAV 2. HOME, D→, the FMS knob
-and its push send the inputs of the Working Title GNS, of TDS's GTN and of pms50's GTN at once, as Black
-Square names them (the GNS's as in the GNS profile); each navigator takes only its own, so the profile works
-with whichever the aircraft has. The other FMS keys, RANGE and VNAV send the GNS's only. With a GTN, of the
-FMS keys and knobs only HOME, D→, the FMS knob and its push and the volume knob (SHIFT with the RANGE knob)
-work, the rest is on its touchscreen; with a GNS, HOME and SHIFT with the RANGE knob do nothing. Differences
+Black Square's Bonanza with the Bendix/King KFC 150 and the KAS 297B altitude selector, by the inputs Black
+Square's guide lists for home cockpits, for every avionics selection on the options page of its tablet. Unit 1
+is the primary selection (KX 155B, KLN 90B, GNS 530 or GTN 750) with COM 1 / NAV 1, unit 2 the secondary (KX
+155B, GNS 430 or GTN 650) with COM 2 / NAV 2, and either GTN is PMS50's or TDS's. A control sends the inputs
+of every navigator its unit may hold at once (the GNS's as in the GNS profile); each takes only its own, so
+the profile works with whatever the tablet selected, without a change. With a GTN, of the FMS keys only HOME,
+D→, the FMS knob and its push work, the rest is on its touchscreen; with a GNS, HOME does nothing. Differences
 from the real units:
 
 - The ALT/HDG knob sets the KAS 297B's altitude (or its rate while its knob is pulled in the cockpit) and the
   heading bug, and its push syncs the bug to the heading. With SHIFT it sets the course of NAV 1 and the
   altimeter.
-- VS and ALT ARM (SHIFT, ALT) are the KAS 297B's VS ENG and ALT ARM keys. TEST starts the KFC 150's self-test.
+- VS and ALT ARM (SHIFT, ALT) are the KAS 297B's VS ENG and ALT ARM keys. TEST starts the KFC 150's self-test
+  and holds the MD41's lamp test as long as it is held.
 - UP and DN step the altitude held in ALT, the rate in VS and the pitch in pitch mode, as the KFC 150's rocker
   does. Black Square lists no event for the rocker or for FD, so they send the simulator's, which the aircraft
   may ignore.
-- CDI switches the GNS 530 or the HSI between GPS and VLOC; in unit 2 it is the GNS 430's CDI key.
-- RANGE is the GNS 530's RNG key. SHIFT with the RANGE knob works the GTN 750's volume knob: turned, the
-  volume; pushed, squelch.
+- SHIFT, UP and SHIFT, DN are the EDM 800 engine monitor's left (STEP) and right (LEAN FIND) buttons: a tap is
+  a short press, a key held longer than 0.35 s a long one. Black Square's guide does not say which button is
+  which; STEP on the left is the real unit's. Both buttons pressed together and the mode switch stay in the
+  cockpit.
+- CDI switches the GNS 530 or the HSI between GPS and VLOC, as the MD41's VLOC/GPS key does beside the KLN
+  90B; in unit 2 it is the GNS 430's CDI key. GPSS (SHIFT, NAV) is the HSI's source switch below it, NAV 1 or
+  RNAV.
+- The RANGE knob works the primary navigator, and with SHIFT the secondary. Turned, it sets the map's range:
+  the GNS's RNG key, and the GTN's inner knob, which zooms its map on the map page; clockwise zooms out, the
+  GTN's knob turned the other way as in the [GTN profile](#tds-gtn-750xi-and-650xi). On a GTN's other pages
+  the turn works its inner knob there, as the FMS knob's inner ring does, the other way round. Tilted up and
+  down, it sets the COM volume, of the radio (the GNS's and the KX 155B's volume knob) and of the GTN's volume
+  knob; that a GTN's volume does not step twice for it is assumed. Pushed, it is the volume push of TDS's
+  GTN, squelch; PMS50's GTN takes none from outside. With the KLN 90B as primary, RANGE works the KLN's left
+  side: turned, its left inner knob; tilted left and right, its left outer knob; pushed, its left CRSR.
+- The KLN 90B takes D→, CLR, ENT and MSG, MENU as its ALT key, the FMS knob as its right knob and the FMS push
+  as its right CRSR; its power, brightness and scan stay in the cockpit. On the MD41 beside it, NRST (SHIFT,
+  MENU) presses APR ARM and TERR (SHIFT, PROC) OBS, the simulator's OBS toggle, which with a GNS as primary
+  toggles its OBS mode too.
+- LVL turns the KDI 572R DME's selector one position on, and from the last to the first.
+- ADF ⇆ is the KR 87's FRQ key. SHIFT, FLC presses its ADF (antenna) key and SHIFT, VNV its BFO key; its timer
+  stays in the cockpit.
 - YD sends the simulator's yaw damper event, for the aircraft that have one.
-- MIC 1 and MIC 2 send the simulator's transmitter events and the cabin light push its cabin light event, as
-  in the other profiles. Black Square's guide lists its transmit selector and its reading lights only as L:
-  variables whose values it does not explain, so the aircraft's selector and reading lights may not follow
-  them.
+- MIC 1 and MIC 2 also set the pilot's transmit selector, and the cabin light push toggles the pilot's and the
+  copilot's reading lights.
 - The XPDR mode push presses the GTX 327's ALT key from OFF or SBY, its STBY key from any other mode.
 - The dimmers are the instrument lights (outer ring) and the glareshield flood lights (inner ring), in steps
-  of 5 %. They light only with their switches on.
+  of 5 %. Each also switches its lights on above 0 and off at 0, as the lights need their switch and their
+  dimmer.
 
-Does nothing in this profile: FLC, VNV, LVL, ½ BANK and GPSS (the KFC 150 has none of these keys), PTR without
-SHIFT, the map's pan (the GNS has no joystick, the GTN pans its map on its touchscreen), NRST and TERR
-(neither the GNS nor the GTN has such keys), VNAV in unit 2 (the GNS 430 and the GTN have none).
+Does nothing in this profile: FLC without SHIFT, VNV without SHIFT and ½ BANK (the KFC 150 has none of these
+modes), SHIFT with the RANGE knob tilted left or right (the secondary navigator has no second knob), NRST in
+unit 2 and TERR in unit 2 (neither the GNS nor the GTN has such keys), VNAV in unit 2 (the GNS 430 and the GTN
+have none).
 
 ## Two joysticks
 
@@ -245,13 +266,14 @@ MobiFlight show them.
 - Both devices are named "Avionics Panel", and MobiFlight keys them by their GUID (the ID Windows gives a game
   controller). Tell them apart by their button count (128 on device 1, 64 on device 2) or with MobiFlight's
   input scan: a plain AP press comes from device 1, ENT in unit 2 from device 2.
-- Every knob detent is a short press, and so is every step of a held UP or DN, every pan step of a RANGE
-  tilt and the RANGE push (PTR): map them "on press".
-- Shifted functions are buttons of their own. The keys without an amber legend (VS, UP, FLC, DN, VNV, ENT)
-  and the RANGE knob (turn, tilt, push) still send a shifted button of their own: these are free for your own
+- Every knob detent is a short press, and so is every step of a held UP or DN (without SHIFT), every pan step
+  of a RANGE tilt and the RANGE push (PTR): map them "on press".
+- Shifted functions are buttons of their own. The keys without an amber legend (VS, UP, FLC, DN, VNV, ENT) and
+  the RANGE knob (turn, tilt, push) still send a shifted button of their own: these are free for your own
   mappings. Map the keys you do not use to the same function as the plain control, so a stray SHIFT before DN
-  or ENT does no harm. The generated profiles use SHIFT with the RANGE knob for a second map or a GTN's volume
-  knob, where the family has one.
+  or ENT does no harm; held, SHIFT, DN then steps once, as it does not repeat. The generated profiles use
+  SHIFT with the RANGE knob for a second map or a GTN's volume knob, where the family has one, and the KFC 150
+  profile SHIFT, UP and SHIFT, DN for the Bonanza's engine monitor.
 - The cockpit lighting (SHIFT, FMS knob) stays on device 1 whatever unit is selected.
 - The button numbers stay fixed: new buttons only go at the end of a device, and retired ones keep their slot,
   so mappings survive firmware updates.

@@ -2,8 +2,9 @@
 
 - NAME: the family as the project names it;
 - DEVICE: {1: {button: entry}, 2: {button: entry}}, by the button names of firmware/buttonmap.py. An entry is
-  MobiFlight calculator code (rpn.py), sent on press, or {"press": code, "release": code} (either may be left
-  out) for a control that needs the release too;
+  MobiFlight calculator code (rpn.py), sent on press, or {"press": code, "release": code, "long": code} (any may
+  be left out) for a control that needs the release too, or that sends "long" instead of "release" when let go
+  after a hold (profile.LONG_MS);
 - UNMAPPED: {1: {button: reason}, 2: {button: reason}}, every other button of the device, with the reason it
   sends nothing in this family.
 

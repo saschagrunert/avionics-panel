@@ -6,7 +6,8 @@ unit 2 copies, sent while unit 2 is selected (SHIFT, HOME). Button numbers as Wi
 show them (1-based). Every knob detent that sends a button is a short press (with SHIFT, the FREQ
 outer ring only selects the squawk digit and sends none). UP, DN, the PAN buttons and PTR are short
 presses too, however long the control is held (UP, DN and PAN repeat). Map all of these as
-"on press". The numbers are frozen from the first build on: new buttons only go at the end.
+"on press". S_UP and S_DN do not repeat: they are held as long as the key, as the other keys are.
+The numbers are frozen from the first build on: new buttons only go at the end.
 
 | Name | Control | Device 1 | Device 2 |
 | --- | --- | --- | --- |
