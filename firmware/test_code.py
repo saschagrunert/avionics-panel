@@ -161,8 +161,8 @@ def test_backoff_ends_when_usb_drops():
 
 def test_a_failed_send_skips_the_other_device():
     # both devices have a report to send, and the first send fails: the other device waits for the same
-    # back-off, so the sends of a pass never take more than 2 s (4 s would outlast SHIFT_MS and freeze the
-    # light for it)
+    # back-off, so the sends of a pass never take more than 2 s (4 s would outlast a tap's ARM_MS, the shorter
+    # time SHIFT lasts, and freeze the light for all of it)
     hw = never_polled(20000)
     passes = sorted(duties(hw))
     assert max(b - a for a, b in zip(passes, passes[1:])) == SEND_MS + 1
@@ -328,7 +328,7 @@ def test_lights_work_when_the_pad_register_cannot_be_written(capsys):
 
 def test_shift_light_is_written_only_on_a_change():
     # code.py asks for the level every pass (1 ms) but writes the PWM duty only when it changes
-    hw = hardware(tap("SHIFT", 10)).run(3200)
+    hw = hardware(tap("SHIFT", 10)).run(P.ARM_MS + 200)
     d = duties(hw)
     duty = [d[t] for t in sorted(d)]
     changes = sum(a != b for a, b in zip(duty, duty[1:]))
@@ -367,17 +367,17 @@ def test_the_lights_go_dark_before_a_wake_request():
 def test_shift_light_pulses_on_the_led(wrap):
     # one run of code.py, the LED duty of every pass by its time: steady full, then dim and full phases in
     # the last second, never 0 before the drop, 0 after it. The same while supervisor.ticks_ms wraps
-    hw = hardware(tap("SHIFT", 10), wrap=wrap).run(3200)
+    hw = hardware(tap("SHIFT", 10), wrap=wrap).run(P.ARM_MS + 200)
     duty = duties(hw)
     lit = [t for t in sorted(duty) if duty[t]]
     on, end = lit[0], lit[-1] + 1                        # SHIFT armed ... dropped
-    assert on == 10 and end == on + 3000                 # armed in the pass of the press, 3 s exactly
+    assert on == 10 and end == on + P.ARM_MS             # armed in the pass of the press, ARM_MS exactly
     full = duty[on]
     warning = [duty[t] for t in range(end - 1000, end)]
     assert all(duty[t] == full for t in range(on, end - 1000))
     dim = warning[0]                                     # whatever SHIFT_DUTY says: between off and full
     assert 0 < dim < full and set(warning) == {dim, full} and warning[-1] == full
-    assert all(duty[t] == 0 for t in range(end, 3200))
+    assert all(duty[t] == 0 for t in range(end, P.ARM_MS + 200))
 
 
 def test_shift_light_follows_shift():
@@ -568,7 +568,7 @@ def test_lights_are_dark_while_usb_is_down():
 @pytest.mark.parametrize("at, then, sent", [(2600, step(0, 1), "ALT_100_UP"), (1700, press("VFR", True), "VFR")])
 def test_shift_ends_when_usb_goes_down(at, then, sent):
     # SHIFT armed, then the host suspends the bus: the amber light goes dark, and dark means plain. An input
-    # after that, inside SHIFT's 3 s, asks the host to resume and goes out plain, whether the host is back
+    # after that, inside the tap's 3 s, asks the host to resume and goes out plain, whether the host is back
     # before or after those 3 s: ALT, not BARO; VFR, not IDENT. SHIFT stays off once the host is back
     hw = hardware({**tap("SHIFT", 1500), at: [then]})
     hw.suspend = (at - 100, 10**6)
@@ -871,13 +871,15 @@ def test_a_held_key_repeats_on_time_after_a_send_that_waited():
 
 
 def test_a_key_pressed_while_a_wait_keeps_the_shift_light_lit_is_shifted():
-    # SHIFT armed at 200, until 3200. A send at 2930 waits 400 ms for the endpoint, so the light stays lit until
-    # 3330; VFR pressed at 3250 is read after the wait: it goes out shifted, IDENT, as the light showed
+    # SHIFT armed at 200, until 3200 (ARM_MS). A send at 2930 waits 400 ms for the endpoint, so the light stays
+    # lit until 3330; VFR pressed at 3250 is read after the wait: it goes out shifted, IDENT, as the light showed
     def taken_endpoint(hw):
         hw.waits[hw.t] = 400
-    hw = hardware({100: [press("AP", True)], **tap("SHIFT", 200), 2900: [press("AP", False)],
-                   2900 + P.BOUNCE_MS: [taken_endpoint], **tap("VFR", 3250, 100)}).run(4000)
-    assert 2900 + P.BOUNCE_MS in hw.devices[0].tries and not [t for t in duties(hw) if 2930 < t < 3330]
+    end = 200 + P.ARM_MS
+    hw = hardware({100: [press("AP", True)], **tap("SHIFT", 200), end - 300: [press("AP", False)],
+                   end - 300 + P.BOUNCE_MS: [taken_endpoint], **tap("VFR", end + 50, 100)}).run(end + 800)
+    sent = end - 300 + P.BOUNCE_MS
+    assert sent in hw.devices[0].tries and not [t for t in duties(hw) if sent < t < sent + 400]
     assert downs(hw) == ["AP", "IDENT"]
 
 

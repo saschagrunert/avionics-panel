@@ -7,7 +7,9 @@ Knobs) and docs/architecture/firmware.md.
 """
 import buttonmap as BM
 
-SHIFT_MS = 3000          # SHIFT cancels itself, and a shifted knob returns to normal, after this
+ARM_MS = 3000            # a SHIFT tap arms the next key this long: a stray tap does not linger
+SESSION_MS = 5000        # a shifted knob returns to normal this long after its last detent (or a held push or
+                         # tilt's release): room to read a clearance between two squawk digits
 SHIFT_PULSE_MS = 125     # before SHIFT drops out the amber light pulses, dim and bright this long each (4 Hz) ...
 SHIFT_WARN_MS = 8 * SHIFT_PULSE_MS   # ... for this long: whole pairs, so it starts dim and ends bright
 LIGHT_OFF, LIGHT_DIM, LIGHT_FULL = 0, 1, 2   # levels of the amber light; code.py maps them to PWM duties
@@ -186,14 +188,14 @@ class Panel:
         return not self.dark and self.shift is not None and t < self.shift_until
 
     def _expire(self, t):
-        """Ends SHIFT once it ran out. A tap's armed SHIFT ends SHIFT_MS after the tap, also while a shifted push
+        """Ends SHIFT once it ran out. A tap's armed SHIFT ends ARM_MS after the tap, also while a shifted push
         or tilt is held: SHIFT then goes back to that control's session. A shifted push or tilt still held keeps
-        its session, the 3 s start at its release: extended first, so a loop pass that stalled for 3 s or more
+        its session, its SESSION_MS start at its release: extended first, so a loop pass that stalled that long
         doesn't end it under the hand."""
         if self.shift == "any" and t >= self.arm_until:
             self.shift, self.under = self.under, None
         if self._held_session() is not None:
-            self.shift_until = t + SHIFT_MS
+            self.shift_until = t + SESSION_MS
         if not self.shift_active(t):
             self.shift = self.under = None
 
@@ -220,7 +222,7 @@ class Panel:
             self.session += 1                              # a control held from an ended one keeps it not
         if self.shift == "any" or self.shift == knob:
             self.shift, self.under = knob, None
-            self.shift_until = t + SHIFT_MS
+            self.shift_until = t + SESSION_MS
             return True
         self.shift = self.under = None   # another knob ends this session, also one a held push or tilt keeps
         self._drop_squawk(t)             # (a squawk digit's count is the FREQ session's: a SHIFT tap dropped it)
@@ -318,7 +320,7 @@ class Panel:
             if self.shift == "any":                      # a second tap cancels SHIFT, except for a held control
                 self.shift, self.under = held, None
             else:                                        # also while a knob still keeps SHIFT: arm for the next key
-                self.shift, self.under, self.shift_until = "any", held, t + SHIFT_MS
+                self.shift, self.under, self.shift_until = "any", held, t + ARM_MS
                 self.arm_until = self.shift_until
             return
         shifted = self.shift == "any"

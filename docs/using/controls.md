@@ -42,7 +42,7 @@ The ALT/HDG knob:
 - With SHIFT: the outer ring sets BARO, the inner knob CRS, as on the G1000's CRS/BARO knob. The push sets
   BARO to standard (STD), for transition altitudes in Europe. Centring the course is a key: CRS CTR (SHIFT,
   HDG).
-- BARO and CRS have no knob of their own: a knob stays shifted while it is turned (both rings, 3 s after the
+- BARO and CRS have no knob of their own: a knob stays shifted while it is turned (both rings, 5 s after the
   last detent), so setting either is one tap and then turning, and a fourth dual knob would make the panel
   wider.
 
@@ -79,7 +79,7 @@ Squawk (SHIFT, FREQ knob): the outer ring selects the digit and the inner ring s
 Every entry starts at the first digit. Turning the outer ring clockwise moves on to the next digit,
 counter-clockwise back; it stops at the first and the fourth. Once the outer ring rests, the white UNIT light
 counts the selected digit, one to four short flashes, also after a turn against an end; the transponder shows
-which one moves too. The entry ends 3 s after the last detent of either ring, and the knob tunes frequencies
+which one moves too. The entry ends 5 s after the last detent of either ring, and the knob tunes frequencies
 again. A SHIFT tap during an entry starts a new one: the next detent is on the first digit again.
 
 Acceleration: on ALT, HDG, CRS and the ADF inner ring the first detent of a turn makes the fine step, and
@@ -176,12 +176,12 @@ sides, and its cap has a small raised bar near the front edge, so it can be foun
 - Tap SHIFT: the amber light next to it comes on. The next key press sends the key's amber function, then the
   light goes off. A key without an amber legend (VS, UP, FLC, DN, VNV, ENT) sends a button of its own then,
   mapped like the plain key ([Mapping](mapping.md#two-joysticks)).
-- A knob turned or pushed after the tap keeps SHIFT while you use it, on both rings and the push, until 3 s
+- A knob turned or pushed after the tap keeps SHIFT while you use it, on both rings and the push, until 5 s
   after its last detent, or after a held push or RANGE tilt is let go. Another knob ends it at once.
 - In the last second the light pulses between bright and dim, so a knob never drops back to its plain
   function unannounced in the middle of a turn.
-- A second tap cancels SHIFT, and it cancels itself after 3 s without input, plus any time the panel waited
-  for the PC to take a report.
+- A second tap cancels SHIFT, and a tap's SHIFT cancels itself 3 s after the tap without input, plus any time
+  the panel waited for the PC to take a report.
 - Dark means plain. Lit, even dim, means SHIFT is on: for the next key after a tap, or for the knob that
   keeps it. The light does not tell the two apart, and a key pressed while a knob keeps SHIFT is sent plain
   and ends the knob's SHIFT. For an amber key then, tap SHIFT first: that tap arms SHIFT for the key for 3 s,
@@ -207,8 +207,8 @@ The full rules and the state diagram are in [Firmware](../architecture/firmware.
   [generated profiles](mapping.md#generated-profiles) the ADF's turns tune its active frequency, so no
   flip-flop follows; ADF ⇆ (SHIFT, NAV ⇆) brings back the standby.
 - Squawk: tap SHIFT, set the first digit with the inner ring of the FREQ knob, move to the next digit with one
-  detent of the outer ring, and so on. Enter all four digits in one go: 3 s after the last detent the entry
-  ends. To start over, turn the outer ring counter-clockwise to its stop, the first digit.
+  detent of the outer ring, and so on. Pause less than 5 s between digits: the entry ends 5 s after the last
+  detent. To start over, turn the outer ring counter-clockwise to its stop, the first digit.
 - Ident: SHIFT, VFR (IDENT). Right after a squawk entry the amber light is still on, but VFR alone sends VFR
   there and squawks the VFR code over the one just set: tap SHIFT again first.
 
