@@ -44,12 +44,14 @@ class User32:
 
 
 class Kernel32:
-    def __init__(self):
-        self.handlers = []
+    """kernel32.dll's SetConsoleCtrlHandler: handlers has every call; it fails (returns 0) where refuse"""
+
+    def __init__(self, refuse=False):
+        self.handlers, self.refuse = [], refuse
 
     def SetConsoleCtrlHandler(self, handler, add):
         self.handlers.append((handler, add))
-        return 1
+        return 0 if self.refuse else 1
 
 
 def output(user32=None, kernel32=None):
@@ -110,7 +112,7 @@ def test_the_keys_the_panel_types_reach_windows():
     assert not any(held.values())
 
 
-def test_close_lets_go_and_nothing_follows():
+def test_close_lets_go_and_nothing_follows(capsys):
     user32 = User32()
     out = output(user32)
     out.send(1, bytes((keys.RS, 0, F1)) + bytes(5))
@@ -118,10 +120,32 @@ def test_close_lets_go_and_nothing_follows():
     out.close()                                                      # once is enough
     out.send(1, bytes((keys.RS, 0, F1)) + bytes(5))                  # code.py's thread, after the window closed
     assert user32.calls == [[(RSHIFT, False), (0x3B, False)], [(0x3B, True), *ALL_UP]]
+    assert capsys.readouterr().err == ""
+
+
+def test_key_releases_windows_does_not_take_at_the_end_are_named(capsys):
+    # nothing is left to retry them: the line says what may stay down, and how to let go of it
+    user32 = User32()
+    out = output(user32)
+    out.send(1, bytes((keys.RS, 0, F1)) + bytes(5))
+    user32.take = 2
+    out.close()
+    assert user32.calls[-1] == [(0x3B, True), *ALL_UP]
+    assert capsys.readouterr().err == AT_END.format(2, 6)
+
+
+def test_a_console_handler_windows_refuses_stops_it_before_any_keystroke():
+    # without it Ctrl-Break or closing the window would leave a modifier down
+    user32 = User32()
+    with pytest.raises(OSError, match=r"^Windows refused the console handler \(SetConsoleCtrlHandler\): Ctrl-Break "):
+        output(user32, Kernel32(refuse=True))
+    assert user32.calls == []
 
 
 BLOCKED = ("sim.sendinput: Windows took {} of {} keystrokes (a prompt or another program blocks them): they go on "
            "once it takes them again\n")
+AT_END = ("sim.sendinput: Windows took {} of the {} key releases at the end (a prompt or another program blocks "
+          "them): if a key or Ctrl, Shift or Alt stays down, press and let go of it on the PC's keyboard\n")
 
 
 def test_keystrokes_windows_does_not_take_are_let_go_until_it_takes_them_again(capsys):
@@ -235,7 +259,7 @@ def test_one_thread_retries_however_often_windows_blocks(retries, capsys):
         out.send(1, bytes((keys.RS, 0, F1)) + bytes(5))
     assert not user32.overlapped
     out.close()
-    assert capsys.readouterr().err == 6 * BLOCKED.format(0, 2)
+    assert capsys.readouterr().err == 6 * BLOCKED.format(0, 2) + AT_END.format(0, 6)
 
 
 def test_close_lets_go_of_the_keys_windows_did_not_take_too(capsys):
@@ -252,7 +276,8 @@ def test_close_lets_go_of_the_keys_windows_did_not_take_too(capsys):
     out.send(1, bytes((keys.RS | keys.RC, 0, 0)) + bytes(5))
     out.close()
     assert user32.calls == [[(RCTRL, False), (RSHIFT, False)], ALL_UP, ALL_UP]
-    assert capsys.readouterr().err == BLOCKED.format(0, 4) + BLOCKED.format(1, 2)
+    assert capsys.readouterr().err == "".join((BLOCKED.format(0, 4), AT_END.format(0, 7), BLOCKED.format(1, 2),
+                                               AT_END.format(1, 5)))
 
 
 def test_a_blocked_keystroke_does_not_end_the_panel(capsys):

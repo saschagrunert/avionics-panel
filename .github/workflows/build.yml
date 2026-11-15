@@ -236,6 +236,8 @@ jobs:
           if ($rule.DisplayName -ne "Avionics Panel simulator" -or $rule.Action -ne "Allow" -or $rule.Profile -ne "Private") {
             throw "not the rule: $($rule | Out-String)"
           }
+          $remote = ($rule | Get-NetFirewallAddressFilter).RemoteAddress
+          if ($remote -ne "LocalSubnet") { throw "the rule lets in $remote, not the local subnet" }
   # Packs the viewer without write access; pages-deploy publishes the artifact. A push to main or a manual run
   # on main publishes, once its build has passed; forks have no Pages of this repository to deploy to.
   pages-pack:

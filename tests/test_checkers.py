@@ -1,7 +1,7 @@
 """The two checkers fail on known-bad cases: pcb/check.py on a via whose annular ring is under JLCPCB's minimum,
-on drills under its smallest, on the exposed pad's paste windows bunched in one corner and on a bottom legend
-that reads from the top; mech/check_fit.py on a row whose margin is below zero or not a number and on a tap
-drill of another depth than the stack's. Both
+on drills under its smallest, on swapped pin nets, on the exposed pad's paste windows bunched in one corner and
+on a bottom legend that reads from the top; mech/check_fit.py on a row whose margin is below zero or not a
+number and on a tap drill of another depth than the stack's. Both
 need the generators' packages (numpy, shapely, OpenCascade), which the gen shell of nix/shells.nix has and the
 test shell does not, so each case runs there, through nix-shell; without nix-shell these tests skip."""
 import os
@@ -75,6 +75,25 @@ for name, sx in (("mirrored", -1.0), ("read from the top", 1.0)):
     print("RESULT", name, match[True] >= check.MIRROR_MATCH > match[False])
 """
     assert gen("pcb", code) == ["mirrored True", "read from the top False"]
+
+
+def test_check_py_fails_on_swapped_pins():
+    # two pins' nets swapped at the flash, the regulator, the LED switch and the USB-C socket, and a pad missing
+    code = """
+import board, check
+for name, change in (("as built", None), ("U2 SD1 / SD2", ("U2.2", "U2.3")), ("U3 in / out", ("U3.2", "U3.3")),
+                     ("Q gate / drain", ("Q_UNIT.1", "Q_UNIT.3")), ("J1 D+ / D-", ("J1.A6", "J1.A7")),
+                     ("U2 pad 8 missing", ("U2.8",))):
+    pads = board.build()
+    by = {p.name: p for p in pads}
+    if change and len(change) == 2:
+        by[change[0]].net, by[change[1]].net = by[change[1]].net, by[change[0]].net
+    elif change:
+        pads.remove(by[change[0]])
+    print("RESULT", name, check.symbol_pins(pads))
+"""
+    assert gen("pcb", code) == ["as built 0", "U2 SD1 / SD2 2", "U3 in / out 2", "Q gate / drain 2",
+                                "J1 D+ / D- 2", "U2 pad 8 missing 2"]
 
 
 def test_check_fit_py_fails_on_a_tap_drill_of_another_depth():

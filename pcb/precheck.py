@@ -69,7 +69,7 @@ print(f"bodies: {len(body)} bottom-side parts, closest bodies {near_body[0]:.3f}
 
 # --- mounting holes: the plate boss (top) and the body boss (bottom) press on the board within B.MOUNT_KEEPOUT of
 # each hole centre, so no fixed copper on F or B and no bottom-side part body may reach into it. The router keeps
-# out of it (board.keepouts()); check.py measures the routed copper on the Gerbers.
+# out of it (route.keepouts()); check.py measures the routed copper on the Gerbers.
 keep = [(g, f"{kind} ({net}, {ly})") for ly, g, net, kind in copper]
 keep += [(("rect", *r, 0.0), f"the body of {ref}") for ref, r in body.items()]
 ko_bad, ko_near = 0, (99.0, "")

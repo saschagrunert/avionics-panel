@@ -1,5 +1,7 @@
-"""Edge-to-edge distances of capsules / rectangles, the stroke width of a legend and the routed lengths (used by
-make.py, check.py, precheck.py and run_route.py)."""
+"""Edge-to-edge distances of capsules / rectangles, the stroke width of a legend, the copper paths of a net and
+the routed lengths (used by make.py, check.py, precheck.py and run_route.py)."""
+import heapq
+import itertools
 import math
 
 
@@ -91,6 +93,89 @@ def copper_items(pads, segments, vias):
     return items
 
 
+def centre_line(g):
+    """The centre line of a geometry item: a capsule's spine, a rectangle's centre."""
+    if g[0] == "rect":
+        c = ((g[1] + g[3]) / 2, (g[2] + g[4]) / 2)
+        return c, c
+    return (g[1], g[2]), (g[3], g[4])
+
+
+def closest_pair(sa, sb):
+    """Nearly the closest points of two segments (from the four end-to-segment projections)."""
+    def proj(p, a, b):
+        dx, dy = b[0] - a[0], b[1] - a[1]
+        l2 = dx * dx + dy * dy
+        t = 0.0 if l2 == 0 else max(0.0, min(1.0, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2))
+        return (a[0] + t * dx, a[1] + t * dy)
+    cands = [(p, proj(p, *sb)) for p in sa] + [(proj(q, *sa), q) for q in sb]
+    return min(cands, key=lambda c: math.dist(*c))
+
+
+def copper_graph(net, pads, segments, vias, planes=()):
+    """Nodes (pad centres, segment ends, vias, plane points) and edges (copper length) of one net: its pads, its
+    segments and vias, joined where they touch, and through its plane if planes (the plane nets) names it; without
+    planes the outer-layer copper and the vias alone."""
+    on_plane = net in planes
+    adj = {}
+
+    def edge(a, b, d):
+        adj.setdefault(a, []).append((b, d))
+        adj.setdefault(b, []).append((a, d))
+
+    items = {"F": [], "B": []}                 # (geometry, [(node, (x, y))]) per outer layer
+    for p in pads:
+        if p.net != net:
+            continue
+        for ly in p.layers:
+            items[ly].append((pad_geom(p), [(("pad", p.name, ly), (p.x, p.y))]))
+        if p.drill:                            # plated hole: both layers and the plane
+            edge(("pad", p.name, "F"), ("pad", p.name, "B"), 0.0)
+            if on_plane:
+                edge(("pad", p.name, "B"), ("plane", p.x, p.y), 0.0)
+    for x1, y1, x2, y2, ly, n, w in segments:
+        if n == net:
+            a, b = ("pt", ly, round(x1, 4), round(y1, 4)), ("pt", ly, round(x2, 4), round(y2, 4))
+            edge(a, b, math.hypot(x2 - x1, y2 - y1))
+            items[ly].append((("cap", x1, y1, x2, y2, w / 2), [(a, (x1, y1)), (b, (x2, y2))]))
+    for x, y, n, d, _dr in vias:
+        if n == net:
+            edge(("via", x, y, "F"), ("via", x, y, "B"), 0.0)
+            if on_plane:
+                edge(("via", x, y, "B"), ("plane", x, y), 0.0)
+            for ly in "FB":
+                items[ly].append((("cap", x, y, x, y, d / 2), [(("via", x, y, ly), (x, y))]))
+    for its in items.values():                 # touching copper: join the anchors through the contact
+        for i, j in near_pairs([g for g, _a in its], 1e-3):
+            (ga, anchors_a), (gb, anchors_b) = its[i], its[j]
+            if item_dist(ga, gb) > 1e-3:
+                continue
+            ca, cb = closest_pair(centre_line(ga), centre_line(gb))
+            for a, pa in anchors_a:
+                for b, pb in anchors_b:
+                    if a != b:
+                        edge(a, b, math.dist(pa, ca) + math.dist(ca, cb) + math.dist(cb, pb))
+    plane = [k for k in adj if k[0] == "plane"]
+    for i, a in enumerate(plane):              # across the plane: via to via in a straight line
+        for b in plane[i + 1:]:
+            edge(a, b, math.hypot(a[1] - b[1], a[2] - b[2]))
+    return adj
+
+
+def shortest(adj, start):
+    """{node: shortest copper length from start} over a copper_graph()"""
+    dist, heap = {start: 0.0}, [(0.0, start)]
+    while heap:
+        d, n = heapq.heappop(heap)
+        if d > dist[n]:
+            continue
+        for m, w in adj.get(n, ()):
+            if d + w < dist.get(m, math.inf):
+                dist[m] = d + w
+                heapq.heappush(heap, (d + w, m))
+    return dist
+
+
 # ---------------- routed length against the shortest tree (check.py and run_route.py) ----------------
 # A routed net may be DETOUR_FACTOR times as long as the shortest 8-direction tree over its pads, plus
 # DETOUR_SLACK for getting out of the RP2040's fan-out and round the parts in the way. In the routing before
@@ -163,17 +248,40 @@ def net_lengths(segments):
     return out
 
 
-# USB: all trace on D+ (USB_DP_C from the two USB-C contacts to R_DP, USB_DP on to the RP2040) and on D- at
-# most USB_MAX each, and within USB_SKEW of each other. Full speed (12 Mbit/s, 4 ns edges) would tolerate far
-# more; the limits catch a router detour on the one pair that has any timing at all.
+# USB: each line along its signal path, from a USB-C contact through the ESD array (in at the pad on J1's side,
+# out at the other) and the 27 R resistor to the RP2040's pin, at most USB_MAX, and D+ within USB_SKEW of D- on
+# the same row of contacts: a plug uses one row, A or B, by the way it is turned, and the other row's contact is a
+# stub. Full speed (12 Mbit/s, 4 ns edges) would tolerate far more; the limits catch a router detour on the one
+# pair that has any timing at all.
 USB_MAX, USB_SKEW = 50.0, 10.0
-USB_LINES = {"D+": ("USB_DP_C", "USB_DP"), "D-": ("USB_DN_C", "USB_DM")}
+# per line: its legs, (net, pads in order along it), {row} for the contact's row
+USB_PATHS = {"D+": (("USB_DP_C", ("J1.{row}6", "U4.6", "U4.1", "R_DP.2")), ("USB_DP", ("R_DP.1", "U1.47"))),
+             "D-": (("USB_DN_C", ("J1.{row}7", "U4.4", "U4.3", "R_DM.2")), ("USB_DM", ("R_DM.1", "U1.46")))}
+USB_NETS = {"D+": ("USB_DP_C", "USB_DP"), "D-": ("USB_DN_C", "USB_DM")}
 
 
-def usb_lengths(length):
-    """({"D+": mm, "D-": mm}, within USB_MAX and USB_SKEW) from net_lengths()."""
-    usb = {k: sum(length.get(n, 0.0) for n in nets) for k, nets in USB_LINES.items()}
-    return usb, max(usb.values()) <= USB_MAX and abs(usb["D+"] - usb["D-"]) <= USB_SKEW
+def usb_paths(pads, segments, vias):
+    """({row: {"D+": mm, "D-": mm}} along the signal paths of USB_PATHS, for the rows A and B of J1's contacts,
+    within USB_MAX and USB_SKEW): each leg the shortest copper path between its pads' centres (none: inf)."""
+    layer = {p.name: p.layers[0] for p in pads}
+    graphs = {net: copper_graph(net, pads, segments, vias) for legs in USB_PATHS.values() for net, _ in legs}
+    out = {}
+    for row in "AB":
+        out[row] = {}
+        for line, legs in USB_PATHS.items():
+            total = 0.0
+            for net, names in legs:
+                nodes = [("pad", n, layer[n]) for n in (n.format(row=row) for n in names)]
+                for a, b in itertools.pairwise(nodes):
+                    total += shortest(graphs[net], a).get(b, math.inf)
+            out[row][line] = total
+    ok = all(max(r.values()) <= USB_MAX and abs(r["D+"] - r["D-"]) <= USB_SKEW for r in out.values())
+    return out, ok
+
+
+def usb_totals(length):
+    """{"D+": mm, "D-": mm}: all trace on each line's nets (USB_NETS), its stubs too, from net_lengths()."""
+    return {k: sum(length.get(n, 0.0) for n in nets) for k, nets in USB_NETS.items()}
 
 
 def detour_limits(pads, nets):

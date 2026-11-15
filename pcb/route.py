@@ -98,12 +98,12 @@ def add_history(net, pads, radius=2.0, cost=1.0):
 
 
 def bias_maps(net):
-    """Extra cost per step on each layer for this net: areas board.route_bias() keeps for other nets, plus the
+    """Extra cost per step on each layer for this net: areas route_bias() keeps for other nets, plus the
     congestion history round the nets that failed before."""
     if net in _BIAS:
         return _BIAS[net]
     extra = _BIAS[net] = np.zeros((2, NY, NX), np.float32)
-    for layers, (x0, y0, x1, y1), pays, cost in B.route_bias():
+    for layers, (x0, y0, x1, y1), pays, cost in route_bias():
         if not pays(net):
             continue
         m = (x0 <= XS) & (x1 >= XS) & (y0 <= YS) & (y1 >= YS)
@@ -125,7 +125,7 @@ class Router:
         # board edge
         edge = (XS < B.EDGE_CLEAR) | (XS > B.W - B.EDGE_CLEAR) | (YS < B.EDGE_CLEAR) | (YS > B.H - B.EDGE_CLEAR)
         self.owner[:, edge] = NONET
-        for layers, kind, p in B.keepouts():
+        for layers, kind, p in keepouts():
             for ly in layers:
                 if kind == "circle":
                     stamp_capsule(self.owner[L[ly]], p[0], p[1], p[0], p[1], p[2], NONET)
@@ -315,3 +315,50 @@ class Router:
             add_pad(p)
             done.append(p)
         return True
+
+
+# ---------------- the router's configuration for this board ----------------
+def route_bias():
+    """Soft routing costs: (layers, rect, pays(net), extra cost per grid step). The band between the north
+    fan-out ends and the crystal is the only way out to the west for GP12, GP13 and GP15; any other net
+    crossing it (the USB-C lines take it on their way south) pays extra, so it
+    goes round the east side when it can.
+    The ALT/HDG lines (GP18-21) leave the east fan-out north and cross over J1 on the top layer (the bottom
+    under its shell is kept free). Between the two they pay for the top layer, so they run north on the bottom
+    and change layers north-east of J1: on the top layer they would wall off GP13 (FREQ push, which starts on
+    the top layer at the north fan-out and runs north-east). For the same reason the USB-C lines pay for the
+    top layer north-east of GP13's start, so they come down west of it and cross the fan-out south of it."""
+    mx, my = B.MCU
+    north_west = {B.RP[p] for p in range(15, 19)}                         # GP12-15
+    alt_hdg = {B.RP[p] for p in range(29, 33)}                            # GP18-21
+    usb_c = {"USB_DN_C", "USB_DP_C"}
+    return [("FB", (mx - B.FAN_END_W, my - B.FAN_END - 4.0, mx - 1.0, my - B.FAN_END + 0.3),
+             lambda n: n not in north_west, 2.0),
+            ("F", (B.J1_BODY[2] + 1.0, 5.0, B.W, my - B.FAN_END), lambda n: n in alt_hdg, 2.0),
+            ("F", (mx - 2.5, 10.0, mx + 6.0, my - B.FAN_END), lambda n: n in usb_c, 3.0)]
+
+
+def keepouts():
+    """Where the router lays no copper: (layers, "circle", (x, y, r)) or (layers, "rect", (x0, y0, x1, y1))."""
+    k = []
+    for (x, y) in B.MOUNTS:
+        k.append(("FB", "circle", (x, y, B.MOUNT_KEEPOUT)))
+    # inside the QFN fan-out square only the pre-routed fan-out may run on the bottom
+    mx, my = B.MCU
+    e = B.FAN_END - 0.3
+    k.append(("B", "rect", (mx - B.FAN_END_W + 0.3, my - e, mx + e, my + e)))
+    # USB-C: the shell (J1_BODY), the contacts and their pre-routed breakout into the ESD array, with the VBUS and
+    # D+ links on the top layer
+    k.append(("B", "rect", B.J1_BODY))
+    k.append(("B", "rect", (B.USB_X - 3.4, 5.8, B.USB_X + 3.4, B.ESD[1] - B.ESD_PY)))
+    k.append(("F", "rect", (B.USB_X - 2.6, 7.6, B.USB_X + 1.4, B.ESD[1] - B.ESD_PY - 0.5)))
+    for (x, y, d) in B.NPTH:
+        k.append(("FB", "circle", (x, y, d / 2 + 0.4)))
+    # the LED cutouts: copper JLCPCB's 0.2 mm from the routed edge, and the router's clearance on top
+    for (x, y, w, h, _r) in B.CUTOUTS:
+        e = B.LED_CUT_CLEAR + B.CLEAR
+        k.append(("FB", "rect", (x - w / 2 - e, y - h / 2 - e, x + w / 2 + e, y + h / 2 + e)))
+    # the fiducials: no other copper on the bottom inside their mask openings
+    for (x, y) in B.FIDUCIALS:
+        k.append(("B", "circle", (x, y, B.FID_OPEN / 2)))
+    return k

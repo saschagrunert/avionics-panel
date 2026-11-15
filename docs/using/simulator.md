@@ -86,10 +86,10 @@ seconds.
 On Windows the firewall lets the tablet in only once it allows the simulator's Python. Whatever was chosen
 when Windows asked about Python, right-click `firewall.bat` in the folder and choose Run as administrator,
 once: it removes the rules Windows made for that `python.exe` (Cancel there blocks it), allows it on private
-networks only, and lists the PC's networks with their category. If the network says Public and is your own,
-open it in Settings, Network & internet, and choose Private network; a DomainAuthenticated one, a company's,
-stays closed. Run it again after moving the folder. To take the rule out again, in a command prompt run as
-administrator:
+networks only, for devices on the PC's own subnet (a tablet on the same Wi-Fi, not one over a VPN), and lists
+the PC's networks with their category. If the network says Public and is your own, open it in Settings,
+Network & internet, and choose Private network; a DomainAuthenticated one, a company's, stays closed. Run it
+again after moving the folder. To take the rule out again, in a command prompt run as administrator:
 `netsh advfirewall firewall delete rule name="Avionics Panel simulator"`.
 
 ### Legend

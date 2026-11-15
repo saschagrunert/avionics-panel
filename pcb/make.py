@@ -338,6 +338,13 @@ def shape(kind, w, h, x, y):
     return LineString(spine).buffer(min(w, h) / 2, quad_segs=16)
 
 
+def slot_xy(p):
+    """A pad's slot (width, length) as its size along x and along y: it runs along the pad's long side, along y in
+    a pad as tall as it is wide."""
+    w, ln = p.slot
+    return (w, ln) if p.h >= p.w else (ln, w)
+
+
 def plane(layer, net, fname, func):
     """Inner plane: solid copper, anti-pads around every hole of another net, thermals on THT pads of its own net,
     and nothing narrower than PLANE_MIN_W."""
@@ -360,7 +367,7 @@ def plane(layer, net, fname, func):
         if not p.drill:
             continue
         if p.slot:
-            sw, sh = p.slot
+            sw, sh = slot_xy(p)
             if p.net == net:
                 thermals.append(p)
                 ring = 2 * (THERMAL_RING + THERMAL_GAP)
@@ -408,7 +415,7 @@ def plane(layer, net, fname, func):
     dropped = []
     for p in thermals:
         if p.slot:
-            sw, sh = p.slot
+            sw, sh = slot_xy(p)
             g.flash(g.ap("O", sw + 2 * THERMAL_RING, sh + 2 * THERMAL_RING), p.x, p.y)
             lx, ly = sw / 2 + THERMAL_RING + THERMAL_GAP + 0.1, sh / 2 + THERMAL_RING + THERMAL_GAP + 0.1
         else:
@@ -492,7 +499,7 @@ def outline(fname):
 
 
 def drill(fname, holes, plated, slots=()):
-    tools = sorted({dd for (_, _, dd) in holes} | {sw for (_, _, sw, _) in slots})
+    tools = sorted({dd for (_, _, dd) in holes} | {sw for (_, _, sw, _, _) in slots})
     lines = ["M48", f"; DIY avionics panel {'PTH' if plated else 'NPTH'}", "FMAT,2", "METRIC"]
     lines.append(f"; #@! TF.FileFunction,{'Plated' if plated else 'NonPlated'},1,4,{'PTH' if plated else 'NPTH'}")
     for i, t in enumerate(tools):
@@ -503,10 +510,11 @@ def drill(fname, holes, plated, slots=()):
         for (x, y, dd) in holes:
             if dd == t:
                 lines.append(f"X{x:.3f}Y{B.H - y:.3f}")
-        for (x, y, sw, sh) in slots:          # vertical plated slots, G85 = routed slot
+        for (x, y, sw, sl, tall) in slots:    # plated slots along y (tall) or x, G85 = routed slot
             if sw == t:
-                d = (sh - sw) / 2
-                lines.append(f"X{x:.3f}Y{B.H - (y - d):.3f}G85X{x:.3f}Y{B.H - (y + d):.3f}")
+                d = (sl - sw) / 2
+                dx, dy = (0.0, d) if tall else (d, 0.0)
+                lines.append(f"X{x - dx:.3f}Y{B.H - (y - dy):.3f}G85X{x + dx:.3f}Y{B.H - (y + dy):.3f}")
     lines.append("M30")
     with open(os.path.join(OUT, fname), "w") as f:
         f.write("\n".join(lines) + "\n")
@@ -523,7 +531,7 @@ silkscreen("F", "avionics-F_Silkscreen.gto", "Legend,Top")
 silkscreen("B", "avionics-B_Silkscreen.gbo", "Legend,Bot")
 outline("avionics-Edge_Cuts.gko")
 pth = [(p.x, p.y, p.drill) for p in pads if p.drill and not p.slot] + [(x, y, dr) for (x, y, _, _, dr) in vias]
-slots = [(p.x, p.y, p.slot[0], p.slot[1]) for p in pads if p.slot]
+slots = [(p.x, p.y, *p.slot, p.h >= p.w) for p in pads if p.slot]    # along the pad's long side (slot_xy)
 drill("avionics-PTH.drl", pth, True, slots)
 drill("avionics-NPTH.drl", [(x, y, B.MOUNT_HOLE) for (x, y) in B.MOUNTS] + list(B.NPTH), False)
 

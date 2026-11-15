@@ -16,7 +16,8 @@ Footprint sources:
   PEC11D-4120F-S0015: Bourns PEC11D datasheet (recommended PCB layout, holes 1.2), checked against JLC's
       footprint of C19270361
   RKJXT1F42001: Alps drawing, checked against JLC's footprint of C160841
-  W25Q16JVSNIQ (SOIC-8 150 mil): JLC's footprint of C2456211 (rows 5.37 apart, pads 0.63 x 1.87, pitch 1.27)
+  W25Q16JVSNIQ (SOIC-8 150 mil): JLC's footprint of C2456211 (rows 5.37 apart, pitch 1.27; pads 0.6 x 1.87,
+      JLC's 0.63 x 1.865)
   6x6 key switches (TE 1-1825910-4): pins 6.5 x 4.5, the 6.5 mm pairs connected inside
 
 Bottom-side parts: seen from the top, a part on the bottom is mirrored, so its pins number clockwise.
@@ -34,18 +35,27 @@ Circuit follows Raspberry Pi's "Hardware design with RP2040" minimal design.
 import importlib.util
 import os
 import re
+import sys
 from itertools import pairwise
 
 
-def _load(name, path):
-    """a module by file path, without putting its directory on sys.path"""
-    spec = importlib.util.spec_from_file_location(name, os.path.join(os.path.dirname(os.path.abspath(__file__)), path))
+def _stack():
+    """mech/stack.py, the one source of the key legends, without putting mech/ on sys.path: the module already
+    imported from that file under any name, else that file loaded, and registered as stack unless a module of that
+    name is there, so a mech/ script that imports board.py and stack (check_fit.py) has one copy of it."""
+    path = os.path.realpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "mech", "stack.py"))
+    for module in list(sys.modules.values()):
+        f = getattr(module, "__file__", None)
+        if f and os.path.realpath(f) == path:
+            return module
+    spec = importlib.util.spec_from_file_location("stack", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
+    sys.modules.setdefault("stack", module)
     return module
 
 
-_STACK = _load("_avionics_stack", "../mech/stack.py")   # the one source of the key legends
+_STACK = _stack()
 
 XR = 145.0              # right knob column (FREQ over FMS)
 W, H = 160.0, 60.0      # layout: ALT/HDG over RANGE | keys | electronics strip (bottom) | FREQ over FMS
@@ -58,14 +68,11 @@ VIA_D, VIA_DRILL = 0.60, 0.30
 SVIA_D, SVIA_DRILL = 0.50, 0.30     # small vias (USB-C, fan-out ends): JLC standard 0.3 mm drill, 0.45 mm pad min.
 MOUNT_HOLE = 3.8      # round the M3 screw: the board floats on the screws, where the caps centre it (mech/stack.py)
 CORNER_MOUNTS = [(3.5, 3.5), (W - 3.5, 3.5), (3.5, H - 3.5), (W - 3.5, H - 3.5)]
-# The fifth mount, in the middle of the key field: the widest spot between the pins of the four keys round it
-# (K12, K13, K22, K23: pin centres 5.3 mm off in x and 5.0 in y), with no bottom-side part within 6.9 mm. The
-# same hole, keep-out, plate boss and screw as at the corners.
-MID_MOUNT = (72.25, 30.75)
-MOUNTS = CORNER_MOUNTS + [MID_MOUNT]
-# no copper on F and B within this radius of a mounting-hole centre: the plate boss and the body boss press on
-# the board there (precheck.py holds the fixed copper and the bottom-side part bodies to it, check.py measures it
-# on the Gerbers, mech/check_fit.py fits the plate boss inside it)
+# (the fifth mount, MID_MOUNT, and MOUNTS follow the key grid, below)
+# no copper on F and B within this radius of a mounting-hole centre: the plate boss presses on the top inside it
+# (mech/check_fit.py fits it there), and the body boss on the bottom (make_mech.BOSS_R, 4.0) reaches past it onto
+# solder mask over copper, clear of bare copper (check_fit.py). precheck.py holds the fixed copper and the
+# bottom-side part bodies to it, check.py measures it on the Gerbers.
 MOUNT_KEEPOUT = 3.6
 PLANES = {"In1": "GND", "In2": "3V3"}
 
@@ -80,10 +87,16 @@ COL_PITCH = 11.85
 # Key columns and rows count from 0 in this file, as in COLS, ROWS and the key names (K12: row 1, column 2).
 COLS = [40.0 + COL_PITCH * k for k in range(3)] + [116.35 - COL_PITCH * k for k in (3, 2, 1, 0)]
 ROWS = [12.5, 23.5, 38.0, 49.0]         # rows 2/3 lower: room for the FMS line on the plate
+# The fifth mount, in the middle of the key field, midway between columns 2 and 3 and rows 1 and 2: the widest spot
+# between the pins of the four keys round it (K12, K13, K22, K23: pin centres 5.3 mm off in x and 5.0 in y), with
+# no bottom-side part within 6.9 mm. The same hole, keep-out, plate boss and screw as at the corners.
+MID_MOUNT = ((COLS[2] + COLS[3]) / 2, (ROWS[1] + ROWS[2]) / 2)
+MOUNTS = CORNER_MOUNTS + [MID_MOUNT]
 # Column pull-ups (10k to 3V3, one per column): the RP2040's own pull-ups (50 to 80k) with 20 to 30 pF of column
 # copper and diodes recover too slowly between two rows of a KeyMatrix scan (about 1 us). On each column bus,
-# midway between key rows 1 and 2, clear of the key pads and of the body's post and middle column under the board.
-PULLUP_Y = 31.0
+# between key rows 1 and 2, 0.25 mm towards row 2 of the midpoint (as placed and routed), clear of the key pads and
+# of the body's post and middle column under the board.
+PULLUP_Y = (ROWS[1] + ROWS[2]) / 2 + 0.25
 KEY_LABELS = [[label.replace(" ⇆", "<>").replace("→", "->") for label, _ in row]   # silkscreen: ASCII
               for row in _STACK.KEY_LEGENDS]
 ALTHDG, RANGE = (15.0, 15.0), (15.0, 45.0)   # left: ALT/HDG dual over RANGE (RKJXT: turn, 4-way tilt, push)
@@ -130,7 +143,7 @@ VIA_PAD_CLEAR = MASK_DAM + MASK_GROW
 # mask openings FID_OPEN across (JLCPCB: 1 mm, the opening twice that), no net, no paste. Three of them, in three
 # corners, each at least 3.35 mm from the board edge with its opening (JLCPCB) and clear of the body's bosses, in
 # spots with no bottom copper within 2.6 mm of the centre. The router keeps all copper out of the openings
-# (keepouts()).
+# (route.keepouts()).
 FID_D, FID_OPEN = 1.0, 2.0
 FIDUCIALS = [(8.5, 8.5), (W - 8.5, 8.5), (W - 8.5, H - 8.5)]
 
@@ -636,8 +649,8 @@ def add_protection(pads):
 
 # J1's metal shell seen from the top (HRO drawing: 8.94 wide, 7.35 long), its face 0.52 mm past the board edge
 # (mech/check_fit.py and the 3D view take its face and width from here). It is grounded with only solder mask
-# between it and the bottom copper, so nothing but J1's own pads may run under it (keepouts(); check.py measures
-# it on the Gerbers).
+# between it and the bottom copper, so nothing but J1's own pads may run under it (route.keepouts(); check.py
+# measures it on the Gerbers).
 J1_BODY = (USB_X - 4.47, -0.52, USB_X + 4.47, -0.52 + 7.35)
 LDO = (134.4, 8.0)              # VIN pad 1.0 mm clear of J1's hand-soldered shell tab (check.py)
 LDO_PX = 1.2                    # U3's pad centres east and west of LDO (add_support); the breakouts end there
@@ -984,48 +997,3 @@ def add_matrix_lanes(pads):
     # row 4 (knob / joystick pushes): a short lane below the bottom-most fan-out end, the router does the rest
     r4 = ROW_GP[4]
     lane_path(r4, [end[r4], (lane(-1) + 0.3, end[r4][1]), (lane(-1) + 0.3, 31.0)])
-
-
-def route_bias():
-    """Soft routing costs: (layers, rect, pays(net), extra cost per grid step). The band between the north
-    fan-out ends and the crystal is the only way out to the west for GP12, GP13 and GP15; any other net
-    crossing it (the USB-C lines take it on their way south) pays extra, so it
-    goes round the east side when it can.
-    The ALT/HDG lines (GP18-21) leave the east fan-out north and cross over J1 on the top layer (the bottom
-    under its shell is kept free). Between the two they pay for the top layer, so they run north on the bottom
-    and change layers north-east of J1: on the top layer they would wall off GP13 (FREQ push, which starts on
-    the top layer at the north fan-out and runs north-east). For the same reason the USB-C lines pay for the
-    top layer north-east of GP13's start, so they come down west of it and cross the fan-out south of it."""
-    mx, my = MCU
-    north_west = {RP[p] for p in range(15, 19)}                         # GP12-15
-    alt_hdg = {RP[p] for p in range(29, 33)}                            # GP18-21
-    usb_c = {"USB_DN_C", "USB_DP_C"}
-    return [("FB", (mx - FAN_END_W, my - FAN_END - 4.0, mx - 1.0, my - FAN_END + 0.3),
-             lambda n: n not in north_west, 2.0),
-            ("F", (J1_BODY[2] + 1.0, 5.0, W, my - FAN_END), lambda n: n in alt_hdg, 2.0),
-            ("F", (mx - 2.5, 10.0, mx + 6.0, my - FAN_END), lambda n: n in usb_c, 3.0)]
-
-
-def keepouts():
-    k = []
-    for (x, y) in MOUNTS:
-        k.append(("FB", "circle", (x, y, MOUNT_KEEPOUT)))
-    # inside the QFN fan-out square only the pre-routed fan-out may run on the bottom
-    mx, my = MCU
-    e = FAN_END - 0.3
-    k.append(("B", "rect", (mx - FAN_END_W + 0.3, my - e, mx + e, my + e)))
-    # USB-C: the shell (J1_BODY), the contacts and their pre-routed breakout into the ESD array, with the VBUS and
-    # D+ links on the top layer
-    k.append(("B", "rect", J1_BODY))
-    k.append(("B", "rect", (USB_X - 3.4, 5.8, USB_X + 3.4, ESD[1] - ESD_PY)))
-    k.append(("F", "rect", (USB_X - 2.6, 7.6, USB_X + 1.4, ESD[1] - ESD_PY - 0.5)))
-    for (x, y, d) in NPTH:
-        k.append(("FB", "circle", (x, y, d / 2 + 0.4)))
-    # the LED cutouts: copper JLCPCB's 0.2 mm from the routed edge, and the router's clearance on top
-    for (x, y, w, h, _r) in CUTOUTS:
-        e = LED_CUT_CLEAR + CLEAR
-        k.append(("FB", "rect", (x - w / 2 - e, y - h / 2 - e, x + w / 2 + e, y + h / 2 + e)))
-    # the fiducials: no other copper on the bottom inside their mask openings
-    for (x, y) in FIDUCIALS:
-        k.append(("B", "circle", (x, y, FID_OPEN / 2)))
-    return k

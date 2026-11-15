@@ -4,7 +4,7 @@ from itertools import pairwise
 
 import pytest
 
-from sim import Sim, typed
+from sim import BM, Sim, buttons_in, canonical, function_in, typed
 from sim.hardware import (
     BOOT_MS,
     RESUME_MS,
@@ -72,6 +72,23 @@ def test_typed_refuses_what_a_host_could_take_for_another_shortcut():
 
 
 # ---------------- the stand-ins against what CircuitPython 9.2.9's source says ----------------
+def test_a_report_names_its_buttons_and_a_shortcut_its_function():
+    # buttons_in() and function_in(), which Sim, the page and its tests read the reports with, against reports
+    # made bit by bit from buttonmap.py's numbers and from keys.py's shortcuts
+    for device, report_id in ((1, 4), (2, 5)):
+        names = BM.DEVICE[device][::3] + BM.DEVICE[device][-1:]
+        report = bytearray([report_id]) + bytes(BM.SIZE[device] // 8)
+        assert buttons_in(device, report) == []
+        for name in names:
+            report[1 + BM.BUTTON[device][name] // 8] |= 1 << BM.BUTTON[device][name] % 8
+        assert buttons_in(device, report) == sorted(set(names), key=BM.BUTTON[device].get)
+        for name in ("AP", "COM_SWAP") if device == 1 else ("COM_SWAP", "ENT"):
+            mods, key = keys.shortcut(device, BM.BUTTON[device][name])
+            assert function_in(bytes((mods, 0, key)) + bytes(5)) == canonical(device, name)
+    assert function_in(bytes(keys.REPORT)) == (None, None)
+    assert function_in(bytes((keys.LC, 0, 0)) + bytes(5)) == (None, None)        # a modifier alone
+
+
 def test_send_report_checks_the_length_and_waits_for_the_host():
     # a wrong length raises at once; with the host away send_report waits 2 s for it, then raises if it is not
     # mounted, and returns if it has the bus suspended, after asking it to resume (if the host allows that)

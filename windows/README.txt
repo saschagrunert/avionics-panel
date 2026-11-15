@@ -33,7 +33,8 @@ Enter) and run python\python.exe -m sim.page --open. MobiFlight then sees no joy
 
 For a tablet beside the PC, run start.bat --host 0.0.0.0 from a command prompt in this folder. Then, once,
 right-click firewall.bat and choose Run as administrator: it lets the simulator through Windows' firewall on
-private networks, whatever was chosen when Windows asked.
+private networks, from this PC's own subnet (not over a VPN or a guest network), whatever was chosen when
+Windows asked.
 
 To see what each button does in one of the generated profiles, run start.bat --family g1000 from a
 command prompt in this folder (or gns, gtn, g3x, black-square-bonanza, cows-da40, carenado-c182t): one more

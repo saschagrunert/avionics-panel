@@ -88,6 +88,73 @@ def test_the_card_uses_the_panels_legends():
             assert part in words, part
 
 
+# Each knob row's head and buttons, written out here rather than taken from card.knobs(): a row that names one ring
+# or push and lists another's buttons fails. A ring's two ways: _UP/_DN, or _CW/_CCW, or for a tilt as titled.
+TURN = ("_UP", "_DN")
+KNOB_ROWS = {
+    "ALT, outer": ("ALT_100", TURN), "ALT, quick turn": ("ALT_1000", TURN), "HDG, inner": ("HDG_1", TURN),
+    "HDG, quick turn": ("HDG_10", TURN), "PUSH SYNC": ("HDG_SYNC", ("",)), "BARO, outer": ("BARO", TURN),
+    "CRS, inner": ("CRS_1", TURN), "CRS, quick turn": ("CRS_10", TURN), "PUSH STD": ("BARO_STD", ("",)),
+    "RANGE ↻": ("RANGE", ("_CW", "_CCW")), "tilt ▲": ("PAN", TURN), "tilt ◀": ("PAN", ("_LEFT", "_RIGHT")),
+    "PUSH PTR": ("PTR", ("",)), "COM, outer": ("COM_MHZ", TURN), "COM, inner": ("COM_KHZ", TURN),
+    "NAV, outer": ("NAV_MHZ", TURN), "NAV, inner": ("NAV_KHZ", TURN), "ADF, outer": ("ADF_100", TURN),
+    "ADF, inner": ("ADF_1", TURN), "ADF, quick turn": ("ADF_10", TURN), "PUSH COM/NAV/ADF": ("FREQ_PUSH", ("",)),
+    **{f"SQUAWK digit {d}": (f"SQK_D{d}", TURN) for d in range(1, 5)}, "PUSH XPDR": ("XPDR_MODE", ("",)),
+    "outer ↻": ("FMS_OUTER", ("_CW", "_CCW")), "inner ↻": ("FMS_INNER", ("_CW", "_CCW")),
+    "PUSH CRSR": ("FMS_CRSR", ("",)), "PANEL, outer": ("PANEL_LT", TURN), "FLOOD, inner": ("FLOOD_LT", TURN),
+    "PUSH CABIN": ("CABIN_LT", ("",)),
+}
+SAME_TITLE_SHIFTED = ("RANGE", "PAN", "PTR")   # RANGE's rows keep their titles with SHIFT: their buttons get S_
+
+
+def test_each_row_names_its_own_buttons():
+    # the keys' rows by the caps' legends (stack.KEY_LEGENDS, not card.caps()), plain and amber; the knobs' rows
+    # by KNOB_ROWS
+    expected = []
+    for row in card.stack().KEY_LEGENDS:
+        for name in (card.key_name(legend) for legend, _ in row):
+            if name != "SHIFT":
+                expected.append((False, [name]))
+            if name not in ("SHIFT", "HOME"):
+                expected.append((True, [BM.shifted(name)]))
+    got = rows()
+    assert [(s, b) for s, _, b in got[:len(expected)]] == expected
+    for shifted, title, buttons in got[len(expected):]:
+        stem, ways = next(KNOB_ROWS[h] for h in KNOB_ROWS if title.startswith(h))
+        prefix = "S_" if shifted and stem in SAME_TITLE_SHIFTED else ""
+        assert buttons == [prefix + stem + way for way in ways], (title, buttons)
+
+
+@FAMILY
+def test_each_row_shows_its_own_buttons(key):
+    # row by row, in the card's order: the legend in its head, and in its line what its own buttons set (each
+    # label of their codes) or "nothing"; unit 2's line "the same" or what device 2's buttons set. So a row that
+    # showed another key's or ring's buttons fails, not only a label missing from the whole page.
+    family = FAMILIES[key]
+    bodies = [b for b in re.findall(r"<tbody>(.*?)</tbody>", card.page(family, key), re.S)
+              if "tap, then a key or knob" not in b and "unit 1 or 2, in the panel" not in b]
+    expected = rows()
+    assert len(bodies) == len(expected)
+    for body, (_, title, buttons) in zip(bodies, expected, strict=True):
+        lines = [(html.unescape(re.sub(r"<[^>]+>", "", th)), html.unescape(td))
+                 for th, td in re.findall(r"<tr><th>(.*?)</th><td>(.*?)</td></tr>", body)]
+        assert title in lines[0][0], (title, lines)
+        devices = (1, 2) if all(b in BM.BUTTON[2] for b in buttons) else (1,)
+        assert len(lines) == len(devices), (title, lines)
+        for device, (_, text) in zip(devices, lines, strict=True):
+            if device == 2 and text == "the same":
+                sends = [[profile.actions(family.DEVICE[d][b]) if b in family.DEVICE[d] else family.UNMAPPED[d][b]
+                          for b in buttons] for d in (1, 2)]
+                assert sends[0] == sends[1], (title, buttons)
+                continue
+            for button in buttons:
+                entry = family.DEVICE[device].get(button)
+                if entry is None:
+                    assert "nothing" in text, (device, button, text)
+                for code in profile.actions(entry).values() if entry is not None else ():
+                    assert profile.label(code) in text, (device, button, text)
+
+
 def test_the_freq_push_row_says_a_hold_returns_to_com():
     # the push sends FREQ_PUSH, which no profile maps: the panel's own hold to COM is all it does but cycle
     assert f"{P.FREQ_HOLD_MS // 1000} s" == card.FREQ_HOLD

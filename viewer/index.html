@@ -879,7 +879,13 @@ async function main() {
   if (play) {
     const s = document.createElement('script');
     s.src = 'sim.js';
-    s.onload = () => window.playPanel({ G, camera, controls, canvas, assembly, ground, go, invalidate, reduce, view: views.P, keys: keyList, knobs: KNOBS, lights: LIGHTS, px, pz });
+    // a sim.js that is missing or fails to start says so, as a missing geometry.js does: the view alone is no panel
+    const broken = e => { if (e) console.error(e); fail('The panel could not start: sim.js is missing or does not match this page.'); };
+    s.onerror = () => broken();
+    s.onload = () => {
+      try { window.playPanel({ G, camera, controls, canvas, assembly, ground, go, invalidate, reduce, view: views.P, keys: keyList, knobs: KNOBS, lights: LIGHTS, px, pz }); }
+      catch (e) { broken(e); }
+    };
     document.head.appendChild(s);
   }
 }

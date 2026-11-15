@@ -14,24 +14,23 @@ MSFS 2024 SDK. The radios, ADF, transponder, audio panel and cabin light are the
 """
 from mobiflight.families import parts
 from mobiflight.families.part import part
-from mobiflight.families.rpn import h, k
+from mobiflight.families.rpn import bezel, k
 
 
 def _gdu(index):
     """The bezel of the G3X Touch (GDU 460) of this index: D→, MENU, BACK as CLR, NRST and the right-hand dual
     knob, which works the MFD pane in split screen"""
-    p = f"AS3X_Touch_{index}_"
-    return {
-        "DIRECT": h(p + "DirectTo_Push"),
-        "MENU": h(p + "Menu_Push"),
-        "CLR": h(p + "Back_Push"),
-        "NRST": h(p + "NRST_Push"),
-        "FMS_OUTER_CW": h(p + "Knob_Outer_R_INC"),
-        "FMS_OUTER_CCW": h(p + "Knob_Outer_R_DEC"),
-        "FMS_INNER_CW": h(p + "Knob_Inner_R_INC"),
-        "FMS_INNER_CCW": h(p + "Knob_Inner_R_DEC"),
-        "FMS_CRSR": h(p + "Knob_Inner_R_PUSH"),
-    }
+    return bezel(f"AS3X_Touch_{index}_", {
+        "DIRECT": "DirectTo_Push",
+        "MENU": "Menu_Push",
+        "CLR": "Back_Push",
+        "NRST": "NRST_Push",
+        "FMS_OUTER_CW": "Knob_Outer_R_INC",
+        "FMS_OUTER_CCW": "Knob_Outer_R_DEC",
+        "FMS_INNER_CW": "Knob_Inner_R_INC",
+        "FMS_INNER_CCW": "Knob_Inner_R_DEC",
+        "FMS_CRSR": "Knob_Inner_R_PUSH",
+    })
 
 
 # the one CDI, which the key switches between GPS and NAV 1 while the G3X flies its own flight plan

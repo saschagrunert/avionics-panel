@@ -97,7 +97,7 @@ def listing():
 
 
 def chosen(parser, args):
-    """The profile of --family, or of the parts given"""
+    """The profile of --family, or of the parts given, and its key (None for parts: profile.filename)"""
     if args.family:
         if args.cockpit or args.navigator or args.unit1 or args.unit2:      # (--autopilot: its own group)
             parser.error("--family is a whole profile: give it or the parts, not both")
@@ -110,7 +110,13 @@ def chosen(parser, args):
         parser.error(f"{args.unit1} in both units: the two would work one navigator (none: radios alone)")
     units = (NAVIGATORS[args.navigator],) if args.navigator else navigators(args.unit1, args.unit2)
     picked = (AUTOPILOTS[args.autopilot], COCKPITS[args.cockpit], *units)
-    return compose(", ".join(p.TITLE for p in picked), *picked), "avionics"
+    return compose(", ".join(p.TITLE for p in picked), *picked), None
+
+
+def unclobbered(parser, args, output):
+    """A usage error where output is the project --from reads: writing it would lose that project's own bindings"""
+    if args.saved and os.path.exists(output) and os.path.samefile(output, args.saved):
+        parser.error(f"{output} is the project --from reads: give another file to write")
 
 
 def main(argv=None):
@@ -136,7 +142,8 @@ def main(argv=None):
     joysticks.add_argument("--serials", nargs=2, metavar=("DEVICE1", "DEVICE2"),
                            help="the serials of the panel's joysticks, JS-<guid>: device 1 (128 buttons), "
                                 "device 2 (64)")
-    parser.add_argument("-o", "--output", metavar="OUT.mfproj", help="default: FAMILY.mfproj, or avionics.mfproj")
+    parser.add_argument("-o", "--output", metavar="OUT.mfproj",
+                        help="default: avionics-panel-FAMILY.mfproj, or avionics-panel.mfproj for parts")
     parser.add_argument("--stamp", metavar="TEXT", default=profile.VERSION,
                         help="the text in brackets after the project's or the card's name, as the date and short "
                              f"hash of the commit (default: {profile.VERSION or 'none'}, from firmware/version.py)")
@@ -178,6 +185,7 @@ def main(argv=None):
         else:
             controllers = profile.UNBOUND
         if args.parts_zip:
+            unclobbered(parser, args, args.parts_zip)
             if args.vfr is not None:
                 parts.vfr(args.vfr)                                      # (a wrong code fails before the zip)
             every = every_part()
@@ -185,14 +193,15 @@ def main(argv=None):
                 for key, part in sorted(every.items()):
                     vfr = args.vfr if part.KIND == "cockpit" else None
                     project = profile.build(part, controllers, vfr, args.stamp)
-                    z.writestr(entry(f"avionics-panel-{key}.mfproj"), profile.dumps(project))
+                    z.writestr(entry(profile.filename(key)), profile.dumps(project))
             print(f"wrote {args.parts_zip}: {len(every)} parts", file=sys.stderr)
             return
         family, key = chosen(parser, args)
         project = profile.build(family, controllers, args.vfr, args.stamp)
     except (OSError, ValueError) as e:
         parser.error(str(e))
-    output = args.output or f"{key}.mfproj"
+    output = args.output or profile.filename(key)
+    unclobbered(parser, args, output)
     try:
         with replacing(output) as f:                     # no part of a project, which MobiFlight could not load
             f.write(profile.dumps(project))

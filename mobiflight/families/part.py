@@ -55,7 +55,11 @@ def part(key, name, kind, device, unmapped, units=(1, 2), **extra):
     """A part: its key (as the generator and the zip name it), NAME (the avionics) and TITLE (with its kind, and a
     navigator of one unit with the unit), KIND, UNITS (a navigator's) and its DEVICE and UNMAPPED tables, which
     must cover its scope() exactly, and extra's attributes (a navigator's DISTANCES and REQUIRED_VS, an autopilot's
-    VNV, compose())"""
+    VNV, compose()). An autopilot's VNV fills its VNV and SHIFT, VNV rows, alike, with the code of its defaults:
+    alone() and compose() give it the distances it reads."""
+    if kind == "autopilot" and extra.get("VNV"):
+        vnv = extra["VNV"]()
+        device = {**device, 1: {**device.get(1, {}), "VNV": vnv, "S_VNV": vnv}}
     want = scope(kind, units)
     for d in (1, 2):
         rows, rest = set(device.get(d, {})), set(unmapped.get(d, {}))
@@ -149,8 +153,7 @@ def joined(key, name, *navigators, rows=None, reasons=None):
             if button in device[d]:
                 raise ValueError(f"{key}: {button} is a navigator's, not for a reason")
             rest[d][button] = reason
-    reads = dict.fromkeys(r for p in navigators for r in getattr(p, "DISTANCES", ()))
-    distances = (*(r for r in reads if r != GPS_DISTANCE), *((GPS_DISTANCE,) if GPS_DISTANCE in reads else ()))
+    distances = gps_last(r for p in navigators for r in getattr(p, "DISTANCES", ()))
     return part(f"{key}-unit{unit}", name, "navigator", device, rest, units, DISTANCES=distances)
 
 
@@ -161,11 +164,31 @@ def empty(unit):
     return part(f"none-unit{unit}", "none", "navigator", {}, place(rows, unit), (unit,), DISTANCES=())
 
 
+def gps_last(reads):
+    """Distance reads (RPN) each once, in their order, but the sim's GPS WP DISTANCE last, if it is among them: of
+    navigators that one unit may hold any of (joined()), or of every navigator (families/__init__.py), none of which
+    goes first"""
+    reads = dict.fromkeys(reads)
+    return (*(r for r in reads if r != GPS_DISTANCE), *((GPS_DISTANCE,) if GPS_DISTANCE in reads else ()))
+
+
 def distances(*navigators):
     """The distances VNV reads with these navigators (compose()): their own, unit 1's first, each once, then the
-    sim's GPS WP DISTANCE if none of them gave it"""
+    sim's GPS WP DISTANCE if none of them gave it; unit 1's GPS WP DISTANCE stays ahead of unit 2's own, unlike
+    gps_last()"""
     reads = [d for p in sorted(navigators, key=lambda p: p.UNITS) for d in getattr(p, "DISTANCES", ())]
     return tuple(dict.fromkeys((*reads, GPS_DISTANCE)))
+
+
+def alone(autopilot, distances):
+    """An autopilot part as offered alone (the parts zip, families/__init__.py), not knowing its navigator: its VNV,
+    if it has one, reads these distances, and VNV and SHIFT, VNV send it alike; compose() gives a profile the
+    distances of its navigators instead"""
+    if not getattr(autopilot, "VNV", None):
+        return autopilot
+    vnv = autopilot.VNV(distances=distances)
+    device = {1: {**autopilot.DEVICE[1], "VNV": vnv, "S_VNV": vnv}, 2: dict(autopilot.DEVICE[2])}
+    return SimpleNamespace(**{**vars(autopilot), "DEVICE": device})
 
 
 def compose(name, *parts, rows=None, unmapped=None, **extra):

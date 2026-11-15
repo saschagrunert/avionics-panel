@@ -1,8 +1,8 @@
 """Render front/back previews from the Gerber files (black mask, white silk, ENIG pads)."""
 import board as B
 import numpy as np
-from check import HPX, PX, WPX, raster, read_drill
 from geom import rounded_rect
+from gerber_io import HPX, PX, WPX, raster, read_drill
 from PIL import Image, ImageDraw
 
 

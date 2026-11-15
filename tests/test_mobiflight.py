@@ -1109,8 +1109,20 @@ def test_an_autopilot_part_alone_reads_every_navigators_distance():
     declared |= {d for p in NAVIGATORS.values() for d in getattr(p, "DISTANCES", ())}
     assert set(ALONE_DISTANCES) == declared and ALONE_DISTANCES[-1] == part.GPS_DISTANCE
     assert len(ALONE_DISTANCES) == len(declared) > 1
-    for key, vnv in (("kap140", parts.KAP140_VNV), ("kfc150", KFC150_VNV)):
+    for key, vnv, built in (("kap140", parts.KAP140_VNV, parts.KAP140_AUTOPILOT),
+                            ("kfc150", KFC150_VNV, bksq.AUTOPILOT)):
         assert AUTOPILOTS[key].DEVICE[1]["VNV"] == vnv(distances=ALONE_DISTANCES), key
+        assert PARTS[f"autopilot-{key}"].DEVICE[1]["S_VNV"] == PARTS[f"autopilot-{key}"].DEVICE[1]["VNV"], key
+        # a copy (part.alone): the part as built keeps its VNV's defaults, which compose() replaces in turn
+        assert built.DEVICE[1]["VNV"] == built.DEVICE[1]["S_VNV"] == vnv(), key
+    assert {k for k, p in AUTOPILOTS.items() if getattr(p, "VNV", None)} == {"kap140", "kfc150"}
+
+
+def test_gps_last_keeps_each_read_once_and_the_gps_distance_last():
+    # as joined() and the parts alone order theirs; one without the GPS's gets none
+    gps, tds = part.GPS_DISTANCE, gtn.TDS_DISTANCE
+    assert part.gps_last([gps, tds, gps, "x", tds]) == (tds, "x", gps)
+    assert part.gps_last([tds, "x"]) == (tds, "x") and part.gps_last([]) == ()
 
 
 def test_the_c182t_vnv_takes_the_g1000_nxis_required_rate_first():
@@ -1298,18 +1310,20 @@ ITEM = ("GUID", "Active", "Name", "Type", "Controller", "Device", "button")
 BUTTON = ("onPress", "onRelease", "onLongRelease", "onHold", "LongReleaseDelay", "HoldDelay", "RepeatDelay")
 
 
-@FAMILY
+@TABLE
 def test_the_project_has_the_structure_mobiflight_reads(key):
     # MobiFlight 11.3.1: Project (Name, Sim, Features, Aircraft, ConfigFiles, "_version" 0.10), an embedded
     # ConfigFile, InputConfigItem with Controller {Name, Serial} and Device {Type Button, Name "Button N"},
-    # ButtonInputConfig, MSFS2020CustomInputAction {Command} with the table's code
-    project = json.loads(profile.dumps(build(key=key)))
+    # ButtonInputConfig, MSFS2020CustomInputAction {Command} with the table's code; a part's project as a profile's
+    table = TABLES[key]
+    project = json.loads(profile.dumps(profile.build(table, PANEL)))
     assert tuple(project) == ("Name", "Sim", "Features", "Aircraft", "ConfigFiles", "_version")
     assert project["_version"] == "0.10" and project["Sim"] == "msfs" and project["Aircraft"] == []
     assert project["Features"] == {"FSUIPC": False, "ProSim": False}
     [config_file] = project["ConfigFiles"]
+    label = f"Avionics Panel: {table.TITLE}" if hasattr(table, "KIND") else "Avionics Panel"   # a part: its tab
     assert {k: v for k, v in config_file.items() if k != "ConfigItems"} == {
-        "Label": "Avionics Panel", "FileName": None, "ReferenceOnly": False, "EmbedContent": True}
+        "Label": label, "FileName": None, "ReferenceOnly": False, "EmbedContent": True}
     serials = {serial: device for device, (_, serial) in PANEL.items()}
     numbers = {(device, BM.BUTTON[device][name] + 1): name for device in (1, 2) for name in BM.DEVICE[device]}
     seen = set()
@@ -1325,12 +1339,13 @@ def test_the_project_has_the_structure_mobiflight_reads(key):
         button = item["button"]
         assert tuple(button) == BUTTON and (button["LongReleaseDelay"], button["HoldDelay"]) == (350, 350)
         assert button["RepeatDelay"] == 0 and button["onHold"] is None
-        entry = profile.actions(FAMILIES[key].DEVICE[device][numbers[device, number]])
+        entry = profile.actions(table.DEVICE[device][numbers[device, number]])
         events = ("onPress", "onRelease", "onLongRelease")
         assert {event: act["Command"] for event in events if (act := button[event])} == entry
         for event in entry:
             assert tuple(button[event]) == ("Type", "Command")
             assert button[event]["Type"] == "MSFS2020CustomInputAction"
+    assert len(seen) == len(table.DEVICE[1]) + len(table.DEVICE[2])         # every row of the table, no other
     assert len({item["GUID"] for item in config_file["ConfigItems"]}) == len(config_file["ConfigItems"])
 
 
@@ -1437,6 +1452,36 @@ def test_saved_projects_that_do_not_tell_the_joysticks_apart(tmp_path, bound, pa
         profile.controllers_from(saved(tmp_path, *bound))
 
 
+@pytest.mark.parametrize("name", [None, 7])
+def test_a_joystick_saved_without_a_name_keeps_none(tmp_path, name):
+    # (a name that is no text is read as none: it keys the joysticks, which a number or a list would not)
+    unnamed = {d: (name, joystick) for d, (_, joystick) in PANEL.items()}
+    assert profile.controllers_from(saved(tmp_path, (*unnamed[1], 83), (*unnamed[2], 10))) == {
+        d: (None, joystick) for d, (_, joystick) in PANEL.items()}
+
+
+def test_a_saved_serial_in_upper_case_is_read_as_saved(tmp_path):
+    upper = {d: (name, joystick[:3] + joystick[3:].upper()) for d, (name, joystick) in PANEL.items()}
+    assert profile.controllers_from(saved(tmp_path, (*upper[1], 83), (*upper[2], 10))) == upper
+
+
+def test_a_serial_saved_in_two_cases_is_one_joystick(tmp_path):
+    # the first spelling saved is kept
+    upper = {d: (name, joystick[:3] + joystick[3:].upper()) for d, (name, joystick) in PANEL.items()}
+    bound = [(*PANEL[1], 83), (*upper[1], 84), (*PANEL[2], 10)]
+    assert profile.controllers_from(saved(tmp_path, *bound)) == PANEL
+
+
+@pytest.mark.parametrize("text", ["[]", "3", '{"ConfigFiles": 3}', '{"ConfigFiles": [3, {"ConfigItems": [[], 3]}]}',
+                                  '{"ConfigFiles": [{"ConfigItems": [{"Type": "InputConfigItem", "Controller": 3, '
+                                  '"Device": {"Name": 83}}]}]}'])
+def test_a_saved_file_that_is_no_project_is_an_error_not_a_crash(tmp_path, text):
+    path = tmp_path / "x.mfproj"
+    path.write_text(text, encoding="utf-8")
+    with pytest.raises(ValueError, match="not a MobiFlight project" if not text.startswith("{") else "found 0"):
+        profile.controllers_from(str(path))
+
+
 # ---------------- the command line ----------------
 def report(err, key, controllers):
     """Checks the command's report: per device the buttons mapped, then each unmapped button with its reason,
@@ -1453,8 +1498,9 @@ def report(err, key, controllers):
 @FAMILY
 def test_command_line_without_joysticks(tmp_path, capsys, monkeypatch, key):
     monkeypatch.chdir(tmp_path)
-    cli.main(["--family", key])
-    assert (tmp_path / f"{key}.mfproj").read_text(encoding="utf-8") == profile.dumps(build(profile.UNBOUND, key))
+    cli.main(["--family", key])                     # as its download: avionics-panel-g1000.mfproj, as its card says
+    written = (tmp_path / f"avionics-panel-{key}.mfproj").read_text(encoding="utf-8")
+    assert written == profile.dumps(build(profile.UNBOUND, key))
     report(capsys.readouterr().err, key, profile.UNBOUND)
 
 
@@ -1462,8 +1508,20 @@ def test_command_line_without_joysticks(tmp_path, capsys, monkeypatch, key):
 def test_command_line_from_a_saved_project(tmp_path, capsys, monkeypatch, key):
     monkeypatch.chdir(tmp_path)
     cli.main(["--family", key, "--from", saved(tmp_path, (*PANEL[1], 83), (*PANEL[2], 10))])
-    assert (tmp_path / f"{key}.mfproj").read_text(encoding="utf-8") == profile.dumps(build(key=key))
+    assert (tmp_path / f"avionics-panel-{key}.mfproj").read_text(encoding="utf-8") == profile.dumps(build(key=key))
     report(capsys.readouterr().err, key, PANEL)
+
+
+def test_the_project_read_is_never_written_over(tmp_path, capsys, monkeypatch):
+    # a saved project named as the download, read with --from, keeps the user's own bindings: refused, unwritten
+    monkeypatch.chdir(tmp_path)
+    path = tmp_path / profile.filename("g1000")
+    os.rename(saved(tmp_path, (*PANEL[1], 83), (*PANEL[2], 10)), path)
+    before = path.read_bytes()
+    for args in (["--family", "g1000"], ["--family", "g1000", "-o", str(path)], ["--parts-zip", str(path)]):
+        with pytest.raises(SystemExit):
+            cli.main([*args, "--from", path.name])
+        assert "is the project --from reads" in capsys.readouterr().err and path.read_bytes() == before
 
 
 def test_command_line_with_serials(tmp_path):
@@ -1509,6 +1567,16 @@ def test_the_command_line_stamps_with_the_commit_of_version_py(tmp_path, monkeyp
     with zipfile.ZipFile(parts) as z:
         assert all(json.loads(z.read(n))["Name"].endswith(" (2026-11-14, 5d1c305)") for n in z.namelist())
     assert profile.version() is None or re.fullmatch(r"\d{4}-\d\d-\d\d, [0-9a-f]{7,40}", profile.version())
+
+
+def test_a_project_is_named_as_the_download_its_card_names(tmp_path, monkeypatch):
+    # without -o: a profile as its download and its card name it (test_command_line_without_joysticks), parts
+    # given on the command line as the panel's alone
+    monkeypatch.chdir(tmp_path)
+    cli.main(["--autopilot", "kap140", "--cockpit", "g1000", "--navigator", "g1000"])
+    assert os.listdir(tmp_path) == ["avionics-panel.mfproj"]
+    assert "profile avionics-panel-g1000.mfproj," in cli.card.page(FAMILIES["g1000"], "g1000")
+    assert profile.filename("autopilot-kap140") == "avionics-panel-autopilot-kap140.mfproj"   # as in the parts zip
 
 
 def test_the_command_line_lists_the_profiles_and_the_parts(tmp_path, monkeypatch, capsys):
