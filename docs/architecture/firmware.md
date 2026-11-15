@@ -83,14 +83,16 @@ stateDiagram-v2
   Armed --> Plain: SHIFT tap, 3 s without input, or USB down
   Armed --> Knob: knob turned or pushed, shifted
   Armed --> Knob: SHIFT tap, key or 3 s without input, while a shifted push or tilt is held
-  Knob --> Knob: same knob again, 3 s start over
+  Armed --> Knob: 3 s without input, a shifted push or tilt let go less than 5 s before
+  Knob --> Knob: same knob again, 5 s start over
   Knob --> Armed: SHIFT tap, for the next key
-  Knob --> Plain: 3 s after the last detent, another knob, a key (unless a shifted push or tilt is held), or USB down
+  Knob --> Plain: 5 s after the last detent, another knob, a key (unless a shifted push or tilt is held), or USB down
 ```
 
 - A knob turned or pushed after SHIFT stays shifted while it is in use, including moving between its outer
-  and inner ring (for a whole squawk code), and returns to normal 3 s after the last detent. A push or RANGE
-  tilt held keeps it too, so a long shifted pan never outlasts the light: the 3 s start when it is let go.
+  and inner ring (for a whole squawk code), and returns to normal 5 s after the last detent, room to read the
+  next digit off a clearance. A push or RANGE tilt held keeps it too, so a long shifted pan never outlasts the
+  light: the 5 s start when it is let go. A tap alone arms SHIFT for 3 s only, so a stray one does not linger.
 - The light never goes dark while SHIFT still applies: dark means plain, and lit, even dim, means SHIFT is on,
   for the next key after a tap or for the knob that keeps it. A key pressed while a knob keeps SHIFT is sent
   plain. During SHIFT's last second the light pulses between bright and dim.
@@ -101,7 +103,7 @@ stateDiagram-v2
 - A shifted push or tilt that is still held keeps SHIFT and the light until it is let go, whatever is pressed
   meanwhile (SHIFT taps, the key a tap armed, plain keys). Only another knob, turned or pushed, ends it: SHIFT
   belongs to one knob at a time. Held on after that, or after USB went down, it keeps no later session of its
-  knob: SHIFT and a turn of it then run out 3 s after the last detent.
+  knob: SHIFT and a turn of it then run out 5 s after the last detent.
 - While USB is down (the PC off, asleep or booting, or a host that has suspended the panel) the lights are
   dark and SHIFT does not apply: an armed SHIFT and a knob's session end as the lights go out, a SHIFT tap
   does nothing, and what is pressed or turned goes out plain once the host is back ([USB](#usb)). UNIT stays
@@ -183,7 +185,7 @@ due in those 30 ms waits for them, the ones after it keep their time), and a shi
   scan intervals, half a scan to spare. A finger lifts and comes back in no less than about 60 ms, so a real
   double tap stays two presses.
 - The cost: every release reaches the PC 30 ms late. A held key, UP / DN repeat or tilt stops 30 ms later (no
-  extra step), the 3 s of a shifted push or tilt start 30 ms after it is let go, and the RANGE centre push
+  extra step), the 5 s of a shifted push or tilt start 30 ms after it is let go, and the RANGE centre push
   sends PTR 30 ms after its release. In those 30 ms the push or tilt still counts as held (the release may
   still turn out a bounce), so a key or a second SHIFT tap does not end its SHIFT session; the light stays on
   and shows it. Presses, the SHIFT one-shot and UNIT act on the press and get no bounce delay.
