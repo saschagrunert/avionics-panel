@@ -206,6 +206,14 @@ def test_alt_hdg_knob_with_shift_sets_baro_and_crs():
     assert s.take() == [(1, "ALT_100_UP"), (1, "HDG_1_UP")]
 
 
+def test_the_step_tables_name_buttons():
+    # turn() takes its buttons from tables made at import, so a detent builds no strings: each names a button,
+    # with an up and a down step per function
+    assert P.STEP_UP.keys() == P.STEP_DN.keys()
+    assert all({P.STEP_UP[f], P.STEP_DN[f]} <= set(BM.BUTTON[1]) for f in P.STEP_UP)
+    assert {P.KNOB[n] for n in P.RINGS + P.PUSHES} == {"ALTHDG", "FREQ", "FMS", "RANGE"}
+
+
 def test_a_turn_of_no_detents_does_nothing():
     # code.py only passes on a ring that moved, so turn() never gets 0 on the board. If it does, that is no
     # detent: nothing is sent, and an armed SHIFT stays for the next key
@@ -650,6 +658,18 @@ def test_at_most_max_queue_steps_wait():
     s.run(2000); assert s.take() == []                   # the four dropped detents never come
 
 
+def test_a_button_gets_at_most_max_queue_presses_with_the_one_still_shown():
+    # 12 detents in one read: MAX_QUEUE presses of the ring's button with nothing shown, one less while its last
+    # press is still down or in its gap, so the last one ends its gap within MAX_QUEUE steps
+    for before in (None, 1, P.PRESS_MS + 1):
+        s = Sim()
+        if before is not None:
+            s.p.turn("FMS_INNER", 1, s.t); s.run(before); s.take()
+            assert s.down(1) == ({"FMS_INNER_CW"} if before == 1 else set())
+        s.p.turn("FMS_INNER", 12, s.t); s.run(3000)
+        assert len(s.take()) == (P.MAX_QUEUE if before is None else P.MAX_QUEUE - 1)
+
+
 def test_a_key_behind_a_full_queue_is_kept_and_waits_less_than_a_second():
     # three rings flicked, then AP; and CLR tapped 12 times behind them: MAX_QUEUE of those, in their turn
     s = Sim()
@@ -703,6 +723,29 @@ def test_steps_kept_stay_when_the_ring_turns_back():
     s = Sim()
     s.p.turn("ALTHDG_OUTER", 1, s.t); s.p.keep_steps(); s.p.turn("ALTHDG_OUTER", -1, s.t); s.run(500)
     assert [n for _, n in s.take()] == ["ALT_100_UP", "ALT_100_DN"]
+    # also when the ring goes on the same way first, to the same button: the turn back drops only the steps
+    # queued since, not the kept ones (keep_steps after a wait, a SHIFT tap and its cancel)
+    for between in ("wait", "two taps"):
+        s = Sim()
+        s.p.turn("FMS_OUTER", 5, s.t); s.run(5)
+        if between == "wait":
+            s.p.keep_steps()
+        else:
+            tap(s, "SHIFT"); tap(s, "SHIFT")
+        s.p.turn("FMS_OUTER", 1, s.t); s.run(5); s.p.turn("FMS_OUTER", -1, s.t); s.run(2000)
+        assert [n for _, n in s.take()] == ["FMS_OUTER_CW"] * 5 + ["FMS_OUTER_CCW"], between
+    # ALT spun, UNIT toggled (which ALT ignores), on the same way, then back: the 1000 ft steps all go out
+    s = Sim()
+    s.turn("ALTHDG_OUTER", 8, every=10); tap(s, "SHIFT"); tap(s, "HOME")
+    s.p.turn("ALTHDG_OUTER", 2, s.t); s.run(5); s.p.turn("ALTHDG_OUTER", -1, s.t); s.run(2000)
+    sent = [n for _, n in s.take()]
+    assert sent[-1] == "ALT_100_DN" and sent.count("ALT_1000_UP") == 7, sent
+    # a squawk digit's steps stay when the selection comes back to it and its ring goes on and back
+    s = Sim()
+    tap(s, "SHIFT"); s.p.turn("FREQ_INNER", 5, s.t); s.run(5)
+    s.p.turn("FREQ_OUTER", 1, s.t); s.run(5); s.p.turn("FREQ_OUTER", -1, s.t); s.run(5)
+    s.p.turn("FREQ_INNER", 1, s.t); s.run(5); s.p.turn("FREQ_INNER", -1, s.t); s.run(2000)
+    assert [n for _, n in s.take()] == ["SQK_D1_UP"] * 5 + ["SQK_D1_DN"]
 
 
 def test_fill_report_sets_a_bit_per_pressed_button_and_clears_the_rest():
@@ -1329,6 +1372,18 @@ def test_two_slow_detents_after_a_stall_stay_slow():
     assert [n for _, n in s.take()] == ["ALT_1000_UP"] * 2
 
 
+def test_two_slow_detents_read_in_the_first_pass_stay_slow():
+    # code.py's first pass reads the encoders before the first tick(), after the start (in keyboard mode its
+    # 0.9 s blink): the detents turned meanwhile say nothing about the speed, as after a stall
+    s = Sim()
+    s.t = 900
+    s.p.turn("ALTHDG_OUTER", 2, s.t); s.run(500)
+    assert [n for _, n in s.take()] == ["ALT_100_UP"] * 2
+    s.p.turn("ALTHDG_OUTER", 1, s.t); s.run(P.FAST_MS - 1)  # from then on, as ever: a detent close behind is fast
+    s.p.turn("ALTHDG_OUTER", 1, s.t); s.run(500)
+    assert [n for _, n in s.take()] == ["ALT_100_UP", "ALT_1000_UP"]
+
+
 def light_and_edges(s, ms):
     """per ms: (light level, button names newly pressed on device 1)"""
     out = []
@@ -1421,19 +1476,40 @@ def test_shifted_push_held_keeps_the_light():
 
 def test_shift_taps_keep_a_held_shifted_tilt():
     # SHIFT tapped once or twice during a held shifted pan: S_PAN goes on and the light stays on until the
-    # release; one tap arms the next key, a second tap cancels only that
+    # release; one tap arms the next key for 3 s (test_an_armed_shift_runs_out_under_a_held_push), a second tap
+    # cancels only that
     for taps, key in ((1, "TEST"), (2, "AP")):
         s = Sim()
         s.key("SHIFT"); s.take()
         s.p.key("RANGE_COM", True, s.t); s.p.key("RANGE_A", True, s.t); s.run(1500)
         for _ in range(taps):
             s.p.key("SHIFT", True, s.t); s.run(30); s.p.key("SHIFT", False, s.t); s.run(30)
-        held = light_and_edges(s, 4000)
+        held = light_and_edges(s, 2000)
         assert all(level == P.LIGHT_FULL for level, _ in held)
-        assert sum(names.count("S_PAN_UP") for _, names in held) > 30
+        assert sum(names.count("S_PAN_UP") for _, names in held) > 15
+        s.take(); s.key("AP")                                       # within the tap's 3 s, the tilt still held
+        assert [n for _, n in s.take() if not n.startswith("S_PAN")] == [key]
         s.p.key("RANGE_A", False, s.t); s.p.key("RANGE_COM", False, s.t); s.run(200)
         assert s.p.shift_active(s.t)
-        s.take(); s.key("AP"); assert s.take() == [(1, key)]
+
+
+def test_an_armed_shift_runs_out_under_a_held_push():
+    # a tap during a held shifted push arms the next key for 3 s, as without the push: VFR sends IDENT within
+    # them and VFR after them, while the push still keeps its session and the light until 3 s after its release
+    for wait, key in ((1000, "IDENT"), (3100, "VFR")):
+        s = Sim()
+        s.key("SHIFT"); s.p.key("FREQ_PUSH", True, s.t); s.run(200)
+        tap(s, "SHIFT"); s.run(wait)
+        assert s.p.shift_level(s.t) == P.LIGHT_FULL
+        s.take(); s.key("VFR"); assert s.take() == [(1, key)], wait
+        assert s.p.shift == "FREQ"
+        s.p.key("FREQ_PUSH", False, s.t); s.run(2900); assert s.p.shift_active(s.t)
+        s.run(200); assert not s.p.shift_active(s.t)
+    # a stalled loop pass moves the arm's end with the session's
+    s = Sim()
+    s.key("SHIFT"); s.p.key("FREQ_PUSH", True, s.t); s.run(200); tap(s, "SHIFT")
+    s.p.stalled(5000); s.t += 5000; s.run(1000)
+    s.take(); s.key("VFR"); assert s.take() == [(1, "IDENT")]
 
 
 def test_shift_taps_keep_a_held_shifted_push():
@@ -1544,6 +1620,32 @@ def test_shifted_repeat_stops_when_another_control_ends_shift():
     s.turn("FMS_OUTER", 1, every=1); s.take()
     rest = light_and_edges(s, 2000)
     assert all(level == P.LIGHT_OFF and "S_PAN_UP" not in names for level, names in rest)
+
+
+def go_dark(s):
+    s.p.dark = True; s.run(100); s.p.dark = False
+
+
+def test_a_control_held_from_an_ended_session_keeps_no_later_one():
+    # a shifted push or tilt still held when another knob or USB going down ends its session keeps no later
+    # session of its knob: SHIFT and a turn start a new one, which ends 3 s after the detent as without it
+    for held, ring in ((("FREQ_PUSH",), "FREQ_INNER"), (("RANGE_COM", "RANGE_A"), "RANGE")):
+        for end in (lambda s: s.turn("FMS_OUTER", 1), go_dark):
+            s = Sim()
+            s.key("SHIFT")
+            for name in held:
+                s.p.key(name, True, s.t)
+            s.run(200)
+            end(s); assert not s.p.shift_active(s.t)
+            s.key("SHIFT"); s.turn(ring, 1, every=1)
+            s.run(P.SHIFT_MS - 100); assert s.p.shift_active(s.t), held
+            s.run(100); assert not s.p.shift_active(s.t), held
+            s.take(); s.turn(ring, 1)
+            assert s.take() == [(1, "COM_KHZ_UP" if ring == "FREQ_INNER" else "RANGE_CW")]
+            for name in held:
+                s.p.key(name, False, s.t)
+            s.run(200)
+            assert s.take() == []                        # no more S_PAN, and no PTR after a tilt
 
 
 def test_solo_presses_one_button_at_a_time():

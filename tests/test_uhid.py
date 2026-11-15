@@ -7,9 +7,12 @@ F-key) into the desktop too."""
 import contextlib
 import fcntl
 import glob
+import io
 import os
+import re
 import select
 import struct
+import sys
 import time
 import uuid
 
@@ -122,6 +125,30 @@ def test_get_report_answers_with_the_last_report_of_its_id(monkeypatch):
             assert reply[:8 + len(reports[0])] == struct.pack("<IHH", 7, 0, len(reports[0])) + reports[0]
         finally:
             uhid.close()
+
+
+def test_main_runs_the_lines_from_stdin_and_says_what_is_wrong(monkeypatch, capsys):
+    # with the stand-in for the kernel: its usage, what it feeds, the lines it runs, and why it cannot start
+    kernel = Kernel()
+    monkeypatch.setattr(sim.uhid, "os", kernel)
+    monkeypatch.setattr(sim.uhid, "select", kernel)
+    with pytest.raises(SystemExit):
+        sim.uhid.main(["--help"])
+    assert capsys.readouterr().out.startswith("usage: python3 -m sim.uhid [-h] [--keyboard]\n\nThe live panel ")
+    for args in ([], ["--keyboard"]):
+        kernel.events.append(struct.pack("<I", UHID_START))
+        monkeypatch.setattr(sys, "stdin", io.TextIOWrapper(io.BytesIO(b"fly\nlights\n")))
+        sim.uhid.main(args)
+        out, err = capsys.readouterr()
+        assert err.startswith("DIY Avionics Panel on uhid; actions, one per line:\n")
+        assert "fly: actions:" in err and re.search(r"\nSHIFT 0x[0-9a-f]{4} UNIT 0x[0-9a-f]{4}\n$", out)
+
+    def refuse(path, flags):
+        raise PermissionError(13, "Permission denied")
+    monkeypatch.setattr(kernel, "open", refuse)
+    with pytest.raises(SystemExit, match=r"^sim.uhid: \[Errno 13\] Permission denied: /dev/uhid needs write access "
+                                         r"\(root, or a udev rule\)$"):
+        sim.uhid.main([])
 
 
 def test_the_kernel_takes_the_descriptor_name_and_ids(panel):

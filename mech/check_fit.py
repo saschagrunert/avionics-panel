@@ -13,6 +13,7 @@ import math
 import os
 import re
 import sys
+import types
 import zipfile
 from pathlib import Path
 
@@ -45,6 +46,11 @@ import make_plate_step as PS  # noqa: E402
 import stack as S  # noqa: E402
 from geom import item_dist, pad_geom, stroke_width  # noqa: E402
 from occ_util import common, face_meshes, move, rrect_prism, volume  # noqa: E402
+
+# matplotlib's own defaults and its own fonts, whatever matplotlibrc the host has (MATPLOTLIBRC): a host's
+# font or hinting would change the drawing
+matplotlib.rcdefaults()
+matplotlib.rcParams.update({"font.family": "DejaVu Sans", "font.monospace": ["DejaVu Sans Mono"]})
 
 
 def section(shape, y):
@@ -1195,7 +1201,7 @@ def mjf(length):
 def usb_rows():
     """USB-C socket and plug in the back wall opening (make_mech.USB_OPEN, carried up as a slot): its sides and
     bottom. Its top edge is the plate's tongue (tongue_rows)."""
-    u, place, hole = MM.USB_OPEN, S.LED_LENS["place"], S.POS_TOL["body_hole"]   # J1's placement, MJF on the opening
+    u, place, hole = MM.USB_OPEN, S.SMD_PLACE, S.POS_TOL["body_hole"]   # J1's placement, MJF on the opening
     # the board lies anywhere in the cavity (CLEAR). Its sideways play is set by its short edges against the
     # side walls: routed (+-0.2) without edge rails, but taken as V-cut (+-PCB_VCUT_TOL), the fallback should
     # JLCPCB put rails on them: at worst one of them is that much short.
@@ -1241,7 +1247,7 @@ def tongue_rows(back_lo, back_hi, bow, board, slot, measured):
     plate's hole pattern, at most (the caps, the plate, the PCB); slot: the slot's width as built, least and most
     (body_measures); measured: the tongue on the plate solid (plate_measures)."""
     t, hole, pt = S.USB_TONGUE, S.POS_TOL["body_hole"], S.POS_TOL
-    place, pcb_tol = S.LED_LENS["place"], S.STACK_TOL["pcb"]         # J1's placement
+    place, pcb_tol = S.SMD_PLACE, S.STACK_TOL["pcb"]         # J1's placement
     om_w, om_h = MM.USB_PLUG
     slot_lo, slot_hi = slot[0] - 2 * hole, slot[1] + 2 * hole
     # the slot against the tongue with the body centred on its screws, as it is put on by eye before they are
@@ -1295,10 +1301,10 @@ def under_board(pads):
     """what hangs under the board, in plan: (name, geom.py item, how far it can be off its place on the board) of
     every through-hole lead, taken as wide as its solder fillet can get (its pad), and of every bottom-side
     part's body (board.bodies())."""
-    on_pins = {"K": S.CAP_TOL["switch"], "ENC": S.ENC_ON_PINS, "RANGE": S.RKJXT_ON_PINS, "J1": S.LED_LENS["place"]}
+    on_pins = {"K": S.CAP_TOL["switch"], "ENC": S.ENC_ON_PINS, "RANGE": S.RKJXT_ON_PINS, "J1": S.SMD_PLACE}
     leads = [(q.name, pad_geom(q), next(v for k, v in on_pins.items() if q.name.startswith(k)))
              for q in pads if q.drill]
-    return leads + [(ref, ("rect", *r, 0.0), S.LED_LENS["place"]) for ref, r in B.bodies().items()]
+    return leads + [(ref, ("rect", *r, 0.0), S.SMD_PLACE) for ref, r in B.bodies().items()]
 
 
 def cavity_play():
@@ -1670,10 +1676,10 @@ def write_fits_table(rows):
     print(f"{FITS_DOC.name}: the table of the main margins, {len(fits_table(rows)) - 2} lines")
 
 
-def clearances(plate, outer, inner, range_knob, knobs):
-    """clearances that must stay positive, with the inner knob pushed down; each one can fail. Measured where a
-    row says so: on the plate and knob solids, the light pipe pair, the body STL and STEP and the cap zips. knobs:
-    the mesh of every knob make_knobs.py writes, {(FLUTES name, the bore's number): mesh}."""
+def fit_values(plate, outer, inner, range_knob, knobs):
+    """The values the fits are worked out from (clearances()), as a namespace: the tolerances, offsets and
+    bows of the stack, and the measures taken on the plate, the body, the knobs and the light pipes; knobs as
+    clearances() takes it."""
     ok, ik, rk = S.OUTER_KNOB, S.INNER_KNOB, S.RANGE_KNOB
     p, es = S.PUSH_TRAVEL, S.ENC_SPREAD
     resin = S.RESIN_TOL["depth"]                        # resin knob, key to counterbore and bore depths (+-)
@@ -1810,6 +1816,12 @@ def clearances(plate, outer, inner, range_knob, knobs):
     hex_d = S.SCREW["hex"] / math.cos(math.radians(30))         # the hex key across its corners
     an = S.ANODISE
     pads = B.build()                                    # every pad of the board, for what hangs under it
+    # the body boss tops press on the board's bottom out to BOSS_R, past the copper keep-out, on solder mask: the
+    # nearest bare copper there (a pad or a fiducial in its mask opening) against the boss at its largest (MJF), the
+    # screw against the widest body hole wall and the board off the screw
+    boss_reach = MM.BOSS_R + pt["body_hole"] + offset + off
+    bare, bare_pad = min((item_dist(("cap", mx, my, mx, my, 0.0), pad_geom(p)), p.name)
+                         for mx, my in B.MOUNTS for p in pads if "B" in p.mask)
     pp, d = S.PIPE, S.LIGHT_HOLE
     lt_up, lt_dn = S.LIGHT_HOLE_TOL
     pd = S.POCKET_TOL
@@ -1915,7 +1927,19 @@ def clearances(plate, outer, inner, range_knob, knobs):
     marks = {layer: stroke_width(PA.filled(PA.layers[layer]), 3 * S.MARK_STROKE_MIN, 1e-4)
              for layer in ("LASER", "UV_AMBER")}
     d_len = d_bore_len(inner, S.INNER_D, S.INNER_FLAT)   # inner knob D bore, measured on the solid
-    rows = [
+    return types.SimpleNamespace(**locals())
+
+
+def knob_fits(fv):
+    """Knobs: the dual knobs on their shafts and over the plate, their walls, flutes and dimples."""
+    face_up, bow_enc, es, nub, ok, key_rss = fv.face_up, fv.bow_enc, fv.es, fv.nub, fv.ok, fv.key_rss
+    slot_tol, knob_top, shaft_top, cb_top = fv.slot_tol, fv.knob_top, fv.shaft_top, fv.cb_top
+    key_resin, lash_nom, lash_max, shaft_tol = fv.key_resin, fv.lash_nom, fv.lash_max, fv.shaft_tol
+    detent, hole_tol, bore_play, ecc, resin, ik = fv.detent, fv.hole_tol, fv.bore_play, fv.ecc, fv.resin, fv.ik
+    p, cb_d, part_tol, rec_bot, rings, cb_bot = fv.p, fv.cb_d, fv.part_tol, fv.rec_bot, fv.rings, fv.cb_bot
+    knurls, groove, fi, ring_r, fp, ff, outer = fv.knurls, fv.groove, fv.fi, fv.ring_r, fv.fp, fv.ff, fv.outer
+    inner, d_len, mk, mark_walls, mark_reach = fv.inner, fv.d_len, fv.mk, fv.mark_walls, fv.mark_reach
+    return [
         (f"outer knob over plate (face +{face_up:.3f}, bowed {S.PLATE_FLAT * bow_enc:.3f} up there, the board "
          f"{S.PCB_BOW * bow_enc:.3f} down, slot floor +-{es['slot']:.2f} and key resin, RSS; a support mark "
          f"{nub} left on its bottom face)",
@@ -1983,6 +2007,20 @@ def clearances(plate, outer, inner, range_knob, knobs):
                    f"({min(m[3] for m in mark_walls):.2f} to {max(m[3] for m in mark_walls):.2f} mm)")),
         (f"inner knob's dimples as built (Ø{mk['d']} at r {mk['r']['inner']}) inside the ceiling of its recess "
          f"(Ø{ik['recess_d']}): they reach {mark_reach:.2f} from the axis", ik["recess_d"] / 2 - mark_reach),
+    ]
+
+
+def control_fits(fv):
+    """Controls: the encoders and the RANGE control in their plate holes and pockets, the RANGE knob over them."""
+    gen, an, board, on_board, part_tol, bore_play = fv.gen, fv.an, fv.board, fv.on_board, fv.part_tol, fv.bore_play
+    rings, ring_r, ok, ec_w, pd, ec_side, ec_top = fv.rings, fv.ring_r, fv.ok, fv.ec_w, fv.pd, fv.ec_side, fv.ec_top
+    bow_enc, fr, floor_corner, rk_side, rk_top = fv.bow_enc, fv.fr, fv.floor_corner, fv.rk_side, fv.rk_top
+    bow_rng, poff, hub_out, on_board_r, a_diag = fv.bow_rng, fv.poff, fv.hub_out, fv.on_board_r, fv.a_diag
+    hub_diag, push_hi, resin, nub, rk_lo, cock = fv.hub_diag, fv.push_hi, fv.resin, fv.nub, fv.rk_lo, fv.cock
+    rk_len, face_up, pz, skirt_lows, skirt_low = fv.rk_len, fv.face_up, fv.pz, fv.skirt_lows, fv.skirt_low
+    rk, rk_off, skirt_cover, arrow_in, diag = fv.rk, fv.rk_off, fv.skirt_cover, fv.arrow_in, fv.diag
+    knob_m, rim = fv.knob_m, fv.rim
+    return [
         (f"encoder bushing ({S.SLEEVE_D} +0) in its {S.SHAFT_HOLE} plate hole (-{gen}, anodised -{an}), radial: "
          f"board {board:.2f} off, plate, PCB, pins", (S.SHAFT_HOLE - gen - an - S.SLEEVE_D) / 2 - on_board,
          ("Controls", f"Encoder bushing in its Ø{S.SHAFT_HOLE} hole, radial")),
@@ -2047,6 +2085,15 @@ def clearances(plate, outer, inner, range_knob, knobs):
          f"solid) are the stack's (Ø{rk['skirt_d']}, {rk['dish']})",
          0.01 - max(abs(knob_m["skirt_d"] - rk["skirt_d"]), abs(knob_m["dish"] - rk["dish"]))),
         (f"RANGE skirt rim ({rim:.2f} at its edge, on the knob solid, resin -{resin}), beyond 1.0", rim - resin - 1.0),
+    ]
+
+
+def plate_fits(fv):
+    """The plate as built: pockets, holes, corners, what is left over the pockets, the legends and the marking; the
+    parts' shared volume."""
+    pm, kh, caps, kr, orr, r_out, t_min = fv.pm, fv.kh, fv.caps, fv.kr, fv.orr, fv.r_out, fv.t_min
+    legend_off, legend_at, marks, shared = fv.legend_off, fv.legend_at, fv.marks, fv.shared
+    return [
         (f"plate pockets as built: encoders {pm['ec_w'][0]:.2f} x {pm['ec_h'][0]:.2f}, {pm['ec_depth'][0]:.2f} deep, "
          f"their corners {pm['ec_corner']:.3f} off R{S.EC11_POCKET[2]:g}, RANGE Ø{pm['rp_d']:.2f}, "
          f"{pm['rp_depth']:.2f} deep, the worst {pm['pocket_off']:.3f} off its part's axis (measured on the plate) are "
@@ -2088,6 +2135,16 @@ def clearances(plate, outer, inner, range_knob, knobs):
         (f"plate, body and board as placed share no volume: plate and body {shared[0]:.4f}, plate and board "
          f"{shared[1]:.4f}, body and board {shared[2]:.4f} mm3 (the plate as built, body.step, the board's outline "
          f"{S.PCB_T} thick), within 0.01", 0.01 - max(shared), "mm3"),
+    ]
+
+
+def cap_fits(fv):
+    """Caps: the key caps in their holes, as built and pressed; the knobs as built."""
+    face_lo, bow_key, knobs, cap_dip, flex, slope = fv.face_lo, fv.bow_key, fv.knobs, fv.cap_dip, fv.flex, fv.slope
+    face_shift, cap_print, wall_h, shadow = fv.face_shift, fv.cap_print, fv.wall_h, fv.shadow
+    cap_room_set, face_up, cap_proud, cap_room_creep = fv.cap_room_set, fv.face_up, fv.cap_proud, fv.cap_room_creep
+    r_max, cap_err, cap_err_set = fv.r_max, fv.cap_err, fv.cap_err_set
+    return [
         *cap_rows(face_lo, S.PLATE_FLAT * bow_key),
         *cap_build_rows(),
         *cap_bar_rows(),
@@ -2118,6 +2175,15 @@ def clearances(plate, outer, inner, range_knob, knobs):
          f"of the other per-key errors ({cap_err_set:.2f})", cap_room_set - cap_err_set,
          ("Caps", f"The same for a whole set printed {cap_print} mm large (WJP's outline error as a bias), turned "
                   f"{S.CAP_TURN:.0f}°")),
+    ]
+
+
+def boss_fits(fv):
+    """Screws: the screws through the board's holes, the plate bosses and the body boss tops on the board."""
+    hole, pt, need, hole_lo, bo, off, boss_lo = fv.hole, fv.pt, fv.need, fv.hole_lo, fv.bo, fv.off, fv.boss_lo
+    hole_hi, keepout, boss_hi, pm, offset = fv.hole_hi, fv.keepout, fv.boss_hi, fv.pm, fv.offset
+    boss_reach, bare_pad, bare = fv.boss_reach, fv.bare_pad, fv.bare
+    return [
         (f"M3 passes the narrowest PCB hole ({hole} -{pt['npth_d']}) where the caps centre the board (plate, PCB, "
          f"centring, thread: {need:.3f})", hole_lo - S.SCREW_D / 2 - need,
          ("Screws", "M3 through the narrowest board hole, the board where the caps centre it")),
@@ -2131,6 +2197,19 @@ def clearances(plate, outer, inner, range_knob, knobs):
         boss_build_row(pm),
         ("body boss tops bear on the PCB all round its holes (all five; MJF -0.15)",
          MM.BOSS_R - pt["body_hole"] - offset - off - hole_hi),
+        (f"body boss tops (R{MM.BOSS_R} +{pt['body_hole']}, out to {boss_reach:.2f} from a hole centre with the screw "
+         f"and the board off) on solder mask, clear of bare copper (nearest: {bare_pad}, {bare:.2f})",
+         bare - boss_reach),
+    ]
+
+
+def body_fits(fv):
+    """Body: the board in the cavity, what hangs under it, the middle column and the body as built."""
+    cav_w_tol, cav, cav_len, pcb_len, pads, board = fv.cav_w_tol, fv.cav, fv.cav_len, fv.pcb_len, fv.pads, fv.board
+    pt, bm, bx1, bx0, by1, by0, mid_x, mid_y = fv.pt, fv.bm, fv.bx1, fv.bx0, fv.by1, fv.by0, fv.mid_x, fv.mid_y
+    seat_tol, cav_want, open_bot, sc, hex_d = fv.seat_tol, fv.cav_want, fv.open_bot, fv.sc, fv.hex_d
+    offset, off, boot_at, boot_off = fv.offset, fv.off, fv.boot_at, fv.boot_off
+    return [
         (f"PCB width in the cavity (MJF -{cav_w_tol:.1f}; routed long edge +{S.PCB_OUTLINE_TOL}, or the V-cut rail "
          f"edge +{S.PCB_VCUT_TOL}), per side", cav,
          ("Body", "Board in the cavity, per side: across (V-cut rail edge), along")),
@@ -2170,9 +2249,27 @@ def clearances(plate, outer, inner, range_knob, knobs):
          f"hole (Ø{bm['boot']:.2f} measured, MJF -{pt['body_hole']} radial): the body {offset:.2f} off its screws, the "
          f"board {off:.2f} off them and the hole {mjf(boot_at):.1f} off its place (MJF), RSS {boot_off:.2f}",
          bm["boot"] / 2 - pt["body_hole"] - hex_d / 2 - boot_off),
+    ]
+
+
+def usb_fits(fv):
+    """USB-C: the socket in the back wall's opening and the plate's tongue over it."""
+    back_lo, back_hi, board, pt, bm, pm = fv.back_lo, fv.back_hi, fv.board, fv.pt, fv.bm, fv.pm
+    return [
         *usb_rows(),
         *tongue_rows(back_lo, back_hi, S.PLATE_FLAT * plate_bow(B.USB_X, -S.OVH), board + pt["plate"] + pt["pcb"],
                      bm["slot"], pm["tongue"]),
+    ]
+
+
+def screw_fits(fv):
+    """Screws: the body's screw holes, the flange on its counterbore, the thread in the plate boss and the head
+    recessed."""
+    pt, fl_lo, fl_off, r_hole_max, fl_hi, co_stop = fv.pt, fv.fl_lo, fv.fl_off, fv.r_hole_max, fv.fl_hi, fv.co_stop
+    sc, corner, bm, seat_tol, pcb_tol, h_tol = fv.sc, fv.corner, fv.bm, fv.seat_tol, fv.pcb_tol, fv.h_tol
+    bow_wall, wall_gap, tip_lo, tp, engaged = fv.bow_wall, fv.wall_gap, fv.tip_lo, fv.tp, fv.engaged
+    tip_hi, pm, bo, t_min, head_lo, boss_floor = fv.tip_hi, fv.pm, fv.bo, fv.t_min, fv.head_lo, fv.boss_floor
+    return [
         (f"body screw holes ({2 * MM.SCREW_CLEAR:.1f} -{2 * pt['body_hole']}) round the M3 where the bosses put it: "
          f"the corner ones, the furthest from the middle of the pattern (body {pt['body']}, plate {pt['plate']})",
          MM.SCREW_CLEAR - pt["body_hole"] - S.SCREW_D / 2 - pt["body"] - pt["plate"],
@@ -2211,6 +2308,14 @@ def clearances(plate, outer, inner, range_knob, knobs):
          "beyond 1.0", bo["h"] - bo["h_tol"] + t_min - pm["tap"] - 1.0),
         ("flange and button head recessed (all five; the front mounts are the worst), deep seat",
          head_lo - boss_floor),
+    ]
+
+
+def build_fits(fv):
+    """Body: the feet's pads and the print's voids and walls; the assembly blocks and the plate's edge strip."""
+    bm, void_at, void, wall_at, wall, wall2_at = fv.bm, fv.void_at, fv.void, fv.wall_at, fv.wall, fv.wall2_at
+    wall2, protrude, edge, light_in, pt = fv.wall2, fv.protrude, fv.edge, fv.light_in, fv.pt
+    return [
         (f"foot pad round a {MM.FOOT_D:.0f} mm foot (flat over r {bm['pad']:.2f}, measured on the body), per side, "
          "beyond 0.5", bm["pad"] - MM.FOOT_D / 2 - 0.5),
         (f"body: no void under 0.8 mm deeper than 0.4 (worst at {void_at})", 0.4 - void),
@@ -2221,6 +2326,14 @@ def clearances(plate, outer, inner, range_knob, knobs):
         (f"plate edge strip free of caps, shafts and light holes ({edge:.2f} wide; the nearest light hole starts "
          f"{light_in:.2f} in as drawn, and may be +{S.LIGHT_HOLE_TOL[0]} and {pt['plate']} off its place), "
          f"beyond the {S.ASSEMBLY_BLOCK_IN:g} the assembly blocks may reach in", edge - S.ASSEMBLY_BLOCK_IN),
+    ]
+
+
+def light_pipe_fits(fv):
+    """Light pipes: the pipes in their holes, the pair as built, the light holes and their webs."""
+    pp, lt_up, lt_dn, pair_m, d, back_lo = fv.pp, fv.lt_up, fv.lt_dn, fv.pair_m, fv.d, fv.back_lo
+    back_hi, face_lo, board, caps, pm, pt = fv.back_hi, fv.face_lo, fv.board, fv.caps, fv.pm, fv.pt
+    rows = [
         (f"light pipe fits its hole ({pp['clear']} under, hole +{lt_up}/-{lt_dn:g} before anodising), beyond "
          f"anodising ({pp['anodise']}) and resin (+{pp['resin']})", pp["clear"] - lt_dn - pp["anodise"] - pp["resin"],
          ("Light pipes", "Rod in its hole, on the diameter")),
@@ -2266,8 +2379,18 @@ def clearances(plate, outer, inner, range_knob, knobs):
                      f"({S.KEY_BACK_BREAK_MAX} at most), {web_lo - S.KEY_BACK_BREAK_MAX:.2f}, beyond the pipe "
                      f"shoulder's ring ({seat:.2f}) and the light hole's own break ({S.LIGHT_HOLE_BACK_BREAK})",
                      web_lo - S.KEY_BACK_BREAK_MAX - seat - S.LIGHT_HOLE_BACK_BREAK))
-    rows = report(rows)
-    write_fits_table(rows)
+    return rows
+
+
+def clearances(plate, outer, inner, range_knob, knobs):
+    """clearances that must stay positive, with the inner knob pushed down; each one can fail. Measured where a
+    row says so: on the plate and knob solids, the light pipe pair, the body STL and STEP and the cap zips. knobs:
+    the mesh of every knob make_knobs.py writes, {(FLUTES name, the bore's number): mesh}."""
+    fv = fit_values(plate, outer, inner, range_knob, knobs)
+    groups = (knob_fits, control_fits, plate_fits, cap_fits, boss_fits, body_fits,
+              usb_fits, screw_fits, build_fits, light_pipe_fits)
+    rows = [row for group in groups for row in group(fv)]
+    write_fits_table(report(rows))
 
 
 def report(rows):

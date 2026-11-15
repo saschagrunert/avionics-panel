@@ -13,7 +13,7 @@ import time
 import board as B
 import numpy as np
 import route as R
-from geom import detour_limits, item_dist, net_lengths, pad_geom, usb_lengths
+from geom import detour_limits, item_dist, net_lengths, pad_geom, usb_paths
 
 seed = int(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1].isdigit() else 0
 pads = B.build()
@@ -163,9 +163,10 @@ if __name__ == "__main__":
     best = None
     for _it in range(PASSES):                  # rip-up and retry: nets that failed or took a detour (longer than
         router, failed = run(fixed_first + mov)   # check.py allows) go first next time, and the area round
-        length = net_lengths(merge_fixed_vias(router.segments, router.vias)[0])   # them costs the others more
+        segments, vias = merge_fixed_vias(router.segments, router.vias)       # them costs the others more
+        length = net_lengths(segments)
         detour = [n for n in bynet if n not in failed and length.get(n, 0) > limit[n]]
-        if not usb_lengths(length)[1]:          # the USB pair over check.py's length or skew limit
+        if not usb_paths(pads, segments, vias)[1]:   # the USB pair over check.py's length or skew limit
             detour += [n for n in ("USB_DN_C", "USB_DP_C") if n not in failed + detour]
         if best is None or (len(failed), len(detour)) < (len(best[1]), len(best[2])):
             best = (router, failed, detour)
@@ -185,7 +186,7 @@ if __name__ == "__main__":
         long = sum(length.get(n, 0) > limit[n] for n in detour)
         why = [f"{n} net{'s' * (n > 1)} {what}" for n, what in ((len(failed), "not routed"), (long, "with a detour"))
                if n]
-        why += [] if usb_lengths(length)[1] else ["the USB pair over its length or skew limit"]
+        why += [] if usb_paths(pads, segments, vias)[1] else ["the USB pair over its length or skew limit"]
         sys.exit(f"seed {seed}: {', '.join(why)} after {PASSES} passes, {out} not written")
     with open(out, "w") as f:
         json.dump({"segments": segments, "vias": vias}, f)

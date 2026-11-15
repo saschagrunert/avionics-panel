@@ -70,8 +70,9 @@ it takes Python 3.10 or newer and nothing else. MobiFlight knows a joystick by i
    (`avionics-panel-main`).
 4. Right-click an empty spot in that folder and choose Open in Terminal. There, generate the project of your
    profile (`--family g1000`, `g3x`, `gns`, `gtn`, `black-square-bonanza`, `cows-da40` or `carenado-c182t`),
-   here the G1000 (into `g1000.mfproj`), or of your [avionics parts](#avionics-parts). On Windows, with the
-   zip's `profile.bat` (double-clicked, it shows these steps and lists the profiles and the parts):
+   here the G1000 (into `avionics-panel-g1000.mfproj`, the download's name), or of your [avionics
+   parts](#avionics-parts). On Windows, with the zip's `profile.bat` (double-clicked, it shows these steps and
+   lists the profiles and the parts):
 
    ```bat
    .\profile.bat --family g1000 --from "C:\path\to\guids.mfproj"
@@ -361,6 +362,14 @@ None of this has been flown in the sim yet. To check there:
 - That the selected altitude is the sim's first autopilot altitude (`AUTOPILOT ALTITUDE LOCK VAR:1`) in the
   KAP 140 and the KAS 297B, also in ALT hold, where the sim's KAP 140 holds its altitude in the second. If VNV
   does nothing in ALT hold after you set a lower altitude, it is not.
+- In the Bonanza, which altitude the KFC 150's rocker steps in ALT hold, which settles the check above for the
+  KAS 297B. UP and DN send `AP_ALT_VAR_INC` and `_DEC` without a slot, taken to step the first one, the one
+  VNV reads as the KAS 297B's selected altitude: both cannot be right unless the KAS 297B's selection is the
+  altitude held. In ALT hold, set an altitude 1000 ft below on the KAS 297B and press UP once. If the aircraft
+  climbs 100 ft and the KAS 297B still shows the altitude you set, the first slot is the altitude held: UP and
+  DN are right, and VNV must read the selection from elsewhere. If the KAS 297B's altitude steps up 100 ft and
+  the aircraft stays level, the first slot is the selection: VNV is right, and UP and DN must step the slot of
+  the altitude held. If neither moves, the KFC 150 takes the rocker from no key event.
 - That the KAP 140 enters VS on `AP_PANEL_VS_ON`, as its ALT key makes it do, and holds the rate set right
   after it (`AP_VS_VAR_SET_ENGLISH`). Its display shows VS and the rate for 3 s as it enters VS; a rate set
   while it already flies VS is not shown.
@@ -409,7 +418,7 @@ Two ways to join them:
 
 - Generate one project as in the steps above (with `--from` bound to your joysticks, without it bound as a
   download is, in steps 2 to 5 of the first list), with the parts instead of `--family`. It writes
-  `avionics.mfproj`:
+  `avionics-panel.mfproj`:
 
   ```bat
   .\profile.bat --autopilot kap140 --cockpit g1000 --navigator g1000 --from "C:\path\to\guids.mfproj"
@@ -518,8 +527,8 @@ it once, with a sim running:
 3. Repeat in unit 2 (SHIFT, HOME) while UP is held: the FMS knob is on device 2 there, and UP repeats on
    device 1.
 4. In unit 2, turn the FMS inner ring and the ALT/HDG outer ring 4 quick detents each at the same time
-   (ALT/HDG is on device 1): the bug must move by 4°. No more than 4 each: the firmware keeps at most 8
-   detents waiting, all rings together, and drops the rest.
+   (ALT/HDG is on device 1): the bug must move by 4°. No more than 4 each: the firmware drops a detent
+   that finds 8 presses waiting, all rings and keys together.
 
 If steps go missing, tune `PRESS_MS`, `GAP_MS` and `MAX_QUEUE` in [panel.py](../../firmware/panel.py) (a
 step longer than the 120 ms tilt repeat slows a held tilt down).

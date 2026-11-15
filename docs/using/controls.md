@@ -184,10 +184,11 @@ sides, and its cap has a small raised bar near the front edge, so it can be foun
   for the PC to take a report.
 - Dark means plain. Lit, even dim, means SHIFT is on: for the next key after a tap, or for the knob that
   keeps it. The light does not tell the two apart, and a key pressed while a knob keeps SHIFT is sent plain
-  and ends the knob's SHIFT. For an amber key then, tap SHIFT first: that tap arms SHIFT for the key, and a
-  second one cancels it.
+  and ends the knob's SHIFT. For an amber key then, tap SHIFT first: that tap arms SHIFT for the key for 3 s,
+  and a second one cancels it.
 - A shifted push or RANGE tilt that is still held keeps SHIFT until it is let go, whatever key is pressed
-  meanwhile, SHIFT included; only another knob ends it.
+  meanwhile, SHIFT included; only another knob or USB going down ends it. Held on after that, it keeps no
+  later session.
 - With SHIFT the FMS knob works the cockpit lighting, so a stray SHIFT before it changes a light level or
   toggles the cabin light instead of paging. Turning back, or pushing again, undoes it. After dimming, wait
   for the amber light to go out before paging.

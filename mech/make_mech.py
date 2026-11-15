@@ -64,7 +64,7 @@ SCREW_OFFSET = SCREW_CLEAR + _PT["body_hole"] - S.SCREW["d_min"] / 2   # screw a
 # before the shank meets the body hole wall (0.82), a co-stop, so the counterbore's floor corner stays sharp
 # (stack.CB_FLOOR_R); the flange then still covers the hole all round. check_fit.py checks both.
 HEAD_R = 4.2                        # counterbore 8.4
-BOSS_R = 4.0                        # boss top on the PCB (PA12 on solder mask past the 3.6 mm copper keep-out)
+BOSS_R = 4.0    # boss top on the PCB: PA12 on solder mask past the 3.6 mm copper keep-out, off bare copper (check_fit)
 # boss round the counterbore, joined to the walls: JLC3DP asks for fastener walls over 1.5, which it keeps with
 # the counterbore and the boss both printed 0.3 off on the diameter (check_fit.py measures it on the body)
 BOSS_R_LOW = HEAD_R + 1.9
@@ -84,16 +84,18 @@ HOLLOW_H_MIN = 1.0
 # One post backs the board between key columns 4 and 5, midway between rows 1 and 2 (counted from 0, as in
 # board.py). Its place and size are set by what hangs under the board round it: the leads of the keys K14, K15,
 # K24 and K25 (their pads 5.5 mm from its axis) and the pull-up R_PU5 (its body 4.55 mm from the axis), each of
-# which may come 1.84 mm closer at the worst offsets (check_fit.py). It ends stack.SUPPORT_SHORT under the PCB, so
-# the MJF tolerance cannot bow the board up towards the light pipes.
-SUPPORTS = [(98.3, 30.75)]
+# which may come 1.84 mm closer at the worst offsets (check_fit.py): 0.275 mm west of the midpoint between the
+# columns, towards K14 and K24 and away from R_PU5. It ends stack.SUPPORT_SHORT under the PCB, so the MJF tolerance
+# cannot bow the board up towards the light pipes.
+SUPPORTS = [(round((B.COLS[4] + B.COLS[5]) / 2 - 0.275, 3), (B.ROWS[1] + B.ROWS[2]) / 2)]
 SUPPORT_R = 2.0
 SUPPORT_TOP = -S.PCB_T - S.SUPPORT_SHORT
 # ribs in the hollow wedge, down to the bottom plane (board coordinates): front to back under the middle column
 # and the post and between the knobs and key blocks, one across through the middle column; 2.0 thick (JLC3DP MJF,
 # parts over 100 mm). Under the floor the middle column is a round sleeve (BOSS_R_LOW) on the crossing of two ribs.
 RIB_T = 2.0
-RIBS_X = (36.0, B.MID_MOUNT[0], SUPPORTS[0][0], 125.0)   # 125 stays clear of the BOOT hole (x 132.1)
+# the last rib keeps 3.6 mm from the BOOT hole's edge (x 125)
+RIBS_X = (36.0, B.MID_MOUNT[0], SUPPORTS[0][0], B.BOOT[0] - BOOT_HOLE / 2 - RIB_T / 2 - 3.6)
 RIBS_Y = (B.MID_MOUNT[1],)
 # flat pads for four self-adhesive feet up to 10 mm across (pads 12 mm), wide apart
 FOOT_D, FOOT_PAD = 10.0, 12.0

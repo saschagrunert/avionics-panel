@@ -4,6 +4,7 @@ value (MSFS2020CustomInputAction.cs), so no code holds one.
 
 - k(): a key event of the SDK's Key Events pages, with its one parameter in front if it takes one;
 - h(): an H: event, which the SDK's RPN page describes as going to an instrument's JavaScript only;
+- bezel(): a unit's buttons as H: events of one prefix, the instrument's, as {button: h(prefix + suffix)};
 - lset(): an L: variable set to a value, which an aircraft's own code, or the profile itself, reads;
 - turn(): a step of so many degrees from a reading, rounded to whole degrees (near: the SDK's HEADING_BUG_SET
   takes whole ones) and wrapped to 0 to 360 (dnor), set with a key event that takes degrees (HEADING_BUG_SET,
@@ -17,6 +18,10 @@ def k(event, value=None):
 
 def h(event):
     return f"(>H:{event})"
+
+
+def bezel(prefix, suffixes):
+    return {button: h(prefix + suffix) for button, suffix in suffixes.items()}
 
 
 def lset(variable, value):

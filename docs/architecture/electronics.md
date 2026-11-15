@@ -22,7 +22,8 @@ pad of the board is missing from it. Renders: [top](../../renders/5-pcb-top.png)
 - The BOM and CPL against `board.py` and each other: every part on its side with its value and LCSC number,
   each BOM line's quantity, and the hand-soldering files the bottom side of the full ones.
 - The parts against JLC's own data: each footprint on our pads, each value against the name of its LCSC part,
-  each RP2040 pin against its name in JLC's symbol.
+  each pin of the RP2040, the flash, the regulator, the LED switch and the USB-C socket against its name
+  in JLC's symbol.
 
 It prints what each build reaches, and the build passes when:
 
@@ -32,7 +33,7 @@ It prints what each build reaches, and the build passes when:
 | Traces | None narrower than 0.1 mm (JLCPCB: 0.09 mm); the narrowest is 0.16 mm |
 | Plane copper | Nowhere narrower than 0.15 mm (`make.py` clears what is under 0.2 mm), and 0.3 mm from every hole of another net |
 | Copper to copper | At least 0.15 mm, and 0.09 mm from another net's mask opening |
-| Copper to the board edge, to an unplated hole | At least 0.5 mm (JLCPCB: 0.4 mm from a V-cut edge), 0.2 mm |
+| Copper to the board edge, to an unplated hole | At least 0.5 mm (JLCPCB: 0.4 mm from a V-cut edge), 0.2 mm; the planes too, measured on their Gerbers (`make.py` pulls them back 0.7 mm) |
 | Holes on different nets | At least 0.5 mm apart (JLCPCB's minimum) |
 | Holes on the same net | At least 0.254 mm apart |
 | Vias | None is in or within 0.1 mm of an SMD (surface-mount) pad or a paste opening, apart from the GND vias in the RP2040's exposed pad; a tented one keeps 0.13 mm of solder mask to the nearest opening |
@@ -40,7 +41,7 @@ It prints what each build reaches, and the build passes when:
 | Smallest drills | At least 0.3 mm plated, 0.5 mm unplated |
 | Smallest annular rings | At least 0.075 mm on vias, 0.15 mm on pads |
 | JLC's footprints | Every bottom-side part's footprint lands, mirrored, on our pads of the same number ([Assembly data](#assembly-data)) |
-| RP2040 pins | Each pin's net is the one its name in JLC's symbol asks for (GPIO16 on GP16, DVDD on 1V1), and the symbol's pin numbers are exactly U1's pads |
+| Pin names | Each pin's net is the one its name in JLC's symbol asks for (RP2040: GPIO16 on GP16, DVDD on 1V1; the flash, the regulator, the LED switch's 2N7002 and the USB-C socket by their own tables), and each symbol's pin numbers are exactly the part's pads |
 | BOM and CPL | They name every part of `board.py` on its side, with its value, LCSC number and quantity, and each value is the one in the name of its LCSC part (`0603WAF5101T5E` is 5.1 k); `THT-LCSC.csv` names the top side's parts, with two spare keys |
 
 ## GPIO map
@@ -279,7 +280,9 @@ The placement keeps these rules:
 - Bodies: each bottom-side part's body at least 0.2 mm from every other body and from every pad of another
   part (`precheck.py`, before routing; the nominal sizes and their sources are in `board.BODY`).
 - Mounting holes: no copper on either outer layer, and no bottom-side body, within 3.6 mm of each of the five
-  hole centres, where the plate's boss and the body's boss press on the board (`board.MOUNT_KEEPOUT`).
+  hole centres (`board.MOUNT_KEEPOUT`). The plate's boss presses on the top inside that; the body's boss, 4 mm
+  in radius, presses on the bottom past it, on solder mask over copper, and `check_fit.py` keeps it clear of
+  every bare pad.
 - J1: nothing but its own pads under its grounded shell, which has only the solder mask between it and the
   bottom copper. The router keeps out of the whole body on the bottom; `check.py` checks it on the Gerbers.
 - Fiducials: three bare copper dots on the bottom for JLCPCB's placement machines, 1 mm across in 2 mm mask
@@ -295,7 +298,8 @@ The legend:
   with lowercase, whose thinnest spot is where a bowl meets its stem.
 - Clearance: 0.15 mm from every mask opening and hole, 0.3 mm inside the board outline and round the two LED
   cutouts, and 0.6 mm inside the edge with JLCPCB's rail, which is V-cut to ±0.4 mm with a groove reaching
-  0.12 mm in on each face (`geom.SILK_VCUT`; `check.py` holds 0.55 mm).
+  0.12 mm in on each face (`geom.SILK_VCUT`; `check.py` holds 0.55 mm, its `SILK_VCUT_MIN`, and fails at
+  once if `make.py` places the legend closer than its limits).
 - Bottom side: mirrored, so it reads from below; `check.py` compares the board's title with its text drawn
   both ways.
 - Placement: a part name or key legend that a via lands on, or that comes too near the edge, moves to the
@@ -307,7 +311,11 @@ The legend:
 No net takes a detour: `check.py` fails any net whose routed length exceeds 1.5 times its shortest 8-direction
 tree plus 15 mm (`DETOUR_FACTOR` in `geom.py`), and the router rips up and reroutes such a net like a failed
 one. USB: D+ and D- ([USB protection](#usb-protection)) are limited to 50 mm each and 10 mm of skew
-(`USB_SKEW` in `geom.py`); the router treats a pair over those limits like a detour.
+(`USB_SKEW` in `geom.py`), each measured along its signal path, from the USB-C contact through the ESD array
+and the 27 R resistor to the RP2040's pin, and compared on the same row of contacts, the one a plug uses (the
+other row's contact is a stub); the router treats a pair over those limits like a detour. All trace on each
+line's nets, stubs included, stays within 50 mm too, and vias count 0 mm. As routed: D+ 49.1 mm and D- 41.5
+mm from row A, 48.3 and 40.5 mm from row B.
 
 R_DP and R_DM are 27 R (C25190), the value in Raspberry Pi's datasheet and minimal design: with the
 RP2040's driver it sets the source impedance the full-speed specification asks for (28 to 44 ohm per line).

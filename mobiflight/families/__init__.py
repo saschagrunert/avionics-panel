@@ -18,21 +18,18 @@ unit (a function of the unit it goes in, as gns.NAVIGATORS and gtn.NAVIGATORS gi
 line in FAMILIES.
 """
 from mobiflight.families import aircraft, black_square_bonanza, g3x, g1000, gns, gtn, parts
-from mobiflight.families.part import GPS_DISTANCE, compose, empty
+from mobiflight.families.part import GPS_DISTANCE, alone, compose, empty, gps_last
 
-AUTOPILOTS = {p.KEY: p for p in (g1000.AUTOPILOT, g3x.AUTOPILOT, parts.KAP140_AUTOPILOT,
-                                 black_square_bonanza.AUTOPILOT)}
 COCKPITS = {p.KEY: p for p in (g1000.COCKPIT, g3x.COCKPIT, parts.BENDIX_KING)}
 NAVIGATORS = {p.KEY: p for p in (g1000.NAVIGATOR, g3x.NAVIGATOR)}     # both units
 UNIT_NAVIGATORS = {**gns.NAVIGATORS, **gtn.NAVIGATORS}               # key -> function of the unit
 # The distances an autopilot part alone reads for VNV, not knowing its navigator (the parts zip): every navigator's,
 # the sim's GPS WP DISTANCE last; a profile joined from parts reads only its navigators' (part.compose)
-ALONE_DISTANCES = tuple(dict.fromkeys(
-    d for p in (*NAVIGATORS.values(), *(make(unit) for make in UNIT_NAVIGATORS.values() for unit in (1, 2)))
-    for d in getattr(p, "DISTANCES", ()) if d != GPS_DISTANCE)) + (GPS_DISTANCE,)
-for _autopilot in AUTOPILOTS.values():
-    if getattr(_autopilot, "VNV", None):
-        _autopilot.DEVICE[1]["VNV"] = _autopilot.DEVICE[1]["S_VNV"] = _autopilot.VNV(distances=ALONE_DISTANCES)
+ALONE_DISTANCES = gps_last((
+    *(d for p in (*NAVIGATORS.values(), *(make(unit) for make in UNIT_NAVIGATORS.values() for unit in (1, 2)))
+      for d in getattr(p, "DISTANCES", ())), GPS_DISTANCE))
+AUTOPILOTS = {p.KEY: alone(p, ALONE_DISTANCES) for p in (g1000.AUTOPILOT, g3x.AUTOPILOT, parts.KAP140_AUTOPILOT,
+                                                         black_square_bonanza.AUTOPILOT)}
 
 
 def navigators(unit1, unit2):

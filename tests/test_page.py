@@ -4,6 +4,7 @@ for times. The stream reads the panel every 10 ms, which at SPEED can miss a 56 
 from every report (page.sent) and from the stream only states that last."""
 import contextlib
 import errno
+import http.client
 import json
 import os
 import queue
@@ -12,6 +13,7 @@ import socket
 import threading
 import urllib.error
 import urllib.request
+from types import SimpleNamespace
 
 import pytest
 
@@ -19,7 +21,7 @@ import sim.page
 from conftest import load
 from mobiflight import profile
 from mobiflight.families import FAMILIES
-from sim import BM, TILT, key_name
+from sim import BM, TILT, buttons_in, key_name
 from sim.hardware import RINGS, SWITCHES, keys, make_keys
 from sim.live import DETENTS, TURN_MAX, Live
 from sim.page import VIEWER, Page, inputs
@@ -74,7 +76,7 @@ class Stream:
 def serve(speed=SPEED, keyboard=False, family=None):
     live = Live(speed=speed, keyboard=keyboard)
     page = Page(live, forward=lambda device, report: page.sent.append(
-        (device, report if keyboard else names(device, report))), family=family)
+        (device, report if keyboard else buttons_in(device, report))), family=family)
     page.sent = []                             # every report: (device, buttons by name; the keyboard's as sent)
     live.start(page.output)
     threading.Thread(target=page.serve_forever, args=(0.02,), daemon=True).start()
@@ -101,10 +103,6 @@ def post(page, body, client=None, headers=None, path="/sim/act"):
             return r.status
     except urllib.error.HTTPError as e:
         return e.code
-
-
-def names(device, report):
-    return [n for b, n in enumerate(BM.DEVICE[device]) if report[1 + b // 8] >> b % 8 & 1]
 
 
 def pressed(device, name):
@@ -255,6 +253,22 @@ def test_the_page_and_its_files_are_served(page):
             assert r.status == 200
 
 
+def test_head_answers_as_get_does_without_the_body(page):
+    # the same status and headers: / goes to the panel, the stream's head opens no stream
+    def ask(method, path):
+        connection = http.client.HTTPConnection(*page.server_address[:2], timeout=TIMEOUT_S)
+        try:
+            connection.request(method, path)
+            r = connection.getresponse()
+            return r.status, r.getheader("Location"), r.getheader("Content-Type"), r.read() if method == "HEAD" else b""
+        finally:
+            connection.close()
+    for path in ("/", "/?sim", "/sim.js", "/nothing", "/vendor/"):
+        assert ask("HEAD", path) == ask("GET", path), path
+    assert ask("HEAD", "/")[:2] == (302, "/?sim")
+    assert ask("HEAD", "/sim/events") == (200, None, "text/event-stream; charset=utf-8", b"") and not page.held
+
+
 def test_a_browser_asks_before_it_reuses_a_file_and_gets_it(page):
     # without Cache-Control it reuses a file for a tenth of its age: days for a zip's files, so the page of an
     # older zip would run against this program. Asked, it gets the file, also when the copy it has kept is the
@@ -264,6 +278,30 @@ def test_a_browser_asks_before_it_reuses_a_file_and_gets_it(page):
         for kept in ({}, {"If-Modified-Since": "Fri, 01 Jan 2100 00:00:00 GMT"}):
             with urllib.request.urlopen(urllib.request.Request(base + path, headers=kept), timeout=TIMEOUT_S) as r:
                 assert r.status == 200 and r.headers.get_all("Cache-Control") == ["no-cache"] and r.read(), path
+
+
+def test_the_files_go_with_fixed_types_and_the_folders_without_a_listing(page, monkeypatch):
+    # the types do not depend on the PC's registry, and nosniff holds the browser to them; a folder is no page. The
+    # registry here says text/plain for everything, as Windows' can for .js
+    import http.server
+    for name in ("guess_file_type", "guess_type"):                  # (guess_file_type from Python 3.13)
+        monkeypatch.setattr(http.server.mimetypes, name, lambda *a, **k: ("text/plain", None), raising=False)
+    base = f"http://127.0.0.1:{page.server_address[1]}"
+    for path, kind in (("/?sim", "text/html"), ("/sim.js", "text/javascript"),
+                       ("/vendor/three.min.js", "text/javascript"), ("/fonts/OFL.txt", "text/plain"),
+                       ("/fonts/BarlowSemiCondensed-Bold.ttf", "font/ttf")):
+        with urllib.request.urlopen(base + path, timeout=TIMEOUT_S) as r:
+            assert r.headers.get_content_type() == kind and r.headers["X-Content-Type-Options"] == "nosniff", path
+    for path in ("/vendor/", "/fonts/"):
+        with pytest.raises(urllib.error.HTTPError) as refused:
+            urllib.request.urlopen(base + path, timeout=TIMEOUT_S)
+        assert refused.value.code == 404, path
+
+
+def test_a_page_that_has_gone_is_told_without_a_word_on_the_console(page, capsys):
+    # a tablet back from its sleep posts for the page it had: 409, which the page shows, and nothing on the console
+    assert post(page, "press AP", "nobody") == 409
+    assert capsys.readouterr().err == ""
 
 
 def test_a_request_that_stalls_is_closed_without_a_word(page, monkeypatch, capsys):
@@ -311,6 +349,42 @@ def test_keys_and_knobs_reach_the_reports_and_the_lights(page):
     post(page, "press COM_SWAP", stream.client)
     stream.until(pressed(2, "COM_SWAP"))
     stream.close()
+
+
+def test_a_light_that_is_on_as_code_py_reloads_reads_as_off():
+    # a reload starts code.py's globals anew, without LED_DUTY until code.py has set it, while the stream may
+    # still read the duty of a light the run before left on: off, not a KeyError that would end the stream
+    live = Live()
+    page = Page(live)
+    try:
+        live.leds = [SimpleNamespace(duty_cycle=0x4800), SimpleNamespace(duty_cycle=0)]
+        assert "LED_DUTY" not in live.code                     # boot.py's globals, as before code.py starts
+        assert page.state() == {"lights": {"SHIFT": 0, "UNIT": 0}, "unit": 1, "buttons": {}}
+        live.code = {**live.code, "LED_DUTY": (0x4800, 0x5500)}
+        assert page.state()["lights"] == {"SHIFT": 1, "UNIT": 0}
+    finally:
+        page.server_close()
+
+
+def test_the_keyboard_line_reads_one_report_as_the_next_replaces_it():
+    # output() replaces the last report while the stream reads it: the shortcut and its function come from one
+    class Replaced(dict):
+        def __getitem__(self, device):
+            report = super().__getitem__(device)
+            self[device] = later                               # the next report arrives
+            return report
+
+    def report(name):
+        mods, key = keys.shortcut(1, BM.BUTTON[1][name])
+        return bytes((mods, 0, key)) + bytes(5)
+
+    page = Page(Live(keyboard=True))
+    try:
+        first, later = report("AP"), report("YD")
+        page.reports = Replaced({1: first})
+        assert page.state()["buttons"] == {"keyboard": [f"AP {make_keys.shortcut_name(first[0], first[2])}"]}
+    finally:
+        page.server_close()
 
 
 def test_keyboard_mode_shows_the_lights_taking_turns_and_the_shortcut_down():
@@ -456,6 +530,10 @@ def test_wrong_actions_are_refused_and_none_runs(page):
                  "turn FREQ_INNER 1\n" * (sim.page.ACTS_MAX + 1)):
         assert post(page, body, stream.client) == 400
     assert post(page, "press AP") == 400                       # no client
+    with socket.create_connection(page.server_address[:2], TIMEOUT_S) as sock:   # chunked: not an empty heartbeat
+        sock.sendall(f"POST /sim/act?client={stream.client} HTTP/1.1\r\nHost: 127.0.0.1:{page.server_address[1]}"
+                     "\r\nTransfer-Encoding: chunked\r\n\r\n8\r\npress AP\r\n0\r\n\r\n".encode())
+        assert sock.recv(4096).startswith(b"HTTP/1.0 411 ")
     assert post(page, "press AP", "nobody") == 409
     assert post(page, "turn FREQ_INNER -30", stream.client) == 204
     assert not page.held[stream.client]
@@ -603,6 +681,37 @@ def test_a_firmware_error_is_reported_and_code_py_reloads(page):
     stream.until(pressed(1, "AP"))
     assert len(page.live.reloads) == 1
     stream.close()
+
+
+def test_a_stream_on_a_socket_numbered_past_1023_works(page):
+    # select.select() takes no socket numbered 1024 or more on Linux, which a program with many files open gives
+    # out: the stream still tells the page what changes, and sees it go
+    resource = pytest.importorskip("resource")
+    soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+    if hard != resource.RLIM_INFINITY and hard < 2048:
+        pytest.skip(f"{hard} files open at most")
+    if soft != resource.RLIM_INFINITY and soft < 2048:
+        resource.setrlimit(resource.RLIMIT_NOFILE, (2048, hard))
+    taken = []                                 # every number below 1024, so the stream's sockets get higher ones
+    try:
+        while (fd := os.open(os.devnull, os.O_RDONLY)) < 1024:
+            taken.append(fd)
+        os.close(fd)
+        stream = Stream(page)
+        assert stream.sock.fileno() >= 1024
+        assert post(page, "press AP", stream.client) == 204
+        stream.until(pressed(1, "AP"))
+        stream.close()
+        assert page.live.idle(TIMEOUT_S)
+        for _ in range(500):                   # the server sees the page go, and lets go of what it held
+            if stream.client not in page.held:
+                break
+            page.closing.wait(0.01)
+        assert stream.client not in page.held and not page.state()["buttons"][1]
+    finally:
+        for fd in taken:
+            os.close(fd)
+        resource.setrlimit(resource.RLIMIT_NOFILE, (soft, hard))
 
 
 def test_the_stream_ends_when_the_panel_stops(page):

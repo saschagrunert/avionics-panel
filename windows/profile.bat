@@ -23,8 +23,9 @@ echo.
 echo      profile.bat --autopilot kap140 --cockpit g1000 --navigator g1000 --from guids.mfproj
 echo      profile.bat --autopilot kap140 --cockpit bendix-king --unit1 gns530 --unit2 none --from guids.mfproj
 echo.
-echo    It writes g1000.mfproj, or avionics.mfproj, here; -o names another file. --vfr 1200 makes the VFR key
-echo    squawk 1200 (US). Without --from the joysticks are not bound, as in the downloaded profiles.
+echo    It writes avionics-panel-g1000.mfproj, or avionics-panel.mfproj, here; -o names another file.
+echo    --vfr 1200 makes the VFR key squawk 1200 (US). Without --from the joysticks are not bound, as in the
+echo    downloaded profiles.
 echo 3. Open the new project in MobiFlight (File, Open).
 echo.
 echo profile.bat --cards cards.zip writes a printable card of every profile (one page of HTML each), and

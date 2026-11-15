@@ -41,10 +41,10 @@ Autopilots:
 | GPSS (SHIFT, NAV) | None (NAV flies GPS steering) | None (NAV flies GPS steering) | None (NAV follows the CDI) | None | None |
 | ½ BANK (SHIFT, LVL) | None in MSFS's G1000 aircraft | None | None | None | None |
 | FD, YD (SHIFT, FD) | Yes | Yes | None | FD, YD switch | YD if installed |
-| ARM (SHIFT, ALT) | None (Tmr/Ref softkey in the profile) | None | ARM | ARM on the KAS 297B | ARM |
+| ARM (SHIFT, ALT) | None (Tmr/Ref softkey in the profile) | None | ARM (unmapped in the profiles: the sim's KAP 140 ignores it) | ARM on the KAS 297B | ARM |
 | UP / DN | NOSE UP / DN | Wheel | UP / DN | Vertical trim rocker | UP / DN |
 | ALT knob | ALT knob | ALT SEL knob | Altitude select knob | KAS 297B knob | Altitude select knob |
-| HDG knob, push SYNC | HDG, push sync | HDG, push sync | HDG bug (KI 525), no sync | HSI heading bug, no sync | HDG bug, no sync |
+| HDG knob, push SYNC | HDG, push sync | HDG, push sync | HDG bug (KI 525), no sync (sync in the profiles) | HSI heading bug, no sync (sync in the profiles) | HDG bug, no sync |
 | SHIFT: BARO, CRS, push STD; CRS CTR (SHIFT, HDG) | CRS/BARO knob: outer BARO, inner CRS; its push centres the course | On the G5 / G3X knob | CRS (KI 525), BARO key + knob | HSI course, altimeter | CRS, BARO |
 
 More autopilots in Black Square and A2A aircraft:

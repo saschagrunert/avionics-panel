@@ -20,6 +20,11 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.patches import Circle, Polygon, Rectangle, Wedge
 
+# matplotlib's own defaults and its own fonts, whatever matplotlibrc the host has (MATPLOTLIBRC): a host's
+# font or hinting would change the drawing
+matplotlib.rcdefaults()
+matplotlib.rcParams.update({"font.family": "DejaVu Sans", "font.monospace": ["DejaVu Sans Mono"]})
+
 
 def netlist(pads):
     """(ref, pin) -> net for every pad of the board"""

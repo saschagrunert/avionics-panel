@@ -9,9 +9,10 @@ It has not been tried in MSFS or on a console yet: see [Limits](#limits), and
 
 ## Switching the mode
 
-Hold the HOME key (amber legend UNIT) alone while plugging the panel in, and for about 2 s more. The panel
+Hold the HOME key (amber legend UNIT) while plugging the panel in, and for about 2 s more. The panel
 switches between the joysticks and the keyboard and keeps that mode from then on, also through firmware
-updates. Switch back the same way.
+updates. Switch back the same way. HOME switches also with SHIFT held for an update: to update in keyboard
+mode, hold SHIFT alone.
 
 - In keyboard mode the SHIFT and UNIT lights take turns three times every time the panel starts or restarts.
 - In joystick mode they stay dark.

@@ -133,9 +133,14 @@ class SendInput:
 
     def close(self):
         """Lets go of the keys of the last report and of those Windows may hold, then of all five modifiers,
-        whatever Windows took before; sends nothing after that"""
+        whatever Windows took before; sends nothing after that. Says so if Windows does not take them all: a key
+        may then stay down."""
         with self.lock:
             if not self.closed:
                 self.closed = True
                 down = sorted({k for k in self.last[2:] if k} | (self.unsure or set()))
-                self.keystrokes([(SCAN[k], True) for k in down] + [(scan, True) for _, scan in MODIFIERS])
+                events = [(SCAN[k], True) for k in down] + [(scan, True) for _, scan in MODIFIERS]
+                if (taken := self.keystrokes(events)) != len(events):
+                    print(f"sim.sendinput: Windows took {taken} of the {len(events)} key releases at the end (a "
+                          "prompt or another program blocks them): if a key or Ctrl, Shift or Alt stays down, press "
+                          "and let go of it on the PC's keyboard", file=sys.stderr, flush=True)

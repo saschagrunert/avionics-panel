@@ -12,17 +12,18 @@ act() takes Sim's actions by their names (press, release, tap, tilt, turn, wait)
 and queues them: each starts when the ones before it have ended, or at once if they have. press, release and
 `turn ring n 0` take no time, so the next action follows at once; tap, tilt, wait and a turn with its default
 spacing take theirs. parse() reads an action from a line of text, as the page sends them and from_stdin() reads
-them for sim.uhid and sim.vjoy. A switch changes no sooner than PRESS_MIN_MS after its last change, on the
-panel's clock, as a finger does: a click shorter than a key scan would be lost, and clicks that reach a panel
-running late all at once would be one press (code.py takes a gap that short for a bounce). A report goes to
-output as device 1 or 2 and its bytes as on the wire, at the ms the host takes it: a joystick's report ID first,
-and in keyboard mode device 1, the keyboard, with its 8 bytes and no report ID.
+them for sim.uhid and sim.vjoy, whose command line is command(). A switch changes no sooner than PRESS_MIN_MS
+after its last change, on the panel's clock, as a finger does: a click shorter than a key scan would be lost, and
+clicks that reach a panel running late all at once would be one press (code.py takes a gap that short for a
+bounce). A report goes to output as device 1 or 2 and its bytes as on the wire, at the ms the host takes it: a
+joystick's report ID first, and in keyboard mode device 1, the keyboard, with its 8 bytes and no report ID.
 
 An error in code.py's loop goes as on the board: its handler releases every button, prints the error (to stderr,
 and kept in printed), waits 2 s and reloads, and code.py starts again on the same board. boot.py does not run
 again and the switches held stay held. Anything else that ends code.py, and an error in an action queued with
 do() or in the output, ends the thread: stop(), idle(), act() and do() raise it from then on.
 """
+import argparse
 import math
 import queue
 import re
@@ -83,7 +84,7 @@ def parse(line, usage=USAGE):
 def from_stdin(live, output, prog):
     """Runs live into output (its send and close) on the actions read from stdin, one per line (LINES), until the
     input ends; `lights` prints both lights' duty once the actions before it have taken effect. Exits with prog's
-    message when the panel stops."""
+    message, after the traceback, when the panel stops."""
     sys.stdin.reconfigure(errors="replace")
     live.start(output.send)
     try:
@@ -108,7 +109,25 @@ def from_stdin(live, output, prog):
     except KeyboardInterrupt:
         pass
     except Exception as e:                             # the panel stopped: the output or code.py itself failed
+        traceback.print_exception(e)                   # where it failed, as sim.page shows it
         sys.exit(f"{prog}: {e.__cause__ or e}")
+
+
+def command(argv, prog, doc, output, intro, keyboard=False):
+    """The command line of an output that runs the actions from stdin (sim.uhid, sim.vjoy): parses argv (with
+    --keyboard if keyboard), plugs the panel in, makes output(live), says intro(output) on stderr and runs
+    from_stdin(). An OSError while it makes the output ends the program with its message. prog: how the command
+    is run (python3 -m sim.uhid); doc: its module's docstring, whose first paragraph argparse shows."""
+    parser = argparse.ArgumentParser(prog=prog, description=doc.split("\n\n")[0])
+    if keyboard:
+        parser.add_argument("--keyboard", action="store_true", help="the keyboard mode: a keyboard, no joysticks")
+    live, name = Live(keyboard=getattr(parser.parse_args(argv), "keyboard", False)), prog.split()[-1]
+    try:
+        out = output(live)
+    except OSError as e:
+        sys.exit(f"{name}: {e}")
+    print(f"{intro(out)}; actions, one per line:", file=sys.stderr)
+    from_stdin(live, out, name)
 
 
 class Live(Board):

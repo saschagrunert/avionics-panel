@@ -9,7 +9,7 @@ import buttonmap as BM
 
 # The mode lives in microcontroller.nvm (flash: it survives power cycles and firmware updates). This byte holds
 # KEYBOARD in keyboard mode; anything else, the 0xFF of a blank flash included, is the joystick mode, the
-# default. boot.py switches it while HOME (amber legend UNIT) is held alone at plug-in.
+# default. boot.py switches it while HOME (amber legend UNIT) is held at plug-in.
 MODE_BYTE, KEYBOARD, JOYSTICK = 0, 0x4B, 0xFF
 
 

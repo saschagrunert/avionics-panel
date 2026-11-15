@@ -216,7 +216,7 @@ footer p {{ margin: 0.6mm 0 0; font-weight: bold; }}
 <body>
 <header>
 <h1>Avionics Panel: {name}{stamp}</h1>
-<p>What each control sets in the MobiFlight profile avionics-panel-{html.escape(key)}.mfproj, as MobiFlight lists the
+<p>What each control sets in the MobiFlight profile {html.escape(profile.filename(key))}, as MobiFlight lists the
 events and variables. <b class="amber">Amber</b>: with SHIFT. Unit 2: after SHIFT, HOME. A row named for two ways
 (↻ / ↺, ▲ / ▼, ◀ / ▶) lists what each sets in that order, A / B; tap / hold: what a key sets let go at once, or held
 first. In squawk mode the outer ring picks the digit and sends nothing.</p>

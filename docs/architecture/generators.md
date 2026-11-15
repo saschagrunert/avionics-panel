@@ -51,10 +51,11 @@ actions).
 
 The steps one by one, with Nix from the repository root: `nix-shell nix/shells.nix -A gen` (OpenCascade,
 numpy, scipy, matplotlib, pillow, shapely, librsvg), then the script inside its directory. The firmware tests
-run in `nix-shell nix/shells.nix -A firmware` (pytest, pytest-cov; on Linux hid-tools and CircuitPython's
-`mpy-cross`, whose tests fail there when either is missing and skip elsewhere). Without Nix these run from
-the repository root on python3 alone: `pytest` (with pytest installed; the tests whose tools are missing
-skip), `python3 -m sim.page`, `python3 -m mobiflight` and `python3 windows/make_zip.py`.
+run in `nix-shell nix/shells.nix -A firmware` (pytest, pytest-cov; on Linux hid-tools, Playwright with its
+Chromium for the panel page's script and CircuitPython's `mpy-cross`, whose tests fail there when one is
+missing and skip elsewhere). Without Nix these run from the repository root on python3 alone: `pytest` (with
+pytest installed; the tests whose tools are missing skip, and `tests/test_simjs.py` also takes Playwright for
+Node), `python3 -m sim.page`, `python3 -m mobiflight` and `python3 windows/make_zip.py`.
 
 None of them writes the commit into a committed file, so a commit builds the same outputs. The files users
 download name their commit instead: `firmware/version.py` holds a placeholder that git archive fills in with
@@ -88,6 +89,12 @@ not committed. The firmware prints it on its console, the page shows it, and the
 | Repository root | `python3 -m mobiflight --joystick-definition avionics-panel.joystick.json` | MobiFlight's [joystick definition](../using/mapping.md#button-names-in-mobiflight), which names the buttons |
 | Repository root | `python3 windows/make_zip.py` | The simulator's zip for Windows ([Simulator](../using/simulator.md#windows)), with `profile.bat` for the profiles; it writes the commit into the zip's `firmware/version.py` |
 | Repository root | `python3 viewer/shots.py` | Renders 1 to 4 and 9, in the `shots` shell |
+
+The scripts share these modules: in `pcb/`, [board.py](../../pcb/board.py) (the board), `geom.py` (distances
+between copper items, copper paths, routed lengths), `gerber_io.py` (the Gerber and drill files read back, for
+`check.py` and `render.py`) and `route.py` (the router, with its soft costs and keep-outs for this board);
+in `mech/`, [stack.py](../../mech/stack.py) (the heights and tolerances) and `occ_util.py` (OpenCascade
+helpers).
 
 ## Adding an aircraft or a part
 

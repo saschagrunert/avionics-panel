@@ -1,4 +1,5 @@
-"""pcb/footprints/fetch.py reads the pin names from an EasyEDA symbol: check.py's polarity check depends on them."""
+"""pcb/footprints/fetch.py reads the pin names from an EasyEDA symbol (check.py's polarity check depends on them) and
+keeps a file's fetch date while its data is unchanged."""
 from conftest import load
 
 
@@ -14,3 +15,13 @@ def test_pin_names_come_with_their_pad_numbers():
     ]
     fetch = load("_fetch", "pcb/footprints/fetch.py")
     assert fetch.pins_of({"dataStr": {"shape": shapes}}) == [("1", "K"), ("2", "A")]
+
+
+def test_a_file_keeps_its_date_unless_its_data_changed():
+    fetch = load("_fetch", "pcb/footprints/fetch.py")
+    old = '{\n "source": "JLC, fetched 2026-11-12",\n "pads": [\n  ["1", 0.0, 0.0, 1.0, 1.0]\n ]\n}\n'
+    same = old.replace("2026-11-12", "2026-12-24")
+    moved = same.replace("0.0, 0.0", "0.0, 0.1")
+    assert fetch.kept_date(same, old) == old          # the data as it was: the file stays as it is
+    assert fetch.kept_date(moved, old) == moved       # a pad moved: the new data with the new date
+    assert fetch.kept_date(same, None) == same        # a new part

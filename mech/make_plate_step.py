@@ -277,6 +277,8 @@ def drawing(features, vol):
     order, and the front face with its marking."""
     import matplotlib
     matplotlib.use("Agg")
+    matplotlib.rcdefaults()   # matplotlib's own defaults and fonts, whatever matplotlibrc the host has
+    matplotlib.rcParams.update({"font.family": "DejaVu Sans", "font.monospace": ["DejaVu Sans Mono"]})
     import matplotlib.pyplot as plt
     from matplotlib.backends.backend_pdf import PdfPages
     from matplotlib.patches import Circle, FancyBboxPatch, Rectangle

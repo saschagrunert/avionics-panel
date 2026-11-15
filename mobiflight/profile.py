@@ -46,6 +46,13 @@ HOLD_MS = 350                    # MobiFlight's default for onHold, which no pro
 WRITES = re.compile(r"\(>[ABHKL]:([^),]+)[^)]*\)")   # what a code sets: (>K:EVENT), (>A:VARIABLE, unit) and so on
 
 
+def filename(key=None):
+    """A project's file name: a profile's or a part's by its key (as "g1000" or "autopilot-kap140"), as the
+    downloads, the parts zip and the cards name it and the command line writes it by default; without a key, one
+    of the parts given on the command line"""
+    return f"avionics-panel-{key}.mfproj" if key else "avionics-panel.mfproj"
+
+
 def _load(name, path):
     spec = importlib.util.spec_from_file_location(name, path)
     module = importlib.util.module_from_spec(spec)
@@ -86,9 +93,14 @@ def label(code):
     return ", ".join(dict.fromkeys(WRITES.findall(code)))
 
 
+def lowered(text):
+    """A serial with its GUID in lower case, as .NET prints it"""
+    return text[:3] + text[3:].lower()
+
+
 def serial(text):
     """ "JS-<guid>", checked, with the GUID in lower case as .NET prints it"""
-    out = text[:3] + text[3:].lower()
+    out = lowered(text)
     if not SERIAL.fullmatch(out):
         raise ValueError(f"not a joystick serial (JS- and the DirectInput instance GUID): {text!r}")
     return out
@@ -141,26 +153,41 @@ def dumps(project):
     return json.dumps(project, indent=2, ensure_ascii=False) + "\n"
 
 
+def _field(obj, key, kind):
+    """obj[key] if obj is an object and that is a kind, else kind's empty value: a saved project is read as
+    it comes, a field of another type is as good as missing"""
+    value = obj.get(key) if isinstance(obj, dict) else None
+    return value if isinstance(value, kind) else kind()
+
+
 def controllers_from(path):
     """{1: (name, serial), 2: (name, serial)} from a project saved in MobiFlight with ENT bound in unit 1
     (device 1, Button 83) and in unit 2 (device 2, Button 10). The two are the joysticks of one name of which
     one has a button bound above device 2's last (device 1) and the other not; other joysticks may be bound
-    too, and if they form such a pair as well, the one named like the panel wins."""
+    too, and if they form such a pair as well, the one named like the panel wins. A serial is matched in any
+    case and kept as it was saved. ValueError for a file that is no project."""
     with open(path, encoding="utf-8-sig") as f:
         project = json.load(f)
-    found = {}                   # (name, serial) -> button numbers bound to it
-    for config_file in project.get("ConfigFiles") or []:
-        for item in config_file.get("ConfigItems") or []:
-            controller, device = item.get("Controller") or {}, item.get("Device") or {}
-            match = BUTTON.fullmatch(device.get("Name") or "")
-            if item.get("Type") == "InputConfigItem" and SERIAL.fullmatch(controller.get("Serial") or "") and match:
-                found.setdefault((controller.get("Name"), controller["Serial"]), set()).add(int(match[1]))
+    if not isinstance(project, dict):
+        raise ValueError(f"{path}: not a MobiFlight project")
+    found = {}                   # (name, serial in lower case) -> button numbers bound to it
+    saved = {}                   # its key in found -> (name, serial) as first saved
+    for config_file in _field(project, "ConfigFiles", list):
+        for item in _field(config_file, "ConfigItems", list):
+            controller, device = _field(item, "Controller", dict), _field(item, "Device", dict)
+            joystick, match = _field(controller, "Serial", str), BUTTON.fullmatch(_field(device, "Name", str))
+            if (_field(item, "Type", str) == "InputConfigItem" and SERIAL.fullmatch(lowered(joystick))
+                    and match):
+                name = controller.get("Name") if isinstance(controller.get("Name"), str) else None   # (as saved)
+                key = (name, lowered(joystick))
+                saved.setdefault(key, (name, joystick))
+                found.setdefault(key, set()).add(int(match[1]))
     pairs = {}
     for name in {c[0] for c in found}:
         joysticks = [c for c in found if c[0] == name]
         high = [c for c in joysticks if max(found[c]) > BM.SIZE[2]]
         if len(joysticks) == 2 and len(high) == 1:
-            pairs[name] = {1: high[0], 2: next(c for c in joysticks if c != high[0])}
+            pairs[name] = {1: saved[high[0]], 2: saved[next(c for c in joysticks if c != high[0])]}
     if len(pairs) > 1 and NAME in pairs:
         pairs = {NAME: pairs[NAME]}
     if len(pairs) != 1:

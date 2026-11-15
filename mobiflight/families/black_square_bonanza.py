@@ -36,7 +36,7 @@ from functools import partial
 
 from mobiflight.families import gns, gtn, parts
 from mobiflight.families.part import compose, distances, joined, navigator, part
-from mobiflight.families.rpn import h, k, lset
+from mobiflight.families.rpn import bezel, h, k, lset
 
 NAME = "Black Square Bonanza"
 
@@ -48,10 +48,12 @@ def _toggle(variable):
 
 # ---------------- the KFC 150 and KAS 297B ----------------
 # UP and DN: the KFC 150's rocker, which steps the altitude held by 100 ft in ALT, the pitch held by 1° in pitch
-# mode (the guide's KFC 150 section) and the rate in VS (its KAS 297B section); the simulator's key events for each
-_ROCKER = ("(A:AUTOPILOT ALTITUDE LOCK, Bool) if{{ 100 (>K:AP_ALT_VAR_{0}) }} els{{ (A:AUTOPILOT VERTICAL HOLD, Bool) "
-           "if{{ (>K:AP_VS_VAR_{0}) }} els{{ (A:AUTOPILOT PITCH HOLD, Bool) if{{ (>K:AP_PITCH_REF_INC_{1}) }} }} }}")
-_UP, _DN = _ROCKER.format("INC", "UP"), _ROCKER.format("DEC", "DN")
+# mode (the guide's KFC 150 section) and the rate in VS (its KAS 297B section); the simulator's key events for each.
+# AP_ALT_VAR_INC and _DEC name no slot, taken to be the first, which VNV reads as the KAS 297B's selected altitude
+# (parts.descent): which of the two the first slot holds in ALT is for the sim to show (docs/using/mapping.md, VNV
+# without VNAV), as neither the guide nor the SDK says
+_UP = parts.reference(k("AP_VS_VAR_INC"), k("AP_PITCH_REF_INC_UP"), alt=k("AP_ALT_VAR_INC", 100))
+_DN = parts.reference(k("AP_VS_VAR_DEC"), k("AP_PITCH_REF_INC_DN"), alt=k("AP_ALT_VAR_DEC", 100))
 _VS = h("kas297b_VsButton")
 # VNV: the descent calculator (parts.descent), with VS ENG pressed after the rate is set, while the autopilot is
 # engaged, not in VS and not on a glideslope (a press there would leave it): the guide says VS ENG takes the rate the
@@ -67,12 +69,13 @@ _RNAV_DISTANCE = "(L:var_rnavDrivesHsi, Bool) (L:var_RNAV_DME, Number) *"
 
 
 KFC150_VNV = partial(parts.descent, after=_VS_ENG)   # VNV's code, of the distances and required rate (part.compose)
+_NO_FLC = "the KFC 150 has no FLC mode"
 
 # the KFC 150 and KAS 297B as an autopilot part, also for Black Square's aircraft with other avionics: AP ENG, the
 # modes and the KAS 297B's VS ENG and ALT ARM, the ALT/HDG knob, SHIFT, UP and SHIFT, DN as the rocker (a stray
 # SHIFT does no harm), TEST the self-test's counter, as the guide sets it, and VNV and SHIFT, VNV the descent
-# calculator without the Bonanza's KNS 81, which another aircraft lacks (with the GPS distance until
-# families/__init__.py gives the part every navigator's and part.compose a profile its navigators')
+# calculator without the Bonanza's KNS 81, which another aircraft lacks (of the distances the part reads alone,
+# part.alone, or in a profile, part.compose)
 AUTOPILOT = part("kfc150", "KFC 150 (Black Square)", "autopilot", {1: {
     "AP": k("AP_MASTER"),
     "TEST": lset("var_AutopilotStartupCounter", 20),
@@ -90,8 +93,6 @@ AUTOPILOT = part("kfc150", "KFC 150 (Black Square)", "autopilot", {1: {
     "DN": _DN,
     "S_UP": _UP,
     "S_DN": _DN,
-    "VNV": KFC150_VNV(),
-    "S_VNV": KFC150_VNV(),
     # ALT/HDG knob: the KAS 297B's knob (inner 100 ft, outer 1000 ft; the rate instead while it is pulled), the
     # heading bug (the course and the altimeter, with SHIFT, are the cockpit's)
     "ALT_100_UP": h("kas297b_100_INC"),
@@ -100,9 +101,9 @@ AUTOPILOT = part("kfc150", "KFC 150 (Black Square)", "autopilot", {1: {
     "ALT_1000_DN": h("kas297b_1000_DEC"),
     **parts.HEADING,
 }}, {1: {
-    "FLC": "the KFC 150 has no FLC mode",
+    "FLC": _NO_FLC,
     "HALF_BANK": "the KFC 150 has no low-bank mode",
-    "S_FLC": "the KFC 150 has no FLC mode",
+    "S_FLC": _NO_FLC,
     "LVL": "the KFC 150 has no level mode",
     "GPSS": "the KFC 150 has no GPSS key: NAV follows the HSI, on GPS or VLOC",
 }}, VNV=KFC150_VNV)
@@ -135,24 +136,24 @@ def kln90b():
     """Black Square's KLN 90B in unit 1, by its H: events (KLN90B_): D→, CLR, ENT and MSG, MENU as its ALT key, the
     FMS knob as its right knob and the FMS push as its right CRSR; on the RANGE knob its left side: the turn its left
     inner knob, the tilt left and right its left outer knob, the push its left CRSR"""
-    rows = {
-        "DIRECT": h("KLN90B_DCT_Push"),
-        "MENU": h("KLN90B_ALT_Push"),
-        "CLR": h("KLN90B_CLR_Push"),
-        "ENT": h("KLN90B_ENT_Push"),
-        "S_ENT": h("KLN90B_ENT_Push"),
-        "MSG": h("KLN90B_MSG_Push"),
-        "FMS_OUTER_CW": h("KLN90B_RightLargeKnob_Right"),
-        "FMS_OUTER_CCW": h("KLN90B_RightLargeKnob_Left"),
-        "FMS_INNER_CW": h("KLN90B_RightSmallKnob_Right"),
-        "FMS_INNER_CCW": h("KLN90B_RightSmallKnob_Left"),
-        "FMS_CRSR": h("KLN90B_RightCursor_Toggle"),
-        "RANGE_CW": h("KLN90B_LeftSmallKnob_Right"),
-        "RANGE_CCW": h("KLN90B_LeftSmallKnob_Left"),
-        "PTR": h("KLN90B_LeftCursor_Toggle"),
-        "PAN_LEFT": h("KLN90B_LeftLargeKnob_Left"),
-        "PAN_RIGHT": h("KLN90B_LeftLargeKnob_Right"),
-    }
+    rows = bezel("KLN90B_", {
+        "DIRECT": "DCT_Push",
+        "MENU": "ALT_Push",
+        "CLR": "CLR_Push",
+        "ENT": "ENT_Push",
+        "S_ENT": "ENT_Push",
+        "MSG": "MSG_Push",
+        "FMS_OUTER_CW": "RightLargeKnob_Right",
+        "FMS_OUTER_CCW": "RightLargeKnob_Left",
+        "FMS_INNER_CW": "RightSmallKnob_Right",
+        "FMS_INNER_CCW": "RightSmallKnob_Left",
+        "FMS_CRSR": "RightCursor_Toggle",
+        "RANGE_CW": "LeftSmallKnob_Right",
+        "RANGE_CCW": "LeftSmallKnob_Left",
+        "PTR": "LeftCursor_Toggle",
+        "PAN_LEFT": "LeftLargeKnob_Left",
+        "PAN_RIGHT": "LeftLargeKnob_Right",
+    })
     unmapped = {
         **dict.fromkeys(("CDI", "OBS", "HOME", "FPL", "PROC", "VNAV", "NRST", "TERR", "MAP"),
                         "the KLN 90B has no such key (the MD41 beside it has VLOC/GPS, APR ARM and OBS: the "

@@ -17,14 +17,13 @@ and 2 with at least 128 and 64 buttons. windows/vjoy-setup.bat makes them, as ad
 
 docs/using/simulator.md has the steps.
 """
-import argparse
 import ctypes
 import os
 import struct
 import sys
 import threading
 
-from sim.live import Live, from_stdin
+from sim.live import command
 
 # vJoy 2.2.2.0's SDK: https://github.com/BrunnerInnovation/vJoy/blob/v2.2.2.0/SDK/inc/public.h L316-361, the
 # JOYSTICK_POSITION_V3 that UpdateVJD takes (USE_JOYSTICK_API_VERSION 3, L80), with Windows' BYTE, LONG and
@@ -74,7 +73,8 @@ class VJoyError(OSError):
 def on_console_close(close, kernel32):
     """Makes Windows call close() on Ctrl-Break and when the console window closes, where Python runs no finally
     (Windows waits up to about 5 s for it); Ctrl-C goes on to Python. kernel32: Windows' kernel32, or None for no
-    handler. Returns the handler, for the caller to keep: Windows calls it after Python would have freed it."""
+    handler. Returns the handler, for the caller to keep: Windows calls it after Python would have freed it.
+    OSError if Windows refuses it."""
     if kernel32 is None:
         return None
 
@@ -84,7 +84,9 @@ def on_console_close(close, kernel32):
         return int(event == CTRL_CLOSE_EVENT)   # Ctrl-Break: Windows' default handler then ends the process
 
     handler = CONSOLE_HANDLER(console)
-    kernel32.SetConsoleCtrlHandler(handler, True)
+    if not kernel32.SetConsoleCtrlHandler(handler, True):
+        raise OSError("Windows refused the console handler (SetConsoleCtrlHandler): Ctrl-Break or closing the "
+                      "window would leave what the panel holds down")
     return handler
 
 
@@ -149,12 +151,12 @@ class VJoy:
                 if not self.dll.AcquireVJD(n):
                     raise VJoyError(f"vJoy device {n} cannot be acquired: another program may have taken it")
                 self.acquired.append(n)
+            if kernel32 is None and sys.platform == "win32":
+                kernel32 = ctypes.WinDLL("kernel32")
+            self.handler = on_console_close(self.close, kernel32)
         except BaseException:
             self.close()
             raise
-        if kernel32 is None and sys.platform == "win32":
-            kernel32 = ctypes.WinDLL("kernel32")
-        self.handler = on_console_close(self.close, kernel32)
 
     def send(self, device, report):
         """A report as one UpdateVJD; nothing once closed"""
@@ -172,14 +174,7 @@ class VJoy:
 
 
 def main(argv=None):
-    argparse.ArgumentParser(prog="python -m sim.vjoy", description=__doc__.split("\n\n")[0]).parse_args(argv)
-    live = Live()
-    try:
-        vjoy = VJoy(live)
-    except OSError as e:
-        sys.exit(f"sim.vjoy: {e}")
-    print(f"The panel on {vjoy.name}; actions, one per line:", file=sys.stderr)
-    from_stdin(live, vjoy, "sim.vjoy")
+    command(argv, "python -m sim.vjoy", __doc__, VJoy, lambda vjoy: f"The panel on {vjoy.name}")
 
 
 if __name__ == "__main__":

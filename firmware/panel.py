@@ -22,8 +22,10 @@ KEY_SCAN_MS = 20         # code.py's keypad scan interval: 20 ticks of 1/1024 s,
 BOUNCE_MS = KEY_SCAN_MS * 3 // 2          # 30: a press this soon after its own release (scan times) is a bounce
 PRESS_MS = POLL_MS + LATE_MS              # 56: one knob detent = a button held this long, a key or push at least ...
 GAP_MS = PRESS_MS                         # ... then released this long before its next one: about 9 steps a second
-MAX_QUEUE = 8            # detents waiting, all rings together, and presses owed per button: a fast spin runs
-                         # on, and a key waits behind it, for at most about 8 x 112 = 896 ms
+MAX_QUEUE = 8            # presses waiting, all rings and keys together, beyond which a detent or repeat is
+                         # dropped; and presses per button, the one the PC is being shown (down or in its gap)
+                         # included: a fast spin runs on, and a key waits behind it, for at most about
+                         # 8 x 112 = 896 ms
 REPEAT_DELAY_MS = 400    # UP / DN: first repeat ...
 REPEAT_MS = 125          # ... then about 8 per second
 PAN_DELAY_MS = 300       # RANGE tilt: first repeat ...
@@ -45,6 +47,26 @@ REPEAT_SOURCES = tuple(sorted(BM.REPEAT_KEYS + tuple(PAN_DIRS)))
 # The FREQ knob's modes, in the order its push cycles them: the outer ring's step, the inner ring's and the inner
 # ring's coarse step
 FREQ_MODES = (("COM_MHZ", "COM_KHZ", None), ("NAV_MHZ", "NAV_KHZ", None), ("ADF_100", "ADF_1", "ADF_10"))
+SQUAWK = (None, "SQK_D1", "SQK_D2", "SQK_D3", "SQK_D4")   # the shifted FREQ inner ring's function, by digit
+RINGS = ("ALTHDG_OUTER", "ALTHDG_INNER", "FREQ_OUTER", "FREQ_INNER", "FMS_OUTER", "FMS_INNER", "RANGE")
+PUSHES = ("ALTHDG_PUSH", "FMS_PUSH", "FREQ_PUSH")
+# Made once, so a detent or push builds no strings (a fast spin then leaves less for the collector, whose pauses
+# would hold steps up): each ring's and push's knob, and each step function's buttons, the up or clockwise step
+# and the down or counter-clockwise one
+KNOB = {n: n.split("_")[0] for n in RINGS + PUSHES}
+
+
+def _steps():
+    up, dn = {}, {}
+    ups = ("ALT_100", "ALT_1000", "HDG_1", "HDG_10", "CRS_1", "CRS_10", "BARO", "PANEL_LT", "FLOOD_LT")
+    for f in ups + SQUAWK[1:] + tuple(f for mode in FREQ_MODES for f in mode if f):
+        up[f], dn[f] = f + "_UP", f + "_DN"
+    for f in ("FMS_OUTER", "FMS_INNER", "RANGE", "S_RANGE"):
+        up[f], dn[f] = f + "_CW", f + "_CCW"
+    return up, dn
+
+
+STEP_UP, STEP_DN = _steps()
 
 
 def _has_value(d, value):
@@ -65,6 +87,7 @@ class Panel:
         self.shift = None            # None, "any" (armed by the SHIFT key) or the knob that keeps it
         self.under = None            # with "any": the knob whose held push or tilt keeps its session under it
         self.shift_until = 0
+        self.arm_until = 0           # a tap's "any" ends then, also while a held control keeps SHIFT on
         self.unit = 1
         self.freq_mode = 0           # index into FREQ_MODES: kept until the FREQ push changes it
         self.freq_since = None       # ms of the press of a plain FREQ push held, until FREQ_HOLD_MS set COM
@@ -80,8 +103,11 @@ class Panel:
         self.order_ms = 0            # the head of order waits until then: PRESS_MS after the last press sent
         self.repeat = {}             # source -> [(device, button), next_ms, every_ms]
         self.last_detent = {}        # ring -> (ms, direction)
-        self.ring_keys = {}          # ring -> shown keys its detents went to since its last reversal
-        self.sessions = {}           # source -> knob: a push or tilt held in that knob's shifted session
+        self.ring_keys = {}          # ring -> {shown key: presses its detents queued there since its last
+                                     # reversal or keep_steps()}
+        self.session = 0             # number of the latest shifted knob session: a new one starts at 1 more
+        self.sessions = {}           # source -> number of the shifted session a held push or tilt was pressed
+                                     # in: it keeps that session, and no later one of its knob, while held
         self.last_tick = None        # ms of the last tick(): the previous loop pass
         self.range_dirs = set()
         self.range_tilted = False    # a direction closed during this RANGE "com" press
@@ -92,15 +118,17 @@ class Panel:
 
     def _owe(self, k, n=1):
         """n more presses of button k, behind everything already in order; at most MAX_QUEUE with the one on
-        its way"""
+        its way, down or in its gap (so the last ends its gap within MAX_QUEUE steps). Returns how many it
+        queued."""
         e = self.shown.get(k)
         if e is None:
             e = self.shown[k] = [False, None, 0]
-        while n > 0 and e[2] + (e[1] is not None) < MAX_QUEUE:
+        added = 0
+        while added < n and e[2] + (e[1] is not None) < MAX_QUEUE:
             e[2] += 1
             self.order.append(k)
-            n -= 1
-        return k
+            added += 1
+        return added
 
     def _hold(self, src, k):
         """A key or push goes down: holds k while src is held, and owes the PC one more press of k"""
@@ -108,18 +136,24 @@ class Panel:
         self._owe(k)
 
     def _queue(self, k, n=1):
-        """n detents or repeats of button k, while fewer than MAX_QUEUE presses wait in order, so nothing waits
-        behind them for long. Keys, pushes and the first step of a hold are never dropped (_owe)."""
+        """n detents or repeats of button k, while fewer than MAX_QUEUE presses wait in order, keys included, so
+        nothing waits behind them for long. Keys, pushes and the first step of a hold are never dropped for that
+        (_owe)."""
         return self._owe(k, min(n, MAX_QUEUE - len(self.order)))
 
     def _reverse(self, ring):
         """The ring turned the other way: drop the detents it still has queued in the old direction, so the knob
         stops at once. Only those at the end of order: a key or another ring queued after them came later, and
-        the PC must see them first (ENT confirms the character dialled before it). A pulse already on the way
+        the PC must see them first (ENT confirms the character dialled before it). And only as many as the ring
+        queued since keep_steps(): the same button's steps from before stay. A pulse already on the way
         finishes, the PC has seen its press."""
-        keys = self.ring_keys.pop(ring, ())
-        while self.order and self.order[-1] in keys:
-            self.shown[self.order.pop()][2] -= 1
+        keys = self.ring_keys.pop(ring, None)
+        if keys is None:
+            return
+        while self.order and keys.get(self.order[-1], 0):
+            k = self.order.pop()
+            keys[k] -= 1
+            self.shown[k][2] -= 1
 
     def keep_steps(self):
         """The steps queued so far stay: a ring that turns back later no longer drops them. For where something
@@ -141,6 +175,7 @@ class Panel:
             self.repeat[src][1] += ms
         self.order_ms += ms
         self.shift_until += ms
+        self.arm_until += ms
         self.flash = (self.flash[0] + ms, self.flash[1])   # the count, as the light stayed during the wait
         self.flash_free += ms
 
@@ -151,8 +186,12 @@ class Panel:
         return not self.dark and self.shift is not None and t < self.shift_until
 
     def _expire(self, t):
-        """Ends SHIFT once it ran out. A shifted push or tilt still held keeps its session, the 3 s start at its
-        release: extended first, so a loop pass that stalled for 3 s or more doesn't end it under the hand."""
+        """Ends SHIFT once it ran out. A tap's armed SHIFT ends SHIFT_MS after the tap, also while a shifted push
+        or tilt is held: SHIFT then goes back to that control's session. A shifted push or tilt still held keeps
+        its session, the 3 s start at its release: extended first, so a loop pass that stalled for 3 s or more
+        doesn't end it under the hand."""
+        if self.shift == "any" and t >= self.arm_until:
+            self.shift, self.under = self.under, None
         if self._held_session() is not None:
             self.shift_until = t + SHIFT_MS
         if not self.shift_active(t):
@@ -164,15 +203,21 @@ class Panel:
 
     def _held_session(self):
         """The knob whose session a shifted push or tilt still held keeps, or None. Keys never end that
-        session, SHIFT taps and the key a tap armed included; another knob does (_knob_shift). A release still
-        waiting out BOUNCE_MS counts as held: it may be a bounce (docs/architecture/firmware.md)."""
+        session, SHIFT taps and the key a tap armed included; another knob does (_knob_shift), and so does
+        dark. A release still waiting out BOUNCE_MS counts as held: it may be a bounce
+        (docs/architecture/firmware.md)."""
         knob = self._kept()
-        return knob if _has_value(self.sessions, knob) else None
+        return knob if knob is not None and _has_value(self.sessions, self.session) else None
+
+    def _in_session(self, src):
+        """Whether src is a push or tilt held in the shifted session that goes on now"""
+        return self.sessions.get(src) == self.session and self._kept() is not None
 
     def _knob_shift(self, knob, t):
         """SHIFT for a knob action: armed SHIFT or this knob's own shifted session. Starts/extends it."""
         if self.shift == "any" and self.under != knob:     # not the session a held push of this knob keeps:
-            self.digit = 1                                 # a new one, the squawk entry starts at digit 1
+            self.digit = 1                                 # a new one, the squawk entry starts at digit 1, and
+            self.session += 1                              # a control held from an ended one keeps it not
         if self.shift == "any" or self.shift == knob:
             self.shift, self.under = knob, None
             self.shift_until = t + SHIFT_MS
@@ -261,7 +306,7 @@ class Panel:
             self.keep_steps()
         if name.startswith("RANGE_"):
             return self._range_key(name, pressed, t)
-        if name in ("ALTHDG_PUSH", "FMS_PUSH", "FREQ_PUSH"):
+        if name in PUSHES:
             return self._push(name, pressed, t)
         if not pressed:
             self.held.pop(name, None)
@@ -274,6 +319,7 @@ class Panel:
                 self.shift, self.under = held, None
             else:                                        # also while a knob still keeps SHIFT: arm for the next key
                 self.shift, self.under, self.shift_until = "any", held, t + SHIFT_MS
+                self.arm_until = self.shift_until
             return
         shifted = self.shift == "any"
         self.shift, self.under = held, None              # a key ends a knob's session, unless a control holds it
@@ -297,10 +343,10 @@ class Panel:
             if name == "FREQ_PUSH":
                 self.freq_since = None
             return
-        knob = name[:-5]                                   # ALTHDG, FMS, FREQ
+        knob = KNOB[name]                                  # ALTHDG, FMS, FREQ
         shifted = self._knob_shift(knob, t)
         if shifted:
-            self.sessions[name] = knob
+            self.sessions[name] = self.session
         if name == "ALTHDG_PUSH":
             k = self._btn(1, "BARO_STD" if shifted else "HDG_SYNC")
         elif name == "FMS_PUSH":
@@ -325,12 +371,13 @@ class Panel:
         if last is not None and last[1] != up:
             self._reverse(ring)
         # fast: 2+ detents in one read, or the previous detent on this ring and direction was recent. After a
-        # stalled loop pass 2+ detents in one read say nothing about the speed: only the previous detent counts.
-        stalled = self.last_tick is not None and t - self.last_tick > FAST_MS
+        # stalled loop pass, or in the first one (code.py's start may take a while), 2+ detents in one read say
+        # nothing about the speed: only the previous detent counts.
+        stalled = self.last_tick is None or t - self.last_tick > FAST_MS
         since = t - last[0] if last is not None and last[1] == up else None    # ms since this turn's last detent
         fast = (abs(steps) > 1 and not stalled) or (since is not None and since < FAST_MS)
         self.last_detent[ring] = (t, up)
-        knob = ring.split("_")[0]
+        knob = KNOB[ring]
         if knob == "FREQ":                                  # a turn ends a FREQ hold: no change of radio under it,
             self._freq_hold(t)                              # unless the hold was long already (a late read)
             self.freq_since = None
@@ -351,7 +398,7 @@ class Panel:
                 # counted once the ring rests, also at an end: the light shows where it stopped
                 self._count(digit, t, squawk=True)
                 return
-            slow = "SQK_D" + str(self.digit)
+            slow = SQUAWK[self.digit]
         elif knob == "FMS" and shifted:                     # lighting: device 1 in every unit, one step per detent
             slow = "PANEL_LT" if ring == "FMS_OUTER" else "FLOOD_LT"
         elif knob == "FREQ":
@@ -361,20 +408,19 @@ class Panel:
                 slow, quick = outer, None
         else:                                               # FMS, RANGE: exactly one step per detent
             dev = self.unit if knob == "FMS" else 1
-            name = ("S_" if shifted else "") + ring + ("_CW" if up else "_CCW")   # shifted: only RANGE gets here
-        if slow:
-            way = "_UP" if up else "_DN"
-            # Turned faster than its steps go out, a knob with a coarse step takes it while a fine step still
-            # waits: the two buttons share the turn, so the knob stops with the hand. Fine steps that only wait
-            # behind other buttons don't count: a slow turn stays fine.
-            lagging = since is not None and since < PRESS_MS + GAP_MS
-            if quick and (fast or (lagging and self.shown.get(self._btn(dev, slow + way), (0, 0, 0))[2])):
-                slow = quick
-            name = slow + way
+            slow = "S_RANGE" if shifted else ring           # shifted: only RANGE gets here
+        names = STEP_UP if up else STEP_DN
+        # Turned faster than its steps go out, a knob with a coarse step takes it while a fine step still waits:
+        # the two buttons share the turn, so the knob stops with the hand. Fine steps that only wait behind other
+        # buttons don't count: a slow turn stays fine.
+        lagging = since is not None and since < PRESS_MS + GAP_MS
+        if quick and (fast or (lagging and self.shown.get(self._btn(dev, names[slow]), (0, 0, 0))[2])):
+            slow = quick
         keys = self.ring_keys.get(ring)
         if keys is None:
-            keys = self.ring_keys[ring] = set()
-        keys.add(self._queue(self._btn(dev, name), abs(steps)))
+            keys = self.ring_keys[ring] = {}
+        k = self._btn(dev, names[slow])
+        keys[k] = keys.get(k, 0) + self._queue(k, abs(steps))
 
     def _range_key(self, name, pressed, t):
         """A tilt closes its direction and "com"; the centre push closes "com" alone. "com" can close well
@@ -384,7 +430,7 @@ class Panel:
         if not pressed:
             self.sessions.pop(name, None)
         elif self._knob_shift("RANGE", t):                 # "com" too
-            self.sessions[name] = "RANGE"
+            self.sessions[name] = self.session
         if name == "RANGE_COM":
             if pressed:
                 self.range_tilted = bool(self.range_dirs)
@@ -433,7 +479,7 @@ class Panel:
             r = self.repeat.get(src)
             if r is None:
                 continue
-            if src in self.sessions and self._kept() != self.sessions[src]:
+            if src in self.sessions and not self._in_session(src):
                 del self.repeat[src]                       # its shifted session ended, maybe for another knob: stop
                 continue
             if src in self.pending:                        # released, maybe: a repeat due now waits for a bounce

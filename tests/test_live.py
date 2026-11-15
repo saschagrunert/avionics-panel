@@ -2,13 +2,14 @@
 report the host takes to an output. The panel runs SPEED times faster than the wall clock. Each test queues its
 actions before start(), so their timing on the panel's clock is fixed, and checks what reached the output and in
 what order, not when."""
+import io
 import threading
 
 import pytest
 
 from sim import BM, typed
 from sim.hardware import keys
-from sim.live import PRESS_MIN_MS, TURN_MAX, Live, parse
+from sim.live import PRESS_MIN_MS, TURN_MAX, Live, from_stdin, parse
 
 SPEED = 25           # a tap with its pause (400 ms) takes about 16 ms
 TIMEOUT_S = 5
@@ -172,3 +173,30 @@ def test_start_twice_and_a_stop_that_times_out_raise():
         live.stop(timeout=0.05)
     stuck.set()
     live.stop()
+
+
+def test_a_panel_that_stops_under_stdin_says_where(monkeypatch, capsys):
+    # sim.uhid and sim.vjoy end with the error's traceback, as sim.page does, and then their one-line message
+    class Stopped:
+        def start(self, send):
+            pass
+
+        def idle(self):
+            pass
+
+        def stop(self):
+            raise RuntimeError("code.py failed here")
+
+    class Output:
+        send = None
+        closed = False
+
+        def close(self):
+            self.closed = True
+
+    output = Output()
+    monkeypatch.setattr("sys.stdin", io.TextIOWrapper(io.BytesIO(b"")))
+    with pytest.raises(SystemExit, match="^sim.uhid: code.py failed here$"):
+        from_stdin(Stopped(), output, "sim.uhid")
+    err = capsys.readouterr().err
+    assert "Traceback" in err and "in stop" in err and output.closed
