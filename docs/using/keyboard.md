@@ -14,7 +14,7 @@ switches between the joysticks and the keyboard and keeps that mode from then on
 updates. Switch back the same way. HOME switches also with SHIFT held for an update: to update in keyboard
 mode, hold SHIFT alone.
 
-- In keyboard mode the SHIFT and UNIT lights take turns three times every time the panel starts or restarts.
+- In keyboard mode the SHIFT, UNIT and FREQ lights take turns twice every time the panel starts or restarts.
 - In joystick mode they stay dark.
 - SHIFT held while plugging in keeps the drive and the console for an update in either mode
   ([Bring-up](../building/bring-up.md#normal-and-update-mode)). Holding both switches the mode as well.

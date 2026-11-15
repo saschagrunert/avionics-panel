@@ -65,7 +65,8 @@ def knobs():
             (False, f"NAV, outer {TURN}", BM.turn("NAV_MHZ")), (False, f"NAV, inner {TURN}", BM.turn("NAV_KHZ")),
             (False, f"ADF, outer {TURN}", BM.turn("ADF_100")), (False, f"ADF, inner {TURN}", BM.turn("ADF_1")),
             (False, f"ADF, quick turn {TURN}", BM.turn("ADF_10")),
-            (False, f"{mode}; held {FREQ_HOLD}: back to COM", ["FREQ_PUSH"]),
+            (False, f"{mode} (green light: off COM, on NAV, blinks ADF); held {FREQ_HOLD}: back to COM",
+             ["FREQ_PUSH"]),
             *((True, f"{squawk} digit {d}, inner {TURN}", BM.turn(f"SQK_D{d}")) for d in (1, 2, 3, 4)),
             (True, xpdr, ["XPDR_MODE"])]),
         (fms, f"{panel}/{flood}", [

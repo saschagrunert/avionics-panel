@@ -9,7 +9,7 @@ flowchart LR
   push["FREQ push<br>(keypad.Keys)"]
   rings["7 encoder rings<br>(rotaryio, one PIO state machine each)"]
   panel["panel.py: SHIFT, UNIT, frequency mode,<br>acceleration, repeats, bounce, pulse queue"]
-  lights["SHIFT and UNIT lights<br>(pwmio)"]
+  lights["SHIFT, UNIT and FREQ lights<br>(pwmio)"]
   dev1["Joystick device 1<br>128 buttons"]
   dev2["Joystick device 2<br>64 buttons, unit 2"]
   pc["MobiFlight"]
@@ -39,14 +39,8 @@ preconditions and cannot get out of sync with the panel:
 
 - SHIFT: one-shot for keys, kept through a knob session ([the rules](#shift) below). Shifted functions are
   their own buttons.
-- UNIT: the firmware keeps the state and drives the white light, which also counts: n short flashes
-  (`FLASH_MS` long, `FLASH_EVERY_MS` apart, dark blips in unit 2) give the FREQ mode after a push or a hold
-  back to COM (1 COM, 2 NAV, 3 ADF) and the squawk digit once the outer ring has rested `SQUAWK_REST_MS`. A
-  new count replaces the current one and starts no sooner than `FLASH_PAUSE_MS` after its last flash shown,
-  so two never read as one number. A unit change ends a count; a key, a SHIFT tap or another knob drops a
-  digit's count that has not started; a wait for the host delays a count like the other timings. While USB is
-  down nothing is counted and a count under way is dropped. What moves to
-  device 2 is in [Mapping](../using/mapping.md#two-joysticks). Button numbers are frozen; a snapshot test in
+- UNIT: the firmware keeps the state and drives the white light, on in unit 2. What moves to device 2 is in
+  [Mapping](../using/mapping.md#two-joysticks). Button numbers are frozen; a snapshot test in
   `firmware/test_panel.py` checks it.
 - FREQ knob: the push cycles COM, NAV, ADF, and each mode sends its own turn buttons. The mode stays until the
   next push. It changes at the press, so a turn right after it already tunes the next radio. A plain push held
@@ -57,6 +51,19 @@ preconditions and cannot get out of sync with the panel:
   30 ms bounce window, also when the loop reads both late ([Keys and switch bounce](#keys-and-switch-bounce)).
   A shifted push is XPDR mode, held or not, and leaves the mode alone. The keyboard mode does the same; there
   the push's shortcut stays down while it is held, as a key's does, and holds back what follows.
+- FREQ light: the green light shows the mode, off COM, on NAV, ADF a slow blink (`FREQ_BLINK_MS`, dark and lit
+  half of it each), and counts: n short flashes on a dark light (`FLASH_MS` long, `FLASH_EVERY_MS` apart) give
+  the mode after a push or a hold back to COM (1 COM, 2 NAV, 3 ADF) and the squawk digit once the outer ring
+  has rested `SQUAWK_REST_MS`; the light is dark while a count waits, and shows the mode again
+  `FLASH_PAUSE_MS` after the last flash (ADF's blink starts dark, as after a dropped count and once USB is
+  back). Every count, a squawk digit's too, starts no sooner than `FLASH_PAUSE_MS` after the light last showed
+  the mode lit (NAV, ADF's lit half), also when a later push takes its place, so its first flash stands apart.
+  Once the mode shows lit, a count darkens it no sooner than `LIT_MIN_MS` after it came on (also when USB is
+  back), and the pause runs from there, so a lit stretch cut short never reads as a flash. A new count
+  replaces the current one and starts no sooner than `FLASH_PAUSE_MS` after its last flash shown, so two never
+  read as one number. A key, a SHIFT tap or another knob drops a digit's count that has not started; a wait
+  for the host delays a count like the other timings. While USB is down the light is dark, nothing is counted
+  and a count under way is dropped.
 - Knob acceleration ([table](../using/controls.md#knobs)), UP / DN auto-repeat and the pan tilt repeat rate
   are done in the firmware.
 - Squawk with SHIFT: the outer ring selects the digit (1 to 4; it stops at both ends and sends no button), the
@@ -106,8 +113,8 @@ stateDiagram-v2
   knob: SHIFT and a turn of it then run out 5 s after the last detent.
 - While USB is down (the PC off, asleep or booting, or a host that has suspended the panel) the lights are
   dark and SHIFT does not apply: an armed SHIFT and a knob's session end as the lights go out, a SHIFT tap
-  does nothing, and what is pressed or turned goes out plain once the host is back ([USB](#usb)). UNIT stays
-  as it is, and the white light shows it again with the host.
+  does nothing, and what is pressed or turned goes out plain once the host is back ([USB](#usb)). UNIT and the
+  FREQ mode stay as they are, and their lights show them again with the host.
 - SHIFT is scanned first. A key scan reports its changes in the order of the key numbers, and `code.py` hands
   the keypad SHIFT's row and column first. So when one scan (19.5 ms) reads SHIFT and a key going down, SHIFT
   reaches the panel first, whichever of the two was down first, and the key is shifted. The FREQ push has a
@@ -339,22 +346,23 @@ but for one rule.
   goes out to the new host as it stands, so if it holds a key, that host gets the key and its modifiers in one
   report; and a host that re-enumerates right after it resumed on a request is taken to have kept its keys, so
   it can get the same report, or a modifier pressed and let go alone.
-- Each time it starts, before its loop, `code.py` lights SHIFT and UNIT by turns, 150 ms each, three times,
+- Each time it starts, before its loop, `code.py` lights SHIFT, UNIT and FREQ by turns, 150 ms each, twice,
   also while USB is down (at plug-in the host may not have mounted the panel yet), so the mode shows on a
-  charger too. Then the loop sets both lights, dark while USB is down ([Lights](#lights)). Keys and knobs used
+  charger too. Then the loop sets the lights, dark while USB is down ([Lights](#lights)). Keys and knobs used
   meanwhile go out after it.
 
 ## Lights
 
-`code.py` drives the SHIFT and UNIT lights with PWM at 1 kHz, at `LED_DUTY` = 0x4800 and 0x5500 (about 28 and
-33 % of full), the amber one dimmed to a quarter for its pulse in SHIFT's last second, the white one turned
-over for the flashes of its counts (`Panel.unit_lit`; the Pico bench, which prints the unit, has none). Both
-stay dark while USB is not connected (the PC asleep, booting or off, a charger, a host that has suspended the
-panel); the panel runs on, without SHIFT ([SHIFT](#shift)). In keyboard mode they first take turns at each
-start ([Keyboard mode](#keyboard-mode)). It sets the drive strength of the SHIFT light's pad (GP12) to 12 mA,
-which that light's series resistor needs, by writing the RP2040's pad register through `memorymap`
-(CircuitPython has no call for it); should that fail, it prints "LED drive strength not set" and the SHIFT
-light stays dimmer at the 4 mA default. GP15 only switches the UNIT light's transistor
+`code.py` drives the SHIFT, UNIT and FREQ lights with PWM at 1 kHz, at `LED_DUTY` = 0x4800, 0x5500 and
+0x7b00 (about 28, 33 and 48 % of full), the amber one dimmed to a quarter for its pulse in SHIFT's last
+second, the green one as `Panel.freq_lit` gives it (the Pico bench, which has no pin left for the UNIT and
+FREQ lights, prints the unit and the FREQ mode instead, without the counts). All three stay dark while USB is
+not connected (the PC asleep, booting or off, a charger, a host that has suspended the panel); the panel runs
+on, without SHIFT ([SHIFT](#shift)). In keyboard mode they first take turns at each start
+([Keyboard mode](#keyboard-mode)). It sets the drive strength of the SHIFT and FREQ lights' pads (GP12, GP14)
+to 12 mA, which their series resistors need, by writing the RP2040's pad registers through `memorymap`
+(CircuitPython has no call for it); should that fail, it prints "LED drive strength not set" and the light
+stays dimmer at the 4 mA default. GP15 only switches the UNIT light's transistor
 ([Electronics](electronics.md#lights)) and keeps that default.
 
 ## Pins

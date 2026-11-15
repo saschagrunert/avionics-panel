@@ -67,7 +67,7 @@ not committed. The firmware prints it on its console, the page shows it, and the
 | Directory | Script | Does |
 | --- | --- | --- |
 | `pcb/` | `python3 precheck.py` | Placement clearances, bottom-side part bodies, mount keep-outs |
-| `pcb/` | `python3 run_route.py 1` | Routing, writes `routed.json` for a fully routed board ([seeds](#routing-seeds)) |
+| `pcb/` | `python3 run_route.py 7` | Routing, writes `routed.json` for a fully routed board ([seeds](#routing-seeds)) |
 | `pcb/` | `python3 make.py` | Gerbers |
 | `pcb/` | `python3 make_bom.py` | BOM (parts list) and CPL (placement file) |
 | `pcb/` | `python3 check.py` | The electrical and manufacturing checks, on the Gerbers, BOM and CPL ([Electronics](electronics.md)) |
@@ -176,7 +176,7 @@ and not tried.
 
 `run_route.py <seed>` routes the board from a random seed. It writes `routed.json` only when every net is
 routed, none with a detour and the USB pair within its length limits, which is what `check.py` accepts;
-otherwise the file stays as it is and the script exits 1. The build uses seed 1. `run_route.py <seed> x`
+otherwise the file stays as it is and the script exits 1. The build uses seed 7. `run_route.py <seed> x`
 writes `routed_<seed>.json` instead of `routed.json`, for trying seeds in parallel.
 
 ## Nix

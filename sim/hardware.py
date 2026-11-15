@@ -27,7 +27,9 @@ time.sleep(0.001) waits 1 ms (on the board 0 to 1 ms, to the next tick); the key
 pass, not from a timer interrupt in the middle of one; a report the endpoint holds when the host suspends the bus
 counts as taken at the poll it was due (the host takes it when it resumes); the time module has only sleep (its
 monotonic_ns returns a long integer on the board, which code.py's loop keeps off); the wiring is the board's, not
-the Pico bench's; the status LED on GP25, PIO and PWM slices, the heap and its collections are not modelled.
+the Pico bench's; the status LED on GP25, PIO, the heap and its collections are not modelled. Of the PWM slices
+only their frequency is: two PWMOuts on one slice (GPn is slice n / 2 mod 8) must run at the same fixed frequency,
+or the second raises ValueError, as on the board (whose message differs).
 """
 import builtins
 import importlib.util
@@ -44,6 +46,7 @@ if FIRMWARE not in sys.path:       # behind the standard library: firmware/code.
 import buttonmap as BM  # noqa: E402
 import keys  # noqa: E402
 import make_keys  # noqa: E402, F401 (the shortcuts' names, for the panel page)
+import panel  # noqa: E402, F401 (its FREQ modes' names, for the panel page)
 
 
 def load(path, name="_firmware_file"):
@@ -246,6 +249,10 @@ class PWMOut:
 
     def __init__(self, board, pin, *, duty_cycle=0, frequency=500, variable_frequency=False):
         board.claim(pin)
+        pwm_slice, timer = int(pin[2:]) // 2 % 8, (frequency, variable_frequency)   # the RP2040's PWM slice
+        if pwm_slice in board.slices and (variable_frequency or board.slices[pwm_slice] != timer):
+            raise ValueError(f"{pin}: PWM slice {pwm_slice} runs at another frequency")
+        board.slices[pwm_slice] = timer
         self.board, self.pin, self.frequency, self._duty = board, pin, frequency, duty_cycle
         self.history = board.log()             # (ms, duty) of every write
         board.leds.append(self)
@@ -380,6 +387,7 @@ class Board:
         self.taken = 0                         # ms at which the host takes the last report sent
         self.received = []                     # (ms the host took it, device, report) of every report sent
         self.keypads, self.encoders, self.leds, self.regs, self.ios = [], [], [], {}, {}
+        self.slices = {}                       # PWM slice -> (frequency, variable) of the PWMOuts on it this run
         self.matrix = self.direct = None
         self.created = []                      # the usb_hid devices boot.py made
         self.devices = [Device(self, report_descriptor=b"", usage_page=page, usage=usage, report_ids=(i,),
@@ -567,7 +575,7 @@ class Board:
 
     def run(self, until, edits=()):
         """Runs code.py: its loop passes up to `until` ms, or until it reloads"""
-        self.until, self.gone = until, False
+        self.until, self.gone, self.slices = until, False, {}     # (a new VM: no PWMOut left)
         with suppress(Stop, ReloadException):
             self.exec("code.py", edits)
         return self

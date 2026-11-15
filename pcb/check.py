@@ -175,14 +175,14 @@ FP_PIN = {"C2040": {"EP": "57"}, "C165948": {"SH1a": "1", "SH1b": "2", "SH-1b": 
 POLARITY = {"K": ("K", "C", "-"), "A": ("A", "+")}
 # The reverse-mount LEDs (LiteOn's C230 package): our pads stop JLCPCB's 0.2 mm short of the cutout (board.py
 # LED_CUTOUT), 1.3 mm from the LED's centre. JLC's footprint of the amber LTST-C230KSKT (C125108) runs them to
-# 0.05 mm from its 1.9 mm cutout (1.0 from the centre); JLC's footprint of the white LTW-C230DS (C575513), the
-# same package, draws its pads 0.33 mm into a 2.3 mm round hole (0.82 from the centre). So each pad differs from
-# JLC's at its inner edge, the one towards the cutout, by 0.3 and 0.48, and with it at its centre by 0.18 and
-# 0.24; its outer edge and its width agree with JLC's to 0.07 mm. FP_TOL gives each LED that much at the centre
-# and at the inner edge alone (centre, inner edge): the other three edges keep FP_EDGE_TOL, so another package's
-# footprint in the LED's place fails (a SOD-123F's pads are 0.3 mm narrower on either side). An LED the wrong
-# way round misses by 3.5 mm and more.
-FP_TOL = {"C125108": (0.2, 0.32), "C575513": (0.25, 0.5)}
+# 0.05 mm from its 1.9 mm cutout (1.0 from the centre), and so does the green LTST-C230KGKT's (C125106); JLC's
+# footprint of the white LTW-C230DS (C575513), the same package, draws its pads 0.33 mm into a 2.3 mm round hole
+# (0.82 from the centre). So each pad differs from JLC's at its inner edge, the one towards the cutout, by 0.3
+# and 0.48, and with it at its centre by 0.18 and 0.24; its outer edge and its width agree with JLC's to 0.07 mm.
+# FP_TOL gives each LED that much at the centre and at the inner edge alone (centre, inner edge): the other three
+# edges keep FP_EDGE_TOL, so another package's footprint in the LED's place fails (a SOD-123F's pads are 0.3 mm
+# narrower on either side). An LED the wrong way round misses by 3.5 mm and more.
+FP_TOL = {"C125108": (0.2, 0.32), "C125106": (0.2, 0.32), "C575513": (0.25, 0.5)}
 
 
 def jlc_place(x, y, rot):

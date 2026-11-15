@@ -141,7 +141,8 @@ def test_main_runs_the_lines_from_stdin_and_says_what_is_wrong(monkeypatch, caps
         sim.uhid.main(args)
         out, err = capsys.readouterr()
         assert err.startswith("DIY Avionics Panel on uhid; actions, one per line:\n")
-        assert "fly: actions:" in err and re.search(r"\nSHIFT 0x[0-9a-f]{4} UNIT 0x[0-9a-f]{4}\n$", out)
+        assert "fly: actions:" in err
+        assert re.search(r"\nSHIFT 0x[0-9a-f]{4} UNIT 0x[0-9a-f]{4} FREQ 0x[0-9a-f]{4}\n$", out)
 
     def refuse(path, flags):
         raise PermissionError(13, "Permission denied")

@@ -22,9 +22,9 @@ def keyboard_mode(nvm, toggle=False):
     return on
 
 
-# The start pattern of keyboard mode: the lights take turns (0 SHIFT, 1 UNIT), BLINK_S each. In joystick mode
-# they stay dark.
-START, BLINK_S = (0, 1, 0, 1, 0, 1), 0.15
+# The start pattern of keyboard mode: the lights take turns (0 SHIFT, 1 UNIT, 2 FREQ), BLINK_S each. In joystick
+# mode they stay dark.
+START, BLINK_S = (0, 1, 2, 0, 1, 2), 0.15
 
 REPORT = 8                         # bytes: modifiers, reserved, six keys (the panel uses one), as a boot keyboard
 # One keyboard without report ID: HID 1.11's boot keyboard descriptor (appendix E.6), keys 0 to 101. A host that

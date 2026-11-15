@@ -19,10 +19,10 @@ The API, under /sim/:
   the version (version(): the commit of the files, which the page shows; null in a git checkout), the firmware
   names of the caps and knobs geometry.js draws (inputs()), the legend of --family's profile (null without one)
   and the numbers the page keeps to (the detents of a knob's turn, TURN_MAX, ACTS_MAX and BEAT_S in ms), then
-  `state` whenever the lights, the unit or the buttons change (the lights are read every POLL_S, so the UNIT
-  light's 60 ms flashes and the SHIFT light's 125 ms pulse reach the page; in keyboard mode the buttons are the
-  keyboard's, with the shortcut), and `fault` for an error in code.py's loop, which then reloads (not `error`:
-  EventSource has an event of that name).
+  `state` whenever the lights, the unit, the FREQ mode or the buttons change (the lights are read every POLL_S,
+  so the FREQ light's 60 ms flashes and the SHIFT light's 125 ms pulse reach the page; in keyboard mode the
+  buttons are the keyboard's, with the shortcut), and `fault` for an error in code.py's loop, which then reloads
+  (not `error`: EventSource has an event of that name).
 - POST act?client=ID: actions, one per line, run at once and in order: `press NAME`, `release NAME` (a key, push
   or RANGE switch) and `turn RING DETENTS` (all in the same ms, sim.live.TURN_MAX at most). Nothing paces them: a
   fast wheel is a fast turn. An empty one only says that the page is still there. 204, or 400 with the reason
@@ -65,7 +65,7 @@ from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 
-from sim import LIGHTS, TILT, buttons_in, function_in, key_name
+from sim import FREQ_NAMES, LIGHTS, TILT, buttons_in, function_in, key_name
 from sim.hardware import VERSION_PY, load, make_keys
 from sim.live import DETENTS, TURN_MAX, USAGE, Live, parse
 from sim.sendinput import SendInput
@@ -223,11 +223,12 @@ class Page(ThreadingHTTPServer):
             self.forward(device, report)
 
     def state(self):
-        """The lights (their duty as a share of full on: 1, or 0.25 for SHIFT's dim pulse), the unit (the panel's:
-        the UNIT light also counts with short flashes) and each device's buttons by name; in keyboard mode the
-        keyboard's ("keyboard") function with its shortcut and unit. code.py's thread and the output change them
-        meanwhile, so code.py's globals and the reports are read once each. A reload starts the globals anew,
-        without LED_DUTY until code.py has set it: the lights are off until then."""
+        """The lights (their duty as a share of full on: 1, or 0.25 for SHIFT's dim pulse), the unit and the FREQ
+        mode (the panel's: the FREQ light also blinks for ADF and counts with short flashes) and each device's
+        buttons by name; in keyboard mode the keyboard's ("keyboard") function with its shortcut and unit.
+        code.py's thread and the output change them meanwhile, so code.py's globals and the reports are read once
+        each. A reload starts the globals anew, without LED_DUTY until code.py has set it: the lights are off
+        until then."""
         live, lights, reports = self.live, {}, dict(self.reports)
         code = live.code or {}
         full = code.get("LED_DUTY")
@@ -244,7 +245,8 @@ class Page(ThreadingHTTPServer):
         else:
             buttons = {device: buttons_in(device, report) for device, report in sorted(reports.items())}
         panel = code.get("panel")
-        return {"lights": lights, "unit": panel.unit if panel else 1, "buttons": buttons}
+        return {"lights": lights, "unit": panel.unit if panel else 1,
+                "freq": FREQ_NAMES[panel.freq_mode if panel else 0], "buttons": buttons}
 
     def connect(self):
         client = secrets.token_urlsafe(16)

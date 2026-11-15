@@ -21,7 +21,7 @@ Sim(keyboard=True) runs the keyboard mode (keys.py), from after its start patter
 typed() reads the functions its shortcuts stand for, and buttons(), presses() and held() name them too, each
 shared shortcut by the function it stands for (canonical()).
 """
-from sim.hardware import BM, RINGS, SWITCHES, Board, keys
+from sim.hardware import BM, RINGS, SWITCHES, Board, keys, panel
 
 START_MS = 107       # the scenario starts this long after code.py, off the keypads' 19.5 ms scans
 PATTERN_MS = 960     # ... and this much later in keyboard mode, after its start pattern (keys.START, 6 x 152 ms
@@ -36,7 +36,8 @@ POLL_MS = 31.25      # MobiFlight reads the joysticks this often (panel.POLL_MS 
 POLL_OFFSET_MS = 11  # ... first at this ms
 # a RANGE tilt closes "com" and its direction: away from the pilot A, left B, towards C, right D (Alps drawing)
 TILT = {"UP": "RANGE_A", "LEFT": "RANGE_B", "DN": "RANGE_C", "RIGHT": "RANGE_D"}
-LIGHTS = ("SHIFT", "UNIT")
+LIGHTS = ("SHIFT", "UNIT", "FREQ")
+FREQ_NAMES = tuple(steps[0].split("_")[0] for steps in panel.FREQ_MODES)   # COM, NAV, ADF: what the FREQ light shows
 # (modifiers, key) -> (device, button name): what each shortcut of the keyboard mode stands for. A shortcut that
 # buttons share (keys.py) stands for the first of them: device 1's, a key's plain function.
 FUNCTIONS = {}
@@ -211,7 +212,7 @@ class Sim:
         return polls[-1][1] if polls else []
 
     def light(self, name):
-        """(ms, duty) of every duty written to the "SHIFT" or "UNIT" light before now, after the keyboard mode's
+        """(ms, duty) of every duty written to the "SHIFT", "UNIT" or "FREQ" light before now, after the keyboard mode's
         start pattern (one duty per light and step)"""
         history = self._board().leds[LIGHTS.index(name)].history[len(keys.START) if self.keyboard else 0:]
         return [(ms, d) for ms, d in history if ms < self.now]

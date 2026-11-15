@@ -1,11 +1,11 @@
 """DIY Avionics Panel rev 1 - RP2040 directly on the board, USB-C, 4 layers.
 
-Knob set ALT/HDG + RANGE (Alps RKJXT, turn / 4-way tilt / push) left, FREQ + FMS right, 28 keys, two
+Knob set ALT/HDG + RANGE (Alps RKJXT, turn / 4-way tilt / push) left, FREQ + FMS right, 28 keys, three
 lights, BOOT as bridge pads under a hole in the body floor, SWD debug points.
 
 Top view (component side), mm, origin top-left, y down. Layer stack: F (signals), In1 = GND plane,
 In2 = 3V3 plane, B (signals). Switches, knobs and the RANGE control (THT) sit on top; every SMD part (RP2040,
-flash, USB-C, regulator, diodes, passives, the two reverse-mount LEDs that shine up through cutouts in the board)
+flash, USB-C, regulator, diodes, passives, the three reverse-mount LEDs that shine up through cutouts in the board)
 is on the bottom, so JLCPCB assembles one SMD side. The through-hole parts are soldered by hand (hand-soldering)
 or fitted by JLCPCB from a top-side CPL (full assembly); docs/building/ordering.md and hand-soldering.md.
 
@@ -112,12 +112,17 @@ TITLE = ("Avionics Panel rev 1 - RP2040 - USB-C", (COLS[2] + COLS[3]) / 2, 2.6)
 # with a base wide enough to stand on the board round the cutout, clear of the switch bodies and out from under
 # the key holes (mech/check_fit.py): SHIFT 5.75 mm below its key's centre; UNIT midway between key rows 2 and 3
 # and 5.5 mm east of column 3, in the gap between the caps of columns 3 and 4 (its middle is COL_PITCH / 2,
-# 5.925 mm), where the SHIFT cap does not stand in front of it.
+# 5.925 mm), where the SHIFT cap does not stand in front of it. FREQ (the FREQ knob's mode, on GP14, the last free
+# GPIO) at the bottom of the RADIO box, midway between columns 5 and 6, between VFR/IDENT and NAV/ADF: GP6's fixed
+# lane at y 28.2 keeps its cutout's copper clearance from y 29.825, and below it the plate hole nears the FMS frame
+# line (0.85 mm at y 29.9, 0.7 with the hole 0.1 large and 0.1 off, as the amber legends keep to the key holes).
 LEDS = {"SHIFT": ((COLS[3], ROWS[3] + 5.75), "GP12", "amber"),
-        "UNIT": ((COLS[3] + 5.5, (ROWS[2] + ROWS[3]) / 2), "GP15", "white")}
+        "UNIT": ((COLS[3] + 5.5, (ROWS[2] + ROWS[3]) / 2), "GP15", "white"),
+        "FREQ": (((COLS[5] + COLS[6]) / 2, 29.9), "GP14", "green")}
 # The LEDs that lie with the cathode east and the anode and the series resistor west (add_led); the others have
-# the cathode west. UNIT: east of it the resistor would lie on the column 4 bus, 4.7 mm from the LED's centre.
-LED_CATHODE_EAST = {"UNIT"}
+# the cathode west. East of them the resistor would lie on a column bus: UNIT's on column 4's, 4.7 mm from the
+# LED's centre, FREQ's on column 6's.
+LED_CATHODE_EAST = {"UNIT", "FREQ"}
 # The LEDs switched by a low-side N-FET from VBUS_F instead of driven from their GPIO (add_led_switch): the FET's
 # place, in the free band between key rows 1 and 2 above the LED, clear of the body's post and middle column
 LED_SWITCH = {"UNIT": (87.0, 31.5)}
@@ -153,7 +158,7 @@ FIDUCIALS = [(8.5, 8.5), (W - 8.5, 8.5), (W - 8.5, H - 8.5)]
 ROW_GP = ["GP11", "GP8", "GP5", "GP2", "GP0"]           # rows 0-3 keys, row 4: RANGE switches + ALT/HDG push
 COL_GP = ["GP1", "GP3", "GP4", "GP6", "GP7", "GP9", "GP10"]
 R4_COL = {"ALTHDG": 5, "FMS": 6}       # row 4: RANGE A, B, C, D, com on columns 0-4, ALT/HDG push 5, FMS push 6
-PUSH_GP = {"FREQ": "GP13"}               # FREQ push: direct input (pull-up, switch to GND). GP14 is spare
+PUSH_GP = {"FREQ": "GP13"}               # FREQ push: direct input (pull-up, switch to GND)
 
 # RP2040 QFN-56 pin -> net
 RP = {1: "3V3", 10: "3V3", 22: "3V3", 33: "3V3", 42: "3V3", 49: "3V3", 48: "3V3", 43: "3V3", 44: "3V3",
@@ -166,7 +171,7 @@ for i, pin in enumerate(range(2, 10)):
 for i, pin in enumerate(range(11, 15)):
     RP[pin] = f"GP{8 + i}"                  # GPIO8-11 on pins 11-14
 for i, pin in enumerate(range(15, 19)):
-    RP[pin] = f"GP{12 + i}"                 # GPIO12-15: SHIFT light, FREQ push, spare (fan-out only, NC), UNIT light
+    RP[pin] = f"GP{12 + i}"                 # GPIO12-15: SHIFT light, FREQ push, FREQ light, UNIT light
 for i, pin in enumerate(range(34, 38)):
     RP[pin] = f"GP{22 + i}"                 # GPIO22-25 (FREQ)
 RP[40], RP[41] = "GP28", "GP29"             # RANGE encoder
@@ -337,10 +342,11 @@ def add_rkjxt(pads, ref, cx, cy, enc_a, enc_b):
 
 def add_led(pads, name, x, y, gpio, colour, cathode_east=False, switch=None):
     """Reverse-mount 1206 LED on the bottom under a light pipe, its lens up in a cutout through the board, and its
-    series resistor beside it. LiteOn's C230 package (LTST-C230KSKT amber, LTW-C230DS white), pad 1 of JLC's
-    footprint the cathode: cathode west and anode east (pad 1 on the left, rotation 180 on the bottom), or with
-    cathode_east the mirror image (pad 1 on the right, rotation 0). The cathode goes to GND and the resistor to the
-    GPIO, or with switch (the FET's place) the cathode to the FET and the resistor to VBUS_F (add_led_switch)."""
+    series resistor beside it. LiteOn's C230 package (LTST-C230KSKT amber, LTST-C230KGKT green, LTW-C230DS white),
+    pad 1 of JLC's footprint the cathode: cathode west and anode east (pad 1 on the left, rotation 180 on the
+    bottom), or with cathode_east the mirror image (pad 1 on the right, rotation 0). The cathode goes to GND and the
+    resistor to the GPIO, or with switch (the FET's place) the cathode to the FET and the resistor to VBUS_F
+    (add_led_switch)."""
     w, h, r = LED_CUTOUT
     CUTOUTS.append((x, y, w, h, r))
     pl, pw = LED_PAD
@@ -353,7 +359,8 @@ def add_led(pads, name, x, y, gpio, colour, cathode_east=False, switch=None):
         plane_via((x + k * off, y), "GND", k * (pl / 2 + 0.95), 0)
     # Amber about 13.5 mA from GP12 at 12 mA drive strength (the firmware sets it), 75 R (the basic part between 51
     # and 100): 6.8 to 17.2 mA over the GPIO's output resistance and the LED's forward voltage (the low end with
-    # 2.4 V across the LED and the pad's 57 ohm at most: (3.3 - 2.4) / (75 + 57)), under its 30 mA.
+    # 2.4 V across the LED and the pad's 57 ohm at most: (3.3 - 2.4) / (75 + 57)), under its 30 mA. Green the same
+    # from GP14 (2.0 V typical, 2.4 V at most at 20 mA, as amber).
     # White: forward voltage 2.8 to 3.6 V at 20 mA (+-0.1 per bin, and JLCPCB cannot choose the bin), too close to
     # the 3.3 V supply: on a GPIO a top-bin part got 1 to 2 mA. So it runs from VBUS_F (4.23 to 5.5 V: USB's 4.40
     # to 5.5 V less up to 0.17 V over R_IN and the fuse) through 390 R and the FET. A typical LED (3.2 V at 20 mA)
@@ -363,6 +370,7 @@ def add_led(pads, name, x, y, gpio, colour, cathode_east=False, switch=None):
     # the slope, the current stays under 5.5 V / 386 ohm = 14.2 mA, below the LED's 20 mA. The firmware sets both
     # brightnesses with PWM (docs/architecture/electronics.md).
     led_part, lcsc, res, res_lcsc = {"amber": ("LTST-C230KSKT", "C125108", "75R", "C4275"),
+                                     "green": ("LTST-C230KGKT", "C125106", "75R", "C4275"),
                                      "white": ("LTW-C230DS", "C575513", "390R", "C23151")}[colour]
     part(f"LED_{name}", led_part, lcsc, x, y, 0 if cathode_east else 180, foot="1206 reverse")
     # The resistor in line beyond the anode pad, its anode end 0.3 mm from it (the same net) and its GPIO (VBUS_F)
@@ -425,6 +433,7 @@ def qfn_pad_xy(pin):
 FAN_END, FAN_SPREAD = 6.2, 1.5          # north / east / south
 # west (matrix) and east (knobs): 0.86 mm pitch, a via on every end (0.56 mm between holes)
 FAN_END_W, FAN_SPREAD_W = 7.5, 2.15
+GP14_STUB = 0.8                         # GP14's north fan-out end to its via (add_rp2040)
 
 
 def add_rp2040(pads):
@@ -498,8 +507,15 @@ def add_rp2040(pads):
             if p.net in BUS_NETS:
                 BUS_COPPER.append(("via",) + FIXED_VIAS[-1])
     # GP13 (FREQ push, off to the north-east) starts on the top layer: on the bottom it would cross the way out
-    # to the west of its neighbours GP12 and GP15
+    # to the west of its neighbours GP12, GP14 and GP15
     p = next(p for p in pads if p.name == f"U1.F{next(k for k, n in RP.items() if n == PUSH_GP['FREQ'])}")
+    via(p.x, p.y, p.net, SVIA_D, SVIA_DRILL)
+    p.layers = "F"
+    # GP14 (the FREQ light) ends boxed in between them: a short stub north to a small via, the routing point,
+    # from which the line runs on (mostly on the bottom)
+    p = next(p for p in pads if p.name == f"U1.F{next(k for k, n in RP.items() if n == LEDS['FREQ'][1])}")
+    seg(p.x, p.y, p.x, p.y - GP14_STUB, p.net)
+    p.y -= GP14_STUB
     via(p.x, p.y, p.net, SVIA_D, SVIA_DRILL)
     p.layers = "F"
     add_gp25_resistor(pads)

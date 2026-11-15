@@ -135,11 +135,13 @@ const KNOBS = {
   radio: at('FREQ',   { kind: 'dual' }),
   fms:   at('FMS',    { kind: 'dual' }) };   // shifted: cockpit lighting
 // lights: SHIFT (amber) is on while SHIFT applies (pulsing in its last second), UNIT 2 (white) while unit 2 is selected,
-// turned over for each short flash of its counts (the FREQ mode, the squawk digit)
+// FREQ (green) shows the FREQ knob's mode (off COM, on NAV, a slow blink ADF) and counts it and the squawk digit in
+// short flashes
 const light = name => ({ name, x: G.lights[name].x, y: G.lights[name].y, r: G.lights[name].d / 2 });
 const LIGHTS = [
   { ...light('SHIFT'), color: 0x20180a, emissive: G.amber, on: 1.0 },     // shown armed, same amber as the legends
-  { ...light('UNIT'), color: 0x8c8f94, emissive: 0xffffff, on: 0.0 } ];   // shown off
+  { ...light('UNIT'), color: 0x8c8f94, emissive: 0xffffff, on: 0.0 },     // shown off
+  { ...light('FREQ'), color: 0x8c8f94, emissive: 0x9cff3c, on: 0.0 } ];   // shown off (COM)
 // one laser-marked frame around all keys, split by single lines (no double rule between groups).
 // Rows stay aligned across the panel on purpose; the wider gap between rows 2 and 3 holds the FMS line.
 const ART = G.plate_art, FRAME = ART.frame;

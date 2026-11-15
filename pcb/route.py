@@ -320,7 +320,7 @@ class Router:
 # ---------------- the router's configuration for this board ----------------
 def route_bias():
     """Soft routing costs: (layers, rect, pays(net), extra cost per grid step). The band between the north
-    fan-out ends and the crystal is the only way out to the west for GP12, GP13 and GP15; any other net
+    fan-out ends and the crystal is the only way out to the west for GP12 to GP15; any other net
     crossing it (the USB-C lines take it on their way south) pays extra, so it
     goes round the east side when it can.
     The ALT/HDG lines (GP18-21) leave the east fan-out north and cross over J1 on the top layer (the bottom

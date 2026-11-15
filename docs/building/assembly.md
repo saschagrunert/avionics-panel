@@ -21,12 +21,13 @@ the bosses. The nearest caps and shafts are about 10 mm in.
    bars of SHIFT and DN are then at the front edge, the bar of UP at the back edge. Square the caps: hold a
    steel rule against the front edges of each row and turn every cap until its edge lies flat on the rule. A
    cap left turned rubs in its hole or lands on the plate back instead.
-2. Light pipes (before or after step 1): break both off their bar and sand the two stubs flush with the base
-   on fine sandpaper laid on the table, no further (the visible tops stay as printed). The two pipes are the
-   same. Lay the plate face down on the blocks and the cloth. Drop a pipe, rod first, into each of the two
+2. Light pipes (before or after step 1): break the three off their bar and sand the stubs flush with the base
+   on fine sandpaper laid on the table, no further (the visible tops stay as printed). The three pipes are the
+   same. Lay the plate face down on the blocks and the cloth. Drop a pipe, rod first, into each of the three
    small round holes among the key holes: one between the front row of key holes and the front edge, one
-   between the two front rows. Each rests on its shoulder on the plate back. A rod that has grown too tight for
-   its hole (resin keeps changing size in its first week) sands free in a fold of the fine sandpaper.
+   between the two front rows and one between the two middle rows. Each rests on its shoulder on the plate
+   back. A rod that has grown too tight for its hole (resin keeps changing size in its first week) sands free
+   in a fold of the fine sandpaper.
 3. Board: lower it face down into the plate, J1 towards the plate's tongue. The caps drop into their key
    holes and centre the board, and it comes to rest on the five bosses, the pipes' bases standing clear under
    it. Look at the face between the blocks: every cap must stand up through its hole. One that sits on the
@@ -105,5 +106,5 @@ grips stays on when the panel is turned over and does not wobble.
 3. Lift the board out. Caps that stay in their key holes come out from the front. The light pipes stay on
    their shoulders in the plate as long as it lies face down.
 4. To reassemble, push any cap that came out back onto its plunger and square the rows again (step 1 of
-   [Putting it together](#putting-it-together)), check that both light pipes sit in their holes, and do
+   [Putting it together](#putting-it-together)), check that the three light pipes sit in their holes, and do
    steps 3 to 6.
