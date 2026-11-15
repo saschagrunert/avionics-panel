@@ -64,11 +64,13 @@ def test_the_layout(built):
         # the usage it echoes holds nothing cmd reads as its own: no redirection, pipe, command separator or variable
         echoed = [line for line in bat.splitlines() if line.lstrip().startswith("echo")]
         assert len(echoed) > 10 and not [line for line in echoed if set(line) & set("<>|&%^")]
-        # firewall.bat allows the zip's own python.exe, on private networks only, after the rules from before
+        # firewall.bat allows the zip's own python.exe, on private networks only and from their subnet, after the
+        # rules from before
         firewall = z.read(f"{TOP}/firewall.bat").decode()
         assert 'set "PYTHON=%~dp0python\\python.exe"' in firewall
         add = firewall.index("add rule")
         assert firewall.index("delete rule name=all program=") < add < firewall.index("profile=private")
+        assert add < firewall.index("remoteip=localsubnet")
         assert firewall.index('delete rule name="%RULE%"') < add          # its own, also for a folder moved since
 
 

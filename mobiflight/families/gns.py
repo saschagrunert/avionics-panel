@@ -14,29 +14,29 @@ ENT sends the plain function with SHIFT too, so a stray SHIFT does no harm.
 from functools import partial
 
 from mobiflight.families import part
-from mobiflight.families.rpn import h, k
+from mobiflight.families.rpn import bezel, h, k
 
 
 def _gns(unit):
     """The keys and the right-hand knob of a GNS, by its template ("AS530", "AS430")"""
-    return {
-        "CDI": h(f"{unit}_CDI_Push"),
-        "FPL": h(f"{unit}_FPL_Push"),
-        "DIRECT": h(f"{unit}_DirectTo_Push"),
-        "MENU": h(f"{unit}_MENU_Push"),
-        "PROC": h(f"{unit}_PROC_Push"),
-        "CLR": h(f"{unit}_CLR_Push"),
-        "ENT": h(f"{unit}_ENT_Push"),
-        "OBS": h(f"{unit}_OBS_Push"),
-        "MSG": h(f"{unit}_MSG_Push"),
-        "MAP": h(f"{unit}_CLR_Push_Long"),                      # hold CLR
-        "S_ENT": h(f"{unit}_ENT_Push"),
-        "FMS_OUTER_CW": h(f"{unit}_RightLargeKnob_Right"),
-        "FMS_OUTER_CCW": h(f"{unit}_RightLargeKnob_Left"),
-        "FMS_INNER_CW": h(f"{unit}_RightSmallKnob_Right"),
-        "FMS_INNER_CCW": h(f"{unit}_RightSmallKnob_Left"),
-        "FMS_CRSR": h(f"{unit}_RightSmallKnob_Push"),
-    }
+    return bezel(f"{unit}_", {
+        "CDI": "CDI_Push",
+        "FPL": "FPL_Push",
+        "DIRECT": "DirectTo_Push",
+        "MENU": "MENU_Push",
+        "PROC": "PROC_Push",
+        "CLR": "CLR_Push",
+        "ENT": "ENT_Push",
+        "OBS": "OBS_Push",
+        "MSG": "MSG_Push",
+        "MAP": "CLR_Push_Long",                       # hold CLR
+        "S_ENT": "ENT_Push",
+        "FMS_OUTER_CW": "RightLargeKnob_Right",
+        "FMS_OUTER_CCW": "RightLargeKnob_Left",
+        "FMS_INNER_CW": "RightSmallKnob_Right",
+        "FMS_INNER_CCW": "RightSmallKnob_Left",
+        "FMS_CRSR": "RightSmallKnob_Push",
+    })
 
 
 _NO_JOYSTICK = "the GNS has no joystick: it pans its map with the FMS knob after a CRSR push"

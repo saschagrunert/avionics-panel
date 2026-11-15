@@ -15,7 +15,7 @@ with SHIFT too, so a stray SHIFT does no harm (docs/using/mapping.md#two-joystic
 """
 from mobiflight.families import parts
 from mobiflight.families.part import part
-from mobiflight.families.rpn import h, k, lset
+from mobiflight.families.rpn import bezel, h, k, lset
 
 # what the CDI shows, as the NXi's PFD keeps it in L:PFD_CDI_Source on every change and at start (HSI.tsx): 3 for
 # GPS, 1 or 2 for NAV 1 or NAV 2. AUTOPILOT NAV SELECTED would not do: the NXi may start its CDI on NAV 1 without
@@ -37,36 +37,34 @@ _CDI = f"{_SOURCE} 3 == if{{ {_NAV1} }} els{{ {_SOURCE} 1 == if{{ {_NAV2} }} els
 
 def _fms(display):
     """The FMS keys and the FMS knob of the MFD or the PFD ("MFD", "PFD"); ENT with SHIFT too"""
-    p = f"AS1000_{display}_"
-    return {
-        "FPL": h(p + "FPL_Push"),
-        "DIRECT": h(p + "DIRECTTO"),
-        "MENU": h(p + "MENU_Push"),
-        "PROC": h(p + "PROC_Push"),
-        "CLR": h(p + "CLR"),
-        "ENT": h(p + "ENT_Push"),
-        "S_ENT": h(p + "ENT_Push"),
-        "FMS_OUTER_CW": h(p + "FMS_Lower_INC"),
-        "FMS_OUTER_CCW": h(p + "FMS_Lower_DEC"),
-        "FMS_INNER_CW": h(p + "FMS_Upper_INC"),
-        "FMS_INNER_CCW": h(p + "FMS_Upper_DEC"),
-        "FMS_CRSR": h(p + "FMS_Upper_PUSH"),
-    }
+    return bezel(f"AS1000_{display}_", {
+        "FPL": "FPL_Push",
+        "DIRECT": "DIRECTTO",
+        "MENU": "MENU_Push",
+        "PROC": "PROC_Push",
+        "CLR": "CLR",
+        "ENT": "ENT_Push",
+        "S_ENT": "ENT_Push",
+        "FMS_OUTER_CW": "FMS_Lower_INC",
+        "FMS_OUTER_CCW": "FMS_Lower_DEC",
+        "FMS_INNER_CW": "FMS_Upper_INC",
+        "FMS_INNER_CCW": "FMS_Upper_DEC",
+        "FMS_CRSR": "FMS_Upper_PUSH",
+    })
 
 
 def _range(display, shift=""):
     """The RANGE knob and joystick of the MFD or the PFD; clockwise zooms out, as on the G1000: RANGE_INC steps the
     map to its next range (MFDNavMapPage.tsx, MapInset.tsx). The PFD's work its inset map, while it shows."""
-    p = f"AS1000_{display}_"
-    return {
-        f"{shift}RANGE_CW": h(p + "RANGE_INC"),
-        f"{shift}RANGE_CCW": h(p + "RANGE_DEC"),
-        f"{shift}PAN_UP": h(p + "JOYSTICK_UP"),
-        f"{shift}PAN_DN": h(p + "JOYSTICK_DOWN"),
-        f"{shift}PAN_LEFT": h(p + "JOYSTICK_LEFT"),
-        f"{shift}PAN_RIGHT": h(p + "JOYSTICK_RIGHT"),
-        f"{shift}PTR": h(p + "JOYSTICK_PUSH"),
-    }
+    return bezel(f"AS1000_{display}_", {
+        f"{shift}RANGE_CW": "RANGE_INC",
+        f"{shift}RANGE_CCW": "RANGE_DEC",
+        f"{shift}PAN_UP": "JOYSTICK_UP",
+        f"{shift}PAN_DN": "JOYSTICK_DOWN",
+        f"{shift}PAN_LEFT": "JOYSTICK_LEFT",
+        f"{shift}PAN_RIGHT": "JOYSTICK_RIGHT",
+        f"{shift}PTR": "JOYSTICK_PUSH",
+    })
 
 
 # STD: BAROMETRIC_STD_PRESSURE only ever sets STD in the NXi (AltimeterBaroKeyEventHandler.ts), and a second one would

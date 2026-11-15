@@ -82,7 +82,7 @@ stateDiagram-v2
   Armed --> Plain: key, sent shifted (HOME toggles UNIT)
   Armed --> Plain: SHIFT tap, 3 s without input, or USB down
   Armed --> Knob: knob turned or pushed, shifted
-  Armed --> Knob: SHIFT tap or key, while a shifted push or tilt is held
+  Armed --> Knob: SHIFT tap, key or 3 s without input, while a shifted push or tilt is held
   Knob --> Knob: same knob again, 3 s start over
   Knob --> Armed: SHIFT tap, for the next key
   Knob --> Plain: 3 s after the last detent, another knob, a key (unless a shifted push or tilt is held), or USB down
@@ -95,11 +95,13 @@ stateDiagram-v2
   for the next key after a tap or for the knob that keeps it. A key pressed while a knob keeps SHIFT is sent
   plain. During SHIFT's last second the light pulses between bright and dim.
 - While a knob still keeps SHIFT (light on after a squawk entry, or a shifted push or tilt still held), a tap
-  arms SHIFT for the next key instead, so SHIFT, VFR gives IDENT with one tap. A second tap cancels SHIFT,
-  except for a shifted control still held.
+  arms SHIFT for the next key instead, so SHIFT, VFR gives IDENT with one tap. The arm runs out 3 s after
+  the tap, as any tap's does; the held control's session goes on. A second tap cancels SHIFT, except for a shifted
+  control still held.
 - A shifted push or tilt that is still held keeps SHIFT and the light until it is let go, whatever is pressed
   meanwhile (SHIFT taps, the key a tap armed, plain keys). Only another knob, turned or pushed, ends it: SHIFT
-  belongs to one knob at a time.
+  belongs to one knob at a time. Held on after that, or after USB went down, it keeps no later session of its
+  knob: SHIFT and a turn of it then run out 3 s after the last detent.
 - While USB is down (the PC off, asleep or booting, or a host that has suspended the panel) the lights are
   dark and SHIFT does not apply: an armed SHIFT and a knob's session end as the lights go out, a SHIFT tap
   does nothing, and what is pressed or turned goes out plain once the host is back ([USB](#usb)). UNIT stays
@@ -133,15 +135,18 @@ together go out 56 ms apart.
 
 What the queue does:
 
-- At most 8 detents wait, all rings together, and a detent beyond that is dropped. Keys, pushes and the first
-  step of UP, DN or a tilt are never dropped (up to 8 owed presses per button). So a key waits for at most
-  about 0.9 s.
+- A detent, or a repeat of UP, DN or a tilt, that finds 8 presses waiting (keys included) is dropped. Keys,
+  pushes and the first step of UP, DN or a tilt are never dropped for that and wait behind them, so a key
+  waits behind at most 8 steps, about 0.9 s.
+- A button gets at most 8 presses, counting one the PC is still being shown (down or in its gap); a press of
+  it beyond that is dropped, a key's too.
 - A key or push held while it waits goes down at its turn and stays down until it is let go. Let go before
   its turn, it reaches the PC as a 56 ms tap.
 - A repeat of a held UP, DN or tilt waits until the last step of its button is through, so a step longer than
   the repeat interval (120 ms tilt, 125 ms UP / DN) slows the repeats down and nothing queues up.
 - Acceleration: ALT, HDG, CRS and the ADF inner ring have a fine and a coarse step. A detent takes the coarse
-  step within 60 ms of the previous one, and so do two detents read in one loop pass.
+  step within 60 ms of the previous one, and so do two detents read in one loop pass, unless that pass came
+  more than 60 ms after the one before (a wait for the PC) or is the first after the start.
 - With detents less than 112 ms apart, such a knob also takes the coarse step while a fine step of it still
   waits. The two buttons then share the turn, and the last step goes out within about 0.2 s of the
   hand. A fine step that only waits behind other rings does not count, so a slow turn stays fine.

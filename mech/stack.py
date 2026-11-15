@@ -496,12 +496,15 @@ RANGE_ART = dict(legend_r=12.95, arrow_r=10.6, arrow=((0.75, 0.0), (-0.45, -0.7)
 # block over a light hole would hold the pipe, and the board on it, off the bosses.
 ASSEMBLY_BLOCK = 25.0                      # block height, mm
 ASSEMBLY_BLOCK_IN = 6.0
+# JLCPCB's placement of an SMD part, off its spot (assumed): J1 and every bottom-side body as check_fit.py places
+# them, and the LEDs (LED_LENS)
+SMD_PLACE = 0.1
 # Lights: reverse-mount 1206 LEDs on the bottom (LiteOn LTST-C230KSKT amber, LTW-C230DS white, one package), their
 # lens up in a cutout through the board (pcb/board.py LED_CUTOUT, LiteOn's land pattern), so they shine out of the
 # top side. LiteOn: the lens is 1.5 long (along the pads) and 1.6 wide, 1.10 - 0.28 = 0.82 over the substrate,
 # +-0.1; the die sits on the substrate, at the board underside. place and turn: JLCPCB's placement, off its spot
 # and turned (deg; assumed).
-LED_LENS = dict(l=1.5, w=1.6, h=0.82, tol=0.1, place=0.1, turn=2.0, solder=0.05, die=0.3)
+LED_LENS = dict(l=1.5, w=1.6, h=0.82, tol=0.1, place=SMD_PLACE, turn=2.0, solder=0.05, die=0.3)
 # The share of the die that stays under the light pipe's base at the worst offsets (the pipe in its hole, the
 # board as far off the plate as a cap set printed small lets it sit, the LED's placement), at least: what is
 # lost is a few percent of the light, and the firmware's duties leave three times up to full duty.

@@ -172,9 +172,10 @@ in until CIRCUITPY appears (about 2 s; `boot.py` reads SHIFT up to 1 s after pow
 missed). A board without `boot.py` (a fresh CircuitPython install) always shows them. Test and map the
 joysticks only after a plain replug ([why](../using/mapping.md#update-mode-and-guids)).
 
-The HOME key (amber legend UNIT) held alone while plugging in switches between the joysticks and the
-[keyboard mode](../using/keyboard.md), which the panel keeps until it is switched back. Bring-up uses the
-joysticks: if the SHIFT and UNIT lights take turns after plugging in, the panel is in keyboard mode.
+The HOME key (amber legend UNIT) held while plugging in switches between the joysticks and the
+[keyboard mode](../using/keyboard.md), which the panel keeps until it is switched back, also with SHIFT held
+for an update. Bring-up uses the joysticks: if the SHIFT and UNIT lights take turns after plugging in, the
+panel is in keyboard mode.
 
 ## Updates and recovery
 

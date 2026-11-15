@@ -14,15 +14,13 @@ desktop then takes its shortcuts like those of any keyboard, in the window that 
 It needs write access to /dev/uhid: run it as root, or give your user access with a udev rule, which lets it
 create any HID device, keyboards included.
 """
-import argparse
 import errno
 import os
 import select
 import struct
-import sys
 import threading
 
-from sim.live import Live, from_stdin
+from sim.live import command
 
 # <linux/uhid.h>
 UHID_START, UHID_GET_REPORT, UHID_GET_REPORT_REPLY, UHID_CREATE2, UHID_INPUT2 = 2, 9, 10, 11, 12
@@ -93,15 +91,7 @@ class Uhid:
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(prog="python3 -m sim.uhid", description=__doc__.split("\n\n")[0])
-    parser.add_argument("--keyboard", action="store_true", help="the keyboard mode: a keyboard, no joysticks")
-    live = Live(keyboard=parser.parse_args(argv).keyboard)
-    try:
-        uhid = Uhid(live)
-    except OSError as e:
-        sys.exit(f"sim.uhid: {e}")
-    print(f"{uhid.name} on uhid; actions, one per line:", file=sys.stderr)
-    from_stdin(live, uhid, "sim.uhid")
+    command(argv, "python3 -m sim.uhid", __doc__, Uhid, lambda uhid: f"{uhid.name} on uhid", keyboard=True)
 
 
 if __name__ == "__main__":

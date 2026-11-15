@@ -17,7 +17,7 @@ Simulator COM and NAV radio frequencies", and that they show frequencies set fro
 from functools import partial
 
 from mobiflight.families import part
-from mobiflight.families.rpn import h, k
+from mobiflight.families.rpn import bezel, k
 
 # TDS's value of each unit in its key events (the manual's "Interfacing with Hardware": the GTN 750Xi and the GTN
 # 650Xi, each as unit 1 and unit 2), and what a key adds to it: down, up; the volume knob adds the same to turn down
@@ -82,20 +82,19 @@ def tds(model, tds_unit, unit):
 def pms50(model, unit):
     """pms50's GTN 750 or 650 by the H: events Black Square's guide lists for it (GTN750_, GTN650_): HOME, D→, the
     dual knob and its push, and the volume knob on the RANGE tilt; it takes no volume push from outside"""
-    p = f"GTN{model}_"
-    rows = {
-        "HOME": h(p + "HomePush"),
-        "DIRECT": h(p + "DirectToPush"),
-        "FMS_OUTER_CW": h(p + "KnobLargeInc"),
-        "FMS_OUTER_CCW": h(p + "KnobLargeDec"),
-        "FMS_INNER_CW": h(p + "KnobSmallInc"),
-        "FMS_INNER_CCW": h(p + "KnobSmallDec"),
-        "FMS_CRSR": h(p + "KnobPush"),
-        "RANGE_CW": h(p + "KnobSmallDec"),
-        "RANGE_CCW": h(p + "KnobSmallInc"),
-        "PAN_UP": h(p + "VolInc"),
-        "PAN_DN": h(p + "VolDec"),
-    }
+    rows = bezel(f"GTN{model}_", {
+        "HOME": "HomePush",
+        "DIRECT": "DirectToPush",
+        "FMS_OUTER_CW": "KnobLargeInc",
+        "FMS_OUTER_CCW": "KnobLargeDec",
+        "FMS_INNER_CW": "KnobSmallInc",
+        "FMS_INNER_CCW": "KnobSmallDec",
+        "FMS_CRSR": "KnobPush",
+        "RANGE_CW": "KnobSmallDec",
+        "RANGE_CCW": "KnobSmallInc",
+        "PAN_UP": "VolInc",
+        "PAN_DN": "VolDec",
+    })
     return part.navigator(f"gtn{model}-pms50", f"pms50 GTN {model}", rows,
                           {**_UNMAPPED, "PTR": "the pms50 GTN takes no volume push from outside"}, unit)
 

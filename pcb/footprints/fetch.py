@@ -9,10 +9,12 @@ one part every PACE seconds, so a run takes about ten minutes:
 Each file keeps the pads (number, centre x / y, size x / y in mm, top view, y down, from the footprint's
 origin, the point JLCPCB puts on the CPL position) and the name JLC's symbol of the part gives each pad's pin:
 check.py reads from it which pad of a diode or an LED is the cathode. Through-hole parts also keep their holes:
-plated (number, x, y, drill, slot length or 0) and unplated (x, y, diameter).
+plated (number, x, y, drill, slot length or 0) and unplated (x, y, diameter). A file whose data a run finds
+unchanged keeps its fetch date and is not rewritten.
 """
 import json
 import os
+import re
 import sys
 import time
 import urllib.error
@@ -80,6 +82,17 @@ def holes_of(data):
     return sorted(plated, key=lambda p: (len(p[0]), p[0])), sorted(unplated)
 
 
+FETCHED = re.compile(r"fetched \d{4}-\d{2}-\d{2}")
+
+
+def kept_date(text, old):
+    """The file's text to write: text, or old (the file as it is, None if there is none) where the two differ in
+    the fetch date alone, so a run changes only the parts whose data changed."""
+    if old is not None and FETCHED.sub("fetched", old) == FETCHED.sub("fetched", text):
+        return old
+    return text
+
+
 def retry(error):
     """Worth another try: too many requests (429), a server error (5xx) or the network (no connection, a
     timeout, a reset). Any other HTTP error (404, 403) is the answer for this part and comes back the same."""
@@ -134,8 +147,16 @@ def main():
         head = ",\n".join(f" {json.dumps(k)}: {json.dumps(v)}" for k, v in ref.items())
         body = ",\n".join(f' "{k}": [\n' + ",\n".join(f"  {json.dumps(list(p))}" for p in v) + "\n ]" if v
                            else f' "{k}": []' for k, v in lists.items())
-        with open(os.path.join(here, f"{lcsc}.json"), "w") as f:
-            f.write(f"{{\n{head},\n{body}\n}}\n")
+        path = os.path.join(here, f"{lcsc}.json")
+        try:
+            with open(path) as f:
+                old = f.read()
+        except FileNotFoundError:
+            old = None
+        text = kept_date(f"{{\n{head},\n{body}\n}}\n", old)
+        if text != old:
+            with open(path, "w") as f:
+                f.write(text)
         print(lcsc, ref["title"], ref["package"], len(found), "pads")
 
 

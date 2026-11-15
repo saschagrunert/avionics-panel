@@ -178,13 +178,25 @@ CENTRE = ("(A:NAV HAS LOCALIZER:#, Bool) if{ (A:NAV LOCALIZER:#, degrees) near d
 _VS_KEY = k("AP_VS_HOLD")
 _FLC_KEY = k("FLIGHT_LEVEL_CHANGE")
 _VNV_KEY = h("AS1000_VNAV_TOGGLE")
+
+
+def reference(vs, pitch, alt=None, flc=None):
+    """UP or DN: the code that steps the reference of the active vertical mode, by the simulator's A: flags of the
+    modes, which Working Title's directors set (APVSDirector.ts, APFLCDirector.ts, APPitchDirector.ts): alt in ALT
+    hold, vs in VS, flc in FLC and pitch in pitch mode, the first of them that is on; nothing in another mode or in
+    one without a code"""
+    modes = (("AUTOPILOT ALTITUDE LOCK", alt), ("AUTOPILOT VERTICAL HOLD", vs), ("AUTOPILOT FLIGHT LEVEL CHANGE", flc),
+             ("AUTOPILOT PITCH HOLD", pitch))
+    out = ""
+    for flag, code in reversed([mode for mode in modes if mode[1]]):
+        out = f"(A:{flag}, Bool) if{{ {code} }}" + (f" els{{ {out} }}" if out else "")
+    return out
+
+
 # the GMC 507's nose up/down wheel and the GFC 700's NOSE UP and NOSE DN keys set the reference of the active
-# vertical mode, as the G3X's AFCS page does: VS, then IAS (nose up slows it), then pitch; Working Title's directors
-# set these A: flags (APVSDirector.ts, APFLCDirector.ts, APPitchDirector.ts)
-_WHEEL = ("(A:AUTOPILOT VERTICAL HOLD, Bool) if{{ (>K:AP_VS_VAR_{0}) }} els{{ (A:AUTOPILOT FLIGHT LEVEL CHANGE, Bool) "
-          "if{{ (>K:AP_SPD_VAR_{1}) }} els{{ (A:AUTOPILOT PITCH HOLD, Bool) if{{ (>K:AP_PITCH_REF_INC_{2}) }} }} }}")
-_NOSE_UP = _WHEEL.format("INC", "DEC", "UP")
-_NOSE_DN = _WHEEL.format("DEC", "INC", "DN")
+# vertical mode, as the G3X's AFCS page does: VS, then IAS (nose up slows it), then pitch
+_NOSE_UP = reference(k("AP_VS_VAR_INC"), k("AP_PITCH_REF_INC_UP"), flc=k("AP_SPD_VAR_DEC"))
+_NOSE_DN = reference(k("AP_VS_VAR_DEC"), k("AP_PITCH_REF_INC_DN"), flc=k("AP_SPD_VAR_INC"))
 # the autopilot keys, the yaw damper and the ALT/HDG knob
 GARMIN_SHARED = {
     # autopilot keys
@@ -298,10 +310,6 @@ KAP140 = {
     "S_UP": h("KAP140_Push_UP"),
     "BC": h("KAP140_Push_REV"),
     "S_DN": h("KAP140_Push_DN"),
-    # VNV and SHIFT, VNV: the descent calculator, with the GPS distance until families/__init__.py gives the part
-    # every navigator's and part.compose a profile its navigators'
-    "VNV": KAP140_VNV(),
-    "S_VNV": KAP140_VNV(),
     # ALT/HDG knob: the KAP 140's altitude knob (inner 100 ft, outer 1000 ft) and the heading bug
     "ALT_100_UP": h("KAP140_Knob_Inner_INC"),
     "ALT_100_DN": h("KAP140_Knob_Inner_DEC"),
@@ -345,6 +353,8 @@ def cockpit(key, name, knobs):
     return part(key, name, "cockpit", device, unmapped)
 
 
-# the autopilot and cockpit parts round the KAP 140, as in the Cessna 172 Skyhawk Classic and Carenado's C182T
+# the autopilot and cockpit parts round the KAP 140, as in the Cessna 172 Skyhawk Classic and Carenado's C182T; VNV
+# and SHIFT, VNV are the descent calculator, of the distances the part reads alone (part.alone) or in a profile
+# (part.compose)
 KAP140_AUTOPILOT = part("kap140", "KAP 140", "autopilot", {1: KAP140}, {1: KAP140_UNMAPPED}, VNV=KAP140_VNV)
 BENDIX_KING = cockpit("bendix-king", "Bendix/King", NAV1_KNOBS)

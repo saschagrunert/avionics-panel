@@ -26,7 +26,13 @@ The API, under /sim/:
 - POST act?client=ID: actions, one per line, run at once and in order: `press NAME`, `release NAME` (a key, push
   or RANGE switch) and `turn RING DETENTS` (all in the same ms, sim.live.TURN_MAX at most). Nothing paces them: a
   fast wheel is a fast turn. An empty one only says that the page is still there. 204, or 400 with the reason
-  (nothing runs), 409 for a client that has gone, 413 for a body over BODY_MAX.
+  (nothing runs), 409 for a client that has gone, 411 for a body without a Content-Length (chunked), 413 for a
+  body over BODY_MAX, 503 once the panel has stopped.
+
+Any other GET is for a file of viewer/: 200, or 404 for one that is not there and for a folder, which has no
+listing (a folder named without its trailing slash first gets http.server's 301 to it), but / goes to /?sim (302).
+HEAD answers as GET does, without the body (the stream's opens no stream). A POST to another path gets 404, any
+other method 501, and a request http.server cannot read its 400, 414, 431 or 505.
 
 A page that goes lets go of what it holds, unless another page holds it too: when its stream closes, and when it
 has not posted for LEASE_S (a tablet that drops off the network closes nothing; the page posts every BEAT_S).
@@ -49,7 +55,7 @@ import json
 import os
 import re
 import secrets
-import select
+import selectors
 import socket
 import sys
 import threading
@@ -59,7 +65,7 @@ from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 
-from sim import BM, FUNCTIONS, LIGHTS, TILT, key_name
+from sim import LIGHTS, TILT, buttons_in, function_in, key_name
 from sim.hardware import VERSION_PY, load, make_keys
 from sim.live import DETENTS, TURN_MAX, USAGE, Live, parse
 from sim.sendinput import SendInput
@@ -183,7 +189,8 @@ def firewall(host, platform=sys.platform, python=sys.executable):
     bat = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(python))), "firewall.bat")
     if platform == "win32" and not ipaddress.ip_address(host).is_loopback and os.path.isfile(bat):
         return ("If a tablet cannot open it, run the zip's firewall.bat as administrator (right-click it, Run as "
-                "administrator): it lets the simulator through Windows' firewall on private networks.")
+                "administrator): it lets the simulator through Windows' firewall on private networks, from this "
+                "PC's own subnet.")
     return None
 
 
@@ -218,22 +225,25 @@ class Page(ThreadingHTTPServer):
     def state(self):
         """The lights (their duty as a share of full on: 1, or 0.25 for SHIFT's dim pulse), the unit (the panel's:
         the UNIT light also counts with short flashes) and each device's buttons by name; in keyboard mode the
-        keyboard's ("keyboard") function with its shortcut and unit"""
-        live, lights = self.live, {}
+        keyboard's ("keyboard") function with its shortcut and unit. code.py's thread and the output change them
+        meanwhile, so code.py's globals and the reports are read once each. A reload starts the globals anew,
+        without LED_DUTY until code.py has set it: the lights are off until then."""
+        live, lights, reports = self.live, {}, dict(self.reports)
+        code = live.code or {}
+        full = code.get("LED_DUTY")
         for i, name in enumerate(LIGHTS):
             duty = live.light(name)
-            lights[name] = round(duty / live.code["LED_DUTY"][i], 3) if duty else 0
+            lights[name] = round(duty / full[i], 3) if duty and full else 0
         if live.keyboard:
             buttons = {}
-            if 1 in self.reports:
-                mods, key = self.reports[1][0], self.reports[1][2]
-                dev, name = FUNCTIONS.get((mods, key), (None, None))
+            if 1 in reports:
+                report = reports[1]
+                dev, name = function_in(report)
                 unit = " (unit 2)" if dev == 2 else ""
-                buttons["keyboard"] = [f"{name}{unit} {make_keys.shortcut_name(mods, key)}"] if dev else []
+                buttons["keyboard"] = [f"{name}{unit} {make_keys.shortcut_name(report[0], report[2])}"] if dev else []
         else:
-            buttons = {device: [n for b, n in enumerate(BM.DEVICE[device]) if report[1 + b // 8] >> b % 8 & 1]
-                       for device, report in sorted(self.reports.items())}
-        panel = live.code.get("panel")
+            buttons = {device: buttons_in(device, report) for device, report in sorted(reports.items())}
+        panel = code.get("panel")
         return {"lights": lights, "unit": panel.unit if panel else 1, "buttons": buttons}
 
     def connect(self):
@@ -285,17 +295,28 @@ class Page(ThreadingHTTPServer):
 
 class Handler(SimpleHTTPRequestHandler):
     timeout = TIMEOUT_S
+    # the types of the viewer's files, fixed: left to mimetypes, Windows' registry can name .js text/plain, which a
+    # browser refuses as a script under nosniff (end_headers)
+    extensions_map = {".html": "text/html", ".js": "text/javascript", ".ttf": "font/ttf", ".txt": "text/plain",
+                      ".png": "image/png", ".json": "application/json", ".css": "text/css"}
 
     def log_request(self, *args):
         pass
 
     def log_error(self, format, *args):
-        if not format.startswith("Request timed out"):           # a connection closed after TIMEOUT_S is no news
+        # no news: a connection closed after TIMEOUT_S, and a page that has gone (a tablet back from its sleep), which
+        # it says itself and then reloads
+        if not format.startswith("Request timed out") and not (format.startswith("code %d") and args[:1] == (409,)):
             super().log_error(format, *args)
+
+    def list_directory(self, path):
+        """No listing of the viewer's folders: only its files are the page's"""
+        self.send_error(404)
 
     def end_headers(self):
         self.send_header("X-Frame-Options", "DENY")              # no other site frames the page (clickjacking)
         self.send_header("Content-Security-Policy", "frame-ancestors 'none'")
+        self.send_header("X-Content-Type-Options", "nosniff")    # each file is only what its type says
         # a browser asks before it reuses a file. Left to itself it reuses one for a tenth of its age, which is days
         # for the files of a zip (they have the commit's time): an older simulator's page against this program
         self.send_header("Cache-Control", "no-cache")
@@ -323,10 +344,10 @@ class Handler(SimpleHTTPRequestHandler):
         return True
 
     def do_HEAD(self):
-        if not self.foreign():
-            super().do_HEAD()
+        self.do_GET(head=True)
 
-    def do_GET(self):
+    def do_GET(self, head=False):
+        """A GET, or with head the same answer without its body (HEAD)"""
         path = urlsplit(self.path)
         if self.foreign():
             return
@@ -335,7 +356,11 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_header("Location", "/?sim")
             self.end_headers()
         elif path.path == "/sim/events":
-            self.events()
+            self.stream_head()
+            if not head:
+                self.events()
+        elif head:
+            super().do_HEAD()
         else:
             super().do_GET()
 
@@ -346,6 +371,8 @@ class Handler(SimpleHTTPRequestHandler):
         if path.path != "/sim/act":
             return self.send_error(404)
         client, length = parse_qs(path.query).get("client", [None])[0], self.headers.get("Content-Length", "0")
+        if "Transfer-Encoding" in self.headers:                 # a body this server would not read: not empty
+            return self.send_error(411, explain="a Content-Length, not a chunked body")
         if client is None or not length.isdecimal():
             return self.send_error(400, explain="act?client=ID, with a Content-Length")
         if int(length) > BODY_MAX:
@@ -364,13 +391,20 @@ class Handler(SimpleHTTPRequestHandler):
     def event(self, name, data):
         self.wfile.write(f"event: {name}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n".encode())
 
-    def events(self):
-        page, live = self.server, self.server.live
+    def stream_head(self):
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream; charset=utf-8")
         self.end_headers()
+
+    def events(self):
+        """The event stream, after stream_head()"""
+        page, live = self.server, self.server.live
+        # the page has gone when its end of the connection has closed (it sends nothing else). A selector, not
+        # select.select(), which takes no socket numbered 1024 or more on Linux (a program with many files open)
+        hangup = selectors.DefaultSelector()
         client, state, error = page.connect(), None, live.printed[-1] if live.printed else None
         try:
+            hangup.register(self.connection, selectors.EVENT_READ)
             self.wfile.write(b"retry: 1000\n\n")
             self.event("hello", {"client": client, "build": page.build, "version": VERSION, "inputs": page.inputs,
                                  "legend": page.legend, "detents": DETENTS, "turn_max": TURN_MAX, "acts_max": ACTS_MAX,
@@ -381,12 +415,12 @@ class Handler(SimpleHTTPRequestHandler):
                 if live.printed and live.printed[-1] is not error:
                     error = live.printed[-1]
                     self.event("fault", {"message": f"{type(error).__name__}: {error}"})
-                # the page has gone when its end of the connection has closed (it sends nothing else)
-                if select.select([self.connection], [], [], POLL_S)[0] and not self.connection.recv(4096):
+                if hangup.select(POLL_S) and not self.connection.recv(4096):
                     break
         except OSError:                        # the page went while an event was on its way
             pass
         finally:
+            hangup.close()
             with contextlib.suppress(RuntimeError):     # the panel has stopped: nothing is held any more
                 page.disconnect(client)
 
@@ -427,15 +461,16 @@ def main(argv=None):
                      "excludedportrange protocol=tcp lists them). Close that program, or add --port with a port "
                      "outside those ranges")
         sys.exit(f"sim.page: {e}")
-    live.start(page.output)
-    threading.Thread(target=page.serve_forever, name="page", daemon=True).start()
     on = f" ({out.name}{' on uhid' if args.uhid else ''})" if out else ""
     mode = " in keyboard mode" if args.keyboard else ""
     if args.family:
         mode = f" with the {FAMILIES[args.family].NAME} profile's legend"
+    # before code.py starts, whose first lines would land in the middle of these (the socket already listens)
     print(f"The panel{mode}{on}: {page.url} (Ctrl-C ends it)", flush=True)
     if hint := firewall(page.server_address[0]):
         print(hint, flush=True)
+    live.start(page.output)
+    threading.Thread(target=page.serve_forever, name="page", daemon=True).start()
     if args.open:
         webbrowser.open(page.url)
     try:

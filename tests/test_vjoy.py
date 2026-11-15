@@ -173,12 +173,14 @@ def test_a_report_after_close_goes_nowhere():
 
 
 class Kernel32:
-    def __init__(self):
-        self.handlers = []
+    """kernel32.dll's SetConsoleCtrlHandler: handlers has every call; it fails (returns 0) where refuse"""
+
+    def __init__(self, refuse=False):
+        self.handlers, self.refuse = [], refuse
 
     def SetConsoleCtrlHandler(self, handler, add):
         self.handlers.append((handler, add))
-        return 1
+        return 0 if self.refuse else 1
 
 
 def test_ctrl_break_and_closing_the_window_let_go_and_ctrl_c_goes_on_to_python():
@@ -195,6 +197,15 @@ def test_ctrl_break_and_closing_the_window_let_go_and_ctrl_c_goes_on_to_python()
     dll = Dll()
     vjoy = VJoy(Board().boot(), dll, Kernel32())
     assert vjoy.handler(2) == 1 and dll.calls[-4:] == released     # without a Ctrl-Break before it too
+
+
+def test_a_console_handler_windows_refuses_lets_go_of_the_devices():
+    # without it Ctrl-Break or closing the window would leave the buttons down: the devices go back at once
+    dll = Dll()
+    with pytest.raises(OSError, match=r"^Windows refused the console handler \(SetConsoleCtrlHandler\): Ctrl-Break "):
+        VJoy(Board().boot(), dll, Kernel32(refuse=True))
+    assert dll.calls[len(CHECKS):] == [("UpdateVJD", 2, ()), ("RelinquishVJD", 2), ("UpdateVJD", 1, ()),
+                                        ("RelinquishVJD", 1)]
 
 
 def test_the_console_handler_is_windows_only(monkeypatch):
@@ -280,11 +291,17 @@ def test_lines_from_stdin_go_to_vjoy(monkeypatch, capsys):
     sim.vjoy.main([])
     out, err = capsys.readouterr()
     assert out.endswith("\nSHIFT 0x0000 UNIT 0x0000\n") and "fly: actions:" in err
+    assert err.startswith("The panel on vJoy devices 1 and 2; actions, one per line:\n")
     assert ("UpdateVJD", 1, (BM.BUTTON[1]["AP"] + 1,)) in dll.calls
     assert dll.calls[-2:] == [("UpdateVJD", 1, ()), ("RelinquishVJD", 1)]
 
 
-def test_main_says_what_is_wrong(monkeypatch):
+def test_main_says_what_is_wrong(monkeypatch, capsys):
+    for args in (["--help"], ["--keyboard"]):              # vJoy takes the joysticks: no keyboard mode
+        with pytest.raises(SystemExit):
+            sim.vjoy.main(args)
+    out, err = capsys.readouterr()
+    assert out.startswith("usage: python -m sim.vjoy [-h]\n\nThe live panel ") and "unrecognized arguments" in err
     monkeypatch.setattr(sim.vjoy, "load", lambda: Dll(status={}))
     with pytest.raises(SystemExit, match="sim.vjoy: vJoy device 1 is not configured"):
         sim.vjoy.main([])

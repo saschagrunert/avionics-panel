@@ -58,6 +58,18 @@ def key_name(label):
     return {"D→": "DIRECT"}.get(label, label.replace(" ⇆", "_SWAP").replace(" ", ""))
 
 
+def buttons_in(device, report):
+    """The buttons of device 1 or 2 that a joystick report (its report ID first, as on the wire) presses, by name,
+    in button order"""
+    return [name for b, name in enumerate(BM.DEVICE[device]) if report[1 + b // 8] >> b % 8 & 1]
+
+
+def function_in(report):
+    """(device, name) of the function whose shortcut a keyboard report holds down (FUNCTIONS); (None, None) for
+    none"""
+    return FUNCTIONS.get((report[0], report[2]), (None, None))
+
+
 def typed(reports):
     """(ms, device, name) of every function a run of keyboard reports (ms, report) types, in order. ValueError for
     what a host could take for another shortcut: two keys at once, modifiers that change under a key or as it goes
@@ -160,11 +172,10 @@ class Sim:
         if self.keyboard:
             out = []
             for ms, r in self.reports(1):
-                dev, name = FUNCTIONS.get((r[0], r[2]), (None, None))
+                dev, name = function_in(r)
                 out.append((ms, [name] if dev == device else []))
             return out
-        return [(ms, [BM.DEVICE[device][b] for b in range(8 * len(r) - 8) if r[1 + b // 8] >> b % 8 & 1])
-                for ms, r in self.reports(device)]
+        return [(ms, buttons_in(device, r)) for ms, r in self.reports(device)]
 
     def typed(self):
         """(ms, device, name) of every function the keyboard typed before now (keyboard mode), as typed() reads them"""
