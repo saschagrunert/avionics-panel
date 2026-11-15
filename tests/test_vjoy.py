@@ -290,7 +290,7 @@ def test_lines_from_stdin_go_to_vjoy(monkeypatch, capsys):
     monkeypatch.setattr(sys, "stdin", io.TextIOWrapper(io.BytesIO(b"press AP\nfly\nlights\n")))
     sim.vjoy.main([])
     out, err = capsys.readouterr()
-    assert out.endswith("\nSHIFT 0x0000 UNIT 0x0000\n") and "fly: actions:" in err
+    assert out.endswith("\nSHIFT 0x0000 UNIT 0x0000 FREQ 0x0000\n") and "fly: actions:" in err
     assert err.startswith("The panel on vJoy devices 1 and 2; actions, one per line:\n")
     assert ("UpdateVJD", 1, (BM.BUTTON[1]["AP"] + 1,)) in dll.calls
     assert dll.calls[-2:] == [("UpdateVJD", 1, ()), ("RelinquishVJD", 1)]

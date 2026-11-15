@@ -90,10 +90,14 @@ def test_freq_push_and_lights():
     hw, _ = firmware()
     assert hw.direct.pins == (NET["ENC_FREQ.E"],) and NET["ENC_FREQ.D"] == "GND"
     assert hw.direct.value_when_pressed is False and hw.direct.pull is True
-    shift, unit = (led.pin for led in hw.leds)
-    assert (shift, unit) == (B.LEDS["SHIFT"][1], B.LEDS["UNIT"][1])
-    # SHIFT: the pin through R_SHIFT to the LED's anode, the cathode on GND
-    assert {NET["R_SHIFT.1"], NET["R_SHIFT.2"]} == {shift, NET["LED_SHIFT.A"]} and NET["LED_SHIFT.K"] == "GND"
+    shift, unit, freq = (led.pin for led in hw.leds)
+    assert (shift, unit, freq) == (B.LEDS["SHIFT"][1], B.LEDS["UNIT"][1], B.LEDS["FREQ"][1])
+    # SHIFT and FREQ: the pin through R_SHIFT (R_FREQ) to the LED's anode, the cathode on GND
+    for name, pin in (("SHIFT", shift), ("FREQ", freq)):
+        assert {NET[f"R_{name}.1"], NET[f"R_{name}.2"]} == {pin, NET[f"LED_{name}.A"]}
+        assert NET[f"LED_{name}.K"] == "GND"
+    # the pads code.py sets to 12 mA drive are those of the lights driven from their pin
+    assert [f"GP{n}" for n in hw.code["DRIVE_GPIOS"]] == [shift, freq]
     # UNIT: the pin on Q_UNIT's gate (pad 1 of JLC's footprint) and on its pull-down; the source (pad 2) on GND,
     # the drain (pad 3) on the LED's cathode, and the anode through R_UNIT on VBUS_F
     assert NET["Q_UNIT.1"] == unit and {NET["R_UNIT_PD.1"], NET["R_UNIT_PD.2"]} == {"GND", unit}

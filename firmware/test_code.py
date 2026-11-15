@@ -261,31 +261,55 @@ def test_unit_light_is_written_only_on_a_change():
     assert unit.duty_cycle > 0 and len(unit.history) == 2         # off at the start, on after SHIFT, HOME
 
 
-def test_the_unit_light_counts_the_freq_mode():
-    # a FREQ push in unit 1: NAV, two short flashes of the UNIT light (panel.py's count)
-    hw = hardware(tap("FREQ_PUSH", 100)).run(800)
-    on = [ms for ms, duty in hw.leds[1].history if duty]
-    off = [ms for ms, duty in hw.leds[1].history[1:] if not duty]
-    assert [ms - on[0] for ms in on] == [0, P.FLASH_EVERY_MS] and [ms - on[0] for ms in off] == [
-        P.FLASH_MS, P.FLASH_EVERY_MS + P.FLASH_MS]
+def test_the_freq_light_shows_the_mode_and_counts_it():
+    # a FREQ push: NAV, two short flashes of the green light (panel.py's count), then after a pause it stays on
+    # for NAV; the UNIT light stays off
+    hw = hardware(tap("FREQ_PUSH", 100)).run(1000)
+    freq = hw.leds[2].history
+    on, off = [ms for ms, duty in freq if duty], [ms for ms, duty in freq[1:] if not duty]
+    last = P.FLASH_EVERY_MS + P.FLASH_MS
+    assert [ms - on[0] for ms in on] == [0, P.FLASH_EVERY_MS, last + P.FLASH_PAUSE_MS]
+    assert [ms - on[0] for ms in off] == [P.FLASH_MS, last]
+    assert freq[-1][1] == hw.code["LED_DUTY"][2] and hw.leds[1].history == [(READY_MS, 0)]
 
 
-def test_the_pico_bench_prints_the_unit_not_its_counts(capsys):
-    # the bench has no UNIT light and prints the unit: a count (as a FREQ push's, whose bench pin the simulated
-    # board lacks) prints nothing, SHIFT, HOME unit 2
-    def count(hw):
+def test_the_freq_light_blinks_for_adf():
+    # ADF: dark and lit half of FREQ_BLINK_MS each, on and on
+    def adf(hw):
+        hw.code["panel"].freq_mode = 2
+    hw = hardware({100: [adf]}).run(3100)
+    lit = [ms for ms, duty in hw.leds[2].history if duty]
+    assert [b - a for a, b in zip(lit, lit[1:])] == [P.FREQ_BLINK_MS] * 2
+
+
+def test_the_pico_bench_prints_the_unit_and_the_freq_mode(capsys):
+    # the bench has no UNIT or FREQ light and prints the unit and the mode, not the counts: the mode set to ADF
+    # with its count (the FREQ push's bench pin the simulated board lacks), nothing while USB is down and the mode
+    # again once it is back, SHIFT, HOME unit 2
+    def adf(hw):
+        hw.code["panel"].freq_mode = 2
         hw.code["panel"]._count(3, hw.code["now"]())
-    hw = hardware({100: [count], **tap("SHIFT", 1000), **tap("HOME", 1100)}).run(1600, PICO)
-    units = [line for line in capsys.readouterr().out.splitlines() if line.startswith("UNIT")]
-    assert units == ["UNIT 1", "UNIT 2"] and not hw.printed
+    hw = hardware({100: [adf], **tap("SHIFT", 1000), **tap("HOME", 1100)}, usb_gap=(300, 400)).run(1600, PICO)
+    out = capsys.readouterr().out.splitlines()
+    told = [line for line in out if line.startswith(("UNIT", "FREQ"))]
+    assert told == ["UNIT 1", "FREQ COM", "FREQ ADF", "FREQ ADF", "UNIT 2"] and not hw.printed
 
 
-def test_the_shift_light_pad_drives_12_ma():
-    # the amber LED's series resistor assumes the 12 mA pad drive: DRIVE (bits 5:4) set on GP12, the rest of the
-    # register as it was. GP15 only switches the UNIT light's transistor and keeps its drive, and the Pico bench
-    # leaves its onboard LED's pad alone
-    assert hardware().run(50).regs == {0x4001C004 + 4 * 12: PAD_RESET | 0x30}
+def test_the_shift_and_freq_light_pads_drive_12_ma():
+    # the amber and green LEDs' series resistors assume the 12 mA pad drive: DRIVE (bits 5:4) set on GP12 and
+    # GP14, the rest of each register as it was. GP15 only switches the UNIT light's transistor and keeps its
+    # drive, and the Pico bench leaves its onboard LED's pad alone
+    assert hardware().run(50).regs == {0x4001C004 + 4 * gpio: PAD_RESET | 0x30 for gpio in (12, 14)}
     assert hardware().run(50, PICO).regs == {}
+
+
+def test_the_lights_on_one_pwm_slice_share_its_frequency():
+    # GP14 and GP15 are the two channels of the RP2040's PWM slice 7 (14 is 7A, 15 is 7B): the FREQ and UNIT
+    # lights run at one fixed frequency there. The stand-in refuses another, as the board does
+    hw = hardware().run(50)
+    assert [(led.pin, led.frequency) for led in hw.leds] == [("GP12", 1000), ("GP15", 1000), ("GP14", 1000)]
+    edit = [("pwmio.PWMOut(UNIT_LED, frequency=1000)", "pwmio.PWMOut(UNIT_LED, frequency=2000)")]
+    assert [str(e) for e in hardware().run(50, edit).printed] == ["GP14: PWM slice 7 runs at another frequency"]
 
 
 def test_lights_work_without_memorymap():
@@ -314,16 +338,18 @@ def test_version_py_holds_a_placeholder_or_a_commit():
 
 
 def test_lights_work_when_the_pad_register_cannot_be_written(capsys):
-    # a build whose memorymap refuses the pad registers: code.py says so on the console, once, and runs on, and
-    # the lights still follow SHIFT and UNIT, at the pads' default drive
+    # a build whose memorymap refuses the pad registers: code.py says so on the console, once a pad, and runs on, and
+    # the lights still follow SHIFT, UNIT and the FREQ mode (NAV), at the pads' default drive
     def refuse(start, length):
         raise ValueError("Address range not allowed")
-    hw = hardware({**tap("SHIFT", 50, 10), **tap("HOME", 150, 10)})
+    hw = hardware({**tap("FREQ_PUSH", 10, 10), **tap("SHIFT", 50, 10), **tap("HOME", 150, 10)})
     hw.modules["memorymap"].AddressRange = refuse
-    hw.run(300)
+    hw.run(1000)
     out = capsys.readouterr().out
-    assert out.count("LED drive strength not set") == 1 and "LED drive strength not set on GP 12 " in out
+    assert out.count("LED drive strength not set") == 2 and "LED drive strength not set on GP 12 " in out
+    assert "LED drive strength not set on GP 14 " in out
     assert duties(hw)[100] > 0 and hw.leds[1].duty_cycle > 0 and not hw.printed
+    assert hw.code["panel"].freq_mode == 1 and hw.leds[2].duty_cycle == hw.code["LED_DUTY"][2]
 
 
 def test_shift_light_is_written_only_on_a_change():
@@ -344,23 +370,27 @@ def test_the_lights_do_not_flicker():
 def test_firmware_md_gives_the_lights_as_code_py_drives_them():
     # the duties and the PWM frequency that docs/architecture/firmware.md gives by hand
     hw = hardware().run(5)
-    shift, unit = hw.code["LED_DUTY"]
+    shift, unit, freq = hw.code["LED_DUTY"]
     with open(FIRMWARE_MD, encoding="utf-8") as f:
         text = " ".join(f.read().split())
-    assert f"PWM at {hw.leds[0].frequency // 1000} kHz, at `LED_DUTY` = {shift:#06x} and {unit:#06x} " \
-           f"(about {100 * shift // 0xFFFF} and {100 * unit // 0xFFFF} % of full)" in text
+    assert f"PWM at {hw.leds[0].frequency // 1000} kHz, at `LED_DUTY` = {shift:#06x}, {unit:#06x} and {freq:#06x} " \
+           f"(about {100 * shift // 0xFFFF}, {100 * unit // 0xFFFF} and {100 * freq // 0xFFFF} % of full)" in text
 
 
 def test_the_lights_go_dark_before_a_wake_request():
-    # unit 2 and SHIFT armed; in one and the same pass the host turns out to have suspended the bus and AP goes
-    # down, which asks it to resume: both lights are off before that wait of 2 s and more, not after it, and
-    # the white one comes back with the host
-    hw = hardware({**tap("SHIFT", 10), **tap("HOME", 110), **tap("SHIFT", 1500), 2000: [press("AP", True)]})
+    # unit 2, NAV and SHIFT armed; in one and the same pass the host turns out to have suspended the bus and AP
+    # goes down, which asks it to resume: the lights are off before that wait of 2 s and more, not after it, and
+    # the white and the green one come back with the host
+    hw = hardware({**tap("SHIFT", 10), **tap("HOME", 110), **tap("FREQ_PUSH", 300), **tap("SHIFT", 1500),
+                   2000: [press("AP", True)]})
     hw.suspend = (2000, 10**6)
     hw.run(5000)
-    shift, unit = (led.history for led in hw.leds)
+    shift, unit, freq = (led.history for led in hw.leds)
     assert [t for t, d in shift if not d] == [READY_MS, 110, 2000] and [t for t, d in unit if not d] == [READY_MS, 2000]
-    assert unit[-1][1] > 0 and hw.suspend[1] <= unit[-1][0] <= hw.suspend[1] + FRAME_MS and downs(hw) == ["AP"]
+    assert [t for t, d in freq if not d][-1] == 2000 and freq[-2] == (2000, 0)
+    for light in (unit, freq):
+        assert light[-1][1] > 0 and hw.suspend[1] <= light[-1][0] <= hw.suspend[1] + FRAME_MS
+    assert downs(hw) == ["AP"]
 
 
 @pytest.mark.parametrize("wrap", [None, 1500, 2700])
@@ -553,15 +583,17 @@ def test_no_reports_before_usb_connects():
 
 
 def test_lights_are_dark_while_usb_is_down():
-    # the host suspends the bus (the PC sleeps) with SHIFT armed and unit 2 selected: both lights go off and
-    # the panel runs on. SHIFT ends with its light (dark means plain); unit 2 stays, and the white light shows it
-    # again once the host resumes. No input, so no wake request
-    hw = hardware({**tap("SHIFT", 10), **tap("HOME", 110), **tap("SHIFT", 300), **tap("AP", 2100)})
+    # the host suspends the bus (the PC sleeps) with SHIFT armed, unit 2 selected and the FREQ knob on NAV: the
+    # lights go off and the panel runs on. SHIFT ends with its light (dark means plain); unit 2 and NAV stay, and
+    # the white and the green light show them again once the host resumes. No input, so no wake request
+    hw = hardware({**tap("SHIFT", 10), **tap("HOME", 110), **tap("FREQ_PUSH", 200), **tap("SHIFT", 300),
+                   **tap("AP", 2100)})
     hw.suspend = (1000, 2000)
     hw.run(2400)
-    shift, unit = (dict(led.history) for led in hw.leds)
+    shift, unit, freq = (dict(led.history) for led in hw.leds)
     assert shift[300] > 0 and shift[1000] == 0 and max(shift) == 1000
     assert unit[110] > 0 and unit[1000] == 0 and unit[2000] > 0 and max(unit) == 2000
+    assert freq[860] > 0 and freq[1000] == 0 and freq[2000] > 0 and max(freq) == 2000
     assert not [t for j in hw.devices for t in j.tries if 1000 <= t < 2000] and downs(hw) == ["AP"]
 
 
@@ -1408,24 +1440,27 @@ def keyboard_hardware(script, **kwargs):
 
 
 def turns_of_the_lights(hw):
-    """(ms, SHIFT lit, UNIT lit) of the six steps of the start pattern, and the lights' histories after it"""
-    shift, unit = hw.leds[0].history, hw.leds[1].history
-    return [(t, s > 0, u > 0) for (t, s), (_, u) in zip(shift[:6], unit[:6])], shift[6:], unit[6:]
+    """(ms, SHIFT lit, UNIT lit, FREQ lit) of the six steps of the start pattern, and the lights' histories after
+    it"""
+    shift, unit, freq = (led.history for led in hw.leds)
+    return ([(t, s > 0, u > 0, f > 0) for (t, s), (_, u), (_, f) in zip(shift[:6], unit[:6], freq[:6])],
+            shift[6:], unit[6:], freq[6:])
 
 
 def test_keyboard_mode_starts_with_the_lights_taking_turns():
-    # SHIFT, UNIT, three times, 150 ms each (docs/architecture/firmware.md, Keyboard mode), then the first pass
-    # of the loop sets both as the panel has them (dark), and SHIFT lights up as ever
+    # SHIFT, UNIT, FREQ, twice, 150 ms each (docs/architecture/firmware.md, Keyboard mode), then the first pass
+    # of the loop sets them as the panel has them (dark), and SHIFT lights up as ever
     hw = keyboard_hardware(tap("SHIFT", 10)).run(START_MS + 100)
-    pattern, shift, unit = turns_of_the_lights(hw)
-    assert pattern == [(READY_MS + 150 * i, i % 2 == 0, i % 2 == 1) for i in range(6)]
-    assert shift == [(START_MS, 0), (START_MS + 10, hw.code["LED_DUTY"][0])] and unit == [(START_MS, 0)]
+    pattern, shift, unit, freq = turns_of_the_lights(hw)
+    assert pattern == [(READY_MS + 150 * i, i % 3 == 0, i % 3 == 1, i % 3 == 2) for i in range(6)]
+    assert shift == [(START_MS, 0), (START_MS + 10, hw.code["LED_DUTY"][0])]
+    assert unit == freq == [(START_MS, 0)]
 
 
 def test_keyboard_mode_on_the_pico_bench_blinks_its_one_light():
-    # the bench has no UNIT light: the SHIFT light alone shows the pattern
+    # the bench has no UNIT or FREQ light: the SHIFT light alone shows the pattern
     hw = hardware(keyboard=True).run(START_MS + 10, PICO)
-    assert len(hw.leds) == 1 and [d > 0 for _, d in hw.leds[0].history] == [True, False] * 3 + [False]
+    assert len(hw.leds) == 1 and [d > 0 for _, d in hw.leds[0].history] == [True, False, False] * 2 + [False]
 
 
 @pytest.mark.parametrize("name", ["AP", "VFR"])
@@ -1503,26 +1538,28 @@ def test_keyboard_mode_error_at_start_lets_go_and_restarts():
 
 def test_keyboard_mode_lights_are_dark_until_the_host_is_there():
     # the start pattern shows also while USB is down (at plug-in the host may not have the panel mounted yet).
-    # Then both lights stay dark until the host is there, also when SHIFT is tapped, and follow the panel after
+    # Then the lights stay dark until the host is there, also when SHIFT is tapped, and follow the panel after
     hw = keyboard_hardware({**tap("SHIFT", 500), **tap("SHIFT", 3500), **tap("HOME", 3600)},
                            usb_from=START_MS + 3000)
     hw.run(START_MS + 4000)
-    pattern, shift, unit = turns_of_the_lights(hw)
-    assert [lit for _, *lit in pattern] == [[True, False], [False, True]] * 3
+    pattern, shift, unit, freq = turns_of_the_lights(hw)
+    assert [lit for _, *lit in pattern] == [[True, False, False], [False, True, False], [False, False, True]] * 2
     assert [t - START_MS for t, d in shift if d] == [3500] and [t - START_MS for t, d in unit if d] == [3600]
+    assert freq == [(START_MS, 0)]
 
 
 def test_keyboard_mode_lights_are_dark_while_usb_is_down():
-    # the host suspends the bus with SHIFT armed and unit 2 selected: both lights go off. SHIFT ends with its
-    # light, and the white light shows unit 2 again once the host resumes
+    # the host suspends the bus with SHIFT armed, unit 2 selected and the FREQ knob on NAV: the lights go off.
+    # SHIFT ends with its light, and the white and the green light show unit 2 and NAV again once the host resumes
     t0 = START_MS
-    hw = keyboard_hardware({**tap("SHIFT", 10), **tap("HOME", 110), **tap("SHIFT", 300)})
+    hw = keyboard_hardware({**tap("SHIFT", 10), **tap("HOME", 110), **tap("FREQ_PUSH", 200), **tap("SHIFT", 300)})
     hw.suspend = (t0 + 1000, t0 + 2000)
     hw.run(t0 + 2200)
-    _, shift, unit = turns_of_the_lights(hw)
-    shift, unit = dict(shift), dict(unit)
+    _, shift, unit, freq = turns_of_the_lights(hw)
+    shift, unit, freq = dict(shift), dict(unit), dict(freq)
     assert shift[t0 + 300] > 0 and shift[t0 + 1000] == 0 and max(shift) == t0 + 1000
     assert unit[t0 + 110] > 0 and unit[t0 + 1000] == 0 and unit[t0 + 2000] > 0 and max(unit) == t0 + 2000
+    assert freq[t0 + 1000] == 0 and freq[t0 + 2000] > 0 and max(freq) == t0 + 2000 and hw.code["panel"].freq_mode == 1
 
 
 def test_keyboard_mode_tap_while_suspended_wakes_the_host():

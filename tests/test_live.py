@@ -69,7 +69,7 @@ def test_the_lights_can_be_read_at_any_time():
         live.do(lambda b: seen.append((b.light("SHIFT"), b.light("UNIT"))))
     run(live)
     finish(live)
-    shift, unit = live.code["LED_DUTY"]
+    shift, unit, _ = live.code["LED_DUTY"]
     assert seen == [(shift, 0), (0, unit)] and (live.light("SHIFT"), live.light("UNIT")) == (0, unit)
 
 

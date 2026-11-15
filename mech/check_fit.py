@@ -985,9 +985,9 @@ def range_measures(range_knob):
                 rim=edge[1] - edge[0])
 
 
-def pair_measures(tri):
-    """measured on the mesh of the light pipe pair as it is ordered (lightpipes.step), each as (least, most) of
-    the two pipes: the base and rod diameters (the largest reading over TURN), the base's length up to the shoulder
+def bar_measures(tri):
+    """measured on the mesh of the light pipe bar as it is ordered (lightpipes.step), each as (least, most) over
+    its pipes: the base and rod diameters (the largest reading over TURN), the base's length up to the shoulder
     and the whole length, from the base's bottom face beside the neck; the necks' diameter and length (the gap
     between the bar and a base, beside the neck). And the bar's section (width, height) and the part's size over
     all, largest first."""
@@ -997,7 +997,7 @@ def pair_measures(tri):
     zb, zr, top = pp["base_len"] / 2, pp["base_len"] + pp["top_len"] / 2, pp["len"] + 1.0
     beside = (pp["neck_d"] + pp["bar"][0]) / 4                           # between a neck and the bar's edge
     m = dict(base_d=[], rod_d=[], base_len=[], len=[], neck_d=[], neck_len=[])
-    for x in (0.0, pitch):
+    for x in np.arange(K.PIPES) * pitch:
         bottom = zb - ray_hit(tri, np.array([x + beside, 0.0, zb]), -ez)            # the base's bottom face
         m["base_d"].append(max(across(tri, (x, 0.0, zb), d)[0] for d in TURN))
         m["rod_d"].append(max(across(tri, (x, 0.0, zr), d)[0] for d in TURN))
@@ -1005,7 +1005,7 @@ def pair_measures(tri):
         m["len"].append(top - ray_hit(tri, np.array([x, 0.0, top]), -ez) - bottom)
         m["neck_d"].append(max(across(tri, (x, 0.0, -pp["neck_len"] / 2), d)[0] for d in TURN))
         m["neck_len"].append(ray_hit(tri, np.array([x + beside, 0.0, -1e-3]), -ez) + 1e-3)
-    mid = (pitch / 2, 0.0, -pp["neck_len"] - pp["bar"][1] / 2)           # inside the bar
+    mid = (pitch / 2, 0.0, -pp["neck_len"] - pp["bar"][1] / 2)           # inside the bar, between two pipes
     size = sorted((tri.reshape(-1, 3).max(0) - tri.reshape(-1, 3).min(0)).tolist(), reverse=True)
     return dict({k: (min(v), max(v)) for k, v in m.items()},
                 bar=(across(tri, mid, ey)[0], across(tri, mid, ez)[0]), size=size)
@@ -1565,7 +1565,7 @@ def pipe_rows(back_lo, back_hi, face_lo, board, caps):
     lens_depth = S.PCB_T - S.STACK_TOL["pcb"] - ll["h"] - ll["tol"] - ll["solder"]
     d = S.LIGHT_HOLE
     names = ", ".join(B.LEDS)
-    # the rows that do not depend on where a light is, for both pipes at once
+    # the rows that do not depend on where a light is, for every pipe at once
     rod = d - pp["clear"]
     float_ = (d + lt_up - (rod - pp["resin"])) / 2                  # the pipe off its hole's axis, at most
     on_board = float_ + board + pt["plate"] + pt["pcb"]               # and off the cutout's centre
@@ -1583,18 +1583,18 @@ def pipe_rows(back_lo, back_hi, face_lo, board, caps):
     share = die_covered(base_lo, on_board + ll["place"], ll["die"])
     rows += [
         # (so the shoulder, wider than its hole by twice this margin and more, cannot pass it)
-        (f"pipe shoulder (Ø{pp['base_d']} -{pp['resin']}, both) on the flat plate back: beyond its {d} hole "
+        (f"pipe shoulder (Ø{pp['base_d']} -{pp['resin']}, each) on the flat plate back: beyond its {d} hole "
          f"(+{lt_up}) and the hole's back edge break ({S.LIGHT_HOLE_BACK_BREAK} at most, drawing)",
          base_lo - r_seat - S.LIGHT_HOLE_BACK_BREAK),
-        (f"pipe base (Ø{pp['base_d']} -{pp['resin']}, both) on the board round the cutout ({cw} x {ch} +{2 * route}): "
+        (f"pipe base (Ø{pp['base_d']} -{pp['resin']}, each) on the board round the cutout ({cw} x {ch} +{2 * route}): "
          f"{on_board:.2f} off its centre it may tip about the cutout's edge, but the rod ({in_hole:.2f} in its hole) "
          f"holds it within {math.degrees(tilt):.1f} deg, so its rim dips {dip:.2f}, above the LED lens "
          f"({lens_depth:.2f} under the board top)", lens_depth - dip),
-        (f"pipe base over the LED (both): {100 * share:.0f} % of the die ({ll['die']} square) under it with the pipe "
+        (f"pipe base over the LED (each): {100 * share:.0f} % of the die ({ll['die']} square) under it with the pipe "
          f"{float_:.2f} off its hole and the board {board:.2f} off the plate (plate, PCB, LED placed {ll['place']}), "
          f"beyond {100 * S.LED_DIE_SHARE:.0f} % (a ratio)", share - S.LED_DIE_SHARE, "",
          ("Light pipes", f"Share of the LED's die under the pipe base at the worst offsets, over "
-                         f"{100 * S.LED_DIE_SHARE:.0f} % (both)")),
+                         f"{100 * S.LED_DIE_SHARE:.0f} % (each)")),
     ]
     for name, ((lx, ly), _, _) in B.LEDS.items():
         sw = S.SWITCH_BODY / 2 + S.CAP_TOL["switch"]
@@ -1804,7 +1804,9 @@ def fit_values(plate, outer, inner, range_knob, knobs):
     pm = plate_measures(mesh_triangles(plate))
     kh = pm["keys"]
     kr, orr, r_out = np.array(pm["key_r"]), np.array(pm["out_r"]), B.CORNER_R + S.OVH
-    pair_m = pair_measures(mesh_triangles(read_step("avionics-panel-rev1-lightpipes")))
+    if len(B.LEDS) != K.PIPES:                        # a plain raise: asserts vanish under -O
+        raise SystemExit(f"{K.PIPES} light pipes on the bar for {len(B.LEDS)} lights")
+    bar_m = bar_measures(mesh_triangles(read_step("avionics-panel-rev1-lightpipes")))
     knob_m = range_measures(range_knob)
     shared = shared_volumes(plate)
     (bx0, by0, bx1, by1), (mid_x, mid_y) = bm["bar"], B.MID_MOUNT
@@ -2331,28 +2333,28 @@ def build_fits(fv):
 
 def light_pipe_fits(fv):
     """Light pipes: the pipes in their holes, the pair as built, the light holes and their webs."""
-    pp, lt_up, lt_dn, pair_m, d, back_lo = fv.pp, fv.lt_up, fv.lt_dn, fv.pair_m, fv.d, fv.back_lo
+    pp, lt_up, lt_dn, bar_m, d, back_lo = fv.pp, fv.lt_up, fv.lt_dn, fv.bar_m, fv.d, fv.back_lo
     back_hi, face_lo, board, caps, pm, pt = fv.back_hi, fv.face_lo, fv.board, fv.caps, fv.pm, fv.pt
     rows = [
         (f"light pipe fits its hole ({pp['clear']} under, hole +{lt_up}/-{lt_dn:g} before anodising), beyond "
          f"anodising ({pp['anodise']}) and resin (+{pp['resin']})", pp["clear"] - lt_dn - pp["anodise"] - pp["resin"],
          ("Light pipes", "Rod in its hole, on the diameter")),
-        (f"light pipes as built (both, on the pair as ordered): base Ø{pair_m['base_d'][0]:.2f} x "
-         f"{pair_m['base_len'][0]:.2f}, rod Ø{pair_m['rod_d'][0]:.2f}, {pair_m['len'][0]:.2f} long in all (measured on "
+        (f"light pipes as built (all {K.PIPES}, on the bar as ordered): base Ø{bar_m['base_d'][0]:.2f} x "
+         f"{bar_m['base_len'][0]:.2f}, rod Ø{bar_m['rod_d'][0]:.2f}, {bar_m['len'][0]:.2f} long in all (measured on "
          f"lightpipes.step) are the stack's (Ø{pp['base_d']} x {pp['base_len']}, Ø{d - pp['clear']:g}, {pp['len']:g})",
-         0.01 - max(*(abs(v - pp["base_d"]) for v in pair_m["base_d"]),
-                    *(abs(v - pp["base_len"]) for v in pair_m["base_len"]),
-                    *(abs(v - (d - pp["clear"])) for v in pair_m["rod_d"]),
-                    *(abs(v - pp["len"]) for v in pair_m["len"]))),
-        (f"light pipe pair as built: necks Ø{pair_m['neck_d'][0]:.2f} x {pair_m['neck_len'][0]:.2f}, bar "
-         f"{pair_m['bar'][0]:.2f} x {pair_m['bar'][1]:.2f} (measured on lightpipes.step) are the stack's "
+         0.01 - max(*(abs(v - pp["base_d"]) for v in bar_m["base_d"]),
+                    *(abs(v - pp["base_len"]) for v in bar_m["base_len"]),
+                    *(abs(v - (d - pp["clear"])) for v in bar_m["rod_d"]),
+                    *(abs(v - pp["len"]) for v in bar_m["len"]))),
+        (f"light pipe bar as built: necks Ø{bar_m['neck_d'][0]:.2f} x {bar_m['neck_len'][0]:.2f}, bar "
+         f"{bar_m['bar'][0]:.2f} x {bar_m['bar'][1]:.2f} (measured on lightpipes.step) are the stack's "
          f"(Ø{pp['neck_d']} x {pp['neck_len']}, {pp['bar'][0]} x {pp['bar'][1]})",
-         0.01 - max(*(abs(v - pp["neck_d"]) for v in pair_m["neck_d"]),
-                    *(abs(v - pp["neck_len"]) for v in pair_m["neck_len"]),
-                    *(abs(v - n) for v, n in zip(pair_m["bar"], pp["bar"], strict=True)))),
-        (f"light pipe pair {' x '.join(f'{v:.1f}' for v in pair_m['size'])} over all (measured), beyond JLC3DP's "
+         0.01 - max(*(abs(v - pp["neck_d"]) for v in bar_m["neck_d"]),
+                    *(abs(v - pp["neck_len"]) for v in bar_m["neck_len"]),
+                    *(abs(v - n) for v, n in zip(bar_m["bar"], pp["bar"], strict=True)))),
+        (f"light pipe bar {' x '.join(f'{v:.1f}' for v in bar_m['size'])} over all (measured), beyond JLC3DP's "
          f"least resin part ({' x '.join(f'{v:g}' for v in S.RESIN_PART_MIN)})",
-         min(v - n for v, n in zip(pair_m["size"], S.RESIN_PART_MIN, strict=True))),
+         min(v - n for v, n in zip(bar_m["size"], S.RESIN_PART_MIN, strict=True))),
         (f"light pipe snap-off necks ({pp['neck_d']}, the resin minimum) inside the base bottom (-{pp['resin']})",
          (pp["base_d"] - pp["resin"]) / 2 - pp["neck_d"] / 2),
         *pipe_rows(back_lo, back_hi, face_lo, board, caps),
@@ -2384,7 +2386,7 @@ def light_pipe_fits(fv):
 
 def clearances(plate, outer, inner, range_knob, knobs):
     """clearances that must stay positive, with the inner knob pushed down; each one can fail. Measured where a
-    row says so: on the plate and knob solids, the light pipe pair, the body STL and STEP and the cap zips. knobs:
+    row says so: on the plate and knob solids, the light pipe bar, the body STL and STEP and the cap zips. knobs:
     the mesh of every knob make_knobs.py writes, {(FLUTES name, the bore's number): mesh}."""
     fv = fit_values(plate, outer, inner, range_knob, knobs)
     groups = (knob_fits, control_fits, plate_fits, cap_fits, boss_fits, body_fits,

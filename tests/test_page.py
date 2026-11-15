@@ -320,7 +320,7 @@ def test_a_request_that_stalls_is_closed_without_a_word(page, monkeypatch, capsy
 def test_keys_and_knobs_reach_the_reports_and_the_lights(page):
     stream = Stream(page)
     first = stream.until(lambda s: s["buttons"].keys() == {"1", "2"})
-    assert first["lights"] == {"SHIFT": 0, "UNIT": 0} and first["unit"] == 1
+    assert first["lights"] == {"SHIFT": 0, "UNIT": 0, "FREQ": 0} and first["unit"] == 1 and first["freq"] == "COM"
     # held and let go
     assert post(page, "press AP", stream.client) == 204
     stream.until(pressed(1, "AP"))
@@ -337,12 +337,15 @@ def test_keys_and_knobs_reach_the_reports_and_the_lights(page):
     post(page, "press SHIFT\nrelease SHIFT", stream.client)
     stream.until(lambda s: s["lights"]["SHIFT"] == 1)
     post(page, "press HOME\nrelease HOME", stream.client)
-    stream.until(lambda s: s["lights"] == {"SHIFT": 0, "UNIT": 1} and s["unit"] == 2)
-    # the unit comes from the panel, not from the UNIT light, whose counts blip it dark in unit 2
+    stream.until(lambda s: s["lights"] == {"SHIFT": 0, "UNIT": 1, "FREQ": 0} and s["unit"] == 2)
+    # a FREQ push: NAV, the green light on once its count is over; the mode comes from the panel, not from the
+    # light, which blinks for ADF and is dark for a count
+    post(page, "press FREQ_PUSH\nrelease FREQ_PUSH", stream.client)
+    stream.until(lambda s: s["lights"]["FREQ"] == 1 and s["freq"] == "NAV")
     light = page.live.light
-    page.live.light = lambda name: 0 if name == "UNIT" else light(name)
+    page.live.light = lambda name: 0 if name == "FREQ" else light(name)
     try:
-        assert page.state()["lights"]["UNIT"] == 0 and page.state()["unit"] == 2
+        assert page.state()["lights"]["FREQ"] == 0 and page.state()["freq"] == "NAV"
     finally:
         page.live.light = light
     # unit 2's COM ⇆ is on device 2
@@ -357,11 +360,12 @@ def test_a_light_that_is_on_as_code_py_reloads_reads_as_off():
     live = Live()
     page = Page(live)
     try:
-        live.leds = [SimpleNamespace(duty_cycle=0x4800), SimpleNamespace(duty_cycle=0)]
+        live.leds = [SimpleNamespace(duty_cycle=0x4800), SimpleNamespace(duty_cycle=0), SimpleNamespace(duty_cycle=0)]
         assert "LED_DUTY" not in live.code                     # boot.py's globals, as before code.py starts
-        assert page.state() == {"lights": {"SHIFT": 0, "UNIT": 0}, "unit": 1, "buttons": {}}
-        live.code = {**live.code, "LED_DUTY": (0x4800, 0x5500)}
-        assert page.state()["lights"] == {"SHIFT": 1, "UNIT": 0}
+        assert page.state() == {"lights": {"SHIFT": 0, "UNIT": 0, "FREQ": 0}, "unit": 1, "freq": "COM",
+                                "buttons": {}}
+        live.code = {**live.code, "LED_DUTY": (0x4800, 0x5500, 0x7B00)}
+        assert page.state()["lights"] == {"SHIFT": 1, "UNIT": 0, "FREQ": 0}
     finally:
         page.server_close()
 
@@ -390,13 +394,14 @@ def test_the_keyboard_line_reads_one_report_as_the_next_replaces_it():
 def test_keyboard_mode_shows_the_lights_taking_turns_and_the_shortcut_down():
     with serve(speed=4, keyboard=True) as page:
         stream = Stream(page)
-        stream.until(lambda s: s["lights"] == {"SHIFT": 1, "UNIT": 0})             # the start pattern
-        stream.until(lambda s: s["lights"] == {"SHIFT": 0, "UNIT": 1})
+        stream.until(lambda s: s["lights"] == {"SHIFT": 1, "UNIT": 0, "FREQ": 0})   # the start pattern
+        stream.until(lambda s: s["lights"] == {"SHIFT": 0, "UNIT": 1, "FREQ": 0})
+        stream.until(lambda s: s["lights"] == {"SHIFT": 0, "UNIT": 0, "FREQ": 1})
         stream.until(lambda s: s["buttons"] == {"keyboard": []})                  # the loop's first report
         post(page, "press SHIFT\nrelease SHIFT", stream.client)
         stream.until(lambda s: s["lights"]["SHIFT"] == 1)
         post(page, "press HOME\nrelease HOME", stream.client)
-        stream.until(lambda s: s["lights"] == {"SHIFT": 0, "UNIT": 1})
+        stream.until(lambda s: s["lights"] == {"SHIFT": 0, "UNIT": 1, "FREQ": 0})
         # held, so the stream's reads see it (a knob's pulse can fall between them)
         assert post(page, "press COM_SWAP", stream.client) == 204
         name = make_keys.shortcut_name(*keys.shortcut(2, BM.BUTTON[2]["COM_SWAP"]))

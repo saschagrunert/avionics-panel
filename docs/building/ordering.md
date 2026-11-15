@@ -56,7 +56,7 @@ Everything one panel needs, with its spare board:
 | ☐ | Body | 1 | JLC3DP | [Files and processes](#jlc3dp) | Step 4 of [Putting it together](assembly.md#putting-it-together) |
 | ☐ | Key caps | 4 sets of 28 (A to D) | JLC3DP | [Files and processes](#jlc3dp); one set fits, the others are spares | [Choosing the cap set](bring-up.md#choosing-the-cap-set) |
 | ☐ | Knobs | 35: the panel's 7, each in five bores | JLC3DP | [Files and processes](#jlc3dp) | [Fitting the knobs](assembly.md#fitting-the-knobs) |
-| ☐ | Light pipes | 2 bars of two pipes (1 bar spare) | JLC3DP | [Files and processes](#jlc3dp) | Step 2 of [Putting it together](assembly.md#putting-it-together) |
+| ☐ | Light pipes | 2 bars of three pipes (1 bar spare) | JLC3DP | [Files and processes](#jlc3dp) | Step 2 of [Putting it together](assembly.md#putting-it-together) |
 | ☐ | Screws | 7 (5 + 2 spare) | Local; or JLCMC, EDDH-C16E1-M3-L8 (10B21 blackened, 8.8) or EDDH-S1W-M3-L8 (A2-70), its pack minimum, as an order and a parcel of their own | M3 x 8 flanged button head, ISO 7380-2, 2 mm hex socket; steel (black, 8.8 or 10.9) or stainless A2 | Step 4 of [Putting it together](assembly.md#putting-it-together) |
 | ☐ | Feet | 4 | Local | Self-adhesive silicone (high friction), up to 10 mm across | Step 4 of [Putting it together](assembly.md#putting-it-together) |
 | ☐ | USB-C cable | 1 | Local | USB-C at the panel, the other end to suit the PC (USB-A or USB-C). Data-capable (a charge-only cable shows no RPI-RP2 drive), straight plug, its overmould at most 12.85 x 7.0 mm ([why](../architecture/mechanics.md#plate-and-body)) | Step 2 of [Flash and test](bring-up.md#flash-and-test), step 5 of [Putting it together](assembly.md#putting-it-together) |
@@ -87,12 +87,12 @@ yes. PCB Remark:
 
 > J1 (USB-C) overhangs the y = 60 mm edge by 0.5 mm by design: no rail there. One edge rail of at least
 > 10 mm on the y = 0 edge only, removed before delivery; keep the R3 corners milled. Solder mask: keep the
-> 0.13 mm dams between the pads of U1, J1 and C_X2/R_X; please ask before removing any. The two
+> 0.13 mm dams between the pads of U1, J1 and C_X2/R_X; please ask before removing any. The three
 > 2.2 x 2.6 mm internal cutouts in the outline are for reverse-mount LEDs: please mill them with R0.5
 > inside corners (1.0 mm router).
 
 Upload `gerbers.zip`, then `BOM-full.csv` (the parts list) and `CPL-full.csv` (the placement file): one of
-each, for both sides. The BOM step must find all 28 lines with stock for 2 boards, the encoders and Y1 from
+each, for both sides. The BOM step must find all 29 lines with stock for 2 boards, the encoders and Y1 from
 your own parts if step 2 bought them ([Parts and stock](#parts-and-stock)). Under Advanced Options set PCBA
 Remark to Yes and enter:
 
@@ -157,9 +157,9 @@ The preview draws JLC's own footprint over our pads; the marks are on our bottom
 whichever way round the preview shows the board. If a part shows turned, correct its rotation there or ask
 JLCPCB's engineer in the review; do not order as is.
 
-- LED_SHIFT and LED_UNIT (reverse-mount LEDs over the two cutouts in the board): JLC's cathode (pin 1) at our
-  cathode bar, on the side of each LED away from the other, the part centred over its cutout. JLC draws other
-  cutouts than ours: go by the pads.
+- LED_SHIFT, LED_UNIT and LED_FREQ (reverse-mount LEDs over the three cutouts in the board): JLC's cathode
+  (pin 1) at our cathode bar, west of LED_SHIFT and east of the other two (seen from the top), the part centred
+  over its cutout. JLC draws other cutouts than ours: go by the pads.
 - The 35 diodes (D...): JLC's cathode band on the pad with our silkscreen bar. All 35 bars are at the same end
   of their diodes, towards the short edge nearer J1 and the RP2040 (U1), both named on the bottom silkscreen;
   a band at the other end is a reversed diode, which the firmware cannot work round
@@ -215,7 +215,7 @@ upload `plate.step`, `plate.pdf` and `plate.dxf` together as one zip. Remark:
 | `knob-outer-fms-1.step` to `knob-outer-fms-5.step` | 1 each | SLA Black Resin | Outer ring of FMS (coarser grip) |
 | `knob-inner-1.step` to `knob-inner-5.step` | 3 each | SLA Black Resin | Inner knobs |
 | `knob-range-1.step` to `knob-range-5.step` | 1 each | SLA Black Resin | RANGE knob |
-| `lightpipes.step` | 2 | SLA 8001 Resin, translucent | Two light pipes on one bar; the second bar is the spare |
+| `lightpipes.step` | 2 | SLA 8001 Resin, translucent | Three light pipes on one bar; the second bar is the spare |
 
 That is 26 files, and the quote page takes 10 per upload: upload them in three uploads into the same cart.
 Each knob comes in five bores, 1 the tightest and 5 the loosest, every one in the panel's quantity: 35 knobs

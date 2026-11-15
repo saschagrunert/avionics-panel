@@ -83,7 +83,7 @@ def parse(line, usage=USAGE):
 
 def from_stdin(live, output, prog):
     """Runs live into output (its send and close) on the actions read from stdin, one per line (LINES), until the
-    input ends; `lights` prints both lights' duty once the actions before it have taken effect. Exits with prog's
+    input ends; `lights` prints the lights' duty once the actions before it have taken effect. Exits with prog's
     message, after the traceback, when the panel stops."""
     sys.stdin.reconfigure(errors="replace")
     live.start(output.send)
@@ -92,10 +92,9 @@ def from_stdin(live, output, prog):
             for line in sys.stdin:
                 try:
                     action = parse(line, LINES)
-                    if action and action[0] == "lights":       # the duties as the LEDs get them: UNIT's
-                        live.act("wait", SETTLE_MS)            # with a count's flashes, not the unit alone
-                        live.do(lambda b: print(f"SHIFT {b.light('SHIFT'):#06x} UNIT {b.light('UNIT'):#06x}",
-                                                flush=True))
+                    if action and action[0] == "lights":       # the duties as the LEDs get them: FREQ's
+                        live.act("wait", SETTLE_MS)            # with a count's flashes, not the mode alone
+                        live.do(lambda b: print(" ".join(f"{n} {b.light(n):#06x}" for n in LIGHTS), flush=True))
                     elif action:
                         live.act(action[0], *action[1])
                 except ValueError as e:
@@ -188,7 +187,7 @@ class Live(Board):
         return True
 
     def light(self, name):
-        """The duty of the "SHIFT" or "UNIT" light now (0 until code.py has made it)"""
+        """The duty of the "SHIFT", "UNIT" or "FREQ" light now (0 until code.py has made it)"""
         leds = self.leds
         return leds[LIGHTS.index(name)].duty_cycle if len(leds) == len(LIGHTS) else 0
 

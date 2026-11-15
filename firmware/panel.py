@@ -33,13 +33,18 @@ REPEAT_MS = 125          # ... then about 8 per second
 PAN_DELAY_MS = 300       # RANGE tilt: first repeat ...
 PAN_MS = 120             # ... then this often (both: no faster than the steps go through, see tick())
 FREQ_HOLD_MS = 1000      # a plain FREQ push held this long returns the knob to COM
-# The UNIT light counts what it tells: n short flashes, on in unit 1 and off in unit 2, after a FREQ push its new
-# mode (1 COM, 2 NAV, 3 ADF, also when a hold returns to COM) and for the squawk's outer ring its digit (1 to 4).
-# Short enough to read as blips, not as a change of unit. A new count takes the old one's place, after a pause
-# clearly longer than the gaps inside a count, so two never run together into a wrong number.
+# The green FREQ light shows the FREQ knob's mode: off COM, on NAV, a slow blink ADF. It also counts what it tells,
+# in n short flashes on a dark light, the mode back after a pause: after a FREQ push its new mode (1 COM, 2 NAV,
+# 3 ADF, also when a hold returns to COM) and for the squawk's outer ring its digit (1 to 4). Short enough to read
+# as blips, not as the mode. A new count takes the old one's place, after a pause clearly longer than the gaps
+# inside a count, so two never run together into a wrong number; the mode shows again after the same pause, and
+# a count's first flash waits it after the mode's light, so the light being on never runs into a flash.
+FREQ_BLINK_MS = 1000     # ADF: dark, then lit, half of this each, dark first after a count
 FLASH_MS = 60            # each flash ...
 FLASH_EVERY_MS = 200     # ... starts this long after the one before: 3 flashes take 460 ms
 FLASH_PAUSE_MS = 2 * FLASH_EVERY_MS   # from a count's last flash shown to the first of the next
+LIT_MIN_MS = 300         # once the mode shows lit, a count darkens it no sooner: five flashes long and more than
+                         # FLASH_EVERY_MS, so a lit stretch cut short never reads as a flash of the count after it
 SQUAWK_REST_MS = 300     # the squawk digit is counted once its ring has rested this long: a spin shows only the last
 # RANGE tilt switches -> pan direction: a tilt away closes A, left B, towards the user C, right D (Alps drawing)
 PAN_DIRS = {"RANGE_A": "UP", "RANGE_B": "LEFT", "RANGE_C": "DN", "RANGE_D": "RIGHT"}
@@ -94,9 +99,12 @@ class Panel:
         self.freq_mode = 0           # index into FREQ_MODES: kept until the FREQ push changes it
         self.freq_since = None       # ms of the press of a plain FREQ push held, until FREQ_HOLD_MS set COM
         self.digit = 1               # squawk digit (1 to 4) the shifted FREQ inner ring steps
-        self.flash = (0, 0)          # the UNIT light's count: (ms of its first flash, flashes)
+        self.flash = (0, 0)          # the FREQ light's count: (ms of its first flash, flashes)
         self.flash_squawk = False    # it is a squawk digit's: dropped while still to come if the entry ends
         self.flash_free = 0          # no count starts before: FLASH_PAUSE_MS after the last flash shown
+        self.lit_at = -FLASH_PAUSE_MS - 1   # nor before FLASH_PAUSE_MS after this: the last ms the light showed
+                                            # its mode lit (NAV, ADF's lit half) when a count was due, or keeps it
+                                            # lit to make LIT_MIN_MS (_saw_lit)
         self.held = {}               # source -> (device, button) held while the source is held
         self.pending = {}            # key or push -> scan ms of its release, not applied for BOUNCE_MS
         self.shown = {}              # (device, button) -> [down?, ms of its last edge, presses owed]: every
@@ -180,6 +188,7 @@ class Panel:
         self.arm_until += ms
         self.flash = (self.flash[0] + ms, self.flash[1])   # the count, as the light stayed during the wait
         self.flash_free += ms
+        self.lit_at += ms
 
     def shift_active(self, t):
         """Whether SHIFT applies at time t, the one place that decides it: inputs, tick() and the light agree,
@@ -243,31 +252,68 @@ class Panel:
 
     @property
     def unit_light(self):
-        """Whether the unit is 2, as the UNIT light shows it between its counts"""
+        """Whether the unit is 2, as the UNIT light shows it"""
         return self.unit == 2
 
-    def unit_lit(self, t):
-        """The UNIT light at time t: unit_light, turned over during each flash of its count"""
+    def _mode_from(self):
+        """Where the light shows its mode again after the last count: FLASH_PAUSE_MS after its last flash (ADF's
+        blink counts from there), and not in the pause of one cut short or dropped (flash_free)"""
         start, n = self.flash
-        since = t - start
-        flashing = 0 <= since < n * FLASH_EVERY_MS and since % FLASH_EVERY_MS < FLASH_MS
-        return self.unit_light != flashing
+        base = start + ((n - 1) * FLASH_EVERY_MS + FLASH_MS + FLASH_PAUSE_MS if n else 0)
+        return base, max(base, self.flash_free)
+
+    def freq_lit(self, t):
+        """The FREQ light at time t: off COM, on NAV, ADF's slow blink. While a count is still to come, and from
+        its start until the mode shows again (_mode_from), the light shows the count's flashes on a dark light
+        instead; ADF's blink starts dark after it. A mode lit when a count came stays lit until lit_at, to make
+        LIT_MIN_MS. Ints alone, no float: code.py calls this every millisecond."""
+        if self.lit_at - LIT_MIN_MS < t <= self.lit_at:  # (the lit stretch that ends at lit_at is that long)
+            return True
+        base, shown = self._mode_from()
+        if t < shown:
+            since, n = t - self.flash[0], self.flash[1]
+            return 0 <= since < n * FLASH_EVERY_MS and since % FLASH_EVERY_MS < FLASH_MS
+        if self.freq_mode == 2:
+            return (t - base) % FREQ_BLINK_MS >= FREQ_BLINK_MS // 2
+        return self.freq_mode == 1
+
+    def _saw_lit(self, t):
+        """Before a change that makes a count at t: keeps in lit_at the last ms before t that the light showed its
+        mode lit (NAV, ADF's lit half; a count's own flashes keep their pause by flash_free), so that the count's
+        first flash waits FLASH_PAUSE_MS after it, also when a later count takes its place or the mode changes. A
+        mode lit now stays lit until LIT_MIN_MS after it came on: lit_at is then the last ms of that."""
+        base, shown = self._mode_from()
+        u = t - 1
+        if u < shown or self.freq_mode == 0:
+            return
+        on = shown                                         # the ms it came on: NAV when the mode shows again
+        if self.freq_mode == 2:
+            phase = (u - base) % FREQ_BLINK_MS
+            if phase < FREQ_BLINK_MS // 2:                 # dark half: the lit half before it, if there was one
+                if u - phase - 1 >= shown:
+                    self.lit_at = u - phase - 1
+                return
+            on = max(u - phase + FREQ_BLINK_MS // 2, shown)   # ADF since its lit half began
+        self.lit_at = max(u, on + LIT_MIN_MS - 1)          # (never earlier than the one kept: time goes on)
 
     def _drop_squawk(self, t):
         """The squawk entry ended or starts anew: a digit's count still to come would tell a digit no longer
         selected"""
         if self.flash_squawk and self.flash[0] >= t:      # (one due this very ms is not shown yet: _count)
-            self.flash = (0, 0)
+            self.flash = (t + 1, 0)                        # the mode shows again from the next ms, ADF dark first
         self.flash_squawk = False
 
     def _count(self, n, t, squawk=False):
-        """The UNIT light counts n, from t, the time now, on (a squawk digit once its ring has rested). It takes
+        """The FREQ light counts n, from t, the time now, on (a squawk digit once its ring has rested). It takes
         the place of a count still to come (also one due this very ms, which code.py has not shown yet: a late
         read's press and its hold), and starts FLASH_PAUSE_MS after the last flash shown of one under way or just
-        over (cut short where it is). tick() clears one made while dark: the light is off."""
+        over (cut short where it is), and FLASH_PAUSE_MS after the light last showed its mode lit (lit_at, which
+        the caller brings up to date first: _saw_lit), dark meanwhile, so its first flash stands apart. tick()
+        clears one made while dark: the light is off."""
         self.flash_squawk = squawk
         start, old = self.flash
-        at = max(t + SQUAWK_REST_MS if squawk else t, self.flash_free)   # (kept when a squawk count is dropped)
+        at = max(t + SQUAWK_REST_MS if squawk else t, self.flash_free,   # (kept when a squawk count is dropped)
+                 self.lit_at + 1 + FLASH_PAUSE_MS)
         if old and t > start:                              # (one still to come: this one comes instead, at was
                                                            # already at or past its start)
             last = min((t - start - 1) // FLASH_EVERY_MS, old - 1)   # (one starting now is not shown yet)
@@ -327,7 +373,6 @@ class Panel:
         self.shift, self.under = held, None              # a key ends a knob's session, unless a control holds it
         if name == "HOME" and shifted:                    # UNIT: firmware state, white light
             self.unit = 2 if self.unit == 1 else 1
-            self.flash, self.flash_free = (0, 0), 0        # a count under way would blip against the new state
             return
         k = self._btn(self.unit if name in BM.UNIT_KEYS else 1, BM.shifted(name) if shifted else name)
         # with SHIFT, as joysticks, UP and DN are held as other keys, so a mapping tells a tap from a hold; as a
@@ -356,6 +401,7 @@ class Panel:
         elif shifted:
             k = self._btn(1, "XPDR_MODE")
         else:                                              # FREQ push: next mode at once, COM once held long
+            self._saw_lit(t)
             self.freq_mode = (self.freq_mode + 1) % len(FREQ_MODES)
             self.freq_since = t
             self._count(self.freq_mode + 1, t)
@@ -398,6 +444,7 @@ class Panel:
                     # there, also after the selection has come back to that digit before they are sent.
                     self.ring_keys.pop("FREQ_INNER", None)
                 # counted once the ring rests, also at an end: the light shows where it stopped
+                self._saw_lit(t)
                 self._count(digit, t, squawk=True)
                 return
             slow = SQUAWK[self.digit]
@@ -467,12 +514,14 @@ class Panel:
         if self.order and t >= self.order_ms:
             self._next(t)
         if self.dark:     # the light is off: no count made now or under way shows when USB is back (code.py ticks
-            self.flash, self.flash_squawk, self.flash_free = (0, 0), False, 0   # before it shows the lights)
+            self.flash, self.flash_squawk = (t + 1, 0), False   # before it shows the lights); the mode shows from
+            self.flash_free, self.lit_at = t + 1, -FLASH_PAUSE_MS - 1   # the next ms, LIT_MIN_MS counts from there
 
     def _freq_hold(self, t):
         """A plain FREQ push held FREQ_HOLD_MS returns the knob to COM. A release still waiting out BOUNCE_MS
         counts as held until its scan: the push is long if it was down that long before it."""
         if self.freq_since is not None and self.pending.get("FREQ_PUSH", t) - self.freq_since >= FREQ_HOLD_MS:
+            self._saw_lit(t)
             self.freq_mode, self.freq_since = 0, None      # (no FREQ step is queued: a turn ended the hold)
             self._count(1, t)
 

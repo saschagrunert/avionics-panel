@@ -121,24 +121,30 @@ def test_tune_adf():
     assert seen(sim) == (["FREQ_PUSH"] * 2 + ["ADF_100_UP"] + ["ADF_1_UP"] * 2 + ["ADF_10_UP"] * 2 + ["ADF_SWAP"], [])
 
 
-def test_the_unit_light_counts_the_freq_mode_and_the_squawk_digit():
-    # the white light's short flashes after each FREQ push, NAV twice, ADF three times, COM once, and a squawk's
-    # outer ring at digit 3 three times (docs/using/controls.md, Knobs)
-    def flashes(sim, ms):
-        start = sim.now
-        sim.wait(ms)
-        return len([1 for t, duty in sim.light("UNIT") if t >= start and duty])
+def test_the_freq_light_shows_and_counts_the_freq_mode_and_the_squawk_digit():
+    # the green light's short flashes after each FREQ push, NAV twice, ADF three times, COM once, each on a dark
+    # light; then NAV's light stays on, ADF's blinks slowly (lit half a second), COM's is off; and a squawk's
+    # outer ring at digit 3 flashes three times (docs/using/controls.md, Knobs)
+    def lit(sim, start):
+        """each time the light came on since start: a short flash, half a second ("long") or still on (None),
+        to the loop's passes"""
+        writes = [(t, duty) for t, duty in sim.light("FREQ") if t >= start]
+        on = [(b[0] - a[0]) if b else None for a, b in zip(writes, writes[1:] + [None], strict=True) if a[1]]
+        return [None if ms is None else "flash" if abs(ms - 60) < 5 else "long" if abs(ms - 500) < 5 else ms
+                for ms in on]
     sim = Sim()
-    counts = []
+    seen = []
     for _ in range(3):
-        sim.press("FREQ_PUSH"); counts.append(flashes(sim, 50)); sim.release("FREQ_PUSH")
-        counts[-1] += flashes(sim, 800)
+        start = sim.now
+        sim.press("FREQ_PUSH"); sim.wait(50); sim.release("FREQ_PUSH"); sim.wait(2350)
+        seen.append(lit(sim, start))
+    assert seen == [["flash", "flash", None], ["flash"] * 3 + ["long"], ["flash"]]
     sim.tap("SHIFT")
     sim.turn("FREQ_OUTER", 1)                                          # digit 2, then from this detent on:
     start = sim.now
     sim.turn("FREQ_OUTER", 1)                                          # digit 3
     sim.wait(800)
-    assert counts == [2, 3, 1] and len([1 for t, duty in sim.light("UNIT") if t >= start and duty]) == 3
+    assert lit(sim, start) == ["flash"] * 3
 
 
 def test_tune_com2():

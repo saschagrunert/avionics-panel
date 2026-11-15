@@ -112,11 +112,11 @@ both: [When bring-up fails](#when-bring-up-fails)). On Linux, after every copy t
    - Linux: check the buttons with `hid-recorder`, as `evtest` and `jstest` show only some of them
      ([why](../using/mapping.md#linux)): run `pipx install hid-tools`, then
      `sudo ~/.local/bin/hid-recorder`, and pick "Avionics Panel": each report shows `ReportID: 4` (device 1)
-     or `5` (device 2) and a `Button:` list of 0 and 1 in button order. If both lights stay dark, Linux has
+     or `5` (device 2) and a `Button:` list of 0 and 1 in button order. If the lights stay dark, Linux has
      suspended the panel ([Linux](../using/mapping.md#linux)).
-   - Check every key and both lights (before the plate goes on, the LEDs shine up through their cutouts in the
-     board) against [BUTTONS.md](../../firmware/BUTTONS.md). Device 2 only responds while unit 2 is selected
-     (SHIFT, HOME); [Mapping](../using/mapping.md#two-joysticks) says how to tell the two apart.
+   - Check every key and the three lights (before the plate goes on, the LEDs shine up through their cutouts
+     in the board) against [BUTTONS.md](../../firmware/BUTTONS.md). Device 2 only responds while unit 2 is
+     selected (SHIFT, HOME); [Mapping](../using/mapping.md#two-joysticks) says how to tell the two apart.
    - Column check: hold each key and check that the button of the matrix position right below it (same column
      of `MATRIX` in [buttonmap.py](../../firmware/buttonmap.py)) stays released. A column that recovers too
      slowly shows a phantom press there ([why](../architecture/electronics.md#gpio-map)). The likeliest pairs
@@ -142,8 +142,8 @@ By the step of [Flash and test](#flash-and-test) that shows the fault:
 - Step 2, no RPI-RP2 drive: try another cable (a charge-only cable shows nothing) and another USB port, then
   measure 3V3 again. With 3V3 right, look at J1's contacts and the crystal Y1 under the magnifier for bridges
   or a lifted pin (solder wick for a bridge). Still nothing: put this board aside and use the second one.
-- Step 4.1 or later, no CIRCUITPY with SHIFT held or no joysticks in step 5, and the SHIFT and UNIT lights
-  take turns for a moment after plugging in: HOME, the key above SHIFT, was held instead and switched the
+- Step 4.1 or later, no CIRCUITPY with SHIFT held or no joysticks in step 5, and the SHIFT, UNIT and FREQ
+  lights take turns for a moment after plugging in: HOME, the key above SHIFT, was held instead and switched the
   panel to the keyboard mode. Plug in once with HOME held to switch back
   ([Normal and update mode](#normal-and-update-mode)), then once more with SHIFT held.
 - Step 4.3 or later, CIRCUITPY and the console appear without SHIFT, no joysticks, and the console shows "You
@@ -159,10 +159,12 @@ By the step of [Flash and test](#flash-and-test) that shows the fault:
 
 ## Light brightness
 
-Judge both lights behind their light pipes once the panel is assembled. The brightness is `LED_DUTY` in
-[code.py](../../firmware/code.py): 0x4800 for SHIFT and 0x5500 for UNIT, about 28 and 33 % of full, up to
-0xFFFF. If the console showed "LED drive strength not set" in step 4 of [Flash and test](#flash-and-test),
-the SHIFT light stays dimmer at the RP2040's 4 mA default.
+Judge the lights behind their light pipes once the panel is assembled. The brightness is `LED_DUTY` in
+[code.py](../../firmware/code.py): 0x4800 for SHIFT, 0x5500 for UNIT and 0x7B00 for FREQ (28, 33 and 48 %), up
+to 0xFFFF. The green FREQ LED gives about half the amber's light at the same current, so its duty is about
+twice SHIFT's; push FREQ to NAV to see it lit, and set it to look as bright as the amber light. If the console
+showed "LED drive strength not set" in step 4 of [Flash and test](#flash-and-test), the SHIFT or FREQ light
+stays dimmer at the RP2040's 4 mA default.
 
 ## Normal and update mode
 
@@ -174,8 +176,8 @@ joysticks only after a plain replug ([why](../using/mapping.md#update-mode-and-g
 
 The HOME key (amber legend UNIT) held while plugging in switches between the joysticks and the
 [keyboard mode](../using/keyboard.md), which the panel keeps until it is switched back, also with SHIFT held
-for an update. Bring-up uses the joysticks: if the SHIFT and UNIT lights take turns after plugging in, the
-panel is in keyboard mode.
+for an update. Bring-up uses the joysticks: if the SHIFT, UNIT and FREQ lights take turns after plugging in,
+the panel is in keyboard mode.
 
 ## Updates and recovery
 
@@ -206,9 +208,11 @@ Parts:
   PEC11D).
 
 Set `PICO_TEST = True` in [code.py](../../firmware/code.py): a plain Pico lacks GP23, GP24, GP25 and GP29 on
-its header, so the FREQ knob moves to GP12 to GP15 and its push to GP22; the RANGE turn stays on
-GP28/GP29 and goes untested there. Wire it up (pins are the GPn numbers, not the header pin numbers; the
-keys are matrix positions, row and column in `MATRIX` in [buttonmap.py](../../firmware/buttonmap.py)):
+its header, so the FREQ knob moves to GP12 to GP15 and its push to GP22; the RANGE turn stays on GP28/GP29 and
+goes untested there. That leaves no pin for the UNIT and FREQ lights: the console prints the unit and the FREQ
+mode instead (UNIT 2, FREQ NAV), and the SHIFT light is the Pico's own LED. Wire it up (pins are the GPn
+numbers, not the header pin numbers; the keys are matrix positions, row and column in `MATRIX` in
+[buttonmap.py](../../firmware/buttonmap.py)):
 
 - SHIFT as on the board, a button from GP6 to GP2 through the diode (anode at GP6), or bridge GP6 to GP2 with
   a wire from plugging in until CIRCUITPY appears: without it the Pico hides its drive as soon as `boot.py` is

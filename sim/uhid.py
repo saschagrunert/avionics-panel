@@ -7,7 +7,7 @@ keys.py), the name and IDs the panel has on USB, and every report code.py sends.
 
 reads actions from stdin, one per line (sim.live.LINES), such as `tap AP`, `tap AP 500` (held 500 ms),
 `turn FREQ_INNER 3`, `tilt UP 500`, `press SHIFT`, `release SHIFT` or `wait 1000`; a turn is 30 detents at most
-(sim.live.TURN_MAX, a turn of the knob). `lights` prints the duty of both lights once the actions before it have
+(sim.live.TURN_MAX, a turn of the knob). `lights` prints the duty of each light once the actions before it have
 taken effect. The end of the input ends it, after the actions have run. --keyboard runs the keyboard mode: the
 desktop then takes its shortcuts like those of any keyboard, in the window that has the focus.
 

@@ -499,11 +499,11 @@ ASSEMBLY_BLOCK_IN = 6.0
 # JLCPCB's placement of an SMD part, off its spot (assumed): J1 and every bottom-side body as check_fit.py places
 # them, and the LEDs (LED_LENS)
 SMD_PLACE = 0.1
-# Lights: reverse-mount 1206 LEDs on the bottom (LiteOn LTST-C230KSKT amber, LTW-C230DS white, one package), their
-# lens up in a cutout through the board (pcb/board.py LED_CUTOUT, LiteOn's land pattern), so they shine out of the
-# top side. LiteOn: the lens is 1.5 long (along the pads) and 1.6 wide, 1.10 - 0.28 = 0.82 over the substrate,
-# +-0.1; the die sits on the substrate, at the board underside. place and turn: JLCPCB's placement, off its spot
-# and turned (deg; assumed).
+# Lights: reverse-mount 1206 LEDs on the bottom (LiteOn LTST-C230KSKT amber, LTST-C230KGKT green, LTW-C230DS
+# white, one package), their lens up in a cutout through the board (pcb/board.py LED_CUTOUT, LiteOn's land
+# pattern), so they shine out of the top side. LiteOn: the lens is 1.5 long (along the pads) and 1.6 wide, 1.10 -
+# 0.28 = 0.82 over the substrate, +-0.1; the die sits on the substrate, at the board underside. place and turn:
+# JLCPCB's placement, off its spot and turned (deg; assumed).
 LED_LENS = dict(l=1.5, w=1.6, h=0.82, tol=0.1, place=SMD_PLACE, turn=2.0, solder=0.05, die=0.3)
 # The share of the die that stays under the light pipe's base at the worst offsets (the pipe in its hole, the
 # board as far off the plate as a cap set printed small lets it sit, the LED's placement), at least: what is
@@ -520,13 +520,14 @@ LED_DIE_SHARE = 0.8
 # The pipe is never clamped: base_len + len_tol + RESIN_DRIFT + stub stays under the smallest gap from the board to
 # the plate back (plate back low and bowed down, the board bowed up), up to the flatness and boss tolerance JLCCNC
 # may answer with (PLATE_FLAT). A clamp would load the pipe with newtons: the board is 13 to 17 N/mm stiff at the
-# lights. The base is that much shorter, so the pipe has 0.9 of free play up and down (it may tick when the panel
-# is moved). The rod is `clear` under its hole on the diameter: anodising (0.05) and the resin tolerance (+-0.2)
-# cannot make it jam as printed; a rod that grows tight in its first week sands free. The base (2.8 across) is
-# wider than the cutout, so it stands on the board, and narrow enough to stay out from under the key holes (a
-# firmly pressed cap dips under the plate back) and clear of the switch bodies (check_fit.py). The light holes'
-# back edges are sharp, deburred only (LIGHT_HOLE_BACK_BREAK at most), so the shoulder sits on the flat back face.
-# Both pipes print on one 2.2 x 2.0 bar under their bases (a resin part is RESIN_PART_MIN at least), on 1.0
+# SHIFT and UNIT lights. The base is that much shorter, so the pipe has 0.9 of free play up and down (it may tick
+# when the panel is moved). The rod is `clear` under its hole on the diameter: anodising (0.05) and the resin
+# tolerance (+-0.2) cannot make it jam as printed; a rod that grows tight in its first week sands free. The base
+# (2.8 across) is wider than the cutout, so it stands on the board, and narrow enough to stay out from under the key
+# holes (a firmly pressed cap dips under the plate back) and clear of the switch bodies (check_fit.py). The light
+# holes' back edges are sharp, deburred only (LIGHT_HOLE_BACK_BREAK at most), so the shoulder sits on the flat back
+# face.
+# The pipes print on one 2.2 x 2.0 bar under their bases (a resin part is RESIN_PART_MIN at least), on 1.0
 # necks (the resin minimum), so the visible tops are as printed. The snap-off stubs under the bases are sanded flush,
 # no further, so up to `stub` may stay on: the clamp row counts it.
 PIPE = dict(base_d=2.8, base_len=5.65, top_len=4.45, len_tol=0.2, proud=1.0, stub=0.1, clear=0.3, neck_d=1.0,
@@ -537,9 +538,9 @@ PIPE["len"] = PIPE["base_len"] + PIPE["top_len"]
 # at most, the PEC11D terminals about 1.9 (+0.3), the RKJXT's about 1.6; plus up to 0.3 of solder at a tip. Nothing
 # is trimmed: check_fit.py checks this against the room under the board.
 LEAD_MAX = 2.7
-# PCB bow, either way, at its middle (the two lights sit near the middle of the 153 mm span between the corner
-# screws). JLCPCB, like IPC-6012, allows 0.75 % bow and twist for SMT boards (1.2 mm over 160 mm); a 4-layer 1.6 mm
-# board is usually far flatter. The light pipe rows, the pocket rows over the encoders and the RKJXT (the board
+# PCB bow, either way, at its middle. JLCPCB, like IPC-6012, allows 0.75 % bow and twist for SMT boards (1.2 mm
+# over 160 mm); a 4-layer 1.6 mm board is usually far flatter. The light pipe rows take it in full, wherever a light
+# sits on the 153 mm span between the corner screws; the pocket rows over the encoders and the RKJXT (the board
 # bowed towards the plate) and the rows of the knobs over the plate face (bowed away from it) take this much,
 # shaped like the plate's bow (check_fit.plate_bow, taken as if both were held at the four corner mounts only; the
 # middle mount holds them flatter).

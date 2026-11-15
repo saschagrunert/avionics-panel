@@ -79,7 +79,7 @@ matrix.sort(key=lambda n: span(n))
 
 # MCU-local nets first (short, critical), then the long ones. The two USB-C lines are not among them: they lead
 # the nets the rip-up below may reorder, so when they take the north fan-out's only way out to the west
-# (GP12, GP13, GP15) those nets move ahead of them on the next pass. (The other QSPI lines, CC1, CC2 and VBUS
+# (GP12 to GP15) those nets move ahead of them on the next pass. (The other QSPI lines, CC1, CC2 and VBUS
 # are pre-routed in board.py: the router does not see them.)
 PRIO = ["QSPI_SS", "BOOT_SW", "USB_DM", "USB_DP"]
 first = [n for n in PRIO if n in bynet]

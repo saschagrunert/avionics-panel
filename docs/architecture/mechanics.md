@@ -31,7 +31,7 @@ flowchart BT
   pcb --- pboss["5 plate bosses, tapped M3<br>z 0 to 6.55"]
   pboss --- web["Plate web, 4 mm<br>z 6.55 to 10.55"]
   web --- tongue["Plate tongue<br>in the body's slot over the USB-C socket"]
-  pcb --- pipes["2 light pipes<br>shoulder under the plate back"]
+  pcb --- pipes["3 light pipes<br>shoulder under the plate back"]
   pcb --- parts["Key switches, encoders,<br>RANGE control"]
   parts --- caps["Key caps"]
   parts --- knobs["Knobs"]
@@ -46,7 +46,7 @@ Heights as drawn, z = 0 at the top of the board. Anodising raises the plate's fa
 | -7.6 to -5.6 | Body floor, 2 mm. Below it the 6° wedge is hollow down to the desk plane (-7.2 at the front, about -14 at the back), with 2 mm ribs and a solid band along the front |
 | -5.6 to -1.6 | 5 body bosses (Ø8 on the board) carry the board: four joined to the corner walls, one on a bar-shaped column in the middle of the key field. One post (Ø4.0) ends 0.3 mm under the board |
 | -3.2 | Counterbore seats (Ø8.4), 1.6 mm of PA12 under the board: the screw heads stay recessed |
-| -1.6 to 0 | Board. The two LEDs on its bottom shine up through 2.2 x 2.6 mm cutouts |
+| -1.6 to 0 | Board. The three LEDs on its bottom shine up through 2.2 x 2.6 mm cutouts |
 | 0 to 6.55 | The plate's 5 bosses (Ø5.5, tapped M3). Beside them: key switch bodies (3.6 mm high), encoder bodies (8.0), the RANGE control's body (8.6), the light pipes' bases (5.65). The body walls end at 5.6, the plate's tongue at 1.05 |
 | 6.55 to 10.55 | Plate web, 4 mm. Pockets from the back for the encoders (2.5 mm deep) and the RANGE control (3.05) |
 | 6.8 to 12.5 | Key caps, their socket ceiling on the plunger top (9.5): 1.95 mm over the plate |
@@ -105,7 +105,10 @@ Heights as drawn, z = 0 at the top of the board. Anodising raises the plate's fa
   6.6 mm in (6.45 mm at the ends of its tolerances), and a block over it would hold the pipe, and the board
   on it, off the bosses. The laser-marked line between the AUDIO and RADIO keys passes 0.575 mm from the key
   holes beside it (0.525 mm with a hole 0.1 mm large). Where a laser mark meets a hole's edge break it is
-  only cosmetic, so the fit check holds only the amber print to the holes.
+  only cosmetic, so the fit check holds only the amber print to the holes. The FREQ light's hole keeps
+  0.85 mm to the FMS box's frame line and 1.93 mm to the amber ADF ⇆ legend as drawn (0.7 and 1.78 mm with the
+  hole 0.1 mm large and 0.1 mm off); the fit check does not hold the light holes to the laser marks, the knobs
+  or the encoder pockets.
 - USB-C: the USB-C socket (J1) stands 0.52 mm past the board edge, level with the cavity wall, so the plug
   opening in the back wall (16.8 x 8.7 mm) runs on up through the wall top as a slot of the same width, and
   the socket passes the wall when the body goes on. A tongue on the plate's back edge (15.0 mm wide, 2.0 mm
@@ -162,15 +165,17 @@ Heights as drawn, z = 0 at the top of the board. Anodising raises the plate's fa
   may tick when the panel is moved.
 - Never clamped: the longest base, grown by the 0.2 mm that resin may change by in its first week and with
   0.1 mm of sanded stub left on, stays under the smallest gap between the board and the plate back. A clamp
-  would load the pipe with newtons (the board is 13 to 17 N/mm stiff at the lights). This row limits the
-  plate's flatness: the drawing asks for 0.1 mm, and the row fails just above 0.22 mm. With the bosses at
-  ±0.1 mm the RANGE knob's underside limits it first, just above 0.15 mm. The rod's 0.05 mm in its hole
-  cannot take that growth: a rod that grows tight is sanded
+  would load the pipe with newtons (the board is 13 to 17 N/mm stiff at the SHIFT and UNIT lights). This row
+  limits the plate's flatness: the drawing asks for 0.1 mm, and the row fails just above 0.22 mm. With the
+  bosses at ±0.1 mm the RANGE knob's underside limits it first, just above 0.15 mm. The rod's 0.05 mm in its
+  hole cannot take that growth: a rod that grows tight is sanded
   ([Putting it together](../building/assembly.md#putting-it-together)).
 - Visibility from the seat (45°): 81 % of each top in the nominal stack, 70 % with the rod against the near
   side of its hole, 21 % at the worst depth. The UNIT light sits 5.5 mm east of the HOME and SHIFT column,
-  in the gap between two cap columns, so no cap stands in front of it.
-- Print: both pipes come on one 2.2 x 2.0 mm bar under their bases (JLC3DP prints resin parts from
+  and the FREQ light midway between the RADIO box's two columns, each in the gap between two cap columns, so
+  no cap stands in front of it. The FREQ light sits about 1.2 mm below the middle of the RADIO legends
+  beside it; how it reads from the seat beyond the 45° figure is still to be seen on the first panel.
+- Print: the three pipes come on one 2.2 x 2.0 mm bar under their bases (JLC3DP prints resin parts from
   10 x 2 x 2 mm), on Ø1.0 mm necks, so the visible tops stay as printed. The stubs are sanded flush.
 - Fallback: the 4.45 mm rod is over JLC3DP's pillar guideline (Ø2.0 up to 4 mm). With `top_len` in
   `stack.PIPE` at 4.0 the fit check still passes: the top is then 0.95 mm under the anodised face and 52 % of
@@ -229,10 +234,10 @@ margin in percent is a share.
 | Light pipes | Rod in its hole, on the diameter | **0.05** |
 | Light pipes | Top over the face of a thin plate, lifted and grown in its first week, under the 1.0 mm allowed | **0.05** |
 | Light pipes | LED lens in its board cutout, the LED placed 0.1 mm off and turned 2° | **0.049** |
-| Light pipes | Share of the LED's die under the pipe base at the worst offsets, over 80 % (both) | 11 % |
-| Light pipes | Base clear of the switch bodies (SHIFT, UNIT) | **0.025**, 0.748 |
-| Light pipes | Base out from under the key holes (SHIFT, UNIT) | 0.20, 0.432 |
-| Light pipes | Light hole web to the next key hole at tolerance, over JLCCNC's 0.5 mm minimum (SHIFT, UNIT) | 0.30, 0.532 |
+| Light pipes | Share of the LED's die under the pipe base at the worst offsets, over 80 % (each) | 11 % |
+| Light pipes | Base clear of the switch bodies (SHIFT, UNIT, FREQ) | **0.025**, 0.748, 1.699 |
+| Light pipes | Base out from under the key holes (SHIFT, UNIT, FREQ) | 0.20, 0.432, 1.427 |
+| Light pipes | Light hole web to the next key hole at tolerance, over JLCCNC's 0.5 mm minimum (SHIFT, UNIT, FREQ) | 0.30, 0.532, 1.527 |
 | Caps | Amber legends beyond the largest key hole's edge break, for the UV print's register | 0.50 |
 | Caps | Wall round the socket at the worst print, over 1.0 mm | 0.10 |
 | Caps | Cap sets' coverage beyond a rib circle printed 0.2 mm small or 0.2 mm large | **0.012** |

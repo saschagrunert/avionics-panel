@@ -29,8 +29,9 @@ if VERSION.startswith("$"):        # without the file, or a git checkout's place
 P = microcontroller.pin            # GPIO names work on any RP2040 build (the Pico board renames some)
 
 # The bench on a plain Raspberry Pi Pico (docs/building/bring-up.md, Pico bench): the FREQ knob moves to GP12/13
-# (outer) and GP14/15 (inner), its push to GP22 and the SHIFT light to the onboard LED (GP25); the UNIT light is
-# printed instead. RANGE stays on GP28/GP29, so the bench runs all 7 PIO encoders, but GP29 is not on the header.
+# (outer) and GP14/15 (inner), its push to GP22 and the SHIFT light to the onboard LED (GP25); the UNIT and FREQ
+# lights, which have no pin left on the header, print the unit and the FREQ mode instead. RANGE stays on
+# GP28/GP29, so the bench runs all 7 PIO encoders, but GP29 is not on the header.
 PICO_TEST = False
 
 # The key matrix, rows and columns as in buttonmap.MATRIX (docs/architecture/electronics.md, GPIO map)
@@ -40,11 +41,13 @@ COL_PINS = (P.GPIO1, P.GPIO3, P.GPIO4, P.GPIO6, P.GPIO7, P.GPIO9, P.GPIO10)
 # column go first, so SHIFT comes before a key pressed in the same scan: the key is shifted.
 SCAN_ROWS, SCAN_COLS = (3, 0, 1, 2, 4), (3, 0, 1, 2, 4, 5, 6)
 FREQ_PUSH = P.GPIO13               # direct input, switch to GND
-SHIFT_LED, UNIT_LED = P.GPIO12, P.GPIO15
-SHIFT_LED_GPIO = 12                # its GPIO number, for drive_12ma
-# SHIFT (amber), UNIT (white) brightness, 0..0xFFFF: about 28 and 33 % of full, with room to tune both ways on
-# the first board (docs/architecture/electronics.md, Lights)
-LED_DUTY = (0x4800, 0x5500)
+SHIFT_LED, UNIT_LED, FREQ_LED = P.GPIO12, P.GPIO15, P.GPIO14
+DRIVE_GPIOS = (12, 14)             # the GPIO numbers of the lights driven from their pin (SHIFT, FREQ): drive_12ma
+# SHIFT (amber), UNIT (white), FREQ (green) brightness, 0..0xFFFF: about 28, 33 and 48 % of full (the green LED
+# is about half as bright as the amber at the same current), with room to tune each both ways on the first board
+# (docs/architecture/electronics.md, Lights)
+LED_DUTY = (0x4800, 0x5500, 0x7B00)
+FREQ_NAMES = ("COM", "NAV", "ADF")   # the FREQ modes as the Pico bench prints them
 # SHIFT light duty per panel level (off, dim, full). Dim is 1/4 of full: the eye is not linear, so it looks like
 # about half the brightness.
 SHIFT_DUTY = (0, LED_DUTY[0] // 4, LED_DUTY[0])
@@ -61,7 +64,7 @@ RINGS = (
 if PICO_TEST:
     RINGS = tuple(r for r in RINGS if r[0] not in ("FREQ_OUTER", "FREQ_INNER")) + (
         ("FREQ_OUTER", P.GPIO12, P.GPIO13, False), ("FREQ_INNER", P.GPIO14, P.GPIO15, False))
-    FREQ_PUSH, SHIFT_LED, UNIT_LED = P.GPIO22, P.GPIO25, None
+    FREQ_PUSH, SHIFT_LED, UNIT_LED, FREQ_LED = P.GPIO22, P.GPIO25, None, None
 
 PADS_BANK0 = 0x4001C000            # RP2040 pad control: one 32-bit register per GPIO, from offset 4
 DRIVE_12MA = 0x30                  # its DRIVE field, bits 5:4: 3 is 12 mA (reset 1, 4 mA)
@@ -80,7 +83,7 @@ clock = [0, supervisor.ticks_ms()]       # ms since code.py started, and supervi
 
 
 def drive_12ma(gpio):
-    """The pad's drive strength to 12 mA, so the series resistor, not the pad, sets the SHIFT light's current.
+    """The pad's drive strength to 12 mA, so the series resistor, not the pad, sets a light's current.
     CircuitPython has no call for it: memorymap writes the RP2040's pad register (32-bit, read, modify, write).
     After PWMOut, which leaves the drive field alone. If it fails the light stays at the 4 mA drive, dimmer."""
     if memorymap is None:
@@ -221,8 +224,9 @@ def turns(t):
             panel.turn(RINGS[i][0], -d if RINGS[i][3] else d, t)
 
 
-def show(level, unit):
-    """The SHIFT light at a level of panel.py and the UNIT light on or off, each written only on a change"""
+def show(level, unit, freq):
+    """The SHIFT light at a level of panel.py and the UNIT and FREQ lights on or off, each written only on a
+    change. On the Pico bench freq is the FREQ mode's number (1 COM, 2 NAV, 3 ADF), printed, or 0 while dark."""
     if level != shown[0]:
         shown[0] = level
         leds[0].duty_cycle = SHIFT_DUTY[level]
@@ -232,6 +236,12 @@ def show(level, unit):
             leds[1].duty_cycle = LED_DUTY[1] if unit else 0
         else:
             print("UNIT", 2 if unit else 1)
+    if freq != shown[2]:
+        shown[2] = freq
+        if leds[2]:
+            leds[2].duty_cycle = LED_DUTY[2] if freq else 0
+        elif freq:
+            print("FREQ", FREQ_NAMES[freq - 1])
 
 
 def behind():
@@ -332,10 +342,12 @@ try:
     encoders = make_encoders()
     last = [e.position for e in encoders]    # each ring's position as the panel has it
     leds = [pwmio.PWMOut(SHIFT_LED, frequency=1000),
-            pwmio.PWMOut(UNIT_LED, frequency=1000) if UNIT_LED else None]
+            pwmio.PWMOut(UNIT_LED, frequency=1000) if UNIT_LED else None,
+            pwmio.PWMOut(FREQ_LED, frequency=1000) if FREQ_LED else None]
     if not PICO_TEST:              # the Pico's onboard LED has a resistor of its own
-        drive_12ma(SHIFT_LED_GPIO)
-    shown = [None, None]                 # the SHIFT light's level and the UNIT light as last written (show())
+        for gpio in DRIVE_GPIOS:
+            drive_12ma(gpio)
+    shown = [None, None, None]           # the SHIFT light's level, the UNIT and FREQ lights as last written (show())
     panel = Panel(solo=KEYBOARD)         # keyboard mode: one shortcut at a time (keys.py)
     if KEYBOARD:
         keyboard = keys.Keyboard(panel)
@@ -351,7 +363,7 @@ try:
     print("Avionics Panel rev 1 ready (" + VERSION + ")")
     if KEYBOARD:                   # the lights take turns at each start (keys.START), also with USB down; the loop
         for on in keys.START:      # then sets them, dark while USB is down
-            for i in (0, 1):
+            for i in range(len(leds)):
                 if leds[i]:
                     leds[i].duty_cycle = LED_DUTY[i] if i == on else 0
             time.sleep(keys.BLINK_S)
@@ -378,16 +390,17 @@ try:
                 # it, not after. The knobs as they stand go to the panel first, at this pass's time, so a detent
                 # turned before a key pressed during the wait comes first; and those steps stay if the knob
                 # turns back during the wait.
-                show(LIGHT_OFF, False)
+                show(LIGHT_OFF, False, False)
                 turns(t)
                 wake(t)
                 t = now()
             read_keys(t)
             turns(t)
         panel.tick(t)
-        # the amber light pulses before SHIFT drops; the UNIT light counts (on the Pico bench, which prints the
-        # unit instead, it does not)
-        show(panel.shift_level(t), connected and (panel.unit_lit(t) if leds[1] else panel.unit_light))
+        # the amber light pulses before SHIFT drops; the FREQ light shows the mode and counts (on the Pico bench,
+        # which prints the mode instead, it does not)
+        show(panel.shift_level(t), connected and panel.unit_light,
+             connected and (panel.freq_lit(t) if leds[2] else panel.freq_mode + 1))
         for n, dev in OUTPUTS:
             rep = reports[n]
             if n:

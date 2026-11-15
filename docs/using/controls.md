@@ -17,12 +17,13 @@ shortcuts instead. To try them without a panel, the firmware runs on the PC and 
 - The left side does the autopilot work and the right side does radios and navigation. Two exceptions keep the
   knob columns symmetric: the map's RANGE knob sits under ALT/HDG, and BARO and CRS share the ALT/HDG knob
   behind SHIFT.
-- White legends are primary functions, amber legends are SHIFT functions. All caps are black. Two lights:
-  amber whenever SHIFT applies (pulsing in its last second), white while unit 2 is selected. Both are dark while
-  the PC is off, asleep, not connected or has suspended the panel. While the panel waits for the PC to take a
-  report, up to 2.5 s, they stay as they were, and a key pressed meanwhile goes out as they showed if the PC
-  then takes the report. While they are dark SHIFT does not apply: tap it again once the PC is back. In the
-  [keyboard mode](keyboard.md) they take turns at each start.
+- White legends are primary functions, amber legends are SHIFT functions. All caps are black. Three lights:
+  amber whenever SHIFT applies (pulsing in its last second), white while unit 2 is selected, green for the
+  FREQ knob's mode (off COM, on NAV, slow blink ADF). All are dark while the PC is off, asleep, not connected
+  or has suspended the panel. While the panel waits for the PC to take a report, up to 2.5 s, they stay as
+  they were, and a key pressed meanwhile goes out as they showed if the PC then takes the report. While they
+  are dark SHIFT does not apply: tap it again once the PC is back. In the [keyboard mode](keyboard.md) they
+  take turns at each start.
 - Everything behind SHIFT can wait until the autopilot flies, apart from IDENT (SHIFT, VFR). If both hands are
   needed, LVL first.
 
@@ -66,18 +67,20 @@ The cockpit lighting sits behind SHIFT on the FMS knob for the same reason as BA
 twice per flight, and more knobs would break the symmetric layout.
 
 Frequency mode: the FREQ push cycles the knob through COM, NAV and ADF, always all three. The mode starts at
-COM after plugging in or a firmware restart and stays until the next push, and both units share it. There is
-no mode light; the white UNIT light counts the mode after each push instead: one short flash for COM, two for
-NAV, three for ADF (dark blips in unit 2, where it is lit), and a push during a count shows the new mode after
-a short pause. The radio whose frequency moves confirms it. When unsure, hold the push for 1 s: the knob is back
-at COM, whatever mode it was in, and the light flashes once. The push changes the mode as it goes down, so a
-hold first counts the next mode and returns to COM at 1 s, unless the knob turns while the push is held: that
-turn tunes the mode the push stepped to, and the knob stays there. With SHIFT a held push stays XPDR mode,
-leaves the mode as it was and counts nothing.
+COM after plugging in or a firmware restart and stays until the next push, and both units share it. The green
+light in the RADIO box, between VFR and NAV ⇆, shows it: off for COM, on for NAV, a slow blink (half a second
+dark, half a second lit) for ADF. After each push it also counts the new mode: one short flash for COM, two
+for NAV, three for ADF, on a dark light, then after a short pause it shows the mode again; a push during a
+count counts the new mode after a short pause, and a light that just came on stays on 0.3 s first, so it never
+passes for a flash. The radio whose frequency moves confirms it. When unsure, hold the push for 1 s: the knob
+is back at COM, whatever mode it was in, and the light flashes once. The push changes the mode as it goes
+down, so a hold first counts the next mode and returns to COM at 1 s, unless the knob turns while the push is
+held: that turn tunes the mode the push stepped to, and the knob stays there. With SHIFT a held push stays
+XPDR mode, leaves the mode as it was and counts nothing.
 
 Squawk (SHIFT, FREQ knob): the outer ring selects the digit and the inner ring sets it, one step per detent.
 Every entry starts at the first digit. Turning the outer ring clockwise moves on to the next digit,
-counter-clockwise back; it stops at the first and the fourth. Once the outer ring rests, the white UNIT light
+counter-clockwise back; it stops at the first and the fourth. Once the outer ring rests, the green light
 counts the selected digit, one to four short flashes, also after a turn against an end; the transponder shows
 which one moves too. The entry ends 5 s after the last detent of either ring, and the knob tunes frequencies
 again. A SHIFT tap during an entry starts a new one: the next detent is on the first digit again.
@@ -151,9 +154,8 @@ Charts instead, [Mapping](mapping.md#g1000-nxi)).
 
 28 keys. UNIT (SHIFT, HOME) switches between unit 1 and unit 2 for the FMS keys and knob (GTN or GNS 530 /
 second unit), for CDI and OBS, and for the radio the FREQ knob and flip-flops tune (COM 1 / NAV 1 or COM 2 /
-NAV 2). A white light beside the amber UNIT legend is on while unit 2 is selected; short flashes of it count
-the FREQ mode and the squawk digit (above), dark blips in unit 2. There is no automatic return to unit 1,
-because a timeout would interrupt long flight plan edits.
+NAV 2). A white light beside the amber UNIT legend is on while unit 2 is selected. There is no automatic
+return to unit 1, because a timeout would interrupt long flight plan edits.
 
 On the G1000 unit 1 is the MFD with radio 1 and unit 2 the PFD with radio 2: UNIT switches the display and
 the radio together, so while you edit on the PFD the FREQ knob tunes COM 2 / NAV 2.
