@@ -7,6 +7,7 @@ import re
 import sys
 from functools import partial
 
+import panel as P
 import pytest
 
 from sim import PATTERN_MS, Sim, canonical
@@ -176,19 +177,32 @@ def test_freq_mode_cycles_and_stays():
 
 def test_squawk():
     # 1200 to 7000: tap SHIFT, the inner ring sets the first digit, one detent of the outer ring moves to the
-    # next. 3 s after the last detent the light goes out and the knob tunes again.
+    # next. 5 s after the last detent the light goes out and the knob tunes again.
     sim = Sim()
     sim.tap("SHIFT")
     sim.turn("FREQ_INNER", 6)
     sim.turn("FREQ_OUTER", 1)
     sim.turn("FREQ_INNER", -2)
     last = sim.now - 150                   # the last detent
-    sim.wait(3500)
+    sim.wait(P.SESSION_MS + 500)
     sim.turn("FREQ_INNER", 1)
     sim.wait(500)
     assert seen(sim) == (["SQK_D1_UP"] * 6 + ["SQK_D2_DN"] * 2 + ["COM_KHZ_UP"], [])
     off, duty = sim.light("SHIFT")[-1]
-    assert duty == 0 and last + 3000 <= off <= last + 3000 + sim.pass_ms
+    assert duty == 0 and last + P.SESSION_MS <= off <= last + P.SESSION_MS + sim.pass_ms
+
+
+def test_squawk_with_a_pause_between_digits():
+    # the code read off a clearance digit by digit: a 4 s pause before the outer ring moves on, and another
+    # before the inner ring sets the next digit, still squawk entry, not COM
+    sim = Sim()
+    sim.tap("SHIFT")
+    sim.turn("FREQ_INNER", 1)
+    sim.wait(4000)
+    sim.turn("FREQ_OUTER", 1)
+    sim.wait(4000)
+    sim.turn("FREQ_INNER", 2)
+    assert seen(sim) == (["SQK_D1_UP"] + ["SQK_D2_UP"] * 2, [])
 
 
 def test_squawk_digits():
@@ -198,7 +212,7 @@ def test_squawk_digits():
     sim.tap("SHIFT")
     sim.turn("FREQ_OUTER", 2)
     sim.turn("FREQ_INNER", 1)
-    sim.wait(3500)                         # the session ends
+    sim.wait(P.SESSION_MS + 500)           # the session ends
     sim.tap("SHIFT")
     sim.turn("FREQ_OUTER", -1)
     sim.turn("FREQ_INNER", 1)
@@ -236,11 +250,11 @@ def test_shift_times_out_with_a_pulsing_light():
     # armed SHIFT cancels itself 3 s after the tap; the light pulses between bright and dim in the last second
     sim = Sim()
     sim.tap("SHIFT")
-    sim.wait(3000)
+    sim.wait(P.ARM_MS)
     sim.tap("AP")
     assert seen(sim) == (["AP"], [])
     (_, off), (on, full), *pulse, (end, last) = sim.light("SHIFT")
-    assert off == last == 0 and 3000 <= end - on <= 3000 + sim.pass_ms
+    assert off == last == 0 and P.ARM_MS <= end - on <= P.ARM_MS + sim.pass_ms
     assert [d for _, d in pulse] == [full // 4, full] * 4
     assert all(end - 1000 - sim.pass_ms <= t < end for t, _ in pulse)
 
@@ -265,25 +279,25 @@ def test_another_knob_ends_a_knob_session():
 
 
 def test_a_held_shifted_push_keeps_shift():
-    # a shifted push held longer than 3 s keeps SHIFT, also through a plain key; the 3 s start at its release
+    # a shifted push held longer than 5 s keeps SHIFT, also through a plain key; the 5 s start at its release
     sim = Sim()
     sim.tap("SHIFT")
     sim.press("ALTHDG_PUSH")
-    sim.wait(2000)
+    sim.wait(P.SESSION_MS - 1000)
     sim.tap("AP")
     sim.wait(2000)
     sim.release("ALTHDG_PUSH")
-    sim.wait(2500)
+    sim.wait(P.SESSION_MS - 500)
     sim.turn("ALTHDG_OUTER", 1)
     assert seen(sim) == (["BARO_STD", "AP", "BARO_UP"], [])
 
 
 def test_a_held_shifted_tilt_keeps_shift():
-    # a shifted pan held for 4 s goes on shifted throughout: at once, after 300 ms, then every 120 ms
+    # a shifted pan held for 6 s goes on shifted throughout: at once, after 300 ms, then every 120 ms
     sim = Sim()
     sim.tap("SHIFT")
-    sim.tilt("LEFT", hold=4000)
-    assert seen(sim) == (["S_PAN_LEFT"] * (1 + len(range(300, 4000, 120))), [])
+    sim.tilt("LEFT", hold=P.SESSION_MS + 1000)
+    assert seen(sim) == (["S_PAN_LEFT"] * (1 + len(range(300, P.SESSION_MS + 1000, 120))), [])
 
 
 def test_shifted_keys():
