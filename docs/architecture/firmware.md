@@ -108,7 +108,7 @@ stateDiagram-v2
   and inner ring (for a whole squawk code), and returns to normal 5 s after the last detent, room to read the
   next digit off a clearance. A push or RANGE tilt held keeps it too, so a long shifted pan never outlasts the
   light: the 5 s start when it is let go. A tap alone arms SHIFT for 3 s only, so a stray one does not linger.
-- SHIFT held alone 1 s (`LOCK_MS`) locks it, for several amber functions in a row. The press arms SHIFT as a
+- SHIFT held alone 1 s (`LOCK_MS`) locks it, for several SHIFT functions in a row. The press arms SHIFT as a
   tap does, so a tap acts at once and the lock follows only if the key stays down. SHIFT counts as down from
   its press until its release is applied, BOUNCE_MS after its scan, and a key, push, tilt or detent in that
   time makes it a modifier: before LOCK_MS no lock follows, after it the lock goes back to a tap's arm, which
@@ -335,7 +335,7 @@ but for one rule.
 - The mode is one byte of `microcontroller.nvm`, the 4 KB of flash that CircuitPython's RP2040 builds keep
   between the firmware and CIRCUITPY (`CIRCUITPY_INTERNAL_NVM_SIZE`), so it survives power cycles, new files
   and a new UF2; `flash_nuke.uf2` erases it. 0x4B is the keyboard, any other value (a blank flash reads 0xFF)
-  the joysticks. `boot.py` reads HOME (amber legend UNIT; row GP5, in SHIFT's column GP6) the way it reads
+  the joysticks. `boot.py` reads HOME (shift legend UNIT; row GP5, in SHIFT's column GP6) the way it reads
   SHIFT, and while it is held stores the other mode: switching to the keyboard writes one byte, switching back
   erases and rewrites the 4 KB sector. `code.py` does not read the byte: it takes the mode from the devices
   `boot.py` made ([Errors](#errors)), and imports `keys.py` only in keyboard mode, so the joysticks keep its
@@ -351,7 +351,7 @@ but for one rule.
   right Ctrl and Shift. `keys.GROUPS` lists them with what each group leaves out and why; `keys.FIRST` names
   the functions the sim may have no action for, which get the navigation keys and arrows: their parts (the
   key alone, or with fewer modifiers) carry fewer of the sim's defaults than those of the F-keys. With SHIFT,
-  a key without an amber legend sends its plain shortcut, and in unit 2 only COM and NAV have their own (not
+  a key without a shift legend sends its plain shortcut, and in unit 2 only COM and NAV have their own (not
   COM 121.5). 114 shortcuts, with a snapshot in `firmware/test_keys.py`: the table may still change until it
   has been tested on hardware, and is frozen from then on. `keys.UNIT2` leaves 8 free for new functions of
   device 1, and 2 more are free after unit 2's.

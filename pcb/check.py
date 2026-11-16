@@ -846,12 +846,13 @@ def hand_solder(pads):
 TH_DRILL_TOL = 0.13 + 0.08
 # Each plated hole must also lie in the band its part's datasheet gives (least, most): a pin hole's drill, a lug
 # slot's width and length. TE 1-1825910-4: 0.99 +-0.05; Bourns PEC11D: pins 1.2 +0.1/-0, lug slots 1.5 x 2.6
-# +0.1/-0; Alps RKJXT1F42001: 1.0 +0.2/-0. (The RKJXT's unplated peg hole follows JLC's footprint: board.py.)
-TH_SHEET = {"C589907": ((0.94, 1.04),), "C19270361": ((1.2, 1.3), ((1.5, 1.6), (2.6, 2.7))),
+# +0.1/-0, drawn 3.0 long on purpose for JLCPCB's 2:1 slot rule (board.py SLOT); Alps RKJXT1F42001: 1.0 +0.2/-0.
+# (The RKJXT's unplated peg hole follows JLC's footprint: board.py.)
+TH_SHEET = {"C589907": ((0.94, 1.04),), "C19270361": ((1.2, 1.3), ((1.5, 1.6), (3.0, 3.1))),
             "C160841": ((1.0, 1.2),)}
-# A lug slot drawn longer than JLC's on purpose (the review answer in docs/building/ordering.md: 1.5 x 3.0 for the
-# encoders): how much longer, by part. Its length is compared with JLC's slot plus this, its width as before.
-TH_SLOT_EXTRA = {"C19270361": 0.0}
+# A lug slot drawn longer than JLC's on purpose (the encoders' 1.5 x 3.0 against JLC's 1.5 x 2.6, board.py SLOT): how
+# much longer, by part. Its length is compared with JLC's slot plus this, its width as before.
+TH_SLOT_EXTRA = {"C19270361": 0.4}
 TH_PIN = {                                  # JLC's pin number -> our pins it may land on
     # key: pins 1-2 and 3-4 are joined inside, so 0 and 180 are the same switch (the 6.5 x 4.5 pattern misses at 90)
     "C589907": dict.fromkeys("1234", ("A", "B", "C", "D")),

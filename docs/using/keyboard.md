@@ -9,7 +9,7 @@ It has not been tried in MSFS or on a console yet: see [Limits](#limits), and
 
 ## Switching the mode
 
-Hold the HOME key (amber legend UNIT) while plugging the panel in, and for about 2 s more. The panel
+Hold the HOME key (shift legend UNIT) while plugging the panel in, and for about 2 s more. The panel
 switches between the joysticks and the keyboard and keeps that mode from then on, also through firmware
 updates. Switch back the same way. HOME switches also with SHIFT held for an update: to update in keyboard
 mode, hold SHIFT alone.
@@ -26,7 +26,7 @@ that differs. They are F1 to F12, Insert, Home, Page Up, Page Down and the arrow
 Alt: keys that mean the same on every keyboard layout. Most use the right Ctrl or Shift, which MSFS is
 reported to tell apart from the left ones; its menu may show both sides alike.
 
-- With SHIFT, the keys without an amber legend (VS, UP, FLC, DN, VNV, ENT) and the RANGE knob send their plain
+- With SHIFT, the keys without a shift legend (VS, UP, FLC, DN, VNV, ENT) and the RANGE knob send their plain
   shortcut.
 - In unit 2 the COM and NAV functions (frequencies, flip-flops), except COM 121.5, send shortcuts of their
   own; everything else sends unit 1's. The sim's controls have one set of FMS keys, the G1000's.

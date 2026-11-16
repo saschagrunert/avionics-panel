@@ -10,7 +10,7 @@ key events the two share (parts.GARMIN_SHARED). The PFD's CRS and BARO knobs, th
 H: events the NXi takes for them (CourseKnobInputHandler.ts, Altimeter.tsx, MFDViewService.ts, PFDViewService.ts,
 MapInset.tsx, SoftKeyMenuSystem.ts); it takes no H: event for a long press of CLR. The CDI and OBS are the
 simulator's key events the NXi follows (ActiveNavSourceManager.ts, LNavObsManager.ts); the radios, ADF, transponder
-and audio panel are the parts the tables share (parts.py). The keys without an amber legend send the plain function
+and audio panel are the parts the tables share (parts.py). The keys without a shift legend send the plain function
 with SHIFT too, so a stray SHIFT does no harm (docs/using/mapping.md#two-joysticks).
 """
 from mobiflight.families import parts

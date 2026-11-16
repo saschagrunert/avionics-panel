@@ -9,7 +9,7 @@ import buttonmap as BM
 
 # The mode lives in microcontroller.nvm (flash: it survives power cycles and firmware updates). This byte holds
 # KEYBOARD in keyboard mode; anything else, the 0xFF of a blank flash included, is the joystick mode, the
-# default. boot.py switches it while HOME (amber legend UNIT) is held at plug-in.
+# default. boot.py switches it while HOME (shift legend UNIT) is held at plug-in.
 MODE_BYTE, KEYBOARD, JOYSTICK = 0, 0x4B, 0xFF
 
 
@@ -105,7 +105,7 @@ UNIT2 = 112                        # unit 2's own shortcuts from this place on: 
 
 
 def _index():
-    """The place in COMBOS of each button's shortcut, by device and button. SHIFT with a key that has no amber
+    """The place in COMBOS of each button's shortcut, by device and button. SHIFT with a key that has no shift
     legend sends the key's plain shortcut (map both alike: docs/using/mapping.md). In unit 2 only COM and NAV
     (frequencies, flip-flops) have shortcuts of their own, the rest sends unit 1's: the sim's controls hold one
     set of FMS keys (the G1000 MFD's), and most aircraft have one ADF."""

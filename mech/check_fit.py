@@ -1030,30 +1030,33 @@ def range_measures(range_knob):
                 rim=edge[1] - edge[0])
 
 
-def bar_measures(tri):
-    """measured on the mesh of the light pipe bar as it is ordered (lightpipes.step), each as (least, most) over
-    its pipes: the base and rod diameters (the largest reading over TURN), the base's length up to the shoulder
-    and the whole length, from the base's bottom face beside the neck; the necks' diameter and length (the gap
-    between the bar and a base, beside the neck). And the bar's section (width, height) and the part's size over
-    all, largest first."""
-    pp, pitch = S.PIPE, K.PIPE_PITCH
+def pipe_measures(tri):
+    """measured on the mesh of the light pipe part as it is ordered (lightpipes.step: one pipe, or with
+    stack.PIPE_ON_BAR the bar of all three), each as (least, most) over its pipes: the base and rod diameters (the
+    largest reading over TURN), the base's length up to the shoulder and the whole length, from the base's bottom
+    face; the part's size over all, largest first. With the bar also the necks' diameter and length (the gap between
+    the bar and a base, beside the neck) and the bar's section (width, height)."""
+    pp, pb, pitch = S.PIPE, S.PIPE_BAR, K.PIPE_PITCH
     ey, ez = np.array([0.0, 1.0, 0.0]), np.array([0.0, 0.0, 1.0])
     rod_r, base_r = (S.LIGHT_HOLE - pp["clear"]) / 2, pp["base_d"] / 2
     zb, zr, top = pp["base_len"] / 2, pp["base_len"] + pp["top_len"] / 2, pp["len"] + 1.0
-    beside = (pp["neck_d"] + pp["bar"][0]) / 4                           # between a neck and the bar's edge
+    beside = (pb["neck_d"] + pb["bar"][0]) / 4 if S.PIPE_ON_BAR else base_r / 2     # off the neck, in the base
     m = dict(base_d=[], rod_d=[], base_len=[], len=[], neck_d=[], neck_len=[])
-    for x in np.arange(K.PIPES) * pitch:
+    for x in np.arange(K.PIPES if S.PIPE_ON_BAR else 1) * pitch:
         bottom = zb - ray_hit(tri, np.array([x + beside, 0.0, zb]), -ez)            # the base's bottom face
         m["base_d"].append(max(across(tri, (x, 0.0, zb), d)[0] for d in TURN))
         m["rod_d"].append(max(across(tri, (x, 0.0, zr), d)[0] for d in TURN))
         m["base_len"].append(top - ray_hit(tri, np.array([x + (rod_r + base_r) / 2, 0.0, top]), -ez) - bottom)
         m["len"].append(top - ray_hit(tri, np.array([x, 0.0, top]), -ez) - bottom)
-        m["neck_d"].append(max(across(tri, (x, 0.0, -pp["neck_len"] / 2), d)[0] for d in TURN))
-        m["neck_len"].append(ray_hit(tri, np.array([x + beside, 0.0, -1e-3]), -ez) + 1e-3)
-    mid = (pitch / 2, 0.0, -pp["neck_len"] - pp["bar"][1] / 2)           # inside the bar, between two pipes
+        if S.PIPE_ON_BAR:
+            m["neck_d"].append(max(across(tri, (x, 0.0, -pb["neck_len"] / 2), d)[0] for d in TURN))
+            m["neck_len"].append(ray_hit(tri, np.array([x + beside, 0.0, -1e-3]), -ez) + 1e-3)
     size = sorted((tri.reshape(-1, 3).max(0) - tri.reshape(-1, 3).min(0)).tolist(), reverse=True)
-    return dict({k: (min(v), max(v)) for k, v in m.items()},
-                bar=(across(tri, mid, ey)[0], across(tri, mid, ez)[0]), size=size)
+    out = dict({k: (min(v), max(v)) for k, v in m.items() if v}, size=size)
+    if S.PIPE_ON_BAR:
+        mid = (pitch / 2, 0.0, -pb["neck_len"] - pb["bar"][1] / 2)           # inside the bar, between two pipes
+        out["bar"] = (across(tri, mid, ey)[0], across(tri, mid, ez)[0])
+    return out
 
 
 def rib_width(name, z=1.5):
@@ -1278,6 +1281,26 @@ def cap_rows(face_lo, bow_dn):
     rows.append((f"cap sets grip rib circles printed {-e_lo:.2f} small to {e_hi:.2f} large (one of {len(fit)} within "
                  f"{lo_i} to {hi_i}), on a plunger {move:+.2f} off TE's model", worst,
                  ("Caps", f"Cap sets' coverage beyond a rib circle printed {-e_lo:g} mm small or {e_hi:g} mm large")))
+    # the set ordered in full. The first order: the one with the most margin on a true print (no print error), by
+    # its lead over the next set; its window then lies nearest that print too, as all windows are as wide. A
+    # reorder after a move (docs/building/bring-up.md): the end set the move was for, the loosest (largest rib
+    # circle) after a raise, the tightest after a lowering, as the sets move together with the plunger here
+    true = {n: min(f - lo_i, hi_i - f) for n, f in fit.items()}
+    full, gauge = S.CAP_ORDER["full"], S.CAP_ORDER["gauge"]
+    plain = gauge in {lab for row in S.KEY_LEGENDS for lab, _ in row} and gauge != "SHIFT" \
+        and not S.CAP_BAR_EDGE.get(gauge)
+    if move:
+        end = (max if move > 0 else min)(S.CAP_SETS, key=S.CAP_SETS.get)
+        rows.append((f"cap set {full}, ordered in full after the sets' move of {move:+.2f}, is the end set the move "
+                     f"was for ({end}); room left for the move, up to TE's +-0.30", 0.35 - abs(move)
+                     if full == end else -1.0,
+                     ("Caps", f"Full cap set ({full}) is the end set of the sets' move ({move:+.2f} mm)")))
+    else:
+        lead = true[full] - max(v for n, v in true.items() if n != full)
+        rows.append((f"cap set {full}, ordered in full, grips a rib circle printed true with the most margin of the "
+                     f"sets ({', '.join(f'{n} {v:.3f}' for n, v in true.items())}): its lead over the next; the "
+                     f"gauge caps of the others are {gauge}, a plain cap", lead if plain else -1.0,
+                     ("Caps", f"Full cap set ({full}): its lead over the next set on a rib circle printed true")))
     rows.append((f"cap sets moved {move:+.2f} (stack.CAP_SETS_MOVE), up to TE's +-0.30 on the plunger diameter",
                  0.35 - abs(move)))                       # three 0.1 steps either way, not a fourth
     return rows
@@ -1481,11 +1504,11 @@ def room_rows(pads, board_off, bar):
 
 
 def legend_gap():
-    """least distance from the amber legends' outlines (make_plate_art.py's UV_AMBER layer) to the edge of a hole
-    in the plate, the key and light holes at their largest: the gap and which holes."""
+    """least distance from the shift legends' outlines (make_plate_art.SHIFT_MARKS, laser marked) to the edge of a
+    hole in the plate, the key and light holes at their largest: the gap and which holes."""
     lt = (S.LIGHT_HOLE + S.LIGHT_HOLE_TOL[0]) / 2
     best = (math.inf, "none")
-    for poly in PA.layers["UV_AMBER"]:
+    for poly in PA.SHIFT_MARKS:
         pts = np.array(poly + poly[:1])
         seg = np.diff(pts, axis=0)
         n = np.maximum(np.ceil(np.hypot(seg[:, 0], seg[:, 1]) / 0.02).astype(int), 1)   # a point every 0.02 mm
@@ -1495,7 +1518,7 @@ def legend_gap():
         d += [(float((np.hypot(x - lx, y - ly) - lt).min()), "light holes") for (lx, ly), _g, _c in B.LEDS.values()]
         d += [(float((np.hypot(x - kx, y - ky) - (S.SHAFT_HOLE + S.PLATE_GEN_TOL) / 2).min()), "encoder holes")
               for kx, ky in (B.ALTHDG, B.FREQ, B.FMS)]
-        d += [(float((np.hypot(x - B.RANGE[0], y - B.RANGE[1]) - (S.RANGE_HOLE + S.PLATE_GEN_TOL) / 2).min()),
+        d += [(float((np.hypot(x - B.RANGE[0], y - B.RANGE[1]) - (S.RANGE_HOLE + S.RANGE_HOLE_TOL[0]) / 2).min()),
                "RANGE hole")]
         best = min(best, min(d))
     return best
@@ -1573,8 +1596,9 @@ def boss_web():
 def pipe_gaps(back_lo, back_hi):
     """the gap from the board top to the plate back at a light (the light pipes' rows): smallest (the plate back at its
     lowest and bowed PLATE_FLAT down, the board bowed PCB_BOW up) and largest (both the other way); the room left
-    over the pipe's base in the smallest (base long and grown in its first week, a sanded stub left on), and its
-    shoulder's distance off the plate back in the largest (base short and shrunk in its first week)."""
+    over the pipe's base in the smallest (base long and grown in its first week, a sanded support nub or neck stub
+    left on), and its shoulder's distance off the plate back in the largest (base short and shrunk in its first
+    week)."""
     pp, tol = S.PIPE, S.PIPE["len_tol"] + S.RESIN_DRIFT
     g_min = back_lo - S.PLATE_FLAT - S.PCB_BOW
     g_max = back_hi + S.PLATE_FLAT + S.PCB_BOW
@@ -1620,9 +1644,10 @@ def pipe_rows(back_lo, back_hi, face_lo, board, caps):
     top's depth under the face and how much of it shows from the seat, the shoulder, the cutout under the base, the
     LED's lens and light under it, and the base against the switch bodies and the key holes (a firmly pressed cap
     dips under the plate back). Every pipe length at +-len_tol (JLC3DP's resin) and changed by RESIN_DRIFT in its
-    first week, either way, whichever costs the row; a sanded stub left on. The plate takes PLATE_FLAT in full
-    here, the board PCB_BOW either way. face_lo: the plate face at its lowest."""
+    first week, either way, whichever costs the row; a sanded support nub (or the bar's neck stub) left on. The
+    plate takes PLATE_FLAT in full here, the board PCB_BOW either way. face_lo: the plate face at its lowest."""
     pp, ll, pt = S.PIPE, S.LED_LENS, S.POS_TOL
+    nub = "neck stub" if S.PIPE_ON_BAR else "support nub"
     lt_up, tol = S.LIGHT_HOLE_TOL[0], pp["len_tol"] + S.RESIN_DRIFT
     t_min, t_max = S.PLATE_T - S.PLATE_T_TOL, S.PLATE_T + S.PLATE_T_TOL
     base_lo, base_hi = (pp["base_d"] - pp["resin"]) / 2, (pp["base_d"] + pp["resin"]) / 2
@@ -1647,7 +1672,7 @@ def pipe_rows(back_lo, back_hi, face_lo, board, caps):
          ("Light pipes", "Top over the face of a thin plate, lifted and grown in its first week, under the "
                          f"{pp['proud']} mm allowed")),
         (f"light pipe never clamped: its base ({pp['base_len']} +{pp['len_tol']}, +{S.RESIN_DRIFT} in its first week, "
-         f"a {pp['stub']} stub left on) under the smallest gap ({g_min:.3f}: plate back low, bowed {S.PLATE_FLAT} "
+         f"a {pp['stub']} {nub} left on) under the smallest gap ({g_min:.3f}: plate back low, bowed {S.PLATE_FLAT} "
          f"down, board {S.PCB_BOW:.2f} up)", room,
          ("Plate high", f"Light pipe base under the plate back, grown {S.RESIN_DRIFT} mm in its first week (never "
                         "clamped)")),
@@ -1943,8 +1968,8 @@ def fit_values(plate, outer, inner, range_knob, knobs):
     kh = pm["keys"]
     kr, orr, r_out = np.array(pm["key_r"]), np.array(pm["out_r"]), B.CORNER_R + S.OVH
     if len(B.LEDS) != K.PIPES:                        # a plain raise: asserts vanish under -O
-        raise SystemExit(f"{K.PIPES} light pipes on the bar for {len(B.LEDS)} lights")
-    bar_m = bar_measures(mesh_triangles(read_step("avionics-panel-rev1-lightpipes")))
+        raise SystemExit(f"{K.PIPES} light pipes for {len(B.LEDS)} lights")
+    pipe_m = pipe_measures(mesh_triangles(read_step("avionics-panel-rev1-lightpipes")))
     knob_m = range_measures(range_knob)
     shared = shared_volumes(plate)
     (bx0, by0, bx1, by1), (mid_x, mid_y) = bm["bar"], B.MID_MOUNT
@@ -2071,8 +2096,7 @@ def fit_values(plate, outer, inner, range_knob, knobs):
     rim = knob_m["rim"]
     mk, mark_walls = S.KNOB_MARK, knob_mark_walls(knobs)
     mark_reach = next(m[4] for m in mark_walls if m[0] == "inner")
-    marks = {layer: stroke_width(PA.filled(PA.layers[layer]), 3 * S.MARK_STROKE_MIN, 1e-4)
-             for layer in ("LASER", "UV_AMBER")}
+    marks = stroke_width(PA.filled(PA.layers["LASER"]), 3 * S.MARK_STROKE_MIN, 1e-4)
     d_len = d_bore_len(inner, S.INNER_D, S.INNER_FLAT)   # inner knob D bore, measured on the solid
     return types.SimpleNamespace(**locals())
 
@@ -2197,6 +2221,7 @@ def control_fits(fv):
     rk, rk_off, skirt_cover, arrow_in, diag = fv.rk, fv.rk_off, fv.skirt_cover, fv.arrow_in, fv.diag
     rk_across = fv.rk_across
     knob_m, rim = fv.knob_m, fv.rim
+    rh_up, rh_dn = S.RANGE_HOLE_TOL                     # the RANGE hole's tolerance on the drawing
     return [
         (f"encoder bushing ({S.SLEEVE_D} +0) in its {S.SHAFT_HOLE} plate hole (-{gen}, anodised -{an}), radial: "
          f"board {board:.2f} off, plate, PCB, pins", (S.SHAFT_HOLE - gen - an - S.SLEEVE_D) / 2 - on_board,
@@ -2222,11 +2247,11 @@ def control_fits(fv):
          f"board {S.PCB_BOW * bow_rng:.3f} up), clear of the floor corner (R{fr} max on the drawing)",
          floor_corner(rk_side, rk_top), ("Plate high", "RANGE pocket over the RKJXT body", rk_top),
          ("Controls", f"RKJXT body in its Ø{S.RANGE_POCKET[0]} pocket, radial", rk_side)),
-        (f"RKJXT hub (Ø{S.RKJXT_HUB[0]}) at full tilt in its {S.RANGE_HOLE} plate hole (-{gen}, anodised -{an}), "
+        (f"RKJXT hub (Ø{S.RKJXT_HUB[0]}) at full tilt in its {S.RANGE_HOLE} plate hole (-{rh_dn:g}, anodised -{an}), "
          f"radial, same offsets; the fulcrum {poff} off the axis on either side, the worse",
-         (S.RANGE_HOLE - gen - an) / 2 - hub_out - on_board_r,
+         (S.RANGE_HOLE - rh_dn - an) / 2 - hub_out - on_board_r,
          ("Controls", f"RKJXT hub at full tilt in its Ø{S.RANGE_HOLE} hole, radial")),
-        # at the worst offsets the hole's edge, not the lever's stop, may end a diagonal tilt (by up to about 0.25,
+        # at the worst offsets the hole's edge, not the lever's stop, may end a diagonal tilt (by up to about 0.15,
         # docs/architecture/mechanics.md): this row keeps the nominal hub clear of it
         (f"RKJXT hub (Ø{S.RKJXT_HUB[0]}) clear of its {S.RANGE_HOLE} plate hole on a diagonal, should the lever "
          f"reach {S.RKJXT_TILT:.0f} deg on both axes ({math.degrees(a_diag):.1f} deg), nominal (Alps gives no "
@@ -2245,10 +2270,10 @@ def control_fits(fv):
          ("Plate low", "RANGE knob's underside over the plate at full tilt, cocked on the lever by its play and "
                        "pushed")),
         (f"RANGE skirt (Ø{rk['skirt_d']} -{part_tol}, high knob) still covers its {S.RANGE_HOLE} mm plate hole "
-         f"(+{gen}) at full tilt, cocked and pushed or not, the fulcrum on either side, the worse: lever "
+         f"(+{rh_up}) at full tilt, cocked and pushed or not, the fulcrum on either side, the worse: lever "
          f"{on_board_r:.2f} off (board, plate, PCB, pins), the knob {rk_off:.3f} off it ({S.RANGE_PLAY} play, "
          "towards the groove)",
-         skirt_cover - (S.RANGE_HOLE + gen) / 2 - on_board_r - rk_off,
+         skirt_cover - (S.RANGE_HOLE + rh_up) / 2 - on_board_r - rk_off,
          ("Knobs", "RANGE skirt covers its hole at full tilt, cocked and pushed or not")),
         (f"RANGE pan arrows (from r {arrow_in:.2f}) outside the skirt seen square on (Ø{rk['skirt_d']} +{part_tol}), "
          f"lever {on_board_r:.2f} off, the knob {rk_off:.3f} off it",
@@ -2301,17 +2326,20 @@ def plate_fits(fv):
          0.01 - np.abs(np.r_[kr.ravel() - S.KEY_HOLE[2], orr.ravel() - r_out]).max()),
         (f"plate left over the encoder pockets, thin plate, beyond {S.CNC_WALL} (JLCCNC recommended; "
          f"{S.CNC_WALL_MIN} is its minimum)", t_min - S.EC11_POCKET[3] - S.CNC_WALL),
+        (f"plate left over the encoder pockets, thin plate, beyond {S.CNC_BLAST_FLOOR} (JLCCNC's floor for a "
+         "bead-blasted part)", t_min - S.EC11_POCKET[3] - S.CNC_BLAST_FLOOR,
+         ("Controls", f"Plate left over the encoder pockets on a thin plate, over {S.CNC_BLAST_FLOOR} mm (bead "
+                      "blasted)")),
         (f"plate left over the RANGE pocket, thin plate, beyond {S.CNC_WALL} (JLCCNC recommended; {S.CNC_WALL_MIN} "
          "is its minimum)", t_min - S.RANGE_POCKET[1] - S.CNC_WALL,
          ("Controls", f"Plate left over the RANGE pocket on a thin plate, over {S.CNC_WALL} mm")),
-        (f"amber legends {legend_off:.2f} from the nearest hole edge ({legend_at}, at their largest), beyond the "
-         f"front edge break ({S.FRONT_BREAK} at most): what is left is for the UV print's register, which JLCCNC "
-         "does not state", legend_off - S.FRONT_BREAK,
-         ("Caps", "Amber legends beyond the largest key hole's edge break, for the UV print's register")),
-        (f"plate marking strokes: UV print {marks['UV_AMBER']:.3f} at the thinnest, laser {marks['LASER']:.3f} "
-         "(measured on the layers make_plate_art.py builds and writes to the DXF), beyond "
-         f"{S.MARK_STROKE_MIN} (JLCCNC's UV print; the laser marking is held "
-         "to the same)", min(marks.values()) - S.MARK_STROKE_MIN),
+        (f"shift legends (laser) {legend_off:.2f} from the nearest hole edge ({legend_at}, at their largest), "
+         f"beyond the front edge break ({S.FRONT_BREAK} at most): what is left is for the marking's register, which "
+         "JLCCNC does not state", legend_off - S.FRONT_BREAK,
+         ("Caps", "Shift legends beyond the largest key hole's edge break, for the laser marking's register")),
+        (f"plate marking strokes (laser) {marks:.3f} at the thinnest (measured on the layer make_plate_art.py builds "
+         f"and writes to the DXF), beyond {S.MARK_STROKE_MIN} (JLCCNC's least line for its marking, given for the "
+         "print; it gives no figure for the laser)", marks - S.MARK_STROKE_MIN),
         (f"plate, body and board as placed share no volume: plate and body {shared[0]:.4f}, plate and board "
          f"{shared[1]:.4f}, body and board {shared[2]:.4f} mm3 (the plate as built, body.step, the board's outline "
          f"{S.PCB_T} thick), within 0.01", 0.01 - max(shared), "mm3"),
@@ -2524,32 +2552,56 @@ def build_fits(fv):
     ]
 
 
+# docs/building/ordering.md orders the light pipes in its JLC3DP table and its shopping list, make_knobs.PIPE_ORDER
+# in each.
+ORDERING_DOC = HERE.parent / "docs" / "building" / "ordering.md"
+
+
+def ordered_pipes():
+    """how many light pipes ORDERING_DOC orders: its JLC3DP table's quantity of lightpipes.step, then its shopping
+    list's."""
+    txt = ORDERING_DOC.read_text(encoding="utf-8")
+    return [int(n) for pat in (r"^\| `lightpipes\.step` \| (\d+) \|", r"^\| ☐ \| Light pipes \| (\d+)\b")
+            for n in re.findall(pat, txt, re.M)]
+
+
 def light_pipe_fits(fv):
-    """Light pipes: the pipes in their holes, the pair as built, the light holes and their webs."""
-    pp, lt_up, lt_dn, bar_m, d, back_lo = fv.pp, fv.lt_up, fv.lt_dn, fv.bar_m, fv.d, fv.back_lo
+    """Light pipes: the pipes in their holes, the part as built, the light holes and their webs."""
+    pp, lt_up, lt_dn, pipe_m, d, back_lo = fv.pp, fv.lt_up, fv.lt_dn, fv.pipe_m, fv.d, fv.back_lo
     back_hi, face_lo, board, caps, pm, pt = fv.back_hi, fv.face_lo, fv.board, fv.caps, fv.pm, fv.pt
+    part = "pipe bar" if S.PIPE_ON_BAR else "pipe"
     rows = [
         (f"light pipe fits its hole ({pp['clear']} under, hole +{lt_up}/-{lt_dn:g} before anodising), beyond "
          f"anodising ({pp['anodise']}) and resin (+{pp['resin']})", pp["clear"] - lt_dn - pp["anodise"] - pp["resin"],
          ("Light pipes", "Rod in its hole, on the diameter")),
-        (f"light pipes as built (all {K.PIPES}, on the bar as ordered): base Ø{bar_m['base_d'][0]:.2f} x "
-         f"{bar_m['base_len'][0]:.2f}, rod Ø{bar_m['rod_d'][0]:.2f}, {bar_m['len'][0]:.2f} long in all (measured on "
-         f"lightpipes.step) are the stack's (Ø{pp['base_d']} x {pp['base_len']}, Ø{d - pp['clear']:g}, {pp['len']:g})",
-         0.01 - max(*(abs(v - pp["base_d"]) for v in bar_m["base_d"]),
-                    *(abs(v - pp["base_len"]) for v in bar_m["base_len"]),
-                    *(abs(v - (d - pp["clear"])) for v in bar_m["rod_d"]),
-                    *(abs(v - pp["len"]) for v in bar_m["len"]))),
-        (f"light pipe bar as built: necks Ø{bar_m['neck_d'][0]:.2f} x {bar_m['neck_len'][0]:.2f}, bar "
-         f"{bar_m['bar'][0]:.2f} x {bar_m['bar'][1]:.2f} (measured on lightpipes.step) are the stack's "
-         f"(Ø{pp['neck_d']} x {pp['neck_len']}, {pp['bar'][0]} x {pp['bar'][1]})",
-         0.01 - max(*(abs(v - pp["neck_d"]) for v in bar_m["neck_d"]),
-                    *(abs(v - pp["neck_len"]) for v in bar_m["neck_len"]),
-                    *(abs(v - n) for v, n in zip(bar_m["bar"], pp["bar"], strict=True)))),
-        (f"light pipe bar {' x '.join(f'{v:.1f}' for v in bar_m['size'])} over all (measured), beyond JLC3DP's "
+        (f"light pipes as built ({f'all {K.PIPES}, on the bar' if S.PIPE_ON_BAR else 'one pipe'} as ordered): base "
+         f"Ø{pipe_m['base_d'][0]:.2f} x {pipe_m['base_len'][0]:.2f}, rod Ø{pipe_m['rod_d'][0]:.2f}, "
+         f"{pipe_m['len'][0]:.2f} long in all (measured on lightpipes.step) are the stack's (Ø{pp['base_d']} x "
+         f"{pp['base_len']}, Ø{d - pp['clear']:g}, {pp['len']:g})",
+         0.01 - max(*(abs(v - pp["base_d"]) for v in pipe_m["base_d"]),
+                    *(abs(v - pp["base_len"]) for v in pipe_m["base_len"]),
+                    *(abs(v - (d - pp["clear"])) for v in pipe_m["rod_d"]),
+                    *(abs(v - pp["len"]) for v in pipe_m["len"]))),
+        (f"light {part} {' x '.join(f'{v:.2f}' for v in pipe_m['size'])} over all (measured), beyond JLC3DP's "
          f"least resin part ({' x '.join(f'{v:g}' for v in S.RESIN_PART_MIN)})",
-         min(v - n for v, n in zip(bar_m["size"], S.RESIN_PART_MIN, strict=True))),
-        (f"light pipe snap-off necks ({pp['neck_d']}, the resin minimum) inside the base bottom (-{pp['resin']})",
-         (pp["base_d"] - pp["resin"]) / 2 - pp["neck_d"] / 2),
+         min(v - n for v, n in zip(pipe_m["size"], S.RESIN_PART_MIN, strict=True))),
+        (f"light pipes ordered in docs/building/ordering.md (its JLC3DP table, its shopping list: "
+         f"{', '.join(map(str, ordered_pipes())) or 'none found'}) are make_knobs.PIPE_ORDER ({K.PIPE_ORDER}, "
+         f"{K.PIPES} and a spare each)", 0.01 if ordered_pipes() == [K.PIPE_ORDER] * 2 else -1.0),
+    ]
+    if S.PIPE_ON_BAR:                                 # the fallback: the pipes on a bar
+        pb = S.PIPE_BAR
+        rows += [
+            (f"light pipe bar as built: necks Ø{pipe_m['neck_d'][0]:.2f} x {pipe_m['neck_len'][0]:.2f}, bar "
+             f"{pipe_m['bar'][0]:.2f} x {pipe_m['bar'][1]:.2f} (measured on lightpipes.step) are the stack's "
+             f"(Ø{pb['neck_d']} x {pb['neck_len']}, {pb['bar'][0]} x {pb['bar'][1]})",
+             0.01 - max(*(abs(v - pb["neck_d"]) for v in pipe_m["neck_d"]),
+                        *(abs(v - pb["neck_len"]) for v in pipe_m["neck_len"]),
+                        *(abs(v - n) for v, n in zip(pipe_m["bar"], pb["bar"], strict=True)))),
+            (f"light pipe snap-off necks ({pb['neck_d']}, the resin minimum) inside the base bottom (-{pp['resin']})",
+             (pp["base_d"] - pp["resin"]) / 2 - pb["neck_d"] / 2),
+        ]
+    rows += [
         *pipe_rows(back_lo, back_hi, face_lo, board, caps),
     ]
     lights = pm["lights"].values()
@@ -2579,7 +2631,7 @@ def light_pipe_fits(fv):
 
 def clearances(plate, outer, inner, range_knob, knobs):
     """clearances that must stay positive, with the inner knob pushed down; each one can fail. Measured where a
-    row says so: on the plate and knob solids, the light pipe bar, the body STL and STEP and the cap zips. knobs:
+    row says so: on the plate and knob solids, the light pipe part, the body STL and STEP and the cap zips. knobs:
     the mesh of every knob make_knobs.py writes, {(FLUTES name, the bore's number): mesh}."""
     fv = fit_values(plate, outer, inner, range_knob, knobs)
     groups = (knob_fits, control_fits, plate_fits, cap_fits, boss_fits, body_fits,

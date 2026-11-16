@@ -79,9 +79,12 @@ PLANES = {"In1": "GND", "In2": "3V3"}
 KEY_DX, KEY_DY, KEY_PAD, KEY_DRILL = 3.25, 2.25, 1.8, 1.0
 DIO_DX, DIO_W, DIO_H = 1.65, 1.0, 1.3
 ENC_PAD, ENC_DRILL = 1.8, 1.2   # Bourns PEC11D: pin holes 1.2 +0.1/-0
-# the encoders' lug slots, Bourns' recommended 1.5 x 2.6 (+0.1 / -0) and JLC's own footprint's: 1.73 long to 1
-# wide, under JLCPCB's 2:1 for slots, but 1.3 wide or 3.0 long would leave both (ordering.md's review questions)
-SLOT = (1.5, 2.6)
+# the encoders' lug slots: 1.5 x 3.0, JLCPCB's 2:1 for slots, where Bourns' recommended 1.5 x 2.6 (+0.1 / -0) and JLC's
+# own footprint's (1.73 long to 1 wide) are under it. The lugs are soldered in their slots, so the 0.4 mm of extra
+# length only adds solder; a 1.3 wide slot would not take the 1.2 mm lug with room for solder. Their pads keep a
+# 0.5 mm ring all round (2.5 x 4.0), over the 0.3 JLCPCB asks for round a slot: the lugs take the knob push.
+SLOT = (1.5, 3.0)
+SLOT_RING = 0.5
 
 COL_PITCH = 11.85
 # Key columns and rows count from 0 in this file, as in COLS, ROWS and the key names (K12: row 1, column 2).
@@ -115,7 +118,7 @@ TITLE = ("Avionics Panel rev 1 - RP2040 - USB-C", (COLS[2] + COLS[3]) / 2, 2.6)
 # 5.925 mm), where the SHIFT cap does not stand in front of it. FREQ (the FREQ knob's mode, on GP14, the last free
 # GPIO) at the bottom of the RADIO box, midway between columns 5 and 6, between VFR/IDENT and NAV/ADF: GP6's fixed
 # lane at y 28.2 keeps its cutout's copper clearance from y 29.825, and below it the plate hole nears the FMS frame
-# line (0.85 mm at y 29.9, 0.7 with the hole 0.1 large and 0.1 off, as the amber legends keep to the key holes).
+# line (0.85 mm at y 29.9, 0.7 with the hole 0.1 large and 0.1 off, as the shift legends keep to the key holes).
 LEDS = {"SHIFT": ((COLS[3], ROWS[3] + 5.75), "GP12", "amber"),
         "UNIT": ((COLS[3] + 5.5, (ROWS[2] + ROWS[3]) / 2), "GP15", "white"),
         "FREQ": (((COLS[5] + COLS[6]) / 2, 29.9), "GP14", "green")}
@@ -301,7 +304,8 @@ def add_encoder(pads, ref, cx, cy, dual, a, b, a2=None, b2=None, push_k=None, va
         for dx, nm, net in ((-2.5, "A2", a2), (0, "C2", "GND"), (2.5, "B2", b2)):
             pads.append(th(f"{ref}.{nm}", net, cx + dx, cy - 9.5))
     for s in (-1, 1):       # metal mounting lugs on GND through the plane: an ESD path from the shaft
-        pads.append(Pad(f"{ref}.MP{s}", "GND", cx + s * 5.5, cy, "obround", 2.5, 3.6, "FB",
+        pads.append(Pad(f"{ref}.MP{s}", "GND", cx + s * 5.5, cy, "obround",
+                        SLOT[0] + 2 * SLOT_RING, SLOT[1] + 2 * SLOT_RING, "FB",
                         drill=SLOT[0], slot=SLOT))
     # JLC's footprint of C19270361 has its origin midway between the outer pin rows (y +7.5 and -9.5), 1 mm north
     # of the shaft; rotation 0 has its switch pins (4, 5) on the north side, as here
@@ -742,7 +746,7 @@ def build():
     add_rkjxt(pads, "RANGE", *RANGE, "GP28", "GP29")
     for name, ((lx, ly), gp, colour) in LEDS.items():
         add_led(pads, name, lx, ly, gp, colour, cathode_east=name in LED_CATHODE_EAST, switch=LED_SWITCH.get(name))
-    # BOOT: bridge pads (QSPI_SS via R_BOOT), bridged with a small screwdriver through the body floor
+    # BOOT: bridge pads (QSPI_SS via R_BOOT), bridged with the 2 mm hex key's tip through the body floor
     bx, by = BOOT
     pads.append(smd("JP_BOOT.1", "BOOT_SW", bx - 0.9, by, 1.2, 1.8, paste=False))
     pads.append(smd("JP_BOOT.2", "GND", bx + 0.9, by, 1.2, 1.8, paste=False))

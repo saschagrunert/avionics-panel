@@ -33,23 +33,35 @@ A board that arrives with a rail anyway, or with a V-cut (scored and snapped) ed
 
 ## Choosing the cap set
 
-The order has four sets of 28 caps (A to D, one to four dimples on the bottom) that differ only in their
-grip ([why](../architecture/mechanics.md#key-caps)). Try one cap of each set on a key of the board (no
-tools), from loose to tight (C, B, A, D), and stop at the first set that holds, so no tight cap has to be
-pulled off a soldered key. With the hand-soldering option, try them on a loose key.
+The caps come in four sets (A to D, one to four dimples on the bottom) that differ only in their grip
+([why](../architecture/mechanics.md#key-caps)). The order has set B in full, the likeliest to fit, and one
+gauge cap of each other set: the AP cap of A, C and D. Before fitting the caps, try the gauges with set B's
+AP cap on the AP key of the board (no tools), from loose to tight: C, B, A, D. Stop as soon as one of
+the cases below is settled: once B holds, A and D need not be tried. With the hand-soldering option, try them
+on a loose key.
 
 - A cap that holds pushes down by hand until it sits on the plunger top (it stops hard there), stays on when
   the board is turned over and does not wobble.
 - Too loose: it falls off or rocks. Too tight: it stops short of the plunger top or needs more than a firm
   thumb.
-- If even C is too tight, raise `CAP_SETS_MOVE` in [mech/stack.py](../../mech/stack.py) by 0.1 mm for each
-  set it missed by; if even D is too loose, lower it the same way (up to 0.3 mm either way; one round may not
-  do). Run [`./build.sh`](../architecture/generators.md#build) and order `caps-A.zip` to `caps-D.zip` again
-  from `production/` (or the `caps-single-*.zip` files, if JLC3DP asked for them): each round reprints all four
-  sets.
+- B holds: keep set B, also if C held as well; it is the set in hand.
+- B is too loose: the first of A and D that holds names the set that fits better. B is too tight: C, if it
+  held. Order that set's zip, `caps-A.zip`, `caps-C.zip` or `caps-D.zip`, from the same download as the
+  first order (or its `caps-single-*.zip`, if JLC3DP asked for single caps), and keep set B for the meantime.
+- Two neighbours miss in opposite directions, the looser one too loose and the tighter one too tight (B too
+  tight and C too loose, B too loose and A too tight, or A too loose and D too tight): the print sits between
+  them. B and its neighbour: try another B cap on a second key; keep B if it holds there, otherwise order the
+  neighbour's set. A and D: try the A gauge on a second key; order set A if it holds there, otherwise set D.
+- None holds (even C too tight, or even D too loose): in [mech/stack.py](../../mech/stack.py) raise
+  `CAP_SETS_MOVE` by 0.1 mm for each set it missed by if C was too tight, or lower it the same way if D was
+  too loose (up to 0.3 mm either way), and set `full` in `CAP_ORDER` to that end set, C after a raise or D
+  after a lowering. Run [`./build.sh`](../architecture/generators.md#build) and order only that set in full
+  from `production/` (`caps-C.zip` or `caps-D.zip`): after a move, gauges of the other sets tell nothing. Try
+  it the same way; if it still misses, move again (one round may not do).
 
-Keep the other three sets. The print varies a little from cap to cap: one that turns out loose or tight on
-its own key when the caps go on is swapped for the same legend from the next tighter or looser set.
+The print varies a little from cap to cap. A cap that turns out loose or tight on its own key when the caps
+go on is ordered again from the next tighter or looser set: its zip is in `caps-single-<set>.zip`
+(`cap-A-05-COM-1.zip` and so on). The AP key keeps the cap that held on it.
 
 ## Flash and test
 
@@ -198,7 +210,7 @@ in until CIRCUITPY appears (about 2 s; `boot.py` reads SHIFT up to 1 s after pow
 missed). A board without `boot.py` (a fresh CircuitPython install) always shows them. Test and map the
 joysticks only after a plain replug ([why](../using/mapping.md#update-mode-and-guids)).
 
-The HOME key (amber legend UNIT) held while plugging in switches between the joysticks and the
+The HOME key (shift legend UNIT) held while plugging in switches between the joysticks and the
 [keyboard mode](../using/keyboard.md), which the panel keeps until it is switched back, also with SHIFT held
 for an update. Bring-up uses the joysticks: if the SHIFT, UNIT and FREQ lights take turns after plugging in,
 the panel is in keyboard mode.
@@ -211,11 +223,11 @@ files' new version (step 4.2 of [Flash and test](#flash-and-test)).
 
 Stay on CircuitPython 9.2.9, the version the firmware is written for: circuitpython.org's Pico page offers
 10.x by default, so take the UF2 from the link in step 3 of [Flash and test](#flash-and-test). To install it
-again, or if CircuitPython ever stops booting: bridge the two BOOT pads, under the 5 mm hole in the body
-floor, with the tip of the 2 mm hex key or a small screwdriver, then connect USB with the bridge held, and
-start again at step 3. A new UF2 keeps the files on CIRCUITPY, `boot.py` too; if SHIFT no longer brings the
-drive back, copy Raspberry Pi's [`flash_nuke.uf2`](https://datasheets.raspberrypi.com/soft/flash_nuke.uf2) (it
-downloads as `nuke_universal.uf2`) to RPI-RP2 first, which erases the whole flash.
+again, or if CircuitPython ever stops booting: bridge the two BOOT pads, under the 6.1 mm hole in the body
+floor, with the tip of the 2 mm hex key, then connect USB with the bridge held, and start again at step 3. A
+new UF2 keeps the files on CIRCUITPY, `boot.py` too; if SHIFT no longer brings the drive back, copy Raspberry
+Pi's [`flash_nuke.uf2`](https://datasheets.raspberrypi.com/soft/flash_nuke.uf2) (it downloads as
+`nuke_universal.uf2`) to RPI-RP2 first, which erases the whole flash.
 
 ## Pico bench
 

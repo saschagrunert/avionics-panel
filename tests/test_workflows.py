@@ -325,7 +325,7 @@ def test_a_held_shifted_tilt_keeps_shift():
 
 
 def test_shifted_keys():
-    # each key with SHIFT sends its amber legend from controls.md's key tables, a key without one S_<key>
+    # each key with SHIFT sends its shift legend from controls.md's key tables, a key without one S_<key>
     # (HOME, UNIT, has a test of its own)
     legend = {"½ BANK": "HALF_BANK", "ADF": "ADF_AUDIO", "NAV 1": "NAV1_AUDIO", "NAV 2": "NAV2_AUDIO",
               "DME": "DME_AUDIO", "121.5": "COM_121_5", "ADF ⇆": "ADF_SWAP"}

@@ -1,6 +1,6 @@
 """Labelled key caps for the Avionics Panel rev 1 (full-colour print: OBJ + MTL + PNG texture).
 
-rev 1: one label per cap in one size (the shift legends are UV printed on the plate), amber SHIFT label.
+rev 1: one label per cap in one size (the shift legends are laser marked on the plate), amber SHIFT label.
 
 28 caps (9.6 x 6.4 mm, 5.7 mm tall) for 6x6 mm tactile switches, 9.5 mm high with a round plunger that tapers
 from 3.12 mm near its top to 3.51 mm at the switch body (TE 1-1825910-4 = FSM8JH, TE's STEP model). The socket

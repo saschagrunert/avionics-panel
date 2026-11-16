@@ -64,7 +64,7 @@ def test_the_cards_name_the_keys_as_the_simulator_does():
 
 
 def test_the_card_uses_the_panels_legends():
-    # the keys in the panel's order, by their caps' legends and their amber legends; the knobs by their legends'
+    # the keys in the panel's order, by their caps' legends and their shift legends; the knobs by their legends'
     # words (SHIFT sends nothing of its own, and HOME with SHIFT is UNIT)
     keys = card.caps()
     assert [[legend for legend, _, _, _ in row] for row in keys] == [[c for c, _ in r]
@@ -108,7 +108,7 @@ SAME_TITLE_SHIFTED = ("RANGE", "PAN", "PTR")   # RANGE's rows keep their titles 
 
 
 def test_each_row_names_its_own_buttons():
-    # the keys' rows by the caps' legends (stack.KEY_LEGENDS, not card.caps()), plain and amber; the knobs' rows
+    # the keys' rows by the caps' legends (stack.KEY_LEGENDS, not card.caps()), plain and shift; the knobs' rows
     # by KNOB_ROWS
     expected = []
     for row in card.stack().KEY_LEGENDS:

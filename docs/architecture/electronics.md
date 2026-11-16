@@ -374,6 +374,9 @@ Via covering Tented matches the Gerbers: the mask covers every via on both sides
 JLCPCB keeps both, because the mask Gerber decides for a Gerber order. Should it tent them as well, only the
 1V1 probe points are lost.
 
+The pads are ENIG: flat for the RP2040's 0.4 mm QFN, which HASL is not, and JLCPCB's choice for slot rings
+under 0.3 mm, as round J1's shell slots (0.2 mm).
+
 ## Through-hole parts
 
 The through-hole parts are soldered from the bottom, among the SMD parts: by JLCPCB in full assembly, by hand
@@ -394,7 +397,7 @@ Our drills follow the datasheets; `check.py` wants each plated hole inside its d
 | --- | --- | --- | --- |
 | Key pins (TE 1-1825910-4) | 1.0 mm | 1.2 mm | 0.99 ±0.05 mm, on 6.50 x 4.50 mm |
 | Encoder pins (Bourns PEC11D) | 1.2 mm | 1.1 mm | 1.2 +0.1/-0 mm |
-| Encoder lug slots | 1.5 x 2.6 mm | 1.5 x 2.6 mm | 1.5 x 2.6 mm |
+| Encoder lug slots | 1.5 x 3.0 mm (JLCPCB's 2:1 for slots), in 2.5 x 4.0 mm pads (0.5 mm ring) | 1.5 x 2.6 mm | 1.5 x 2.6 mm |
 | RANGE control terminals (Alps RKJXT1F42001, RKJXT below) | 1.1 mm | 1.2 mm | 1.0 +0.2/-0 mm |
 | RKJXT locating peg (Ø1 -0.1) | 1.3 mm, unplated | 1.3 mm | 1.1 +0.1/-0 mm |
 
