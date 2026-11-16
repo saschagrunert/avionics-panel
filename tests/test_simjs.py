@@ -29,7 +29,8 @@ import time
 import pytest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-TIMEOUT_S = 10
+TIMEOUT_S = 30       # a wait for the page: long, as build.sh runs the tests beside the solids, board checks and renders
+CALL_S = 30          # a call to the browser (the start, an evaluate, an input event) answers within this, or fails
 VIEWPORT = {"width": 480, "height": 360}       # small: software WebGL draws few pixels faster
 ARGS = ["--enable-unsafe-swiftshader", "--use-angle=swiftshader"]     # WebGL in software, without a GPU
 # without WAYLAND_DISPLAY: on a Wayland desktop SwiftShader asks Vulkan for a Wayland surface it lacks, and WebGL
@@ -37,13 +38,17 @@ ARGS = ["--enable-unsafe-swiftshader", "--use-angle=swiftshader"]     # WebGL in
 ENV = {k: v for k, v in os.environ.items() if k != "WAYLAND_DISPLAY"}
 GAP_S = 0.4          # longer than sim.js's WHEEL_GAP_MS: the next wheel event starts a new spin
 # before the page's scripts: the actions the page sends, by client ([client, line]; play.js's engine takes them as
-# client "browser"), the states the engine gives, the intervals of the timers started, the statuses that refuse the
-# next requests with actions, without the server (__refuse; an empty beat goes through), and the view index.html
-# hands sim.js (V); __playThrows, set before it, makes playPanel throw, and __fail, a RegExp, fails the requests for
-# the URLs it matches as a network error does
+# client "browser"), the states the engine gives, the intervals of the timers started, the WebAssembly modules
+# started (a count), the statuses that refuse the next requests with actions, without the server (__refuse; an
+# empty beat goes through), and the view index.html hands sim.js (V); __playThrows, set before it, makes playPanel
+# throw, and __fail, a RegExp, fails the requests for the URLs it matches as a network error does
 INIT = r"""
 localStorage.setItem('avionics-panel-quiet', '1');      // the sound off: no audio device to start
-window.__acts = []; window.__refuse = []; window.__states = []; window.__intervals = [];
+window.__acts = []; window.__refuse = []; window.__states = []; window.__intervals = []; window.__wasm = 0;
+for (const name of ['instantiate', 'instantiateStreaming']) {       // the WebAssembly modules started
+  const start = WebAssembly[name].bind(WebAssembly);
+  WebAssembly[name] = (...args) => { window.__wasm++; return start(...args); };
+}
 const fetched = window.fetch.bind(window), every = window.setInterval.bind(window);
 window.setInterval = (f, ms) => { window.__intervals.push(ms); return every(f, ms); };
 window.fetch = (url, options) => {
@@ -96,7 +101,8 @@ page.Handler.do_GET = lambda self, head=False: (self.send_error(404) if urlsplit
 page.main()
 """
 # Playwright for Node, run by the tests as a server of their own: argv[1] the options, then one JSON command a
-# line on stdin, ["evaluate", expression] or ["cdp", method, params], and its {result} or {error} on stdout
+# line on stdin, ["evaluate", expression] or ["cdp", method, params], and its {result} or {error} on stdout; a page
+# that crashes ends it with {crashed}
 NODE = r"""
 const { chromium } = require('playwright');
 const readline = require('readline');
@@ -108,6 +114,7 @@ const readline = require('readline');
   const context = await browser.newContext({ hasTouch: true, reducedMotion: 'reduce', viewport });
   await context.addInitScript(init);
   const page = await context.newPage(), cdp = await context.newCDPSession(page);
+  page.on('crash', () => { console.log(JSON.stringify({ crashed: true })); process.exit(1); });
   await page.goto(url);
   console.log(JSON.stringify({ ready: true }));
   for await (const line of readline.createInterface({ input: process.stdin })) {
@@ -128,62 +135,125 @@ def missing(why):
     pytest.skip(why)
 
 
-class PythonPlaywright:
+class Browser:
+    """What both kinds share: each call to the browser fails, rather than waits for ever, when the page crashes or
+    the browser has not answered within CALL_S. Either kills the browser and Playwright, which fails the call:
+    Playwright fails the calls a crashed page has on its own session, but not those on a CDP session (an input
+    event the page crashed in waits for its answer for ever, even once the browser is gone), and an evaluate has no
+    timeout."""
+    crashed = killed = False
+
+    def call(self, what, f, *args):
+        watchdog = threading.Timer(CALL_S, self.hung)
+        watchdog.start()
+        try:
+            return f(*args)
+        except Exception:
+            if self.crashed:
+                pytest.fail(f"the page crashed: {what}")
+            if self.killed:
+                pytest.fail(f"the browser did not answer within {CALL_S} s: {what}")
+            raise
+        finally:
+            watchdog.cancel()
+
+    def hung(self):
+        self.killed = True
+        self.kill()
+
+    def crash(self, *_):
+        self.crashed = True
+        self.kill()
+
+    def evaluate(self, expression):
+        return self.call(expression, self._evaluate, expression)
+
+    def cdp(self, method, params):
+        return self.call(method, self._cdp, method, params)
+
+
+class PythonPlaywright(Browser):
     def __init__(self, url, init):
         from playwright.sync_api import Error, sync_playwright
         self.playwright = sync_playwright().start()
         try:
-            self.browser = self.playwright.chromium.launch(args=ARGS, env=ENV)
+            self.browser = self.playwright.chromium.launch(args=ARGS, env=ENV, timeout=CALL_S * 1000)
         except Error as e:
             self.playwright.stop()
             missing(f"Playwright for Python has no Chromium: {str(e).splitlines()[0]}")
+        info = self.browser.new_browser_cdp_session().send("SystemInfo.getProcessInfo")["processInfo"]
+        self.pid = next(p["id"] for p in info if p["type"] == "browser")
+        self.driver = self.playwright._impl_obj._connection._transport._proc.pid     # Playwright's node
+        try:
+            self.call(f"the page at {url}", self._open, url, init)
+        except BaseException:
+            self.close()
+            raise
+
+    def _open(self, url, init):
         context = self.browser.new_context(has_touch=True, reduced_motion="reduce", viewport=VIEWPORT)
         context.add_init_script(init)
         self.page = context.new_page()
+        self.page.on("crash", self.crash)
         self.session = context.new_cdp_session(self.page)
-        info = self.browser.new_browser_cdp_session().send("SystemInfo.getProcessInfo")["processInfo"]
-        self.pid = next(p["id"] for p in info if p["type"] == "browser")
-        self.page.goto(url)
+        self.page.goto(url, timeout=CALL_S * 1000)
 
-    def evaluate(self, expression):
+    def _evaluate(self, expression):
         return self.page.evaluate(expression)
 
-    def cdp(self, method, params):
+    def _cdp(self, method, params):
         return self.session.send(method, params)
+
+    def kill(self, *pids):
+        for pid in pids or (self.pid, self.driver):     # the driver's end fails the calls waiting on the CDP session
+            with contextlib.suppress(OSError):
+                os.kill(pid, getattr(signal, "SIGKILL", signal.SIGTERM))
 
     def close(self):
         # ended at once: browser.close() waits seconds for the page to unload, as Playwright for Node's would
-        with contextlib.suppress(OSError):
-            os.kill(self.pid, getattr(signal, "SIGKILL", signal.SIGTERM))
+        self.kill(self.pid)
         self.playwright.stop()
 
 
-class NodePlaywright:
+class NodePlaywright(Browser):
     def __init__(self, url, node, init):
         options = {"url": url, "init": init, "viewport": VIEWPORT, "args": ARGS}
         self.process = subprocess.Popen([node, "-e", NODE, json.dumps(options)], stdin=subprocess.PIPE,
                                         stdout=subprocess.PIPE, text=True, cwd=ROOT, env=ENV)
-        first = json.loads(self.process.stdout.readline() or '{"missing": "node ended"}')
+        try:
+            first = self.call(f"the page at {url}", self._answer)
+        except BaseException:
+            self.close()
+            raise
         if "missing" in first:
             self.close()
             missing(f"Playwright for Node has no Chromium: {first['missing'].splitlines()[0]}")
 
-    def call(self, *command):
+    def _answer(self):
+        answer = json.loads(self.process.stdout.readline() or '{"error": "node ended"}')
+        if "crashed" in answer:
+            self.crashed = True
+        if "error" in answer or "crashed" in answer:
+            raise RuntimeError(answer.get("error", "the page crashed"))
+        return answer
+
+    def _send(self, *command):
         self.process.stdin.write(json.dumps(command) + "\n")
         self.process.stdin.flush()
-        answer = json.loads(self.process.stdout.readline())
-        if "error" in answer:
-            raise RuntimeError(answer["error"])
-        return answer["result"]
+        return self._answer()["result"]
 
-    def evaluate(self, expression):
-        return self.call("evaluate", expression)
+    def _evaluate(self, expression):
+        return self._send("evaluate", expression)
 
-    def cdp(self, method, params):
-        return self.call("cdp", method, params)
+    def _cdp(self, method, params):
+        return self._send("cdp", method, params)
+
+    def kill(self):
+        self.process.kill()
 
     def close(self):
-        self.process.stdin.close()
+        with contextlib.suppress(OSError):
+            self.process.stdin.close()
         try:
             self.process.wait(TIMEOUT_S)
         except subprocess.TimeoutExpired:
@@ -277,12 +347,14 @@ class Panel:
     def lines(self, since):
         """The lines the page sent since a mark(), once it has been quiet for a moment and drawn what they changed
         (settle())"""
+        end = time.monotonic() + TIMEOUT_S
         while True:
             before = self.acts(since)
             time.sleep(0.15)
             if self.acts(since) == before:
                 self.settle()
                 return [line for _, line in before]
+            assert time.monotonic() < end, f"still sending after {TIMEOUT_S} s: {before}"
 
     def settle(self):
         """Waits until the page draws its frames at once again. Software WebGL takes its time over a frame, and
@@ -382,15 +454,39 @@ def site(tmp_path_factory):
         yield url
 
 
+# the plain view (no ?play) is up
+VIEW = "document.readyState === 'complete' && !!document.querySelector('canvas')"
+
+
 def test_the_plain_view_loads_nothing_of_the_panel(site):
     # the view for looking only: no sim.js, play.js, MicroPython or firmware, and a link to the panel
-    page = Panel(url=site, ready="document.readyState === 'complete' && !!document.querySelector('canvas')")
+    page = Panel(url=site, ready=VIEW)
     try:
         time.sleep(0.5)
         loaded = page.evaluate("performance.getEntriesByType('resource').map(e => e.name)")
         assert any(name.endswith("/geometry.js") for name in loaded)
         assert not [name for name in loaded if re.search(r"sim\.js|play\.|micropython|firmware/", name)], loaded
         assert page.evaluate("document.querySelector('.hdr a').getAttribute('href')") == "?play"
+    finally:
+        page.stop()
+
+
+def test_a_page_that_crashes_or_does_not_answer_fails_the_test(site, monkeypatch):
+    # a page that crashes in an input event (Playwright leaves the CDP session's call waiting for ever), and an
+    # evaluate that never ends, each fail the test at once and say so
+    page = Panel(url=site, ready=VIEW)
+    try:
+        start = time.monotonic()
+        with pytest.raises(pytest.fail.Exception, match="the page crashed: Page.crash"):
+            page.browser.cdp("Page.crash", {})
+        assert time.monotonic() - start < CALL_S
+    finally:
+        page.stop()
+    page = Panel(url=site, ready=VIEW)
+    try:
+        monkeypatch.setitem(globals(), "CALL_S", 0.5)
+        with pytest.raises(pytest.fail.Exception, match="did not answer within 0.5 s: new Promise"):
+            page.evaluate("new Promise(() => {})")
     finally:
         page.stop()
 
@@ -491,11 +587,14 @@ def test_an_error_the_panel_alone_cannot_get_past_stops_it_and_says_so(tmp_path,
             assert page.evaluate("document.querySelector('.sim').classList.contains('none')")
             if start:
                 return
-            # hidden and shown again: a new MicroPython, whose panel.py starts without the error (STUCK empty)
+            # hidden and shown again: panel.py imported anew, without the error (STUCK empty), in the same
+            # MicroPython (a second one in the page would share the first one's tables in globalThis)
+            started = page.evaluate("window.__wasm")
             for hidden in ("true", "false"):
                 page.evaluate("Object.defineProperty(document, 'hidden', { configurable: true, get: () => "
                               f"{hidden} }}); document.dispatchEvent(new Event('visibilitychange'))")
             page.until(READY)
+            assert page.evaluate("window.__wasm") == started
             cap = page.evaluate("window.__cap('AP')")
             page.mouse("mousePressed", cap)
             page.until(f"{LINES}.includes('J1: AP')")
