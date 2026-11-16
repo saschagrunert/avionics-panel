@@ -149,7 +149,7 @@ def test_a_tap_in_a_knob_session_arms_for_arm_ms_from_the_tap():
     # not the rest of the knob's session; then the FREQ inner ring tunes COM again
     s = Sim()
     s.key("SHIFT"); s.turn("FREQ_INNER", 1); s.run(500)
-    s.p.key("SHIFT", True, s.t); tapped = s.t
+    s.p.key("SHIFT", True, s.t); tapped = s.t; s.run(30); s.p.key("SHIFT", False, s.t)
     check_pulse(light_trace(s, tapped + P.ARM_MS))
     s.take(); s.turn("FREQ_INNER", 1)
     assert s.take() == [(1, "COM_KHZ_UP")]
@@ -157,7 +157,7 @@ def test_a_tap_in_a_knob_session_arms_for_arm_ms_from_the_tap():
 
 def test_shift_light_pulses_before_an_armed_shift_drops():
     s = Sim()
-    s.p.key("SHIFT", True, s.t)                          # armed, no key follows: drops ARM_MS after the press
+    s.p.key("SHIFT", True, s.t); s.p.key("SHIFT", False, s.t)   # armed, no key follows: drops ARM_MS after it
     check_pulse(light_trace(s, s.t + P.ARM_MS))
 
 
@@ -176,7 +176,7 @@ def test_shift_light_pulses_before_a_released_push_drops_it():
 def test_pulse_follows_other_timings(monkeypatch):
     monkeypatch.setattr(P, "SHIFT_PULSE_MS", 100)        # 5 dim/bright pairs instead of 4
     s = Sim()
-    s.p.key("SHIFT", True, s.t)
+    s.p.key("SHIFT", True, s.t); s.p.key("SHIFT", False, s.t)
     check_pulse(light_trace(s, s.t + P.ARM_MS), pulse=100)
 
 
@@ -196,7 +196,7 @@ def test_inputs_read_after_shift_ran_out_are_plain():
     s.t += P.SESSION_MS + 30                             # stalled: time passed, no tick() ran
     s.turn("FREQ_OUTER", 1)                              # a late detent: plain, and no new session
     assert s.take() == [(1, "COM_MHZ_UP")] and not s.p.shift_active(s.t)
-    s.p.key("SHIFT", True, s.t)
+    s.p.key("SHIFT", True, s.t); s.p.key("SHIFT", False, s.t)   # a tap (held this long, it would lock)
     s.t += P.ARM_MS + 30
     s.key("AP")                                          # a late key: plain
     assert s.take() == [(1, "AP")]
@@ -1252,12 +1252,12 @@ def test_a_wait_for_the_host_moves_the_end_of_shift():
     # SHIFT armed, and the loop waits for the host past its ARM_MS: the light stayed lit during the wait, so a
     # key read after it goes out shifted, and SHIFT ends that much later; the same for a knob's session
     s = Sim()
-    s.p.key("SHIFT", True, s.t); s.run(P.ARM_MS - 100)
+    s.p.key("SHIFT", True, s.t); s.run(30); s.p.key("SHIFT", False, s.t); s.run(P.ARM_MS - 130)
     s.t += 300
     s.p.stalled(300)
     assert s.p.shift_active(s.t) and s.p.shift_level(s.t) != P.LIGHT_OFF
     s.key("VFR"); assert s.take() == [(1, "IDENT")]
-    s.p.key("SHIFT", True, s.t); s.run(P.ARM_MS - 1); s.p.stalled(5)
+    s.p.key("SHIFT", True, s.t); s.run(30); s.p.key("SHIFT", False, s.t); s.run(P.ARM_MS - 31); s.p.stalled(5)
     assert s.p.shift_active(s.t + 5) and not s.p.shift_active(s.t + 6)
     s.take(); s.p.turn("FMS_OUTER", 1, s.t); s.run(P.SESSION_MS - 1); s.p.stalled(5)
     assert s.p.shift_active(s.t + 5) and not s.p.shift_active(s.t + 6)
@@ -1716,7 +1716,7 @@ def test_shifted_repeat_stops_when_shift_is_armed_after_its_session_ended():
     s = Sim()
     hold_shifted_tilt(s)
     s.p.key("FMS_PUSH", True, s.t); s.p.key("SHIFT", True, s.t)
-    rest = light_and_edges(s, 2000)
+    rest = light_and_edges(s, P.LOCK_MS - 100)
     assert rest[0][0] == P.LIGHT_FULL and not any("S_PAN_UP" in names for _, names in rest)
 
 
@@ -2326,3 +2326,299 @@ def test_a_squawk_count_arriving_during_a_freq_count_waits_for_a_pause():
     s.p.key("SHIFT", True, t0 + 100); s.p.key("SHIFT", False, t0 + 110)
     s.p.turn("FREQ_OUTER", 1, t0 + 120)                                  # digit 2, in NAV's first gap
     assert s.p.flash == (t0 + PAUSE, 2)                                  # (not at its rest's end, t0 + 420)
+
+
+def hold_shift(s, ms=P.LOCK_MS + 100):
+    s.p.key("SHIFT", True, s.t); s.run(ms); s.p.key("SHIFT", False, s.t); s.run(100)
+
+
+def test_shift_held_lock_ms_locks_it():
+    # the press arms SHIFT as a tap does; held LOCK_MS it locks, not a ms before
+    s = Sim()
+    s.run(10); s.p.key("SHIFT", True, s.t); pressed = s.t
+    s.run(P.LOCK_MS - 1); assert not s.p.locked
+    s.run(1); assert s.p.locked and s.t == pressed + P.LOCK_MS
+    s.p.key("SHIFT", False, s.t); s.run(100); assert s.p.locked
+
+
+def test_a_locked_shift_shifts_every_key_until_a_tap():
+    s = Sim()
+    hold_shift(s)
+    for k in ("AP", "VFR", "VS", "COM1"):
+        s.key(k)
+    s.run(P.ARM_MS + P.SESSION_MS)                       # no time limit
+    s.key("APR")
+    assert [n for _, n in s.take()] == ["TEST", "IDENT", "S_VS", "NAV1_AUDIO", "BC"]
+    s.key("SHIFT"); assert not s.p.locked and s.p.shift_level(s.t) == P.LIGHT_OFF
+    s.key("AP"); assert s.take() == [(1, "AP")]
+
+
+def test_the_tap_that_unlocks_starts_no_hold():
+    s = Sim()
+    hold_shift(s)
+    hold_shift(s, 2 * P.LOCK_MS)                         # held long: still only the end of the lock
+    assert not s.p.locked
+    s.key("AP"); assert s.take() == [(1, "AP")]
+
+
+def test_a_locked_shift_shifts_the_knobs_with_no_time_limit():
+    # every knob shifted; a squawk entry goes on after a pause longer than SESSION_MS (the blinking light cannot
+    # warn of its end), and ends at another knob or a key, so the next one starts at the first digit again
+    s = Sim()
+    hold_shift(s)
+    s.turn("FREQ_OUTER", 1); s.turn("FREQ_INNER", 1)
+    s.run(P.SESSION_MS + 1000)
+    s.turn("FREQ_INNER", 1)                              # still digit 2
+    s.turn("ALTHDG_OUTER", 1)                            # another knob: BARO, and the entry ends
+    s.turn("FREQ_OUTER", 1); s.turn("FREQ_INNER", 1)     # a new entry: digit 2
+    s.key("VFR")                                         # IDENT, and the entry ends
+    s.turn("FREQ_INNER", 1)
+    s.turn("RANGE", 1)
+    assert [n for _, n in s.take()] == ["SQK_D2_UP", "SQK_D2_UP", "BARO_UP", "SQK_D2_UP", "IDENT", "SQK_D1_UP",
+                                        "S_RANGE_CW"]
+    assert s.p.locked
+
+
+def test_home_under_the_lock_switches_the_unit_and_keeps_the_lock():
+    s = Sim()
+    hold_shift(s)
+    s.key("HOME"); assert s.p.unit == 2 and s.p.locked
+    s.key("HOME"); assert s.p.unit == 1 and s.p.locked
+
+
+def test_up_and_dn_under_the_lock_are_held_as_after_a_tap():
+    s = Sim()
+    hold_shift(s)
+    s.p.key("UP", True, s.t); s.run(2000); s.p.key("UP", False, s.t); s.run(200)
+    assert s.take() == [(1, "S_UP")]
+
+
+def test_the_locked_light_blinks_dim_and_bright_never_dark():
+    # starts dim at the lock, LOCK_BLINK_MS each, and goes dark only at the unlocking tap
+    s = Sim()
+    s.run(10); s.p.key("SHIFT", True, s.t)
+    s.run(P.LOCK_MS); locked = s.t
+    levels = []
+    for _ in range(4 * P.LOCK_BLINK_MS):
+        levels.append(s.p.shift_level(s.t)); s.run(1)
+    want = [P.LIGHT_DIM] * P.LOCK_BLINK_MS + [P.LIGHT_FULL] * P.LOCK_BLINK_MS
+    assert levels == want * 2 and s.t == locked + 4 * P.LOCK_BLINK_MS
+    s.p.key("SHIFT", False, s.t); s.run(100)
+    s.key("SHIFT"); assert s.p.shift_level(s.t) == P.LIGHT_OFF
+
+
+def test_usb_going_down_ends_the_lock():
+    s = Sim()
+    hold_shift(s)
+    go_dark(s)
+    assert not s.p.locked
+    s.key("AP"); assert s.take() == [(1, "AP")]
+    s.p.dark = True                                      # no lock while dark either, nor once USB is back with
+    s.p.key("SHIFT", True, s.t); s.run(500)              # the press made while dark still held
+    s.p.dark = False; s.run(2 * P.LOCK_MS); s.p.key("SHIFT", False, s.t); s.run(100)
+    assert not s.p.locked
+
+
+def test_a_release_read_late_ends_the_hold_at_its_scan():
+    # a pass that waited: the release was scanned 300 ms after the press, read 1500 ms after it. No lock, as
+    # SHIFT was held 300 ms; a release scanned LOCK_MS after the press locks
+    for scanned, locks in ((300, False), (P.LOCK_MS, True)):
+        s = Sim()
+        s.run(10); s.p.key("SHIFT", True, s.t); pressed = s.t
+        s.t += 1500                                      # no tick() ran
+        s.p.key("SHIFT", False, s.t, at=pressed + scanned); s.run(100)
+        assert s.p.locked == locks, scanned
+
+
+def test_a_bounce_keeps_the_hold():
+    s = Sim()
+    s.run(10); s.p.key("SHIFT", True, s.t); s.run(500)
+    s.p.key("SHIFT", False, s.t); s.run(10); s.p.key("SHIFT", True, s.t)   # a bounce: the press goes on
+    s.run(P.LOCK_MS - 500); assert s.p.locked
+
+
+def test_a_lock_under_a_held_shifted_push_keeps_its_session():
+    s = Sim()
+    s.key("SHIFT"); s.p.key("ALTHDG_PUSH", True, s.t); s.run(200)
+    hold_shift(s)
+    s.turn("ALTHDG_INNER", 1)                            # the push's session: CRS
+    s.p.key("ALTHDG_PUSH", False, s.t); s.run(P.SESSION_MS + 100)
+    s.key("AP")                                          # locked: TEST
+    assert [n for _, n in s.take()] == ["BARO_STD", "CRS_1_UP", "TEST"] and s.p.locked
+
+
+def test_the_keyboard_mode_locks_as_well():
+    s = Sim(solo=True)
+    hold_shift(s)
+    s.key("VFR"); s.key("VFR")
+    assert [n for _, n in s.take()] == ["IDENT", "IDENT"]
+
+
+def test_shift_held_as_a_modifier_does_not_lock():
+    # a key, push, tilt or detent while SHIFT is down ends its hold: only SHIFT held alone locks. A control held
+    # from before the press does not
+    def tilt(s):
+        s.p.key("RANGE_COM", True, s.t); s.p.key("RANGE_A", True, s.t); s.run(100)
+        s.p.key("RANGE_A", False, s.t); s.p.key("RANGE_COM", False, s.t); s.run(100)
+    for use in (lambda s: s.key("COM1"), lambda s: s.turn("FREQ_INNER", 1), lambda s: s.key("FMS_PUSH"), tilt):
+        s = Sim()
+        s.run(10); s.p.key("SHIFT", True, s.t); s.run(100)
+        use(s)
+        s.run(2 * P.LOCK_MS); assert not s.p.locked
+    s = Sim()
+    s.p.key("FMS_PUSH", True, s.t); s.run(100)
+    s.p.key("SHIFT", True, s.t); s.run(P.LOCK_MS + 10); assert s.p.locked
+
+
+def test_a_short_tap_read_after_a_wait_does_not_lock():
+    # SHIFT's press read, then a wait for the host: AP went down 150 ms and SHIFT up 200 ms after the press,
+    # both read 1500 ms after it. SHIFT was held 200 ms: no lock, AP sent shifted as after a tap
+    s = Sim()
+    s.run(10); s.p.key("SHIFT", True, s.t); pressed = s.t
+    s.t += 1500                                          # no tick() ran
+    s.p.key("AP", True, s.t, at=pressed + 150); s.p.key("SHIFT", False, s.t, at=pressed + 200)
+    s.run(100); s.p.key("AP", False, s.t); s.run(200)
+    assert not s.p.locked and s.take() == [(1, "TEST")]
+
+
+def test_a_shift_press_read_late_holds_from_its_scan():
+    s = Sim()
+    s.run(10)
+    s.p.key("SHIFT", True, s.t + 500, at=s.t); s.t += 500   # read 500 ms after its scan
+    s.run(P.LOCK_MS - 500 - 1); assert not s.p.locked
+    s.run(1); assert s.p.locked
+
+
+def test_the_lock_takes_the_session_a_held_shifted_tilt_keeps_and_the_unlock_keeps_it_too():
+    # a shifted tilt held, SHIFT held 1 s: the pan goes on shifted (the lock replaces the arm, not the session),
+    # and the tap that unlocks leaves the held tilt its session, light steady, until it is let go
+    s = Sim()
+    hold_shifted_tilt(s)
+    hold_shift(s)
+    s.turn("RANGE", 1)                                   # the tilt's own knob: its session, no new one
+    s.take(); s.run(1000)
+    assert sum(n == "S_PAN_UP" for _, n in s.take()) >= 7
+    tap(s, "SHIFT"); assert not s.p.locked
+    s.take(); s.run(1000)
+    assert sum(n == "S_PAN_UP" for _, n in s.take()) >= 7 and s.p.shift_level(s.t) == P.LIGHT_FULL
+    s.p.key("RANGE_A", False, s.t); s.p.key("RANGE_COM", False, s.t); s.run(P.SESSION_MS + 100)
+    assert not s.p.shift_active(s.t)
+
+
+def test_another_knob_under_the_lock_drops_a_squawk_digit_count_still_to_come():
+    s = Sim()
+    hold_shift(s)
+    s.p.turn("FREQ_OUTER", 1, s.t); s.run(10)            # digit 2, counted once the ring rests
+    s.p.turn("ALTHDG_OUTER", 1, s.t); s.run(2000)
+    assert s.p.flash[1] == 0
+
+
+def test_a_wait_for_the_host_keeps_the_locks_blink_in_step():
+    # 300 ms into the dim phase, a 300 ms wait: still dim after it, as the light stayed, not bright
+    s = Sim()
+    s.run(10); s.p.key("SHIFT", True, s.t); s.run(P.LOCK_MS); s.p.key("SHIFT", False, s.t); s.run(300)
+    assert s.p.shift_level(s.t) == P.LIGHT_DIM
+    s.t += 300; s.p.stalled(300)
+    assert s.p.shift_level(s.t) == P.LIGHT_DIM
+
+
+def test_a_cancelling_tap_held_1_s_locks():
+    # the second press cancels the arm, to plain; held on alone it locks all the same
+    s = Sim()
+    tap(s, "SHIFT")
+    s.p.key("SHIFT", True, s.t); assert not s.p.shift_active(s.t)
+    s.run(P.LOCK_MS); assert s.p.locked
+
+
+def test_a_shift_let_go_after_a_keypad_overflow_does_not_lock():
+    # code.py lets go of every key after an overflow, read late: the release's scan unknown, the hold ends there,
+    # also when another key's release comes first (an overflow on the other keypad)
+    for first in ((), ("FREQ_PUSH",)):
+        s = Sim()
+        for name in first:
+            s.p.key(name, True, s.t); s.run(100)
+        s.run(10); s.p.key("SHIFT", True, s.t)
+        s.t += 1500                                      # no tick() ran
+        for name in (*first, "SHIFT"):
+            s.p.release(name, s.t)
+        s.run(2 * P.LOCK_MS)
+        assert not s.p.locked, first
+
+
+def test_a_detent_read_late_with_shift_down_does_not_lock():
+    s = Sim()
+    s.run(10); s.p.key("SHIFT", True, s.t); s.run(100)
+    s.t += 1500; s.p.stalled(1500)
+    s.p.turn("FREQ_INNER", 1, s.t); s.run(2 * P.LOCK_MS)
+    assert not s.p.locked
+
+
+def test_another_keys_release_read_late_judges_the_hold_at_its_scan():
+    # AP held from before SHIFT; AP's release (scan +200) and SHIFT's (+300) read 1500 ms after the press
+    s = Sim()
+    s.p.key("AP", True, s.t); s.run(100)
+    s.p.key("SHIFT", True, s.t); pressed = s.t
+    s.t += 1500
+    s.p.key("AP", False, s.t, at=pressed + 200); s.p.key("SHIFT", False, s.t, at=pressed + 300)
+    s.run(2 * P.LOCK_MS)
+    assert not s.p.locked
+
+
+def test_a_key_while_the_locking_press_is_still_down_takes_the_lock_back():
+    # SHIFT held past LOCK_MS, then AP with SHIFT still down: a modifier after all. AP goes out shifted, as after
+    # a tap, and SHIFT is plain once both are let go
+    s = Sim()
+    s.run(10); s.p.key("SHIFT", True, s.t); s.run(P.LOCK_MS + 100); assert s.p.locked
+    s.p.key("AP", True, s.t); s.run(60); assert not s.p.locked
+    s.p.key("SHIFT", False, s.t); s.p.key("AP", False, s.t); s.run(200)
+    s.key("AP")
+    assert [n for _, n in s.take()] == ["TEST", "AP"] and not s.p.locked and s.p.shift_level(s.t) == P.LIGHT_OFF
+
+
+def test_a_detent_while_the_locking_press_is_still_down_takes_the_lock_back():
+    s = Sim()
+    s.run(10); s.p.key("SHIFT", True, s.t); s.run(P.LOCK_MS + 100)
+    s.turn("FREQ_INNER", 1)                              # shifted: the squawk's first digit, a session
+    s.p.key("SHIFT", False, s.t); s.run(P.SESSION_MS + 100)
+    s.turn("FREQ_INNER", 1)
+    assert [n for _, n in s.take()] == ["SQK_D1_UP", "COM_KHZ_UP"] and not s.p.locked
+
+
+def test_inputs_read_late_while_shift_was_down_take_the_lock_back_alike():
+    # a pass that waited: SHIFT's release scanned at +1200 and a detent turned meanwhile, or AP scanned at +1500
+    # with SHIFT's release at +1800, all read 2 s after the press. SHIFT was a modifier either way: no lock, the
+    # input shifted
+    for late in ("detent", "key"):
+        s = Sim()
+        s.run(10); s.p.key("SHIFT", True, s.t); pressed = s.t
+        s.t += 2000                                      # no tick() ran
+        if late == "detent":
+            s.p.key("SHIFT", False, s.t, at=pressed + 1200)
+            s.p.turn("FREQ_INNER", 1, s.t)
+        else:
+            s.p.key("AP", True, s.t, at=pressed + 1500); s.p.key("SHIFT", False, s.t, at=pressed + 1800)
+        s.run(100)
+        if late == "key":
+            s.p.key("AP", False, s.t)
+        s.run(2 * P.LOCK_MS)
+        assert not s.p.locked, late
+        assert [n for _, n in s.take()] == (["SQK_D1_UP"] if late == "detent" else ["TEST"]), late
+
+
+def test_a_key_right_after_the_locking_press_is_let_go_keeps_the_lock():
+    # AP scanned after SHIFT's release, which still waits out BOUNCE_MS: SHIFT was up, the lock stays
+    s = Sim()
+    s.run(10); s.p.key("SHIFT", True, s.t); s.run(P.LOCK_MS + 100)
+    s.p.key("SHIFT", False, s.t); s.run(5); s.key("AP")
+    assert s.take() == [(1, "TEST")] and s.p.locked
+
+
+def test_chatter_after_the_locking_press_does_not_unlock():
+    # the contact comes back 40 ms after the release (past BOUNCE_MS, so a press of its own): no finger taps that
+    # fast, the lock stays; a tap TAP_GAP_MS or more after the release unlocks
+    for gap, locked in ((40, True), (P.TAP_GAP_MS, False)):
+        s = Sim()
+        s.run(10); s.p.key("SHIFT", True, s.t); s.run(P.LOCK_MS + 100)
+        s.p.key("SHIFT", False, s.t); s.run(gap)
+        s.p.key("SHIFT", True, s.t); s.run(20); s.p.key("SHIFT", False, s.t); s.run(100)
+        assert s.p.locked == locked, gap

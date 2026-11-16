@@ -37,8 +37,8 @@ instead, and `keys.py` turns the buttons into shortcuts; `make_keys.py` writes
 Every state lives in the firmware and is sent as fixed joystick buttons, so mappings never need variables or
 preconditions and cannot get out of sync with the panel:
 
-- SHIFT: one-shot for keys, kept through a knob session ([the rules](#shift) below). Shifted functions are
-  their own buttons.
+- SHIFT: one-shot for keys, kept through a knob session, or locked by a 1 s hold ([the rules](#shift) below).
+  Shifted functions are their own buttons.
 - UNIT: the firmware keeps the state and drives the white light, on in unit 2. What moves to device 2 is in
   [Mapping](../using/mapping.md#two-joysticks). Button numbers are frozen; a snapshot test in
   `firmware/test_panel.py` checks it.
@@ -76,7 +76,7 @@ preconditions and cannot get out of sync with the panel:
 
 ### SHIFT
 
-SHIFT is tapped, never held. For keys it is one-shot; a knob keeps it while in use
+SHIFT is tapped: for keys it is one-shot, a knob keeps it while in use, and held alone 1 s it locks
 ([Controls](../using/controls.md#shift) has the short version):
 
 ```mermaid
@@ -85,6 +85,7 @@ stateDiagram-v2
   state "Plain (light off)" as Plain
   state "Armed (light on)" as Armed
   state "Knob session (light on)" as Knob
+  state "Locked (light blinks)" as Locked
   [*] --> Plain
   Plain --> Armed: SHIFT tap
   Armed --> Plain: key, sent shifted (HOME toggles UNIT)
@@ -95,15 +96,37 @@ stateDiagram-v2
   Knob --> Knob: same knob again, 5 s start over
   Knob --> Armed: SHIFT tap, for the next key
   Knob --> Plain: 5 s after the last detent, another knob, a key (unless a shifted push or tilt is held), or USB down
+  Armed --> Locked: SHIFT's press held 1 s, nothing else used
+  Plain --> Locked: a cancelling tap's press held 1 s, nothing else used
+  Knob --> Locked: a cancelling tap's press held 1 s, while a shifted push or tilt is held, nothing else used
+  Locked --> Plain: SHIFT tap, or USB down
+  Locked --> Knob: SHIFT tap, while a shifted push or tilt is held
+  Locked --> Armed: a key, push, tilt or detent while the locking press is still down, which takes the arm
 ```
 
 - A knob turned or pushed after SHIFT stays shifted while it is in use, including moving between its outer
   and inner ring (for a whole squawk code), and returns to normal 5 s after the last detent, room to read the
   next digit off a clearance. A push or RANGE tilt held keeps it too, so a long shifted pan never outlasts the
   light: the 5 s start when it is let go. A tap alone arms SHIFT for 3 s only, so a stray one does not linger.
+- SHIFT held alone 1 s (`LOCK_MS`) locks it, for several amber functions in a row. The press arms SHIFT as a
+  tap does, so a tap acts at once and the lock follows only if the key stays down. SHIFT counts as down from
+  its press until its release is applied, BOUNCE_MS after its scan, and a key, push, tilt or detent in that
+  time makes it a modifier: before LOCK_MS no lock follows, after it the lock goes back to a tap's arm, which
+  that input takes, so it goes out shifted and SHIFT is plain after. A key, push or tilt scanned after SHIFT's
+  release does not count, whenever it is read; a detent has no scan time, so one read in the same pass as
+  SHIFT's release counts. A bounce keeps the hold, a key event read late (a pass that waited for the host) is
+  judged at its scan, and a SHIFT press within `TAP_GAP_MS` of the locking press's release is chatter, not the
+  tap that unlocks. Locked, every key and knob is sent shifted, UP and DN as after a tap (held as joystick
+  buttons, repeated in keyboard mode), with no time limit, and the light blinks dim and bright, 500 ms each
+  (`LOCK_BLINK_MS`), starting dim. A knob's session has no time limit either, since the blinking light cannot
+  warn of its end: a squawk entry goes on after any pause and ends at a key, a SHIFT tap or another knob, and
+  the next one starts at the first digit. A tap unlocks to plain, or to the session of a shifted push or tilt
+  still held, and starts no new hold; USB going down unlocks too, and SHIFT does not lock while dark. SHIFT
+  held since plug-in (update mode) does not lock: the keypad reports no press for a key held when it starts.
 - The light never goes dark while SHIFT still applies: dark means plain, and lit, even dim, means SHIFT is on,
-  for the next key after a tap or for the knob that keeps it. A key pressed while a knob keeps SHIFT is sent
-  plain. During SHIFT's last second the light pulses between bright and dim.
+  for the next key after a tap or for the knob that keeps it, or, blinking, for every key and knob while
+  locked. A key pressed while a knob keeps SHIFT is sent plain. During SHIFT's last second the light pulses
+  between bright and dim.
 - While a knob still keeps SHIFT (light on after a squawk entry, or a shifted push or tilt still held), a tap
   arms SHIFT for the next key instead, so SHIFT, VFR gives IDENT with one tap. The arm runs out 3 s after
   the tap, as any tap's does; the held control's session goes on. A second tap cancels SHIFT, except for a shifted
@@ -113,9 +136,9 @@ stateDiagram-v2
   belongs to one knob at a time. Held on after that, or after USB went down, it keeps no later session of its
   knob: SHIFT and a turn of it then run out 5 s after the last detent.
 - While USB is down (the PC off, asleep or booting, or a host that has suspended the panel) the lights are
-  dark and SHIFT does not apply: an armed SHIFT and a knob's session end as the lights go out, a SHIFT tap
-  does nothing, and what is pressed or turned goes out plain once the host is back ([USB](#usb)). UNIT and the
-  FREQ mode stay as they are, and their lights show them again with the host.
+  dark and SHIFT does not apply: an armed SHIFT, the lock and a knob's session end as the lights go out, a
+  SHIFT tap does nothing, and what is pressed or turned goes out plain once the host is back ([USB](#usb)).
+  UNIT and the FREQ mode stay as they are, and their lights show them again with the host.
 - SHIFT is scanned first. A key scan reports its changes in the order of the key numbers, and `code.py` hands
   the keypad SHIFT's row and column first. So when one scan (19.5 ms) reads SHIFT and a key going down, SHIFT
   reaches the panel first, whichever of the two was down first, and the key is shifted. The FREQ push has a
@@ -354,12 +377,12 @@ but for one rule.
 
 ## Lights
 
-`code.py` drives the SHIFT, UNIT and FREQ lights with PWM at 1 kHz, at `LED_DUTY` = 0x4800, 0x5500 and
-0x7b00 (about 28, 33 and 48 % of full), the amber one dimmed to a quarter for its pulse in SHIFT's last
-second, the green one as `Panel.freq_lit` gives it (the Pico bench, which has no pin left for the UNIT and
-FREQ lights, prints the unit and the FREQ mode instead, without the counts). All three stay dark while USB is
-not connected (the PC asleep, booting or off, a charger, a host that has suspended the panel); the panel runs
-on, without SHIFT ([SHIFT](#shift)). In keyboard mode they first take turns at each start
+`code.py` drives the SHIFT, UNIT and FREQ lights with PWM at 1 kHz, at `LED_DUTY` = 0x4800, 0x5500 and 0x7b00
+(about 28, 33 and 48 % of full), the amber one dimmed to a quarter for its pulse in SHIFT's last second and
+the lock's blink, the green one as `Panel.freq_lit` gives it (the Pico bench, which has no pin left for the
+UNIT and FREQ lights, prints the unit and the FREQ mode instead, without the counts). All three stay dark
+while USB is not connected (the PC asleep, booting or off, a charger, a host that has suspended the panel);
+the panel runs on, without SHIFT ([SHIFT](#shift)). In keyboard mode they first take turns at each start
 ([Keyboard mode](#keyboard-mode)). It sets the drive strength of the SHIFT and FREQ lights' pads (GP12, GP14)
 to 12 mA, which their series resistors need, by writing the RP2040's pad registers through `memorymap`
 (CircuitPython has no call for it); should that fail, it prints "LED drive strength not set" and the light

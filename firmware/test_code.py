@@ -410,6 +410,18 @@ def test_shift_light_pulses_on_the_led(wrap):
     assert all(duty[t] == 0 for t in range(end, P.ARM_MS + 200))
 
 
+def test_a_locked_shift_blinks_on_the_led():
+    # SHIFT held from 10: locked at 1010, then dim and full 500 ms each, never 0, also after the release
+    hw = hardware({10: [press("SHIFT", True)], 1500: [press("SHIFT", False)]}).run(3600)
+    duty = duties(hw)
+    full = duty[500]
+    phases = [{duty[t] for t in duty if a + 10 <= t < a + P.LOCK_BLINK_MS - 10}
+              for a in range(1010, 3510, P.LOCK_BLINK_MS)]
+    dim = min(phases[0])
+    assert 0 < dim < full and phases == [{dim}, {full}, {dim}, {full}, {dim}]   # steady dim first
+    assert all(duty[t] for t in duty if t >= 10)
+
+
 def test_shift_light_follows_shift():
     script = tap("SHIFT", 10)
     assert hardware(script).run(100).leds[0].duty_cycle > 0          # armed: amber on

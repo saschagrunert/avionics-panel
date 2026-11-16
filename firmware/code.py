@@ -397,8 +397,8 @@ try:
             read_keys(t)
             turns(t)
         panel.tick(t)
-        # the amber light pulses before SHIFT drops; the FREQ light shows the mode and counts (on the Pico bench,
-        # which prints the mode instead, it does not)
+        # the amber light pulses before SHIFT drops and blinks while it is locked; the FREQ light shows the mode
+        # and counts (on the Pico bench, which prints the mode instead, it does not)
         show(panel.shift_level(t), connected and panel.unit_light,
              connected and (panel.freq_lit(t) if leds[2] else panel.freq_mode + 1))
         for n, dev in OUTPUTS:
