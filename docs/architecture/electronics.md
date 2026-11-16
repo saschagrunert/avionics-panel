@@ -391,7 +391,9 @@ load, so they are soldered from the top as well: by JLCPCB in full assembly (its
 otherwise ([Hand-soldering](../building/hand-soldering.md#soldering)).
 
 Our drills follow the datasheets; `check.py` wants each plated hole inside its datasheet's band and within
-0.21 mm of JLC's footprint ([Assembly data](#assembly-data)), the span of JLCPCB's plated-hole tolerance:
+0.21 mm of JLC's footprint ([Assembly data](#assembly-data)), the span of JLCPCB's plated-hole tolerance. The
+one exception is the encoders' lug slots, drawn 0.4 mm longer than both for JLCPCB's 2:1 slot rule: `check.py`
+holds their length to the drawn 3.0 mm and to JLC's 2.6 mm plus those 0.4 mm (`TH_SHEET`, `TH_SLOT_EXTRA`):
 
 | Hole | Ours | JLC's | Datasheet |
 | --- | --- | --- | --- |

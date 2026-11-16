@@ -382,11 +382,11 @@ Values that no datasheet or vendor states; the fit rows take them as given.
   bore or the RANGE knob's D bore with its back groove.
 - Knobs: a kept knob has at most 0.15 mm of play on its shaft (`stack.KNOB_PLAY`, `stack.RANGE_PLAY`). The
   tightest bore grips a shaft at its low limit when the holes print no more than 0.08 mm large. The RKJXT's
-  lever is +0/-0.1 mm across, as the PEC11D's shafts (`stack.LEVER_D_TOL`; Alps gives no tolerance). The
-  knobs come unsanded, and a support mark stands at most 0.05 mm proud of a knob's bottom face once the
-  builder has sanded it flush (`stack.SUPPORT_MARK`,
-  [Fitting the knobs](../building/assembly.md#fitting-the-knobs)); one that is left higher can make an outer
-  ring rub the plate.
+  lever is +0/-0.1 mm across, as the PEC11D's shafts (`stack.LEVER_D_TOL`; Alps gives no tolerance). A
+  support mark stands at most 0.05 mm proud of a knob's bottom face once it is sanded flush: by the builder
+  for knobs ordered unsanded, by JLC3DP's General Sanding otherwise, as the remark then asks
+  (`stack.SUPPORT_MARK`, [Fitting the knobs](../building/assembly.md#fitting-the-knobs)); one that is left
+  higher can make an outer ring rub the plate.
 - Knob prints: one print error for all six bores of a knob, and the same error again on a reprint. The grip
   windows of neighbouring bores overlap by only 0.03 mm, so a set whose bores come out unevenly, or a second
   order that prints differently, can leave a shaft with no bore that grips.

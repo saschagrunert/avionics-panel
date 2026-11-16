@@ -36,17 +36,17 @@ A board that arrives with a rail anyway, or with a V-cut (scored and snapped) ed
 The caps come in four sets (A to D, one to four dimples on the bottom) that differ only in their grip
 ([why](../architecture/mechanics.md#key-caps)). The order has set B in full, the likeliest to fit, and one
 gauge cap of each other set: the AP cap of A, C and D. Before fitting the caps, try the gauges with set B's
-AP cap on the AP key of the board (no tools), from loose to tight: C, B, A, D. Stop as soon as one of
-the cases below is settled: once B holds, A and D need not be tried. With the hand-soldering option, try them
-on a loose key.
+AP cap on the AP key of the board (no tools), set B's first: if it holds, the others need not be tried; if
+it is too loose, try A, then D; if it is too tight, try C. Stop as soon as one of the cases below is settled.
+With the hand-soldering option, try them on a loose key.
 
 - A cap that holds pushes down by hand until it sits on the plunger top (it stops hard there), stays on when
   the board is turned over and does not wobble.
 - Too loose: it falls off or rocks. Too tight: it stops short of the plunger top or needs more than a firm
   thumb.
-- B holds: keep set B, also if C held as well; it is the set in hand.
+- B holds: keep set B, the set in hand.
 - B is too loose: the first of A and D that holds names the set that fits better. B is too tight: C, if it
-  held. Order that set's zip, `caps-A.zip`, `caps-C.zip` or `caps-D.zip`, from the same download as the
+  holds. Order that set's zip, `caps-A.zip`, `caps-C.zip` or `caps-D.zip`, from the same download as the
   first order (or its `caps-single-*.zip`, if JLC3DP asked for single caps), and keep set B for the meantime.
 - Two neighbours miss in opposite directions, the looser one too loose and the tighter one too tight (B too
   tight and C too loose, B too loose and A too tight, or A too loose and D too tight): the print sits between
