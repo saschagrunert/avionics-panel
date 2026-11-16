@@ -22,6 +22,9 @@ HID_FRAME_MS = 8         # the host's report interval
 LATE_MS = 3 * HID_FRAME_MS                # 24: an edge may reach the PC this late: three frames
 KEY_SCAN_MS = 20         # code.py's keypad scan interval: 20 ticks of 1/1024 s, 19.5 ms
 BOUNCE_MS = KEY_SCAN_MS * 3 // 2          # 30: a press this soon after its own release (scan times) is a bounce
+LOCK_MS = 1000           # SHIFT held this long locks it: every key and knob shifted until a SHIFT tap
+LOCK_BLINK_MS = 500      # while locked the amber light blinks dim and bright this long each, never dark
+TAP_GAP_MS = 2 * BOUNCE_MS                # 60: a finger lifts and comes back no sooner (a press sooner is chatter)
 PRESS_MS = POLL_MS + LATE_MS              # 56: one knob detent = a button held this long, a key or push at least ...
 GAP_MS = PRESS_MS                         # ... then released this long before its next one: about 9 steps a second
 MAX_QUEUE = 8            # presses waiting, all rings and keys together, beyond which a detent or repeat is
@@ -95,6 +98,12 @@ class Panel:
         self.under = None            # with "any": the knob whose held push or tilt keeps its session under it
         self.shift_until = 0
         self.arm_until = 0           # a tap's "any" ends then, also while a held control keeps SHIFT on
+        self.locked = False          # SHIFT locked by a hold: every key and knob shifted, until a SHIFT tap
+        self.locked_at = 0           # ms the lock began: the blink's phase
+        self.shift_down = None       # scan ms of the SHIFT press still down, until its release is applied, while
+                                     # nothing else was used: it may lock, and a lock it made can still be undone
+        self.lock_open = False       # the lock came from the SHIFT press still down: other input takes it back
+        self.lock_left = None        # scan ms of the release that ended the locking press: chatter after it
         self.unit = 1
         self.freq_mode = 0           # index into FREQ_MODES: kept until the FREQ push changes it
         self.freq_since = None       # ms of the press of a plain FREQ push held, until FREQ_HOLD_MS set COM
@@ -186,6 +195,7 @@ class Panel:
         self.order_ms += ms
         self.shift_until += ms
         self.arm_until += ms
+        self.locked_at += ms
         self.flash = (self.flash[0] + ms, self.flash[1])   # the count, as the light stayed during the wait
         self.flash_free += ms
         self.lit_at += ms
@@ -193,20 +203,44 @@ class Panel:
     def shift_active(self, t):
         """Whether SHIFT applies at time t, the one place that decides it: inputs, tick() and the light agree,
         so a detent read after SHIFT ran out is plain, also before tick() has seen that, and cannot revive the
-        session. Never while dark: the light is off then, and dark means plain."""
-        return not self.dark and self.shift is not None and t < self.shift_until
+        session. Never while dark: the light is off then, and dark means plain. Always while locked."""
+        return not self.dark and (self.locked or self.shift is not None and t < self.shift_until)
 
-    def _expire(self, t):
+    def _expire(self, t, scan=None):
         """Ends SHIFT once it ran out. A tap's armed SHIFT ends ARM_MS after the tap, also while a shifted push
         or tilt is held: SHIFT then goes back to that control's session. A shifted push or tilt still held keeps
         its session, its SESSION_MS start at its release: extended first, so a loop pass that stalled that long
-        doesn't end it under the hand."""
+        doesn't end it under the hand. SHIFT held LOCK_MS alone locks it, judged at scan, the scan time of the
+        event being read (key() reads them in scan order, so SHIFT was down until then at least), else at t;
+        _used() takes it back while the press is still down. Dark ends the lock. Under the lock a knob's session
+        has no time limit: the light cannot warn of its end, so only a key, a SHIFT tap or another knob ends it."""
+        if self.dark:
+            self.locked, self.lock_open, self.shift_down = False, False, None
+        elif (self.shift_down is not None and not self.locked
+              and self.pending.get("SHIFT", t if scan is None else scan) - self.shift_down >= LOCK_MS):
+            self.locked, self.locked_at, self.lock_open = True, t, True      # (a release waiting out BOUNCE_MS
+            if self.shift == "any":                                          # ends the hold at its scan)
+                self.shift, self.under = self.under, None                    # the lock replaces the arm
         if self.shift == "any" and t >= self.arm_until:
             self.shift, self.under = self.under, None
         if self._held_session() is not None:
             self.shift_until = t + SESSION_MS
-        if not self.shift_active(t):
+        if not self.shift_active(t):                       # (never while locked: no time limit)
             self.shift = self.under = None
+
+    def _used(self, t, scan=None):
+        """A key, push or tilt scanned at scan, or a detent (no scan): with SHIFT still down SHIFT is a modifier,
+        so its press locks not, and a lock it made goes back to the arm of a tap, which this input takes: it
+        goes out shifted. Still down: its release not applied yet, unless scanned before this key's press; a
+        detent cannot tell, so one in the same pass as SHIFT's release, read late or not, counts as used with it"""
+        if self.shift_down is None or scan is not None and self.pending.get("SHIFT", scan + 1) <= scan:
+            return
+        self.shift_down = None
+        if self.lock_open:
+            held = self._held_session()
+            self.locked = self.lock_open = False
+            self.shift, self.under, self.shift_until = "any", held, t + ARM_MS
+            self.arm_until = self.shift_until
 
     def _kept(self):
         """The knob whose session SHIFT is: the armed "any" keeps the one a held control was in."""
@@ -225,7 +259,10 @@ class Panel:
         return self.sessions.get(src) == self.session and self._kept() is not None
 
     def _knob_shift(self, knob, t):
-        """SHIFT for a knob action: armed SHIFT or this knob's own shifted session. Starts/extends it."""
+        """SHIFT for a knob action: armed SHIFT, the lock or this knob's own shifted session. Starts/extends it."""
+        if self.locked and self.shift != knob:             # locked: any knob is shifted, a new session as after a
+            self._drop_squawk(t)                           # tap
+            self.shift, self.under = "any", None
         if self.shift == "any" and self.under != knob:     # not the session a held push of this knob keeps:
             self.digit = 1                                 # a new one, the squawk entry starts at digit 1, and
             self.session += 1                              # a control held from an ended one keeps it not
@@ -239,12 +276,15 @@ class Panel:
 
     def shift_level(self, t):
         """Level of the amber light at time t: LIGHT_FULL while SHIFT applies, pulsing between LIGHT_DIM and
-        LIGHT_FULL during its last SHIFT_WARN_MS, so a knob never drops back to its plain function
+        LIGHT_FULL during its last SHIFT_WARN_MS (while locked it blinks LIGHT_DIM and LIGHT_FULL, LOCK_BLINK_MS
+        each, starting dim), so a knob never drops back to its plain function
         unannounced in the middle of a turn. Never LIGHT_OFF while SHIFT applies, and LIGHT_OFF from the
         moment SHIFT runs out, whether or not tick() has seen that yet. An int, no float: code.py calls
         this every millisecond."""
         if not self.shift_active(t):
             return LIGHT_OFF
+        if self.locked:                                    # starts dim, so the lock shows at once
+            return LIGHT_DIM if ((t - self.locked_at) // LOCK_BLINK_MS) % 2 == 0 else LIGHT_FULL
         left = self.shift_until - t
         if left > SHIFT_WARN_MS:
             return LIGHT_FULL
@@ -326,51 +366,70 @@ class Panel:
         """A key or push went down or up; at: the ms the keypad scanned it (default t), for BOUNCE_MS. A release
         waits in self.pending until tick() applies it BOUNCE_MS after its scan; a new press of the same key
         before that was a bounce and ends the wait, so a run of bounces is one press, held throughout."""
-        self._expire(t)
         if at is None:
             at = t
         if not pressed:
             self.pending[name] = at
+            self._expire(t, at)
             return
+        self._expire(t, at)
         self._freq_hold(t, at)                             # a FREQ hold read late, as long as this event's scan
                                                            # finds it, before its release is applied
         last = self.pending.pop(name, None)
         if last is not None:
             if at - last < BOUNCE_MS:
                 return                                     # a bounce: the press goes on
-            self._apply(name, False, t)                    # the release was real, tick() hasn't seen it yet
-        self._apply(name, True, t)
-        if name == "FREQ_PUSH" and self.freq_since == t:   # a FREQ hold runs from the scan, as its release does
-            self.freq_since = at
+            self._apply(name, False, t, last)              # the release was real, tick() hasn't seen it yet
+        self._apply(name, True, t, at)
 
     def release(self, name, t):
         """A release that is no bounce (code.py lets go of every key after a keypad overflow): applied at once,
-        and a press right after it is a new press. A FREQ push held long enough counts before it."""
+        and a press right after it is a new press. A FREQ push held long enough counts before it; a SHIFT hold
+        does not lock, whichever key this is: after an overflow its end is not known. The keypad then reports a
+        key still down as a new press, so a SHIFT held through one unlocks (more than code.py's MAX_EVENTS left
+        unread: not in use)."""
+        self.shift_down, self.lock_open = None, False
         self._expire(t)
         self._freq_hold(t)
         self._apply(name, False, t)
 
-    def _apply(self, name, pressed, t):
+    def _apply(self, name, pressed, t, at=None):
+        """A press or release applied at t; at: its scan (default t), where a FREQ or SHIFT hold starts and the
+        locking press ends"""
+        if at is None:
+            at = t
         if pressed:
             self.keep_steps()
+            if name != "SHIFT":
+                self._used(t, at)
         if name.startswith("RANGE_"):
             return self._range_key(name, pressed, t)
         if name in PUSHES:
-            return self._push(name, pressed, t)
+            return self._push(name, pressed, t, at)
         if not pressed:
             self.held.pop(name, None)
             self.repeat.pop(name, None)
+            if name == "SHIFT":
+                if self.lock_open:
+                    self.lock_left = at
+                self.shift_down, self.lock_open = None, False
             return
         self._drop_squawk(t)                             # a key or SHIFT tap ends the squawk entry, or starts anew
         held = self._held_session()
         if name == "SHIFT":
+            if self.locked:                              # a tap ends the lock, to plain, and starts no hold; not
+                if self.lock_left is None or at - self.lock_left >= TAP_GAP_MS:   # chatter right after the
+                    self.locked, self.shift, self.under = False, held, None     # locking press let go
+                return
+            self.shift_down = at                         # a hold may lock: from the scan. One held since the start
+                                                         # (update mode) never gets here: the keypad reports no press
             if self.shift == "any":                      # a second tap cancels SHIFT, except for a held control
                 self.shift, self.under = held, None
             else:                                        # also while a knob still keeps SHIFT: arm for the next key
                 self.shift, self.under, self.shift_until = "any", held, t + ARM_MS
                 self.arm_until = self.shift_until
             return
-        shifted = self.shift == "any"
+        shifted = self.locked or self.shift == "any"
         self.shift, self.under = held, None              # a key ends a knob's session, unless a control holds it
         if name == "HOME" and shifted:                    # UNIT: firmware state, white light
             self.unit = 2 if self.unit == 1 else 1
@@ -384,7 +443,7 @@ class Panel:
         else:
             self._hold(name, k)
 
-    def _push(self, name, pressed, t):
+    def _push(self, name, pressed, t, at):
         if not pressed:
             self.held.pop(name, None)
             self.sessions.pop(name, None)
@@ -404,7 +463,7 @@ class Panel:
         else:                                              # FREQ push: next mode at once, COM once held long
             self._saw_lit(t)
             self.freq_mode = (self.freq_mode + 1) % len(FREQ_MODES)
-            self.freq_since = t
+            self.freq_since = at                           # a FREQ hold runs from the scan, as its release does
             self._count(self.freq_mode + 1, t)
             k = self._btn(self.unit, "FREQ_PUSH")
         self._hold(name, k)
@@ -415,6 +474,7 @@ class Panel:
         self._expire(t)
         if not steps:
             return
+        self._used(t)
         up = steps > 0
         last = self.last_detent.get(ring)
         if last is not None and last[1] != up:
@@ -501,14 +561,13 @@ class Panel:
 
     # ---------------- time ----------------
     def tick(self, t):
-        self._expire(t)                                    # extends a session held by a push or tilt
+        self._expire(t)                                    # extends a session held by a push or tilt, locks a hold
         self.last_tick = t
         self._freq_hold(t)                                 # before a pending release ends the push: read late,
         if self.pending:                                   # a long hold still counts
             for name in list(self.pending):                # a copy: applying a release ends its entry
                 if t - self.pending[name] >= BOUNCE_MS:
-                    del self.pending[name]
-                    self._apply(name, False, t)
+                    self._apply(name, False, t, self.pending.pop(name))
         if self.repeat and not self.dark:                  # no repeats for a host that is away: they would wake
             self._repeat(t)                                # it; one missed comes once it is back
         self._show(t)

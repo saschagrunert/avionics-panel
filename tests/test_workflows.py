@@ -284,6 +284,24 @@ def test_another_knob_ends_a_knob_session():
     assert seen(sim) == (["BARO_UP", "COM_KHZ_UP", "ALT_100_UP"], [])
 
 
+def test_shift_lock():
+    # SHIFT held 1 s locks it: keys stay shifted, the light blinks dim and bright, never dark; a tap unlocks
+    sim = Sim()
+    sim.press("SHIFT")
+    sim.wait(P.LOCK_MS + 100)
+    sim.release("SHIFT")
+    sim.tap("AP")
+    sim.wait(P.ARM_MS + P.SESSION_MS)
+    sim.tap("VFR")
+    sim.tap("SHIFT")
+    sim.tap("AP")
+    assert seen(sim) == (["TEST", "IDENT", "AP"], [])
+    duties = [d for _, d in sim.light("SHIFT")]
+    full = max(duties)
+    lit = duties[duties.index(full):]
+    assert set(lit[:-1]) == {full // 4, full} and lit[-1] == 0     # dark only at the unlocking tap
+
+
 def test_a_held_shifted_push_keeps_shift():
     # a shifted push held longer than 5 s keeps SHIFT, also through a plain key; the 5 s start at its release
     sim = Sim()

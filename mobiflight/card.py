@@ -157,7 +157,8 @@ def page(family, key, version=None):
         for legend, amber, plain, shifted in keyrow:
             if plain is None:
                 body = ('<tbody><tr><th><b class="plain">SHIFT</b></th><td>tap, then a key or knob: its amber '
-                        'function (amber light); SHIFT, HOME: UNIT, unit 1 or 2 (white light)</td></tr></tbody>')
+                        'function (amber light); held alone 1 s: locked until a tap (the light blinks); SHIFT, HOME: '
+                        'UNIT, unit 1 or 2 (white light)</td></tr></tbody>')
             elif shifted is None:
                 body = "\n".join([row(card, legend, [plain], False),
                                   f'<tbody><tr><th><b class="amber">{html.escape(amber)}</b></th><td>unit 1 or 2, in '

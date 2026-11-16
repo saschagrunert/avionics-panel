@@ -58,13 +58,13 @@ Then bind each function your aircraft has: search the action, select a free bind
 control, or turn its knob one detent. Select unit 2 (SHIFT, HOME) for a unit 2 function, and push FREQ to the
 NAV or ADF mode for those functions, before you select the binding, since a FREQ push sends a shortcut of its
 own. A SHIFT tap lasts only 3 s, but SHIFT and the FREQ outer ring in squawk entry send no shortcut: for a
-shifted function select the binding first, then tap SHIFT and press or turn the control; for squawk digits 2
-to 4, tap SHIFT and turn the FREQ outer ring to the digit after selecting the binding, then turn the inner
-ring. A fast step (ALT 1000 ft, HDG and CRS 10°, ADF 10 kHz) always comes after a slow one:
-turn two detents quickly and check that the menu shows the F-key KEYS.md gives before you confirm. Where it
-does not, type the shortcut on a keyboard instead, with the right Ctrl and right Shift where KEYS.md says
-Right, since the menu may show both sides alike. Binding every function takes an hour or more, longer on a
-console; bind the ones you use.
+shifted function select the binding first, then tap SHIFT and press or turn the control, or lock SHIFT (hold
+it alone 1 s) for a run of them and tap it when done; for squawk digits 2 to 4, tap SHIFT (locked, skip the
+tap) and turn the FREQ outer ring to the digit after selecting the binding, then turn the inner ring. A fast
+step (ALT 1000 ft, HDG and CRS 10°, ADF 10 kHz) always comes after a slow one: turn two detents quickly and
+check that the menu shows the F-key KEYS.md gives before you confirm. Where it does not, type the shortcut on
+a keyboard instead, with the right Ctrl and right Shift where KEYS.md says Right, since the menu may show both
+sides alike. Binding every function takes an hour or more, longer on a console; bind the ones you use.
 
 Last, go through the rows of [KEYS.md](../../firmware/KEYS.md) you left unbound. Where the Contains column
 names a function you bound, bind that row too, to its own action or to one that does nothing in your aircraft

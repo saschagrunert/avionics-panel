@@ -82,8 +82,9 @@ Squawk (SHIFT, FREQ knob): the outer ring selects the digit and the inner ring s
 Every entry starts at the first digit. Turning the outer ring clockwise moves on to the next digit,
 counter-clockwise back; it stops at the first and the fourth. Once the outer ring rests, the green light
 counts the selected digit, one to four short flashes, also after a turn against an end; the transponder shows
-which one moves too. The entry ends 5 s after the last detent of either ring, and the knob tunes frequencies
-again. A SHIFT tap during an entry starts a new one: the next detent is on the first digit again.
+which one moves too. The entry ends 5 s after the last detent of either ring (no time limit while SHIFT is
+locked: [SHIFT](#shift)), and the knob tunes frequencies again. A SHIFT tap during an entry starts a new one
+(locked, the tap unlocks and the knob tunes frequencies): the next detent is on the first digit again.
 
 Acceleration: on ALT, HDG, CRS and the ADF inner ring the first detent of a turn makes the fine step, and
 detents that follow within 60 ms in the same direction make the coarse one; turned faster than about 9
@@ -172,8 +173,9 @@ stateDiagram-v2
 
 ## SHIFT
 
-SHIFT is tapped, never held. Its key sits in the centre of the bottom row, the shortest average travel to both
-sides, and its cap has a small raised bar near the front edge, so it can be found without looking.
+SHIFT is tapped, or held alone 1 s to lock it. Its key sits in the centre of the bottom row, the shortest average
+travel to both sides, and its cap has a small raised bar near the front edge, so it can be found without
+looking.
 
 - Tap SHIFT: the amber light next to it comes on. The next key press sends the key's amber function, then the
   light goes off. A key without an amber legend (VS, UP, FLC, DN, VNV, ENT) sends a button of its own then,
@@ -184,16 +186,23 @@ sides, and its cap has a small raised bar near the front edge, so it can be foun
   function unannounced in the middle of a turn.
 - A second tap cancels SHIFT, and a tap's SHIFT cancels itself 3 s after the tap without input, plus any time
   the panel waited for the PC to take a report.
-- Dark means plain. Lit, even dim, means SHIFT is on: for the next key after a tap, or for the knob that
-  keeps it. The light does not tell the two apart, and a key pressed while a knob keeps SHIFT is sent plain
-  and ends the knob's SHIFT. For an amber key then, tap SHIFT first: that tap arms SHIFT for the key for 3 s,
-  and a second one cancels it.
+- Hold SHIFT alone 1 s to lock it, for several amber functions in a row: every key and knob then sends its
+  amber function until you tap SHIFT again, and the light blinks between dim and bright, once a second. USB
+  going down unlocks it too. Use another control while still holding SHIFT and it was a plain SHIFT after all:
+  that control gets its amber function, as after a tap, and nothing stays locked. A squawk entry has no time
+  limit while locked: it ends at a key, a SHIFT tap or another knob, and the next one starts at the first
+  digit. The FREQ knob tunes no radio until you unlock.
+- Dark means plain. Lit, steady or pulsing in its last second, means SHIFT is on: for the next key after a
+  tap, or for the knob that keeps it. The light does not tell the two apart, and a key pressed while a knob
+  keeps SHIFT is sent plain and ends the knob's SHIFT. For an amber key then, tap SHIFT first: that tap arms
+  SHIFT for the key for 3 s, and a second one cancels it. A slow blink, dim and bright once a second, means
+  locked.
 - A shifted push or RANGE tilt that is still held keeps SHIFT until it is let go, whatever key is pressed
   meanwhile, SHIFT included; only another knob or USB going down ends it. Held on after that, it keeps no
   later session.
 - With SHIFT the FMS knob works the cockpit lighting, so a stray SHIFT before it changes a light level or
   toggles the cabin light instead of paging. Turning back, or pushing again, undoes it. After dimming, wait
-  for the amber light to go out before paging.
+  for the amber light to go out before paging (tap SHIFT first if it blinks).
 
 The full rules and the state diagram are in [Firmware](../architecture/firmware.md#shift).
 

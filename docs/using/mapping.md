@@ -44,12 +44,12 @@ build][rolling]. To use one:
    "Avionics Panel" joysticks is device 1: bind `JS-device-1` to either and `JS-device-2` to the other, choose
    Apply changes, and check the choice in step 4.
 4. Start a flight in an aircraft of your family with the avionics on and choose Run in MobiFlight. With the
-   amber light by SHIFT off (wait for it to go out), turn the inner knob of the ALT/HDG knob one detent: the
-   heading bug must move by 1 degree. If it does not, the joysticks are the wrong way round: open the
-   downloaded profile again (File, Open, and do not save the changes), bind them the other way and repeat
-   this step. If the bug moves neither way, check that MobiFlight is connected to the sim and its WASM
-   module is installed, that you chose Run, and that the panel was plugged in without SHIFT held and shows up
-   as two joysticks (in keyboard mode it is a keyboard: [Keyboard mode](keyboard.md)).
+   amber light by SHIFT off (wait for it to go out; tap SHIFT if it blinks), turn the inner knob of the
+   ALT/HDG knob one detent: the heading bug must move by 1 degree. If it does not, the joysticks are the wrong
+   way round: open the downloaded profile again (File, Open, and do not save the changes), bind them the other
+   way and repeat this step. If the bug moves neither way, check that MobiFlight is connected to the sim and
+   its WASM module is installed, that you chose Run, and that the panel was plugged in without SHIFT held and
+   shows up as two joysticks (in keyboard mode it is a keyboard: [Keyboard mode](keyboard.md)).
 5. Save the project (File, Save). From then on it opens without asking.
 
 Each project names the commit it was built from at the end of its name, its first `"Name"` in the file (a text

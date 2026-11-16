@@ -223,9 +223,9 @@ class Page(ThreadingHTTPServer):
             self.forward(device, report)
 
     def state(self):
-        """The lights (their duty as a share of full on: 1, or 0.25 for SHIFT's dim pulse), the unit and the FREQ
-        mode (the panel's: the FREQ light also blinks for ADF and counts with short flashes) and each device's
-        buttons by name; in keyboard mode the keyboard's ("keyboard") function with its shortcut and unit.
+        """The lights (their duty as a share of full on: 1, or 0.25 for SHIFT's dim pulse or blink), the unit and
+        the FREQ mode (the panel's: the FREQ light also blinks for ADF and counts with short flashes) and each
+        device's buttons by name; in keyboard mode the keyboard's ("keyboard") function with its shortcut and unit.
         code.py's thread and the output change them meanwhile, so code.py's globals and the reports are read once
         each. A reload starts the globals anew, without LED_DUTY until code.py has set it: the lights are off
         until then."""
