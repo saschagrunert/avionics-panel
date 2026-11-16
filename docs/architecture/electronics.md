@@ -14,7 +14,8 @@ pad of the board is missing from it. Renders: [top](../../renders/5-pcb-top.png)
 
 - On the Gerbers: shorts, opens and copper without a net, on the copper as exact geometry; the solder mask,
   the paste, the legend and the planes; the layer and polarity each file states, and the zip against the
-  files.
+  files. Each file is read in the number format, unit and commands `make.py` writes, and any other is an
+  error (`gerber_io.py`).
 - On the design data the Gerbers are written from: the clearances of the outer copper and the holes, against
   JLCPCB's limits and the design's own.
 - The files against that data, one for one: the copper Gerbers (every pad, via and trace), the drill files,
@@ -66,12 +67,17 @@ to an SWD probe; GND is on the USB-C shell. RUN stays tied to 3V3; the probe res
 RANGE control's "Push" pin is common to its five switches; a centre push closes com without A to D.
 
 Each of the seven columns has a 10 k pull-up to 3V3 (R_PU0 to R_PU6, C25804), on its bus between key rows 1
-and 2. `KeyMatrix` drives a row low, reads the columns, drives the row high again and waits about 1 µs before
-the next one; only the pull-ups then lift a column whose key was pressed. With 10 k the column's time constant
-is 0.2 to 0.3 µs, well inside the 1 µs wait. The RP2040's own pull-up alone (50 to 80 k, against 20 to 30 pF
-of copper and five diodes) would give 1 to 2.4 µs, long enough for a phantom press in the same column of the
-next row. CircuitPython drives the scanned row at 12 mA, so a pressed key reads at most about 0.74 V, also with
-all seven keys of its row held, under the RP2040's 0.8 V input-low limit.
+and 2. `KeyMatrix` also enables the RP2040's own pull-up (50 to 80 k) on each column, so the two together are
+8.3 to 8.9 k. It drives a row low, reads the columns, drives the row high again for about 1 µs and then makes
+it an input with its pull-up again before the next one (CircuitPython 9.2.9, `KeyMatrix.c`); only the pull-ups
+then lift a column whose key was pressed. A column is up to 40 pF: 146 to 168 mm of trace at about 1.1 pF/cm,
+five diodes and the pin; GP10's column, 84 mm long, is about 25 pF. Its time constant is then at most 0.36 µs
+(8.9 k x 40 pF), well inside the 1 µs wait. The RP2040's own pull-up alone would give 1.5 to 3.2 µs, long
+enough for a phantom press in the same column of the next scanned row. A pressed key draws at most 3.3 V / (10
+k ∥ 50 to 80 k), 0.37 to 0.40 mA. CircuitPython drives the scanned row at 12 mA, so a pressed key reads at
+most about 0.79 V (the 1N4148W's about 0.67 V at 0.4 mA, scaled down from its datasheet's 0.715 V maximum at 1
+mA, plus 0.12 V across the row pin with all seven keys of its row held), under the RP2040's 0.8 V input-low
+limit; the real thresholds lie well above it.
 
 So reversed diodes cannot be made up for in the firmware:
 
@@ -143,18 +149,20 @@ U4 has four channels of steering diodes to its VCC pin and a clamp from VCC to G
 | F1's hold current | 0.5 A at 23 °C, 0.40 A at 50 °C |
 | F1's trip current | 1.0 A at 23 °C |
 | Series resistance | F1 0.15 to 0.7 ohm; with R_IN at most 1.7 ohm |
-| U3's input | 7.0 V absolute maximum |
+| U3's input | 6.0 V operating maximum (Torex's datasheet, p. 4), 7.0 V absolute maximum (p. 3) |
 | U3's dropout | At most 0.68 V at 100 mA |
 | U3's output | 200 mA guaranteed; folds back at about 0.35 to 0.5 A (Torex's curve for the 3.0 V type), about 0.1 A into a short |
 | Capacitance on VBUS at attach | 10 µF (USB 2.0, 7.2.4.1), which C_IN alone reaches |
 
 The board draws about 110 mA at most (RP2040 a few tens of mA, flash up to 25 mA writing, the SHIFT and FREQ
-lights up to 17.2 mA each at full duty, the UNIT light up to 14.2 mA from VBUS_F past U3, 0.3 mA per pressed
+lights up to 17.2 mA each at full duty, the UNIT light up to 14.2 mA from VBUS_F past U3, 0.4 mA per pressed
 key), about 75 mA at the firmware's duties. From 4.40 V, the lowest VBUS of a USB 2.0 port, R_IN, F1 and U3's
 dropout still leave 3.3 V out at 100 mA, more than U3 carries. From 5.25 V, U3 dissipates
 under 0.2 W of the 0.25 W its SOT-23 takes. The capacitors behind U3 add to C_IN while VBUS comes up, which
 puts the board over the intent of the attach limit; U3's current limit, behind R_IN and F1, limits that
 inrush, and on PC ports it is no practical issue.
+The 110 mA worst case is just over the 100 mA CircuitPython declares to the host, and in USB suspend the panel
+draws tens of mA (the lights go dark, the RP2040 runs on) against USB 2.0's 2.5 mA; PC hosts enforce neither.
 
 What gives way on a fault:
 
@@ -168,6 +176,11 @@ What gives way on a fault:
 - A fault on 3V3: U3's current limit, about 0.1 A into a short. That is about 0.5 W in U3, twice what its
   SOT-23 takes: it gets hot, and after a sustained short it may need replacing. F1 will not reliably trip.
 
+That is an accepted limitation of rev 1: the chain protects the host's port and the cable, not the board, which
+may need R_IN, F1 or U3 replaced after a fault. The first plug-in in
+[Flash and test](../building/bring-up.md#flash-and-test) is made from a current-limited supply where one is at
+hand, otherwise from a hub or a charger, and unplugged at the first smell or heat.
+
 `check.py` checks that each net of the chain holds only its pads (VBUS: J1 and R_IN; VBUS_R: R_IN and F1;
 VBUS_F: F1, C_IN, U3, U4's VCC and R_UNIT; `CHAIN_PADS` and `LOADS`) and that R_IN and F1 each sit between
 their two nets (`VBUS_CHAIN`). Copper past or across either part would join two of these nets, a short that
@@ -178,12 +191,14 @@ controlled slope. The cable's inductance then rings with C_IN, a ceramic capacit
 damps it: with the cable's and F1's resistance, 1 R takes the circuit to critical damping or past it
 (2 x √(L / C) is 0.8 to 1.3 ohm up to 1 µH).
 
-A step simulation of the circuit gives the peaks on VBUS_F. It assumes a 5.25 V step, no load, no contact
+A step simulation of the circuit gives the peaks on VBUS_F. It is not kept in the repository: there is no
+model to run, only its assumptions and results, given here. It assumes a 5.25 V step, no load, no contact
 bounce, no U4 clamp and C_IN's DC-bias loss (about 3 µF at 5 V and 2.3 to 2.5 µF at 7 V; a pessimistic curve
 1.8 µF at 5 V and 1.4 µF at 7 V). The cable and fuse ranges are in the comment at C_IN in
 [board.py](../../pcb/board.py). With 1 R the peak stays within 0.05 V of 5.25 V up to 1 µH of cable. On 2 to
-3 µH with little resistance it reaches 5.8 V with the nominal curve and 6.6 V with the pessimistic one, under
-U3's 7.0 V maximum; with a 5.5 V step the pessimistic worst case scales to about 6.9 V, still under it.
+3 µH with little resistance it reaches 5.8 V with the nominal curve and 6.6 V with the pessimistic one; with a
+5.5 V step the pessimistic worst case scales to about 6.9 V. The peaks over 6.0 V exceed U3's operating input
+for a few µs, under its 7.0 V absolute maximum.
 
 - Value: without R_IN, a short, low-resistance cable peaks above the 7.0 V maximum for a few µs. 1 R is the
   lowest basic value.
@@ -237,7 +252,7 @@ so JLCPCB fits them in both assembly variants.
 
 | | SHIFT light | UNIT light | FREQ light |
 | --- | --- | --- | --- |
-| LED | LTST-C230KSKT (C125108), amber (LiteOn: yellow, 587 nm) | LTW-C230DS (C575513), white | LTST-C230KGKT (C125106), green |
+| LED | LTST-C230KSKT (C125108), amber (LiteOn: yellow, 587 nm) | LTW-C230DS (C575513), white | LTST-C230KGKT (C125106), green (LiteOn: AlInGaP green, 571 nm, a yellowish green) |
 | Intensity at 20 mA | 30 mcd minimum, 60 typical | 180 to 450 mcd | 20 mcd minimum, 35 typical |
 | Forward voltage at 20 mA | 2.0 V typical, 2.4 V at most | 2.8 to 3.6 V, in four bins of ±0.1 V | 2.0 V typical, 2.4 V at most |
 | Rated DC current | 30 mA | 20 mA | 30 mA (LiteOn's LTST-C230KGKT datasheet, p. 2) |
@@ -334,14 +349,15 @@ RP2040's driver it sets the source impedance the full-speed specification asks f
 ## Solder mask
 
 The solder mask is black, with JLCPCB's white legend on it: green would show as a thin line in the gap round
-each key cap and through the USB-C opening. Black needs wider mask dams than green (0.13 mm against 0.10 mm
-with 1 oz outer copper, JLCPCB's capabilities page). The closest pads (the RP2040's, the USB-C contacts, C_X2
-and R_X) are 0.2 mm apart, so every opening is its pad plus 0.035 mm per side, not the usual 0.05, which
-leaves a 0.13 mm dam. The comment at `MASK_GROW` in `board.py` says why JLCPCB's exposure and alignment allow
-it. `check.py` measures every dam, prints how many are exactly 0.13 mm, and checks that each opening clears
-its pad by at least 0.025 mm. JLCPCB removes a dam it cannot hold rather than asking, so the order asks for
-the production file to be confirmed and the dams checked there; the fallback is green
-([Ordering](../building/ordering.md#review-questions)).
+each key cap and through the USB-C opening. Black needs pads further apart for a mask dam than green (JLCPCB's
+capabilities page, with 1 oz outer copper: a pad spacing of at least 0.13 mm for black or white mask, 0.10 mm
+for green). The closest pads (the RP2040's, the USB-C contacts, C_X2 and R_X) are 0.2 mm apart, over that rule.
+The openings are also sized so that the mask between them is 0.13 mm wide, in case the rule is applied to the
+dam itself: every opening is its pad plus 0.035 mm per side, not the usual 0.05. The comment at
+`MASK_GROW` in `board.py` says why JLCPCB's exposure and alignment allow it. `check.py` measures every dam,
+prints how many are exactly 0.13 mm, and checks that each opening clears its pad by at least 0.025 mm. JLCPCB
+removes a dam it cannot hold rather than asking, so the order asks for the production file to be confirmed and
+the dams checked there; the fallback is green ([Ordering](../building/ordering.md#review-questions)).
 
 Via covering Tented matches the Gerbers: the mask covers every via on both sides, except:
 
@@ -414,8 +430,9 @@ counter-clockwise by the rotation.
 
 The bottom legend has a pin 1 corner mark at U1, pin 1 dots at U2, U3, U4 and Y1, and a cathode bar at each
 diode and LED, for the [placement preview](../building/ordering.md#placement-preview). `check.py` wants each
-mark on the legend Gerber: a bar beyond every cathode pad, and at each of the five parts a mark that is at
-least 0.3 mm nearer to pin 1 than to any other pad (at Y1 to pin 1 or pin 3, the crystal's two ends).
+mark on the legend Gerber: a bar beyond the cathode pad of every diode and LED in `board.PARTS`, and at each
+of the five parts a mark that is at least 0.3 mm nearer to pin 1 than to any other pad (at Y1 to pin 1 or
+pin 3, the crystal's two ends).
 
 In full assembly JLCPCB also places the through-hole parts on the top, from the same CPL (`CPL-full.csv`,
 Layer "Top"). It uses its top-side convention: seen from the top, the part is JLC's footprint turned

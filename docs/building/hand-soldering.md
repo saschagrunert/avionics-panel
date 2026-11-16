@@ -30,9 +30,11 @@ set, tried on a loose key).
 
 1. Before step 1: the four J1 shell tabs.
 2. After step 3: unplug, then solder the 28 keys. Steps 4 and 5 test them; the column check of step 5 holds
-   even though the encoders and the RANGE control are not on yet.
-3. After step 5: unplug, then solder the three encoders and the RANGE control. After step 6, repeat the
-   column check for DN, ENT and PROC with the parts fitted.
+   even though the encoders and the RANGE control are not on yet. The FREQ light waits: only the FREQ push
+   changes it.
+3. After step 5: unplug, then solder the three encoders and the RANGE control. After step 6, test the FREQ
+   light as in step 5, and repeat the column check for the pairs that end on row 4 (UP, VS, APR, HOME, FPL,
+   DIRECT and MENU): a bridge at a new joint shows there.
 
 ## Soldering
 

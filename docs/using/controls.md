@@ -83,8 +83,8 @@ Every entry starts at the first digit. Turning the outer ring clockwise moves on
 counter-clockwise back; it stops at the first and the fourth. Once the outer ring rests, the green light
 counts the selected digit, one to four short flashes, also after a turn against an end; the transponder shows
 which one moves too. The entry ends 5 s after the last detent of either ring (no time limit while SHIFT is
-locked: [SHIFT](#shift)), and the knob tunes frequencies again. A SHIFT tap during an entry starts a new one
-(locked, the tap unlocks and the knob tunes frequencies): the next detent is on the first digit again.
+locked: [SHIFT](#shift)), and the knob tunes frequencies again. A SHIFT tap during an entry starts a new
+one: the next detent is on the first digit again. Locked, the tap unlocks and the knob tunes frequencies.
 
 Acceleration: on ALT, HDG, CRS and the ADF inner ring the first detent of a turn makes the fine step, and
 detents that follow within 60 ms in the same direction make the coarse one; turned faster than about 9
@@ -99,6 +99,12 @@ detents a second, the knob mixes in coarse steps too ([details](../architecture/
 COM, NAV, BARO, the squawk digits, the FMS knob and RANGE have no acceleration: frequencies already have a
 coarse outer ring, and digits, pages, characters and zoom steps must move exactly one per detent. The dimmers
 move one step per detent too; the profile sets the step size.
+
+One step per detent holds up to the speed the steps go out at: about 9 a second (each a 56 ms press and a
+56 ms gap). A faster spin queues at most 8 steps, all knobs and keys together, and drops the detents beyond
+them, so it moves fewer steps than detents and runs on for at most those 8, about 0.9 s, after the hand stops
+([details](../architecture/firmware.md#knob-steps)). Turning the other way drops that knob's queued steps, so
+it stops at once.
 
 ## Keys (label, shift legend in parentheses)
 

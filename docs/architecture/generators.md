@@ -73,16 +73,16 @@ not committed. The firmware prints it on its console, the page shows it, and the
 | `pcb/` | `python3 check.py` | The electrical and manufacturing checks, on the Gerbers, BOM and CPL ([Electronics](electronics.md)) |
 | `pcb/` | `python3 render.py` | Board renders |
 | `pcb/` | `python3 make_schematic.py` | Schematic |
-| `mech/` | `python3 make_plate_art.py` | Plate artwork |
+| `mech/` | `python3 make_plate_art.py` | Plate artwork; reads its DXF back against the layers it built |
 | `mech/` | `python3 make_caps.py` | Key caps; with `--single` also one zip per cap |
 | `mech/` | `python3 make_mech.py` | Body |
-| `mech/` | `python3 make_plate_step.py` | Plate STEP and its drawing, `plate.pdf` |
+| `mech/` | `python3 make_plate_step.py` | Plate STEP and its drawing, `plate.pdf`; reads the STEP back against the solid it built, face for face |
 | `mech/` | `python3 make_knobs.py` | Knobs, light pipes |
-| `mech/` | `python3 check_fit.py` | Sections and clearances; it also writes the fits table in [Mechanics](mechanics.md#fits) |
+| `mech/` | `python3 check_fit.py` | Sections and clearances, measured on the files ordered and the plate as built ([Mechanics](mechanics.md#fits)); it also writes the fits table there |
 | `mech/` | `python3 make_viewer_data.py` | `viewer/geometry.js`, the dimensions the 3D view takes from the generators |
 | `firmware/` | `python3 make_buttons.py >BUTTONS.md` | The button numbers of both joysticks, for MobiFlight |
 | `firmware/` | `python3 make_keys.py >KEYS.md` | The shortcuts of the [keyboard mode](../using/keyboard.md) |
-| Repository root | `pytest` | The [firmware tests](firmware.md#code-and-tests); `tests/test_checkers.py` runs the checkers in the gen shell through nix-shell and skips without it |
+| Repository root | `pytest` | The [firmware tests](firmware.md#code-and-tests); `tests/test_checkers.py` runs the checkers on known-bad cases and `tests/test_production.py` compares the files in `production/` with each other, both in the gen shell through nix-shell, and they skip without it |
 | Repository root | `python3 -m sim.page` | The [simulator](../using/simulator.md): the firmware on the PC, played in the browser |
 | Repository root | `python3 -m mobiflight --family g1000` | The MobiFlight profile of a family or aircraft, or of avionics parts, or the parts zip ([Mapping](../using/mapping.md#generated-profiles)); `--stamp` puts any text in place of the commit in its name |
 | Repository root | `python3 -m mobiflight --cards cards.zip` | The [quick-reference cards](../using/mapping.md#quick-reference-cards), one page of HTML per profile, named with the commit as the profiles (`--stamp` too) |
@@ -92,9 +92,9 @@ not committed. The firmware prints it on its console, the page shows it, and the
 
 The scripts share these modules: in `pcb/`, [board.py](../../pcb/board.py) (the board), `geom.py` (distances
 between copper items, copper paths, routed lengths), `gerber_io.py` (the Gerber and drill files read back, for
-`check.py` and `render.py`) and `route.py` (the router, with its soft costs and keep-outs for this board);
-in `mech/`, [stack.py](../../mech/stack.py) (the heights and tolerances) and `occ_util.py` (OpenCascade
-helpers).
+`check.py` and `render.py`, in the format `make.py` writes and no other) and `route.py` (the router, with its
+soft costs and keep-outs for this board); in `mech/`, [stack.py](../../mech/stack.py) (the heights and
+tolerances) and `occ_util.py` (OpenCascade helpers).
 
 ## Adding an aircraft or a part
 

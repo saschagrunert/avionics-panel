@@ -194,7 +194,7 @@ class KeyMatrix(Keypad):
     def __init__(self, board, row_pins, column_pins, columns_to_anodes=True, interval=0.02, max_events=64,
                  debounce_threshold=1):
         self.rows, self.cols, self.columns_to_anodes = tuple(row_pins), tuple(column_pins), columns_to_anodes
-        board.claim(*self.rows, *self.cols)
+        board.claim(self, *self.rows, *self.cols)
         super().__init__(board, [(r, c) for r in self.rows for c in self.cols], interval, max_events,
                          debounce_threshold)
         board.matrix = self
@@ -204,7 +204,7 @@ class Keys(Keypad):
     def __init__(self, board, pins, *, value_when_pressed, pull=True, interval=0.02, max_events=64,
                  debounce_threshold=1):
         self.pins, self.value_when_pressed, self.pull = tuple(pins), value_when_pressed, pull
-        board.claim(*self.pins)
+        board.claim(self, *self.pins)
         super().__init__(board, list(self.pins), interval, max_events, debounce_threshold)
         board.direct = self
 
@@ -220,7 +220,7 @@ class IncrementalEncoder:
     def __init__(self, board, pin_a, pin_b, divisor=4):
         if abs(gpio(pin_a) - gpio(pin_b)) != 1:
             raise RuntimeError("Pins must be sequential GPIO pins")
-        board.claim(pin_a, pin_b)
+        board.claim(self, pin_a, pin_b)
         self.board, self.pins, self.divisor = board, (pin_a, pin_b), divisor
         self.swapped = gpio(pin_a) < gpio(pin_b)
         self.position = self.sub_count = 0
@@ -244,14 +244,24 @@ class IncrementalEncoder:
             self.sub_count = 0
 
 
+def check_duty(value):
+    """A PWMOut duty as CircuitPython takes it: an int (mp_obj_get_int), 0 to 65535 (mp_arg_validate_int_range)"""
+    if not isinstance(value, int):
+        raise TypeError(f"can't convert {type(value).__name__} to int")
+    if not 0 <= value <= 0xFFFF:
+        raise ValueError("duty_cycle must be 0-65535")
+
+
 class PWMOut:
-    """pwmio.PWMOut: keeps every duty written, with its time"""
+    """pwmio.PWMOut: keeps every duty written, with its time. A duty is an int of 0 to 65535, else TypeError or
+    ValueError, as on the board (shared-bindings/pwmio/PWMOut.c)."""
 
     def __init__(self, board, pin, *, duty_cycle=0, frequency=500, variable_frequency=False):
-        board.claim(pin)
+        check_duty(duty_cycle)
         pwm_slice, timer = int(pin[2:]) // 2 % 8, (frequency, variable_frequency)   # the RP2040's PWM slice
         if pwm_slice in board.slices and (variable_frequency or board.slices[pwm_slice] != timer):
             raise ValueError(f"{pin}: PWM slice {pwm_slice} runs at another frequency")
+        board.claim(self, pin)                 # only once constructed: a PWMOut that fails leaves its pin free
         board.slices[pwm_slice] = timer
         self.board, self.pin, self.frequency, self._duty = board, pin, frequency, duty_cycle
         self.history = board.log()             # (ms, duty) of every write
@@ -263,6 +273,7 @@ class PWMOut:
 
     @duty_cycle.setter
     def duty_cycle(self, value):
+        check_duty(value)
         self._duty = value
         self.history.append((self.board.t, value))
 
@@ -292,7 +303,7 @@ class DigitalInOut:
     not charged it yet (a sleep of SETTLE_S after switching to input)."""
 
     def __init__(self, board, pin):
-        board.claim(pin)
+        board.claim(self, pin)
         self.board, self.pin, self.mode, self.pull, self.out, self.released = board, pin, "in", None, None, False
         self.charged = False
         board.ios[pin] = self
@@ -362,6 +373,31 @@ class Device:
             b.take(b.taken, self, bytes(report))
 
 
+class Runtime:
+    """supervisor.runtime, with only what boot.py and code.py use: usb_connected (Board.usb_connected, read only)
+    and rgb_status_brightness (0 to 255, kept on the Board). Any other attribute is an AttributeError."""
+    __slots__ = ("board",)
+
+    def __init__(self, board):
+        self.board = board
+
+    @property
+    def usb_connected(self):
+        return self.board.usb_connected
+
+    @property
+    def rgb_status_brightness(self):
+        return self.board.rgb_status_brightness
+
+    @rgb_status_brightness.setter
+    def rgb_status_brightness(self, value):
+        if not isinstance(value, int):         # CircuitPython 9.2.9: mp_obj_get_int first, then the range
+            raise TypeError(f"can't convert {type(value).__name__} to int")
+        if not 0 <= value <= 255:
+            raise ValueError("brightness must be 0-255")
+        self.board.rgb_status_brightness = value
+
+
 class Board:
     def __init__(self, script=None, work_ms=0, wrap=TICKS_WRAP_MS - BOOT_MS, log=list, keyboard=False):
         self.log = log                         # makes the records below that grow with the run
@@ -388,6 +424,7 @@ class Board:
         self.received = []                     # (ms the host took it, device, report) of every report sent
         self.keypads, self.encoders, self.leds, self.regs, self.ios = [], [], [], {}, {}
         self.slices = {}                       # PWM slice -> (frequency, variable) of the PWMOuts on it this run
+        self.owners = {}                       # pin -> the stand-in that last claimed it (claim)
         self.matrix = self.direct = None
         self.created = []                      # the usb_hid devices boot.py made
         self.devices = [Device(self, report_descriptor=b"", usage_page=page, usage=usage, report_ids=(i,),
@@ -406,8 +443,7 @@ class Board:
             "pwmio": SimpleNamespace(PWMOut=partial(PWMOut, self)),
             "rotaryio": SimpleNamespace(IncrementalEncoder=partial(IncrementalEncoder, self)),
             "storage": SimpleNamespace(disable_usb_drive=self.call("disable_usb_drive")),
-            # supervisor.runtime.usb_connected is Board.usb_connected
-            "supervisor": SimpleNamespace(runtime=self, reload=self.reload, ticks_ms=self.ticks_ms,
+            "supervisor": SimpleNamespace(runtime=Runtime(self), reload=self.reload, ticks_ms=self.ticks_ms,
                                           set_usb_identification=self.call("set_usb_identification")),
             "time": SimpleNamespace(sleep=self.sleep),
             "version": version,
@@ -449,11 +485,15 @@ class Board:
             return (self.rings[ring] - b) % 4 not in (1, 2)
         return True
 
-    def claim(self, *pins):
-        """ValueError for a pin a DigitalInOut still holds, as on the board"""
+    def claim(self, owner, *pins):
+        """The pins for a stand-in, owner: ValueError for one that another still holds (a DigitalInOut not
+        deinitialised, a keypad, an encoder, a PWMOut), as on the board"""
         for pin in pins:
-            if pin in self.ios and not self.ios[pin].released:
+            held = self.owners.get(pin)
+            if held is not None and not getattr(held, "released", False):
                 raise ValueError(f"{pin} in use")
+        for pin in pins:
+            self.owners[pin] = owner
 
     # ---------------- the clock ----------------
     def ticks_ms(self, t=None):
@@ -575,7 +615,7 @@ class Board:
 
     def run(self, until, edits=()):
         """Runs code.py: its loop passes up to `until` ms, or until it reloads"""
-        self.until, self.gone, self.slices = until, False, {}     # (a new VM: no PWMOut left)
+        self.until, self.gone, self.slices, self.owners = until, False, {}, {}   # (a new VM: every pin free again)
         with suppress(Stop, ReloadException):
             self.exec("code.py", edits)
         return self

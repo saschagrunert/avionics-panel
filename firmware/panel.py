@@ -103,6 +103,8 @@ class Panel:
         self.shift_down = None       # scan ms of the SHIFT press still down, until its release is applied, while
                                      # nothing else was used: it may lock, and a lock it made can still be undone
         self.lock_open = False       # the lock came from the SHIFT press still down: other input takes it back
+        self.used_up = False         # input scanned after SHIFT's release, still pending: modifier use if that
+                                     # release turns out a bounce
         self.lock_left = None        # scan ms of the release that ended the locking press: chatter after it
         self.unit = 1
         self.freq_mode = 0           # index into FREQ_MODES: kept until the FREQ push changes it
@@ -231,9 +233,14 @@ class Panel:
     def _used(self, t, scan=None):
         """A key, push or tilt scanned at scan, or a detent (no scan): with SHIFT still down SHIFT is a modifier,
         so its press locks not, and a lock it made goes back to the arm of a tap, which this input takes: it
-        goes out shifted. Still down: its release not applied yet, unless scanned before this key's press; a
-        detent cannot tell, so one in the same pass as SHIFT's release, read late or not, counts as used with it"""
-        if self.shift_down is None or scan is not None and self.pending.get("SHIFT", scan + 1) <= scan:
+        goes out shifted. Still down: its release not applied yet, and this input scanned before that release; a
+        detent has no scan time, so one read before SHIFT's release is applied (BOUNCE_MS after its scan) counts.
+        A key, push or tilt scanned at or after the release counts only if the release turns out a bounce
+        (used_up, key()): SHIFT was down throughout then."""
+        if self.shift_down is None:
+            return
+        if scan is not None and self.pending.get("SHIFT", scan + 1) <= scan:
+            self.used_up = True
             return
         self.shift_down = None
         if self.lock_open:
@@ -377,8 +384,13 @@ class Panel:
                                                            # finds it, before its release is applied
         last = self.pending.pop(name, None)
         if last is not None:
-            if at - last < BOUNCE_MS:
-                return                                     # a bounce: the press goes on
+            if at - last < BOUNCE_MS:                      # a bounce: the press goes on
+                if name == "SHIFT" and self.used_up:       # input in the gap: SHIFT was a modifier after all.
+                    self.used_up, self.shift_down = False, None   # A lock it made ends, to plain: that input
+                    if self.lock_open:                     # already went out shifted
+                        self.locked = self.lock_open = False
+                        self.shift, self.under = self._held_session(), None
+                return
             self._apply(name, False, t, last)              # the release was real, tick() hasn't seen it yet
         self._apply(name, True, t, at)
 
@@ -412,7 +424,7 @@ class Panel:
             if name == "SHIFT":
                 if self.lock_open:
                     self.lock_left = at
-                self.shift_down, self.lock_open = None, False
+                self.shift_down, self.lock_open, self.used_up = None, False, False
             return
         self._drop_squawk(t)                             # a key or SHIFT tap ends the squawk entry, or starts anew
         held = self._held_session()

@@ -1,6 +1,7 @@
 """Independent checks on the generated Gerbers:
-1. read each Gerber file (own minimal parser), as exact geometry (shapely) and as a 0.05 mm raster; each file's
-   layer and polarity as it states them, and the zip that is uploaded against the files
+1. read each Gerber file (own minimal parser, gerber_io.py: the number format, unit and commands make.py writes
+   and no other), as exact geometry (shapely) and as a 0.05 mm raster; each file's layer and polarity as it
+   states them, and the zip that is uploaded against the files
 2. electrical check on the copper as exact geometry, the layers joined through the plated holes: no shorts, no
    opens, no copper without a net, no contact or neck under NECK (a point contact is an open), and no plane
    copper narrower than PLANE_NECK
@@ -29,7 +30,8 @@
     close together but the known pair (solder bridges where a pad is soldered by hand: J1's shell tabs after full
     assembly, every through-hole pad with the hand-soldering option)
 11. JLCPCB's footprint of every through-hole part at its top-side position and rotation in the CPL file (full
-   assembly) on our holes pin by pin, each hole within TH_DRILL_TOL of JLC's in size and in its datasheet's band
+   assembly) on our holes pin by pin, each hole within TH_DRILL_TOL of JLC's in size (a lug slot's length of JLC's
+   plus TH_SLOT_EXTRA) and in its datasheet's band
 12. no copper on B under J1's shell but J1's own pads
 13. the legend clear of mask openings and holes, inside the board outline and outside the LED cutouts by
    SILK_EDGE_MIN, SILK_VCUT_MIN inside the V-cut edge, none of its strokes under JLCPCB's narrowest line, and the
@@ -40,8 +42,8 @@
     peg holes unplated, each in its place and size, and nothing else
 16. the Edge_Cuts Gerber against the model: the board outline and every LED cutout in its place, size and
     corner radius, and nothing else
-17. a cathode bar in the bottom legend at every diode and LED, beyond its cathode pad on the side away from the
-    anode, and a pin 1 mark at U1 to U4 and Y1
+17. a cathode bar in the bottom legend at every diode and LED of board.PARTS, beyond its cathode pad on the side
+    away from the anode, and a pin 1 mark at U1 to U4 and Y1
 18. the BOM and CPL files as make_bom.py wrote them: JLCPCB's headers, each BOM line's designators in the CPL
     with Quantity their count and the Comment and LCSC of board.py, each Comment the value of its LCSC part, the
     hand-soldering files the bottom side of the full ones, every part of board.py on its side (8 and 11 read
@@ -847,6 +849,9 @@ TH_DRILL_TOL = 0.13 + 0.08
 # +0.1/-0; Alps RKJXT1F42001: 1.0 +0.2/-0. (The RKJXT's unplated peg hole follows JLC's footprint: board.py.)
 TH_SHEET = {"C589907": ((0.94, 1.04),), "C19270361": ((1.2, 1.3), ((1.5, 1.6), (2.6, 2.7))),
             "C160841": ((1.0, 1.2),)}
+# A lug slot drawn longer than JLC's on purpose (the review answer in docs/building/ordering.md: 1.5 x 3.0 for the
+# encoders): how much longer, by part. Its length is compared with JLC's slot plus this, its width as before.
+TH_SLOT_EXTRA = {"C19270361": 0.0}
 TH_PIN = {                                  # JLC's pin number -> our pins it may land on
     # key: pins 1-2 and 3-4 are joined inside, so 0 and 180 are the same switch (the 6.5 x 4.5 pattern misses at 90)
     "C589907": dict.fromkeys("1234", ("A", "B", "C", "D")),
@@ -877,13 +882,15 @@ def cpl_fit(ref, lcsc, fp, cx, cy, rot, ours):
         c = math.hypot(p.x - X, p.y - Y)
         worst = max(worst, c)
         mine = p.slot or (p.drill, 0.0)                         # width and length, as JLC's drill and slot length
+        extra = TH_SLOT_EXTRA.get(lcsc, 0.0) if slot else 0.0
         if c > FP_POS_TOL:
             bad.append(f"JLC pin {num} lands at ({X:.2f}, {B.H - Y:.2f}), {c:.2f} mm from the nearest hole {p.name}")
         elif p.name.split(".", 1)[1] not in pins.get(num, ()):
             bad.append(f"JLC pin {num} lands on {p.name} ({p.net}), not on {'/'.join(pins.get(num, ('?',)))}")
-        elif max(abs(mine[0] - d), abs(mine[1] - slot)) > TH_DRILL_TOL + 1e-6:
+        elif max(abs(mine[0] - d), abs(mine[1] - slot - extra)) > TH_DRILL_TOL + 1e-6:
             bad.append(f"{p.name} is drilled {mine[0]:g}" + (f" x {mine[1]:g}" if mine[1] else "") + f", JLC's pin "
-                       f"{num} {d:g}" + (f" x {slot:g}" if slot else "") + f": over {TH_DRILL_TOL:g} mm apart")
+                       f"{num} {d:g}" + (f" x {slot:g}" if slot else "") + (f" (+{extra:g})" if extra else "")
+                       + f": over {TH_DRILL_TOL:g} mm apart")
         else:
             band = TH_SHEET[lcsc][1] if p.slot else (TH_SHEET[lcsc][0],)
             if any(not lo - 1e-6 <= v <= hi + 1e-6 for v, (lo, hi) in zip(mine, band, strict=False)):
@@ -942,7 +949,8 @@ def tht_footprints(pads, parts):
     return bad
 
 
-# JLCPCB, black (and white) solder mask with 1 oz outer copper: the narrowest dam it keeps between two openings
+# JLCPCB, black (and white) solder mask with 1 oz outer copper: the pad spacing it keeps a dam between, and the dam
+# width the openings leave as well
 # (0.10 for green, red, yellow, blue and purple). The board is ordered black.
 MASK_DAM = 0.13
 # JLCPCB exposes the mask of multilayer boards by LDI, aligned to +-0.02 mm (their blog "Basic Design of Solder
@@ -1534,7 +1542,9 @@ def legend_mirror():
 # The cathode marks that JLCPCB's placement preview is checked against (docs/building/ordering.md): every diode
 # and LED has a bar in the bottom legend beyond its cathode pad K, on the side away from its anode pad A, at most
 # CATHODE_BAR from the pad's outer edge and alongside at least half of that edge. make.py leaves a bar out round
-# a via and in a cutout (HOLE_GAP); one left out altogether, or drawn at the anode, fails here.
+# a via and in a cutout (HOLE_GAP); one left out altogether, or drawn at the anode, fails here. The diodes and LEDs
+# are the parts of board.PARTS named D... and LED...; each must have its K and A pads, so a pad renamed is a
+# problem, not a part left out.
 CATHODE_BAR = 1.0
 
 
@@ -1542,11 +1552,18 @@ def cathode_bars(pads):
     by = {p.name: p for p in pads}
     lines = [op[2:] for op in gerber_ops("avionics-B_Silkscreen.gbo") if op[0] == "line"]
     bad, short, n = 0, (9.0, ""), 0
+    parts = sorted(ref for ref, *_r in B.PARTS if ref.startswith(("D", "LED")))
+    for ref in parts:
+        if not {f"{ref}.K", f"{ref}.A"} <= by.keys():
+            bad += 1; print(f"NO CATHODE BAR AT {ref}: it has no pads {ref}.K and {ref}.A")
     for k in pads:
         if not k.name.endswith(".K"):
             continue
         n += 1
-        a = by[k.name[:-1] + "A"]
+        a = by.get(k.name[:-1] + "A")
+        if a is None or k.name[:-2] not in parts:
+            bad += 1; print(f"CATHODE PAD {k.name} is not a pad of a diode or LED with its anode {k.name[:-1]}A")
+            continue
         d = math.dist((k.x, k.y), (a.x, a.y))
         ux, uy = (k.x - a.x) / d, (k.y - a.y) / d                   # from the anode to the cathode
         out, half = (k.w / 2, k.h / 2) if abs(ux) > abs(uy) else (k.h / 2, k.w / 2)   # half the pad that way, across
@@ -1561,8 +1578,9 @@ def cathode_bars(pads):
             bad += 1
             print(f"NO CATHODE BAR AT {k.name}: {along:.2f} mm of legend line beyond the pad, away from {a.name} "
                   f"(min {half:.2f})")
-    print(f"cathode bars: {n} diodes and LEDs, each with a bar in the bottom legend beyond its K pad, away from "
-          f"its A pad; the shortest {short[0]:.2f} mm alongside {short[1]} (min half its edge); {bad} problems")
+    print(f"cathode bars: {n} K pads of {len(parts)} diodes and LEDs (board.PARTS), each with a bar in the bottom "
+          f"legend beyond its K pad, away from its A pad; the shortest {short[0]:.2f} mm alongside {short[1]} (min "
+          f"half its edge); {bad} problems")
     return bad
 
 

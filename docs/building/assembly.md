@@ -21,13 +21,22 @@ the bosses. The nearest caps and shafts are about 10 mm in.
    bars of SHIFT and DN are then at the front edge, the bar of UP at the back edge. Square the caps: hold a
    steel rule against the front edges of each row and turn every cap until its edge lies flat on the rule. A
    cap left turned rubs in its hole or lands on the plate back instead.
-2. Light pipes (before or after step 1): break the three off their bar and sand the stubs flush with the base
-   on fine sandpaper laid on the table, no further (the visible tops stay as printed). The three pipes are the
-   same. Lay the plate face down on the blocks and the cloth. Drop a pipe, rod first, into each of the three
-   small round holes among the key holes: one between the front row of key holes and the front edge, one
-   between the two front rows and one between the two middle rows. Each rests on its shoulder on the plate
-   back. A rod that has grown too tight for its hole (resin keeps changing size in its first week) sands free
-   in a fold of the fine sandpaper.
+2. Light pipes (before or after step 1): first check that the board is flat enough for them. Stand the steel
+   rule on its edge on the board's top face, along the front edge (the strip in front of the keys is free of
+   parts). Fold a sheet of printer paper once (about 0.2 mm) and try it under the rule at the middle and,
+   where the rule rocks on the middle, under both ends: it must not go in anywhere. The fit allows 0.1 mm of
+   bow, with room to about 0.2 mm ([why](../architecture/mechanics.md#light-pipes)). A board that takes the
+   folded sheet: sand each pipe's base a single sheet's thickness (about 0.1 mm) past flush, so its top sits
+   that much deeper, and check in step 3 that the board comes to rest on the bosses, not on a pipe.
+
+   Break the three pipes off their bar and sand the stubs flush with the base on fine sandpaper laid on the
+   table, no further (the visible tops stay as printed). Necks that JLC3DP printed thicker than drawn ([Review
+   questions](ordering.md#review-questions)) do not snap cleanly: cut each next to its pipe's base with a side
+   cutter instead. The three pipes are the same. Lay the plate face down on the blocks and the cloth. Drop a
+   pipe, rod first, into each of the three small round holes among the key holes: one between the front row of
+   key holes and the front edge, one between the two front rows and one between the two middle rows. Each
+   rests on its shoulder on the plate back. A rod that has grown too tight for its hole (resin keeps changing
+   size in its first week) sands free in a fold of the fine sandpaper.
 3. Board: lower it face down into the plate, J1 towards the plate's tongue. The caps drop into their key
    holes and centre the board, and it comes to rest on the five bosses, the pipes' bases standing clear under
    it. Look at the face between the blocks: every cap must stand up through its hole. One that sits on the
@@ -48,8 +57,8 @@ the bosses. The nearest caps and shafts are about 10 mm in.
    4. Feet: stick the four self-adhesive feet onto the flat pads under the corners.
 
    A gap of about 1 mm stays between the wall tops and the plate all round: the bosses carry the plate, not
-   the walls. Check it after tightening; where a wall touches the plate, take that wall top down with the
-   flat file or the sandpaper on a block until the gap shows.
+   the walls. Check it after tightening; where a wall touches the plate, take that wall top down with a
+   flat file or 240 grit sandpaper on a block until the gap shows.
 5. Turn the panel face up and check:
    - Keys: press the four keys at the corners of the key field (AP, COM ⇆, DN and ENT). Each must go down
      and come back freely. If one rubs in its hole, loosen the five screws by a turn, push that cap towards

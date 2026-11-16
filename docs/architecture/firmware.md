@@ -112,12 +112,16 @@ stateDiagram-v2
   tap does, so a tap acts at once and the lock follows only if the key stays down. SHIFT counts as down from
   its press until its release is applied, BOUNCE_MS after its scan, and a key, push, tilt or detent in that
   time makes it a modifier: before LOCK_MS no lock follows, after it the lock goes back to a tap's arm, which
-  that input takes, so it goes out shifted and SHIFT is plain after. A key, push or tilt scanned after SHIFT's
-  release does not count, whenever it is read; a detent has no scan time, so one read in the same pass as
-  SHIFT's release counts. A bounce keeps the hold, a key event read late (a pass that waited for the host) is
-  judged at its scan, and a SHIFT press within `TAP_GAP_MS` of the locking press's release is chatter, not the
-  tap that unlocks. Locked, every key and knob is sent shifted, UP and DN as after a tap (held as joystick
-  buttons, repeated in keyboard mode), with no time limit, and the light blinks dim and bright, 500 ms each
+  that input takes, so it goes out shifted and SHIFT is plain after. A key, push or tilt scanned at or after
+  SHIFT's release does not count, whenever it is read, unless that release turns out a bounce: then SHIFT was
+  down throughout, the hold does not lock, and a lock it made ends, to plain, as the input already went out
+  shifted. A detent has no scan time, so one read before SHIFT's release is applied (BOUNCE_MS after its scan)
+  counts. A bounce keeps the hold, a key event read late (a pass that waited for the host) is judged at its
+  scan, and a SHIFT press within `TAP_GAP_MS` of the locking press's release is chatter, not the tap that
+  unlocks. Two keys in the gap of one SHIFT bounce while locked both go out shifted, where with SHIFT held
+  steady only the first would: the panel cannot tell the bounce from a release when the second comes, about 30
+  ms at most. Locked, every key and knob is sent shifted, UP and DN as after a tap (held as joystick buttons,
+  repeated in keyboard mode), with no time limit, and the light blinks dim and bright, 500 ms each
   (`LOCK_BLINK_MS`), starting dim. A knob's session has no time limit either, since the blinking light cannot
   warn of its end: a squawk entry goes on after any pause and ends at a key, a SHIFT tap or another knob, and
   the next one starts at the first digit. A tap unlocks to plain, or to the session of a shifted push or tilt

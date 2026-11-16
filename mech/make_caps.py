@@ -12,7 +12,8 @@ SHIFT, every coloured stroke at least 0.4 mm wide (stack.LEGEND_*). Exact solids
 watertight, one shell per cap.
 Writes caps-<set>.zip (OBJ, MTL and texture of the set's 28 caps). With --single it also writes
 caps-single-<set>.zip for a shop that takes one model per file: in it one zip per cap, cap-<set>-<number>-<legend>.zip
-(OBJ, MTL and the cap's own texture tile). build.sh does not ask for these, and production/ does not hold them.
+(OBJ, MTL and the cap's own texture tile). build.sh asks for these, production/ holds them, and check_fit.py
+compares each with its set.
 Needs pythonocc-core and pillow (nix-shell nix/shells.nix -A gen, from the repository root).
 """
 import io

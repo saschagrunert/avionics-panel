@@ -352,6 +352,16 @@ def test_lights_work_when_the_pad_register_cannot_be_written(capsys):
     assert hw.code["panel"].freq_mode == 1 and hw.leds[2].duty_cycle == hw.code["LED_DUTY"][2]
 
 
+def test_any_error_writing_the_pad_register_leaves_the_light_dimmer(capsys):
+    # a build whose AddressRange reads but takes no slice assignment (TypeError): the same console line and the
+    # lights at the default drive, not an error that restarts code.py
+    hw = hardware(tap("SHIFT", 50, 10))
+    hw.modules["memorymap"].AddressRange = lambda start, length: bytes(length)
+    hw.run(100)
+    assert capsys.readouterr().out.count("LED drive strength not set on GP") == 2
+    assert hw.regs == {} and duties(hw)[80] > 0 and not hw.printed and not hw.reloads
+
+
 def test_shift_light_is_written_only_on_a_change():
     # code.py asks for the level every pass (1 ms) but writes the PWM duty only when it changes
     hw = hardware(tap("SHIFT", 10)).run(P.ARM_MS + 200)
@@ -1393,6 +1403,15 @@ def test_a_scan_between_the_clear_and_the_reset_of_an_overflow_is_one_press():
         hw.hold("AP", False)
     hw = hardware({100: [scan_after_clear], 400: [let_go]}).run(700)
     assert hw.matrix.resets == 1 and downs(hw) == ["AP"] and received(hw, 1)[-1] == ZERO[1]
+
+
+def test_a_key_number_past_the_keypads_is_dropped():
+    # a torn event read from the keypad's queue (it is not locked against the scans): ignored, not looked up, and
+    # the next event goes on to the panel
+    def torn(hw):
+        hw.matrix.events.items.append(Event(len(hw.matrix.contacts), True, hw.ticks_ms()))
+    hw = hardware({10: [torn], 11: [press("AP", True)], 200: [press("AP", False)]}).run(400)
+    assert downs(hw) == ["AP"] and not hw.printed and not hw.reloads
 
 
 def test_bounce_is_judged_by_the_scan_times():

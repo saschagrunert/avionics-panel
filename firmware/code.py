@@ -43,9 +43,9 @@ SCAN_ROWS, SCAN_COLS = (3, 0, 1, 2, 4), (3, 0, 1, 2, 4, 5, 6)
 FREQ_PUSH = P.GPIO13               # direct input, switch to GND
 SHIFT_LED, UNIT_LED, FREQ_LED = P.GPIO12, P.GPIO15, P.GPIO14
 DRIVE_GPIOS = (12, 14)             # the GPIO numbers of the lights driven from their pin (SHIFT, FREQ): drive_12ma
-# SHIFT (amber), UNIT (white), FREQ (green) brightness, 0..0xFFFF: about 28, 33 and 48 % of full (the green LED
-# is about half as bright as the amber at the same current), with room to tune each both ways on the first board
-# (docs/architecture/electronics.md, Lights)
+# SHIFT (amber), UNIT (white), FREQ (green) brightness, 0..0xFFFF: about 28, 33 and 48 % of full (the green LED,
+# LiteOn's AlInGaP green, 571 nm, is about half as bright as the amber at the same current), with room to tune each both
+# ways on the first board (docs/architecture/electronics.md, Lights)
 LED_DUTY = (0x4800, 0x5500, 0x7B00)
 FREQ_NAMES = ("COM", "NAV", "ADF")   # the FREQ modes as the Pico bench prints them
 # SHIFT light duty per panel level (off, dim, full). Dim is 1/4 of full: the eye is not linear, so it looks like
@@ -85,14 +85,15 @@ clock = [0, supervisor.ticks_ms()]       # ms since code.py started, and supervi
 def drive_12ma(gpio):
     """The pad's drive strength to 12 mA, so the series resistor, not the pad, sets a light's current.
     CircuitPython has no call for it: memorymap writes the RP2040's pad register (32-bit, read, modify, write).
-    After PWMOut, which leaves the drive field alone. If it fails the light stays at the 4 mA drive, dimmer."""
+    After PWMOut, which leaves the drive field alone. If it fails, in any way (a build whose AddressRange takes no
+    slice assignment raises TypeError), the light stays at the 4 mA drive, dimmer."""
     if memorymap is None:
         print("LED drive strength not set: no memorymap in this build")
         return
     try:
         reg = memorymap.AddressRange(start=PADS_BANK0 + 4 + 4 * gpio, length=4)
         reg[0:4] = (int.from_bytes(reg[0:4], "little") | DRIVE_12MA).to_bytes(4, "little")
-    except (ValueError, RuntimeError, OSError) as e:
+    except Exception as e:
         print("LED drive strength not set on GP", gpio, e)
 
 
@@ -145,8 +146,10 @@ class Source:
         ev = self.event
         k = ev.key_number
         # Only what changes a key for the panel: a key held when the keypad started sends a release only, and a
-        # scan between the clear and the reset of an overflow reports a key that the reset reports again
-        if ev.pressed != (k in self.down):
+        # scan between the clear and the reset of an overflow reports a key that the reset reports again. A key
+        # number past the keypad's is dropped, not looked up: a guard only, the keypad should never report one,
+        # and a wrong name would raise in the loop.
+        if k < len(self.names) and ev.pressed != (k in self.down):
             if ev.pressed:
                 self.down.add(k)
             else:

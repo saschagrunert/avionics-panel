@@ -7,12 +7,13 @@ flowchart LR
   jlcpcb["JLCPCB<br>2 assembled boards"]
   jlccnc["JLCCNC<br>front plate"]
   jlc3dp["JLC3DP<br>body, caps, knobs, light pipes"]
-  local["Local shop<br>screws, feet, cable, sandpaper, tools"]
+  local["Local shop<br>screws (or JLCMC), feet, cable, sandpaper, tools"]
+  lcsc["LCSC, hand-soldering only<br>keys, encoders, RANGE"]
   arrival["On arrival<br>checks"]
   bringup["Bring-up<br>flash and test"]
   assembly["Assembly"]
   mapping["Mapping<br>MobiFlight"]
-  jlcpcb & jlccnc & jlc3dp & local --> arrival --> bringup --> assembly --> mapping
+  jlcpcb & jlccnc & jlc3dp & local & lcsc --> arrival --> bringup --> assembly --> mapping
 ```
 
 1. [Ordering](ordering.md): what to order where, step by step, with the

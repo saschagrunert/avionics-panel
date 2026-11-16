@@ -122,7 +122,7 @@ Heights as drawn, z = 0 at the top of the board. Anodising raises the plate's fa
   parts, the socket and the untrimmed leads (2.7 mm at most). The milled outline fits as delivered, and so
   does the V-cut (scored and snapped) rail edge (±0.4 mm); V-cut short edges would have to be sanded
   ([On arrival](../building/bring-up.md#on-arrival)).
-- Bottom: a 5 mm hole in the floor over the two BOOT pads, for recovery and CircuitPython updates
+- Bottom: a 5 mm hole in the floor over the two BOOT pads, for recovery (CircuitPython 9.2.9's UF2 again, or `flash_nuke.uf2`)
   ([Bring-up](../building/bring-up.md#updates-and-recovery)), and four flat 12 mm pads under the corners for
   self-adhesive feet up to 10 mm across.
 
@@ -176,10 +176,15 @@ Heights as drawn, z = 0 at the top of the board. Anodising raises the plate's fa
   no cap stands in front of it. The FREQ light sits about 1.2 mm below the middle of the RADIO legends
   beside it; how it reads from the seat beyond the 45° figure is still to be seen on the first panel.
 - Print: the three pipes come on one 2.2 x 2.0 mm bar under their bases (JLC3DP prints resin parts from
-  10 x 2 x 2 mm), on Ø1.0 mm necks, so the visible tops stay as printed. The stubs are sanded flush.
-- Fallback: the 4.45 mm rod is over JLC3DP's pillar guideline (Ø2.0 up to 4 mm). With `top_len` in
+  10 x 2 x 2 mm), on Ø1.0 mm necks, so the visible tops stay as printed. The necks snap off by hand and the
+  stubs are sanded flush.
+- Fallbacks: the 4.45 mm rod is over JLC3DP's pillar guideline (Ø2.0 up to 4 mm). With `top_len` in
   `stack.PIPE` at 4.0 the fit check still passes: the top is then 0.95 mm under the anodised face and 52 % of
-  it shows.
+  it shows. The Ø1.0 mm necks are under the 1.5 mm that JLC3DP's guideline for connected parts asks for; with
+  `neck_d` at 1.6 they are over it, still inside the base, and are cut off instead of snapped.
+- Board bow: the rows above take the board's 0.1 mm (`stack.PCB_BOW`), and the never-clamped row still
+  passes at about 0.2 mm. [Putting it together](../building/assembly.md#putting-it-together) checks the
+  board against a folded sheet of paper before the pipes go in.
 - The LEDs under the pipes are in [Electronics](electronics.md#lights).
 
 ### Knobs
@@ -219,6 +224,15 @@ margin is what is left at the worst end of every tolerance in its row, and "over
 is counted from. A margin of zero fails the build. RSS: independent errors added as a root sum square. "Plate
 low" and "Plate high" are the two groups the boss height sits between. Margins of 0.05 mm or less are bold; a
 margin in percent is a share.
+
+The rows measure the files that are ordered: the knob, light pipe and body STEP files, the body's STL (which
+must be a mesh of its STEP, vertex for vertex and as many triangles) and the cap zips (every set with the same
+texture, every legend in its cell, and each single-cap zip its set's cap, UVs, material and cell). The plate
+and its marking are measured as `make_plate_step.py` and `make_plate_art.py` build them, and each of those
+reads its file back and fails unless it holds the same: the STEP face for face, the DXF vertex for vertex.
+`tests/test_production.py` compares the files in `production/` with each other, with readers of its own: the
+mounting holes, the keys, the encoders, RANGE and the lights across the drill files, the CPL, Edge_Cuts, the
+plate STEP and DXF and the body STEP.
 
 <!-- fits: written by mech/check_fit.py -->
 | Group | Fit | Margin (mm) |

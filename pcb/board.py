@@ -92,7 +92,7 @@ ROWS = [12.5, 23.5, 38.0, 49.0]         # rows 2/3 lower: room for the FMS line 
 # no bottom-side part within 6.9 mm. The same hole, keep-out, plate boss and screw as at the corners.
 MID_MOUNT = ((COLS[2] + COLS[3]) / 2, (ROWS[1] + ROWS[2]) / 2)
 MOUNTS = CORNER_MOUNTS + [MID_MOUNT]
-# Column pull-ups (10k to 3V3, one per column): the RP2040's own pull-ups (50 to 80k) with 20 to 30 pF of column
+# Column pull-ups (10k to 3V3, one per column): the RP2040's own pull-ups (50 to 80k) with 30 to 40 pF of column
 # copper and diodes recover too slowly between two rows of a KeyMatrix scan (about 1 us). On each column bus,
 # between key rows 1 and 2, 0.25 mm towards row 2 of the midpoint (as placed and routed), clear of the key pads and
 # of the body's post and middle column under the board.
@@ -137,11 +137,11 @@ LED_CUT_CLEAR = 0.2
 LED_PAD = (1.15, 1.6)                   # along, across; inner edge at LED_CUTOUT[0] / 2 + LED_CUT_CLEAR
 CUTOUTS = []                            # (x, y, w, h, r) of every cutout in the board, filled by build()
 # Solder mask: every opening is its pad grown by MASK_GROW per side (make.py writes them, check.py measures them).
-# Black mask needs dams of MASK_DAM (JLCPCB's minimum), and the closest pads (the RP2040's, the USB-C contacts, C_X2
-# and R_X) are 0.2 mm apart: 0.035 leaves 0.13 between them. JLCPCB's LDI exposure takes openings down to the pad
-# size (1:1) and aligns to +-0.02 mm on multilayer boards, so the mask stays off every pad (check.py:
-# MASK_MIN_GROW). A tented via keeps VIA_PAD_CLEAR of copper to every SMD pad, its own net's included: no via in
-# or at a pad, and a dam of mask between the via and the pad's opening.
+# JLCPCB keeps a black dam between pads at least 0.13 mm apart; the openings also leave the dam itself MASK_DAM, and
+# the closest pads (the RP2040's, the USB-C contacts, C_X2 and R_X) are 0.2 mm apart: 0.035 leaves 0.13 between them.
+# JLCPCB's LDI exposure takes openings down to the pad size (1:1) and aligns to +-0.02 mm on multilayer boards, so
+# the mask stays off every pad (check.py: MASK_MIN_GROW). A tented via keeps VIA_PAD_CLEAR of copper to every SMD
+# pad, its own net's included: no via in or at a pad, and a dam of mask between the via and the pad's opening.
 MASK_GROW, MASK_DAM = 0.035, 0.13
 VIA_PAD_CLEAR = MASK_DAM + MASK_GROW
 # Fiducials for JLCPCB's placement machines, on the bottom with the SMD parts: bare copper dots FID_D across in
@@ -342,8 +342,8 @@ def add_rkjxt(pads, ref, cx, cy, enc_a, enc_b):
 
 def add_led(pads, name, x, y, gpio, colour, cathode_east=False, switch=None):
     """Reverse-mount 1206 LED on the bottom under a light pipe, its lens up in a cutout through the board, and its
-    series resistor beside it. LiteOn's C230 package (LTST-C230KSKT amber, LTST-C230KGKT green, LTW-C230DS white),
-    pad 1 of JLC's footprint the cathode: cathode west and anode east (pad 1 on the left, rotation 180 on the
+    series resistor beside it. LiteOn's C230 package (LTST-C230KSKT amber, LTST-C230KGKT green, LTW-C230DS
+    white), pad 1 of JLC's footprint the cathode: cathode west and anode east (pad 1 on the left, rotation 180 on the
     bottom), or with cathode_east the mirror image (pad 1 on the right, rotation 0). The cathode goes to GND and the
     resistor to the GPIO, or with switch (the FET's place) the cathode to the FET and the resistor to VBUS_F
     (add_led_switch)."""
@@ -359,8 +359,8 @@ def add_led(pads, name, x, y, gpio, colour, cathode_east=False, switch=None):
         plane_via((x + k * off, y), "GND", k * (pl / 2 + 0.95), 0)
     # Amber about 13.5 mA from GP12 at 12 mA drive strength (the firmware sets it), 75 R (the basic part between 51
     # and 100): 6.8 to 17.2 mA over the GPIO's output resistance and the LED's forward voltage (the low end with
-    # 2.4 V across the LED and the pad's 57 ohm at most: (3.3 - 2.4) / (75 + 57)), under its 30 mA. Green the same
-    # from GP14 (2.0 V typical, 2.4 V at most at 20 mA, as amber).
+    # 2.4 V across the LED and the pad's 57 ohm at most: (3.3 - 2.4) / (75 + 57)), under its 30 mA. Green
+    # (LiteOn's AlInGaP green, 571 nm) the same from GP14 (2.0 V typical, 2.4 V at most at 20 mA, as amber).
     # White: forward voltage 2.8 to 3.6 V at 20 mA (+-0.1 per bin, and JLCPCB cannot choose the bin), too close to
     # the 3.3 V supply: on a GPIO a top-bin part got 1 to 2 mA. So it runs from VBUS_F (4.23 to 5.5 V: USB's 4.40
     # to 5.5 V less up to 0.17 V over R_IN and the fuse) through 390 R and the FET. A typical LED (3.2 V at 20 mA)

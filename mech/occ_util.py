@@ -4,6 +4,7 @@ import re
 
 import numpy as np
 from OCC.Core.BRep import BRep_Tool
+from OCC.Core.BRepAdaptor import BRepAdaptor_Surface
 from OCC.Core.BRepAlgoAPI import BRepAlgoAPI_Common, BRepAlgoAPI_Cut, BRepAlgoAPI_Fuse
 from OCC.Core.BRepBuilderAPI import (
     BRepBuilderAPI_MakeEdge,
@@ -151,6 +152,35 @@ def move(shape, dx=0.0, dy=0.0, dz=0.0):
 
 def volume(shape):
     p = GProp_GProps(); brepgprop.VolumeProperties(shape, p); return p.Mass()
+
+
+def faces(shape):
+    """every face of a solid as (its surface type, area, centroid x, y, z), an array (n, 5)."""
+    out, ex = [], TopExp_Explorer(shape, TopAbs_FACE)
+    while ex.More():
+        face = topods.Face(ex.Current())
+        p = GProp_GProps(); brepgprop.SurfaceProperties(face, p)
+        c = p.CentreOfMass()
+        out.append((int(BRepAdaptor_Surface(face).GetType()), p.Mass(), c.X(), c.Y(), c.Z()))
+        ex.Next()
+    return np.array(out).reshape(-1, 5)
+
+
+def face_diff(a, b, tol=1e-4):
+    """how two solids differ face for face (faces()): the faces of a that b lacks and those of b that a lacks, each
+    as (type, area, x, y, z). A face matches one of b of its type, its area and centroid within tol, each face of b
+    taken once. A hole moved or resized moves its faces' centroids or changes their areas."""
+    fa, fb = faces(a), faces(b)
+    d = np.abs(fa[:, None, 1:] - fb[None, :, 1:]).max(axis=2)
+    d[fa[:, None, 0] != fb[None, :, 0]] = np.inf
+    left, used = [], set()
+    for i in np.argsort(d.min(axis=1)):         # the closest pairs first
+        j = next((int(j) for j in np.argsort(d[i]) if d[i, j] < tol and int(j) not in used), None)
+        if j is None:
+            left.append(tuple(fa[i]))
+        else:
+            used.add(j)
+    return left, [tuple(f) for j, f in enumerate(fb) if j not in used]
 
 
 def face_meshes(shape, deflection, angle):
