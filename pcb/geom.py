@@ -251,9 +251,10 @@ def net_lengths(segments):
 # USB: each line along its signal path, from a USB-C contact through the ESD array (in at the pad on J1's side,
 # out at the other) and the 27 R resistor to the RP2040's pin, at most USB_MAX, and D+ within USB_SKEW of D- on
 # the same row of contacts: a plug uses one row, A or B, by the way it is turned, and the other row's contact is a
-# stub. All trace on each line's nets, stubs included, stays within USB_MAX as well. Vias count 0 mm, the board's
-# thickness left out. Full speed (12 Mbit/s, 4 ns edges) would tolerate far more; the limits catch a router detour
-# on the one pair that has any timing at all.
+# stub. All trace on each line's nets, stubs included, stays within USB_MAX as well. Vias count 0 mm, on the
+# paths and in the totals: D+ crosses four vias from row A (two from row B) and has four on its nets, D- two, about
+# 6.4 and 3.2 mm of barrel in the 1.6 mm board left out. The limits catch router detours, not a timing budget:
+# full speed (12 Mbit/s, 4 ns edges) tolerates far more.
 USB_MAX, USB_SKEW = 50.0, 10.0
 # per line: its legs, (net, pads in order along it), {row} for the contact's row
 USB_PATHS = {"D+": (("USB_DP_C", ("J1.{row}6", "U4.6", "U4.1", "R_DP.2")), ("USB_DP", ("R_DP.1", "U1.47"))),

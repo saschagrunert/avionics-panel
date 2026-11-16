@@ -1818,12 +1818,7 @@ def fit_values(plate, outer, inner, range_knob, knobs):
     hex_d = S.SCREW["hex"] / math.cos(math.radians(30))         # the hex key across its corners
     an = S.ANODISE
     pads = B.build()                                    # every pad of the board, for what hangs under it
-    # the body boss tops press on the board's bottom out to BOSS_R, past the copper keep-out, on solder mask: the
-    # nearest bare copper there (a pad or a fiducial in its mask opening) against the boss at its largest (MJF), the
-    # screw against the widest body hole wall and the board off the screw
-    boss_reach = MM.BOSS_R + pt["body_hole"] + offset + off
-    bare, bare_pad = min((item_dist(("cap", mx, my, mx, my, 0.0), pad_geom(p)), p.name)
-                         for mx, my in B.MOUNTS for p in pads if "B" in p.mask)
+    boss_reach, bare, bare_pad = boss_bare(pads, offset, off)
     pp, d = S.PIPE, S.LIGHT_HOLE
     lt_up, lt_dn = S.LIGHT_HOLE_TOL
     pd = S.POCKET_TOL
@@ -2178,6 +2173,17 @@ def cap_fits(fv):
          ("Caps", f"The same for a whole set printed {cap_print} mm large (WJP's outline error as a bias), turned "
                   f"{S.CAP_TURN:.0f}°")),
     ]
+
+
+def boss_bare(pads, offset, off):
+    """(reach, mm, pad name): the body boss tops press on the board's bottom out to BOSS_R, past the copper
+    keep-out, on solder mask; reach is the boss at its largest (MJF), the screw against the widest body hole wall
+    (offset) and the board off the screw (off), from a hole centre; then the nearest bare copper of pads (a pad or
+    a fiducial in its mask opening) to a hole centre, and its name."""
+    reach = MM.BOSS_R + S.POS_TOL["body_hole"] + offset + off
+    bare, name = min((item_dist(("cap", mx, my, mx, my, 0.0), pad_geom(p)), p.name)
+                     for mx, my in B.MOUNTS for p in pads if "B" in p.mask)
+    return reach, bare, name
 
 
 def boss_fits(fv):

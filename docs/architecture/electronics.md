@@ -322,8 +322,11 @@ one. USB: D+ and D- ([USB protection](#usb-protection)) are limited to 50 mm eac
 (`USB_SKEW` in `geom.py`), each measured along its signal path, from the USB-C contact through the ESD array
 and the 27 R resistor to the RP2040's pin, and compared on the same row of contacts, the one a plug uses (the
 other row's contact is a stub); the router treats a pair over those limits like a detour. All trace on each
-line's nets, stubs included, stays within 50 mm too, and vias count 0 mm. As routed: D+ 48.2 mm and D- 41.4
-mm from row A, 47.3 and 40.4 mm from row B.
+line's nets, stubs included, stays within 50 mm too. Vias count 0 mm, on the paths and in the totals: D+
+crosses four vias from row A (two from row B) and has four on its nets, D- two, about 6.4 and 3.2 mm of
+barrel in the 1.6 mm board that the limits leave out. The limits catch router detours, not a timing budget:
+full-speed USB tolerates far more. As routed, from pad centres: D+ 48.2 mm and D- 41.4 mm from row A, 47.3
+and 40.4 mm from row B.
 
 R_DP and R_DM are 27 R (C25190), the value in Raspberry Pi's datasheet and minimal design: with the
 RP2040's driver it sets the source impedance the full-speed specification asks for (28 to 44 ohm per line).

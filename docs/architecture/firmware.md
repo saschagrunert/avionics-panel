@@ -49,6 +49,7 @@ preconditions and cannot get out of sync with the panel:
   changes under a turning hand (a detent the loop reads late, after the hold, counts after it: detents carry
   no scan time). The hold counts from the scan of the press until the scan of the release, not the end of its
   30 ms bounce window, also when the loop reads both late ([Keys and switch bounce](#keys-and-switch-bounce)).
+  A key read in such a pass before the release judges the hold at its own scan, not at the read.
   A shifted push is XPDR mode, held or not, and leaves the mode alone. The keyboard mode does the same; there
   the push's shortcut stays down while it is held, as a key's does, and holds back what follows.
 - FREQ light: the green light shows the mode, off COM, on NAV, ADF a slow blink (`FREQ_BLINK_MS`, dark and lit
@@ -90,7 +91,7 @@ stateDiagram-v2
   Armed --> Plain: SHIFT tap, 3 s without input, or USB down
   Armed --> Knob: knob turned or pushed, shifted
   Armed --> Knob: SHIFT tap, key or 3 s without input, while a shifted push or tilt is held
-  Armed --> Knob: 3 s without input, after a tap made while a shifted push or tilt was held, let go less than 5 s before
+  Armed --> Knob: 3 s without input, after a tap made while a shifted push or tilt was held and since let go
   Knob --> Knob: same knob again, 5 s start over
   Knob --> Armed: SHIFT tap, for the next key
   Knob --> Plain: 5 s after the last detent, another knob, a key (unless a shifted push or tilt is held), or USB down
