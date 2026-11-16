@@ -1281,26 +1281,27 @@ def cap_rows(face_lo, bow_dn):
     rows.append((f"cap sets grip rib circles printed {-e_lo:.2f} small to {e_hi:.2f} large (one of {len(fit)} within "
                  f"{lo_i} to {hi_i}), on a plunger {move:+.2f} off TE's model", worst,
                  ("Caps", f"Cap sets' coverage beyond a rib circle printed {-e_lo:g} mm small or {e_hi:g} mm large")))
-    # the set ordered in full. The first order: the one with the most margin on a true print (no print error), by
-    # its lead over the next set; its window then lies nearest that print too, as all windows are as wide. A
-    # reorder after a move (docs/building/bring-up.md): the end set the move was for, the loosest (largest rib
-    # circle) after a raise, the tightest after a lowering, as the sets move together with the plunger here
+    # the order (stack.CAP_ORDER). The first order: all four sets, the one tried first with the most margin on a true
+    # print (no print error), by its lead over the next set; its window then lies nearest that print too, as all
+    # windows are as wide. A reorder after a move (docs/building/bring-up.md): only the end set the move was for, the
+    # loosest (largest rib circle) after a raise, the tightest after a lowering, as the sets move together with the
+    # plunger here
     true = {n: min(f - lo_i, hi_i - f) for n, f in fit.items()}
-    full, gauge = S.CAP_ORDER["full"], S.CAP_ORDER["gauge"]
-    plain = gauge in {lab for row in S.KEY_LEGENDS for lab, _ in row} and gauge != "SHIFT" \
-        and not S.CAP_BAR_EDGE.get(gauge)
+    sets, first = S.CAP_ORDER["sets"], S.CAP_ORDER["first"]
     if move:
         end = (max if move > 0 else min)(S.CAP_SETS, key=S.CAP_SETS.get)
-        rows.append((f"cap set {full}, ordered in full after the sets' move of {move:+.2f}, is the end set the move "
+        rows.append((f"cap set {first}, ordered alone after the sets' move of {move:+.2f}, is the end set the move "
                      f"was for ({end}); room left for the move, up to TE's +-0.30", 0.35 - abs(move)
-                     if full == end else -1.0,
-                     ("Caps", f"Full cap set ({full}) is the end set of the sets' move ({move:+.2f} mm)")))
+                     if sets == first == end else -1.0,
+                     ("Caps", f"Reordered cap set ({first}) is the end set of the sets' move ({move:+.2f} mm)")))
     else:
-        lead = true[full] - max(v for n, v in true.items() if n != full)
-        rows.append((f"cap set {full}, ordered in full, grips a rib circle printed true with the most margin of the "
-                     f"sets ({', '.join(f'{n} {v:.3f}' for n, v in true.items())}): its lead over the next; the "
-                     f"gauge caps of the others are {gauge}, a plain cap", lead if plain else -1.0,
-                     ("Caps", f"Full cap set ({full}): its lead over the next set on a rib circle printed true")))
+        lead = true[first] - max(v for n, v in true.items() if n != first)
+        rows.append((f"cap set {first}, tried first of the sets ordered ({', '.join(sets)}), grips a rib circle "
+                     f"printed true with the most margin of the sets "
+                     f"({', '.join(f'{n} {v:.3f}' for n, v in true.items())}): its lead over the next",
+                     lead if sorted(sets) == sorted(S.CAP_SETS) else -1.0,
+                     ("Caps", f"Cap set tried first ({first}): its lead over the next set on a rib circle printed "
+                      "true")))
     rows.append((f"cap sets moved {move:+.2f} (stack.CAP_SETS_MOVE), up to TE's +-0.30 on the plunger diameter",
                  0.35 - abs(move)))                       # three 0.1 steps either way, not a fourth
     return rows

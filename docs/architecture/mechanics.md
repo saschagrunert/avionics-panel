@@ -150,13 +150,13 @@ Heights as drawn, z = 0 at the top of the board. Anodising raises the plate's fa
   prints holes within ±0.2 mm. So there are four sets that differ only in their rib circle: 3.05 (D),
   3.15 (A), 3.25 (B) and 3.35 mm (C) at the socket mouth, where the plunger is 3.29 mm. Together they cover a
   print 0.2 mm small to 0.2 mm large. One to four dimples on the bottom name the set (A to D). The order has
-  set B in full (`stack.CAP_ORDER`). On a print without error it grips with 0.018 mm to the edge of the window,
-  only 0.005 more than A, so over an even spread of print errors A and B do as well. What decides it: JLC3DP's
-  design guide says holes print small, and a rib circle printed small wants B or C, never A. One gauge cap of
-  each other set, the same plain AP cap, shows on the bench whether a neighbour fits better.
+  all four sets (`stack.CAP_ORDER`): JLC3DP prices a set as one part, about what a single cap costs. The bench
+  tries B first. On a print without error it grips with 0.018 mm to the edge of the window, only 0.005 more
+  than A, so over an even spread of print errors A and B do as well. What decides it: JLC3DP's design guide
+  says holes print small, and a rib circle printed small wants B or C, never A.
   [Bring-up](../building/bring-up.md#choosing-the-cap-set) says how to find the set; a plunger lot near the
-  edge of TE's ±0.30 mm needs the sets moved (`stack.CAP_SETS_MOVE`). A reorder after such a move takes the
-  set at that end in full, C after a raise or D after a lowering, and `stack.CAP_ORDER` names it then; the fit
+  edge of TE's ±0.30 mm needs the sets moved (`stack.CAP_SETS_MOVE`). A reorder after such a move takes only
+  the set at that end, C after a raise or D after a lowering, and `stack.CAP_ORDER` names it then; the fit
   row checks that.
 - Turn: only friction on the round plunger holds a cap square, so it may creep round in use. Up to 2.5° it
   keeps its room in the key hole (in a set printed 0.2 mm large, up to about 1.5°); one that rubs is turned
@@ -299,7 +299,7 @@ plate STEP and DXF and the body STEP.
 | Caps | Shift legends beyond the largest key hole's edge break, for the laser marking's register | 0.50 | |
 | Caps | Wall round the socket at the worst print, over 1.0 mm | 0.10 | |
 | Caps | Cap sets' coverage beyond a rib circle printed 0.2 mm small or 0.2 mm large | **0.012** | |
-| Caps | Full cap set (B): its lead over the next set on a rib circle printed true | **0.005** | |
+| Caps | Cap set tried first (B): its lead over the next set on a rib circle printed true | **0.005** | |
 | Caps | Firmly pressed cap lands on the back edge break | 0.293 | |
 | Caps | Cap top over the plate face when fully pressed, over 0.5 mm | 0.328 | |
 | Caps | Cap's play in its key hole beyond the per-key position errors (RSS), the board centred in the key holes and the cap crept round to 2.5° in use | **0.02** (RSS) | **-0.23** |
@@ -347,7 +347,7 @@ of the body and the board at the BOOT hole. RSS holds for nearly every build, as
 their worst ends at once, but not for every combination within the tolerances. `check_fit.py` prints each
 such row's bounded worst case beside its margin, with the errors added linearly; the build passes on the RSS
 margin. Where the bounded case goes negative, a part can need fitting on the bench, so the first build should
-budget time for it; the sandpaper, the gauge caps and the six knob bores are already in the order:
+budget time for it; the sandpaper, the four cap sets and the six knob bores are already in the order:
 
 - Outer knob ring over the plate face (bounded -0.52 mm): a ring that rubs the plate when turned is sanded on
   its bottom face, on the fine sandpaper laid on the table, a few strokes at a time until it clears, up to
@@ -362,7 +362,7 @@ budget time for it; the sandpaper, the gauge caps and the six knob bores are alr
 - A cap's play in its key hole (bounded -0.23 mm) and a whole cap set printed large (bounded -0.15 mm): a cap
   that rubs its hole after the board is nudged
   ([Putting it together](../building/assembly.md#putting-it-together)) is sanded lightly on the side that
-  touches, a few strokes on the fine sandpaper, up to 0.23 mm, or the same legend is ordered from the next set
+  touches, a few strokes on the fine sandpaper, up to 0.23 mm, or the same legend is taken from the next set
   ([Choosing the cap set](../building/bring-up.md#choosing-the-cap-set)); a whole set that rubs is reprinted,
   as for `CAP_SETS_MOVE`.
 - The hex key through the BOOT hole (bounded +0.025 mm): no fitting. The bounded case passes too, so its tip
@@ -383,10 +383,10 @@ Values that no datasheet or vendor states; the fit rows take them as given.
 - Knobs: a kept knob has at most 0.15 mm of play on its shaft (`stack.KNOB_PLAY`, `stack.RANGE_PLAY`). The
   tightest bore grips a shaft at its low limit when the holes print no more than 0.08 mm large. The RKJXT's
   lever is +0/-0.1 mm across, as the PEC11D's shafts (`stack.LEVER_D_TOL`; Alps gives no tolerance). A
-  support mark stands at most 0.05 mm proud of a knob's bottom face once it is sanded flush: by the builder
-  for knobs ordered unsanded, by JLC3DP's General Sanding otherwise, as the remark then asks
-  (`stack.SUPPORT_MARK`, [Fitting the knobs](../building/assembly.md#fitting-the-knobs)); one that is left
-  higher can make an outer ring rub the plate.
+  support mark stands at most 0.05 mm proud of a knob's bottom face once it is sanded flush: by JLC3DP's
+  General Sanding, as the remark asks, or by the builder for knobs ordered unsanded (`stack.SUPPORT_MARK`,
+  [Fitting the knobs](../building/assembly.md#fitting-the-knobs)); one that is left higher can make an outer
+  ring rub the plate.
 - Knob prints: one print error for all six bores of a knob, and the same error again on a reprint. The grip
   windows of neighbouring bores overlap by only 0.03 mm, so a set whose bores come out unevenly, or a second
   order that prints differently, can leave a shaft with no bore that grips.
