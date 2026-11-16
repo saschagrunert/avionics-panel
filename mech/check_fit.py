@@ -1,11 +1,13 @@
-"""The fit check of the assembled stack: one printed row per fit, with its margin at the worst end of every
-tolerance it names, measured on the generated files (the plate, knobs, light pipes, caps and body) where the
-row says so. A margin that is not over zero fails the build (report()). The rows that carry a doc make the table
-of the main margins in docs/architecture/mechanics.md (write_fits_table()).
-
-Also draws cross-sections through the ALT/HDG knob, the RANGE knob and the SHIFT light pipe -> fit-check.png (XZ
-plane, z = 0 is the PCB top). Grey: PCB and part outlines from the datasheets. Blue: plate. Black: printed parts.
-"""
+"""The fit check of the assembled stack: one printed row per fit, with its margin at the worst end of every tolerance
+it names, measured where the row says so: on the files ordered (the knob, light pipe and body STEP files, the body's
+meshed here; the cap zips, every set's texture and legends and the single-cap zips against them: cap_texture(),
+legend_strokes(), cap_singles()) and on the plate as make_plate_step.py builds it, with the plate's layers as
+make_plate_art.py builds them. Those two scripts read the plate STEP and the DXF back after writing them and fail
+unless each holds what they built (face for face, vertex for vertex), and tests/test_production.py compares the
+ordered files with each other. A margin that is not over zero fails the build (report()). The rows that carry a doc
+make the table of the main margins in docs/architecture/mechanics.md (write_fits_table()). Also draws cross-sections
+through the ALT/HDG knob, the RANGE knob and the SHIFT light pipe -> fit-check.png (XZ plane, z = 0 is the PCB top).
+Grey: PCB and part outlines from the datasheets. Blue: plate. Black: printed parts."""
 import functools
 import io
 import itertools
@@ -39,6 +41,7 @@ from shapely.geometry import Point, Polygon
 HERE = Path(__file__).resolve().parent              # works from any directory
 sys.path[:0] = [str(HERE), str(HERE.parent / "pcb")]
 import board as B  # noqa: E402
+import make_caps as MC  # noqa: E402
 import make_knobs as K  # noqa: E402
 import make_mech as MM  # noqa: E402
 import make_plate_art as PA  # noqa: E402
@@ -166,17 +169,11 @@ def cap_shift_room(grow=0.0, turn=0.0, r=None):
 
 
 # ---- body: no slot of void and no wall of PA12 under 0.8 mm (powder traps, loose bosses, porous slivers) ----
-def stl_triangles(path):
-    with open(path, "rb") as f:
-        data = f.read()
-    n = int.from_bytes(data[80:84], "little")
-    dt = np.dtype([("n", "<f4", 3), ("v", "<f4", (3, 3)), ("a", "<u2")])
-    return np.frombuffer(data[84:84 + 50 * n], dtype=dt)["v"].astype(float)
-
-
 def body_triangles():
-    """the body mesh in board frame, from the STL make_mech.py wrote (build.sh runs it first)."""
-    tri = stl_triangles(HERE / "avionics-panel-rev1-body.stl")
+    """the body mesh in board frame, meshed here from body.step, the file ordered, as make_mech.py meshes its STL
+    (occ_util.export). The STL beside it is for viewing only: nothing here reads it, so it cannot differ from what
+    is measured."""
+    tri = mesh_triangles(read_step("avionics-panel-rev1-body"))
     tri[:, :, 1] *= -1                                           # output frame (Y = -board y) back to board y
     return tri
 
@@ -305,19 +302,40 @@ def d_bore_len(shape, d, flat):
     return end - max(starts)
 
 
+def obj_faces(text):
+    """an OBJ file as make_caps.py writes it, in its order: its triangles (n, 3, 3), the UV of each corner
+    (n, 3, 2), and whether each triangle takes its vertices' own UVs (vt i for v i: the top, its legend) or not
+    (one UV for all three corners, a black pixel: the sides)"""
+    lines = text.splitlines()
+    V, VT = (np.array([[float(t) for t in ln.split()[1:]] for ln in lines if ln.startswith(tag)])
+             for tag in ("v ", "vt "))
+    F = np.array([[[int(i) - 1 for i in t.split("/")] for t in ln.split()[1:4]] for ln in lines
+                  if ln.startswith("f ")])
+    return V[F[:, :, 0]], VT[F[:, :, 1]], (F[:, :, 0] == F[:, :, 1]).all(axis=1)
+
+
+def obj_triangles(text):
+    """triangles (n, 3, 3) of an OBJ file as make_caps.py writes it, in its order"""
+    return obj_faces(text)[0]
+
+
 @functools.cache
-def set_caps(name):
-    """triangles (n, 3, 3) of each cap in the set's generated OBJ (caps-<set>.zip, as ordered), each moved to the
-    origin: the caps sit on the print grid stack.CAP_LAYOUT, in the order of stack.KEY_LEGENDS."""
+def set_cap_faces(name):
+    """each cap in the set's generated OBJ (caps-<set>.zip, as ordered) as obj_faces() has it, its triangles
+    moved to the origin: the caps sit on the print grid stack.CAP_LAYOUT, in the order of stack.KEY_LEGENDS."""
     base = f"avionics-panel-rev1-caps-{name}"
     with zipfile.ZipFile(HERE / f"{base}.zip") as z:
-        lines = z.read(f"{base}.obj").decode().splitlines()
-    V = np.array([[float(t) for t in ln.split()[1:4]] for ln in lines if ln.startswith("v ")])
-    F = np.array([[int(t.split("/")[0]) - 1 for t in ln.split()[1:4]] for ln in lines if ln.startswith("f ")])
-    tri, pitch, n = V[F], S.CAP_LAYOUT["pitch"], S.CAP_LAYOUT["per_row"]
+        tri, uv, own = obj_faces(z.read(f"{base}.obj").decode())
+    pitch, n = S.CAP_LAYOUT["pitch"], S.CAP_LAYOUT["per_row"]
     col, row = np.round(tri.mean(1)[:, :2] / (pitch, -pitch)).astype(int).T
     k = col + n * row
-    return [tri[k == i] - (pitch * (i % n), -pitch * (i // n), 0.0) for i in range(k.max() + 1)]
+    return [(tri[k == i] - (pitch * (i % n), -pitch * (i // n), 0.0), uv[k == i], own[k == i])
+            for i in range(k.max() + 1)]
+
+
+def set_caps(name):
+    """triangles (n, 3, 3) of each cap in the set's generated OBJ, each moved to the origin (set_cap_faces)."""
+    return [tri for tri, _uv, _own in set_cap_faces(name)]
 
 
 def first_cap(name):
@@ -1049,27 +1067,95 @@ def rib_profile(name, dz=0.02):
     return np.array(zs), np.array(ds), max(dev)
 
 
+CELL = 512                      # make_caps.py: each cap's legend in a cell of 512 px, 8 x 8 cells on the texture
+TEX = 8 * CELL
+
+
+@functools.cache
 def cap_texture():
-    """the caps' texture as ordered (caps-A.zip; every set has the same one), RGB array."""
-    base = "avionics-panel-rev1-caps-A"
-    with zipfile.ZipFile(HERE / f"{base}.zip") as z:
-        return np.asarray(Image.open(io.BytesIO(z.read(f"{base}.png"))).convert("RGB"))
+    """the caps' texture as ordered, RGB array: the first set's (caps-A.zip), which every set's zip must hold byte
+    for byte (make_caps.py writes one texture for all)."""
+    def png(name):
+        base = f"avionics-panel-rev1-caps-{name}"
+        with zipfile.ZipFile(HERE / f"{base}.zip") as z:
+            return z.read(f"{base}.png")
+    first, *others = S.CAP_SETS
+    tex = png(first)
+    for name in others:
+        if png(name) != tex:            # a plain raise: asserts vanish under -O
+            raise SystemExit(f"check_fit.py: caps-{name}.zip's texture is not caps-{first}.zip's")
+    return np.asarray(Image.open(io.BytesIO(tex)).convert("RGB"))
+
+
+def cap_cell(k):
+    """the texture cell of cap k (0-based, in the order of stack.KEY_LEGENDS), RGB array"""
+    x0, y0 = (k % 8) * CELL, (k // 8) * CELL
+    return cap_texture()[y0:y0 + CELL, x0:x0 + CELL]
+
+
+def cap_singles():
+    """caps-single-<set>.zip against caps-<set>.zip: in each one zip per cap, cap-<set>-<number>-<legend>.zip
+    (make_caps.slug) in the order of stack.KEY_LEGENDS, holding the cap's OBJ, MTL and PNG and nothing else; the OBJ
+    the set's cap of that number (set_cap_faces(): moved to the origin, triangle for triangle within 0.2 um, each
+    file rounded to 0.1 um), the UVs of its top on the cap's own tile those of the set's cap on the texture (mapped
+    back into its cell, within 1e-5: the files round to 1e-6) and its sides on a pixel of the colour the set's sides
+    have; the MTL the set's, its map_Kd the cap's PNG, and the OBJ's mtllib that MTL; the PNG that cap's cell of the
+    set's texture, pixel for pixel. A plain raise on any difference; the number of caps compared."""
+    labels = [label for row in S.KEY_LEGENDS for label, _ in row]
+    tex = cap_texture()
+    n = 0
+    for name in S.CAP_SETS:
+        base = f"avionics-panel-rev1-caps-single-{name}"
+        with zipfile.ZipFile(HERE / f"avionics-panel-rev1-caps-{name}.zip") as z:
+            set_mtl = z.read(f"avionics-panel-rev1-caps-{name}.mtl").decode().splitlines()
+        want = [f"cap-{name}-{k + 1:02d}-{MC.slug(label)}" for k, label in enumerate(labels)]
+        with zipfile.ZipFile(HERE / f"{base}.zip") as outer:
+            if outer.namelist() != [f"{cap}.zip" for cap in want]:
+                raise SystemExit(f"check_fit.py: {base}.zip holds {outer.namelist()}, not one zip per cap in order")
+            for k, cap in enumerate(want):
+                with zipfile.ZipFile(io.BytesIO(outer.read(f"{cap}.zip"))) as z:
+                    if sorted(z.namelist()) != [f"{cap}.{ext}" for ext in ("mtl", "obj", "png")]:
+                        raise SystemExit(f"check_fit.py: {cap}.zip holds {z.namelist()}")
+                    obj = z.read(f"{cap}.obj").decode()
+                    mtl = z.read(f"{cap}.mtl").decode().splitlines()
+                    tile = np.asarray(Image.open(io.BytesIO(z.read(f"{cap}.png"))).convert("RGB"))
+                tri, uv, own = obj_faces(obj)
+                ref, ref_uv, ref_own = set_cap_faces(name)[k]
+                if tri.shape != ref.shape or np.abs(tri - ref).max() > 2e-4:
+                    raise SystemExit(f"check_fit.py: {cap}.obj is not cap {k + 1} of caps-{name}.zip")
+                x0, y0 = (k % 8) * CELL, (k // 8) * CELL           # the cap's cell (cap_cell), image y down
+                px, py = uv[..., 0] * CELL, (1 - uv[..., 1]) * CELL  # on the tile
+                atlas = np.stack([(px + x0) / TEX, 1 - (py + y0) / TEX], axis=-1)
+                ref_px = np.floor(ref_uv[~ref_own].reshape(-1, 2) * (TEX, -TEX) + (0, TEX)).astype(int)
+                side = np.floor(np.stack([px, py], axis=-1)[~own].reshape(-1, 2)).astype(int)
+                if ((own != ref_own).any() or np.abs(atlas[own] - ref_uv[own]).max(initial=0) > 1e-5
+                        or (tile[side[:, 1], side[:, 0]] != tex[ref_px[:, 1], ref_px[:, 0]]).any()):
+                    raise SystemExit(f"check_fit.py: {cap}.obj's UVs are not those of cap {k + 1} of caps-{name}.zip")
+                maps = [ln for ln in mtl if ln.startswith("map_Kd ")]
+                if (maps != [f"map_Kd {cap}.png"] or [ln for ln in mtl if ln not in maps]
+                        != [ln for ln in set_mtl if not ln.startswith("map_Kd ")]
+                        or [ln for ln in obj.splitlines() if ln.startswith("mtllib ")] != [f"mtllib {cap}.mtl"]):
+                    raise SystemExit(f"check_fit.py: {cap}.mtl is not caps-{name}.zip's material on {cap}.png")
+                if tile.shape != (CELL, CELL, 3) or (tile != cap_cell(k)).any():
+                    raise SystemExit(f"check_fit.py: {cap}.png is not cap {k + 1}'s cell of the texture")
+                n += 1
+    return n
 
 
 def legend_strokes(gap=S.LEGEND_STROKE_MIN):
     """Legend strokes on the generated texture: in each cap's cell, how far coloured ink that a disk of dia gap
     cannot cover reaches (thin_depth): a stroke under gap shows up over its whole length, a corner or an arrow
     tip only over a fraction of gap. The worst cap and that depth."""
-    tex = cap_texture()
-    cell = 512                                                     # make_caps.py: 8 x 8 cells of 512 px
-    res = max(S.CAP["w"], S.CAP["h"]) / cell                       # mm per pixel
+    res = max(S.CAP["w"], S.CAP["h"]) / CELL                       # mm per pixel
     labels = [label for row in S.KEY_LEGENDS for label, _ in row]
     worst = (0.0, "none")
     pad = int(gap / res) + 3
     for k, label in enumerate(labels):
-        x0, y0 = (k % 8) * cell, (k // 8) * cell
-        ink = tex[y0:y0 + cell, x0:x0 + cell].max(axis=2) > 128
-        if not ink.any():
+        ink = cap_cell(k).max(axis=2) > 128
+        if ink.any() != bool(label):    # a legend missing from its cell, or ink on a cap without one
+            raise SystemExit(f"check_fit.py: cap {k + 1} ({label!r}) has {'ink' if ink.any() else 'no legend'} in "
+                             "its cell of the texture")
+        if not label:
             continue
         ys, xs = np.nonzero(ink)
         m = np.pad(ink[ys.min():ys.max() + 1, xs.min():xs.max() + 1], pad)
@@ -1081,12 +1167,10 @@ def legend_strokes(gap=S.LEGEND_STROKE_MIN):
 def legend_front(label):
     """how far the label's ink reaches from the cap centre towards the front edge (mm), on the generated texture
     (texture rows run from the back edge down to the front edge)"""
-    tex, cell = cap_texture(), 512
-    res = max(S.CAP["w"], S.CAP["h"]) / cell
+    res = max(S.CAP["w"], S.CAP["h"]) / CELL
     k = [lab for row in S.KEY_LEGENDS for lab, _ in row].index(label)
-    x0, y0 = (k % 8) * cell, (k // 8) * cell
-    ys = np.nonzero(tex[y0:y0 + cell, x0:x0 + cell].max(axis=2) > 128)[0]
-    return (ys.max() + 1 - cell / 2) * res
+    ys = np.nonzero(cap_cell(k).max(axis=2) > 128)[0]
+    return (ys.max() + 1 - CELL / 2) * res
 
 
 def cap_rows(face_lo, bow_dn):
@@ -2413,6 +2497,8 @@ def report(rows):
 
 
 if __name__ == "__main__":
+    print(f"single-cap zips: {cap_singles()} caps in {len(S.CAP_SETS)} sets, each its set's cap, UVs, material and "
+          "texture cell")
     plate, _ = PS.build()
     knobs = knob_solids()
     outer, inner, range_knob = (knobs[kind, K.NOMINAL] for kind in ("outer", "inner", "range"))

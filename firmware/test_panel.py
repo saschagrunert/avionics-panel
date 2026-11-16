@@ -2622,3 +2622,132 @@ def test_chatter_after_the_locking_press_does_not_unlock():
         s.p.key("SHIFT", False, s.t); s.run(gap)
         s.p.key("SHIFT", True, s.t); s.run(20); s.p.key("SHIFT", False, s.t); s.run(100)
         assert s.p.locked == locked, gap
+
+
+def test_a_key_in_a_shift_bounce_after_the_lock_unlocks_it():
+    # locked by a hold, then SHIFT's contact opens 15 ms and AP goes down 5 ms into that gap: SHIFT was down all
+    # along, so AP was modifier use. AP goes out shifted, as the lock showed, and SHIFT is plain after
+    s = Sim()
+    s.run(10); s.p.key("SHIFT", True, s.t); s.run(P.LOCK_MS + 100); assert s.p.locked
+    s.p.key("SHIFT", False, s.t); s.run(5)
+    s.p.key("AP", True, s.t); s.run(10)
+    s.p.key("SHIFT", True, s.t); s.run(100)              # a bounce: the press goes on
+    s.p.key("AP", False, s.t); s.p.key("SHIFT", False, s.t); s.run(200)
+    assert not s.p.locked and s.p.shift_level(s.t) == P.LIGHT_OFF
+    s.key("AP")
+    assert [n for _, n in s.take()] == ["TEST", "AP"]
+
+
+def test_a_key_in_a_shift_bounce_before_the_lock_keeps_it_from_locking():
+    # the same bounce around AP 500 ms into the hold: SHIFT a modifier, no lock at 1 s
+    s = Sim()
+    s.run(10); s.p.key("SHIFT", True, s.t); s.run(500)
+    s.p.key("SHIFT", False, s.t); s.run(5)
+    s.p.key("AP", True, s.t); s.run(10)
+    s.p.key("SHIFT", True, s.t); s.run(100)
+    s.p.key("AP", False, s.t); s.run(2 * P.LOCK_MS); assert not s.p.locked
+    s.p.key("SHIFT", False, s.t); s.run(100)
+    s.key("AP")
+    assert [n for _, n in s.take()] == ["TEST", "AP"] and not s.p.locked
+
+
+def test_a_tap_read_late_after_the_locking_press_unlocks():
+    # a pass that waited: the locking press's release scanned at +1200 and the next SHIFT press at +1400, both
+    # read at +2600. The release is applied at its scan, so the press comes 200 ms after it: a tap, no chatter
+    s = Sim()
+    s.run(10); s.p.key("SHIFT", True, s.t); pressed = s.t
+    s.run(P.LOCK_MS + 100); assert s.p.locked
+    s.t += 1500                                          # no tick() ran
+    s.p.key("SHIFT", False, s.t, at=pressed + 1200); s.p.key("SHIFT", True, s.t, at=pressed + 1400)
+    s.run(100); s.p.key("SHIFT", False, s.t); s.run(100)
+    assert not s.p.locked
+
+
+def test_a_held_shift_let_go_after_a_keypad_overflow_unlocks_when_reported_again():
+    # locked with SHIFT still down, code.py lets go of every key after an overflow, and the keypad, reset,
+    # reports SHIFT again as a new press: that is the tap that unlocks, not chatter after the locking press
+    s = Sim()
+    s.run(10); s.p.key("SHIFT", True, s.t); s.run(P.LOCK_MS + 100); assert s.p.locked
+    s.p.release("SHIFT", s.t); s.run(1)
+    s.p.key("SHIFT", True, s.t); s.run(100); s.p.key("SHIFT", False, s.t); s.run(100)
+    assert not s.p.locked
+
+
+def test_a_bounce_press_of_another_key_read_late_judges_the_hold_at_its_scan():
+    # AP held from before SHIFT; AP's release (scan +880), its bounce press (+900) and SHIFT's release (+950) all
+    # read at +2000: SHIFT was held 950 ms, no lock
+    s = Sim()
+    s.p.key("AP", True, s.t); s.run(100)
+    s.p.key("SHIFT", True, s.t); pressed = s.t
+    s.t += 2000                                          # no tick() ran
+    s.p.key("AP", False, s.t, at=pressed + 880); s.p.key("AP", True, s.t, at=pressed + 900)
+    s.p.key("SHIFT", False, s.t, at=pressed + 950)
+    s.run(2 * P.LOCK_MS)
+    assert not s.p.locked
+
+
+def test_a_key_scanned_with_the_release_of_the_locking_press_keeps_the_lock():
+    # AP scanned in the same ms as SHIFT's release (SHIFT's row comes first in a scan): SHIFT was up, as for a
+    # key scanned after it
+    s = Sim()
+    s.run(10); s.p.key("SHIFT", True, s.t); s.run(P.LOCK_MS + 100)
+    s.p.key("SHIFT", False, s.t); s.p.key("AP", True, s.t); s.run(100); s.p.key("AP", False, s.t); s.run(200)
+    assert s.take() == [(1, "TEST")] and s.p.locked
+
+
+def test_chatter_after_the_locking_press_arms_nothing():
+    # the chatter press neither arms SHIFT nor starts a hold that could lock again
+    s = Sim()
+    s.run(10); s.p.key("SHIFT", True, s.t); s.run(P.LOCK_MS + 100)
+    s.p.key("SHIFT", False, s.t); s.run(40)
+    s.p.key("SHIFT", True, s.t)
+    assert s.p.locked and s.p.shift is None and s.p.shift_down is None
+
+
+def test_a_key_after_a_shift_release_leaves_the_next_holds_bounce_alone():
+    # AP scanned right after a tap's release, which then is applied: the next hold's bounce, with nothing in its
+    # gap, keeps the hold, and it locks
+    s = Sim()
+    s.run(10); s.p.key("SHIFT", True, s.t); s.run(60); s.p.key("SHIFT", False, s.t); s.run(5)
+    s.p.key("AP", True, s.t); s.run(100); s.p.key("AP", False, s.t); s.run(100)
+    s.p.key("SHIFT", True, s.t); s.run(500)
+    s.p.key("SHIFT", False, s.t); s.run(10); s.p.key("SHIFT", True, s.t)
+    s.run(P.LOCK_MS - 500); assert s.p.locked
+    assert s.take() == [(1, "TEST")]
+
+
+def test_a_bounce_of_a_key_held_from_before_shift_is_no_input():
+    # AP held from before SHIFT bounces 500 ms into the hold: no new input, so SHIFT still locks at 1 s
+    s = Sim()
+    s.p.key("AP", True, s.t); s.run(100)
+    s.p.key("SHIFT", True, s.t); s.run(490)
+    s.p.key("AP", False, s.t); s.run(10); s.p.key("AP", True, s.t)    # a bounce: the press goes on
+    s.run(P.LOCK_MS - 500); assert s.p.locked
+    assert s.take() == [(1, "AP")]
+
+
+def test_a_bounce_of_another_key_after_a_key_in_the_gap_keeps_the_lock():
+    # AP held from before, locked by a hold; SHIFT's release is real, VS goes down in its gap and AP bounces then:
+    # only a SHIFT bounce makes the input in the gap modifier use, so the lock stays
+    s = Sim()
+    s.p.key("AP", True, s.t); s.run(100)
+    s.p.key("SHIFT", True, s.t); s.run(P.LOCK_MS + 100); assert s.p.locked
+    s.p.key("SHIFT", False, s.t); s.run(5)
+    s.p.key("VS", True, s.t); s.run(5)
+    s.p.key("AP", False, s.t); s.run(5); s.p.key("AP", True, s.t)    # a bounce of AP, in SHIFT's gap
+    s.run(100); s.p.key("VS", False, s.t); s.p.key("AP", False, s.t); s.run(200)
+    assert s.p.locked and [n for _, n in s.take()] == ["AP", "S_VS"]
+
+
+def test_a_push_in_a_shift_bounce_after_the_lock_keeps_its_session():
+    # locked by a hold, then FMS_PUSH goes down in a SHIFT bounce's gap: modifier use, the lock ends, and the push
+    # still held keeps the shifted FMS session it started, so the outer ring is panel lighting
+    s = Sim()
+    s.run(10); s.p.key("SHIFT", True, s.t); s.run(P.LOCK_MS + 100); assert s.p.locked
+    s.p.key("SHIFT", False, s.t); s.run(5)
+    s.p.key("FMS_PUSH", True, s.t); s.run(10)
+    s.p.key("SHIFT", True, s.t); s.run(100)              # a bounce: the press goes on
+    s.p.key("SHIFT", False, s.t); s.run(100)
+    assert not s.p.locked
+    s.take(); s.turn("FMS_OUTER", 1)
+    assert s.take() == [(1, "PANEL_LT_UP")]

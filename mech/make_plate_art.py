@@ -1,7 +1,8 @@
 """Front plate artwork for JLCCNC (1:1, mm): CNC outline + holes, laser marking, UV print.
 
 Writes avionics-panel-rev1-plate.dxf (R12, layers CUT / LASER / UV_AMBER, each with its colour in the layer
-table) and a coloured SVG preview.
+table), reads it back against the layers built (check_dxf: mech/check_fit.py measures those), and a coloured SVG
+preview.
 The plate is black anodised aluminium. JLCCNC laser marking is single-tone (light grey on black), so the
 white legends and frame lines are LASER; the amber shift legends and knob functions are UV printed
 (UV_AMBER). Geometry follows pcb/board.py and mech/stack.py, as the 3D view does.
@@ -255,6 +256,52 @@ def write_dxf(path):
     Path(path).write_text("\n".join(out) + "\n")
 
 
+def read_dxf(path):
+    """the DXF as written, read again: {layer: [polygon]} of its closed POLYLINEs, in the file's order. Its ENTITIES
+    section must be as write_dxf() writes it, group for group: each POLYLINE its layer, 66 1 and 70 1 (closed),
+    each VERTEX its polyline's layer, 10 and 20 alone (no bulge, no Z), a SEQEND its layer alone, and the file
+    ends there in ENDSEC and EOF. A plain raise on anything else."""
+    vals = Path(path).read_text().split("\n")[:-1]
+    pairs = list(zip(vals[0::2], vals[1::2], strict=True))
+    ents = []                                           # (entity, [(code, value) of its groups])
+    for code, v in pairs[pairs.index(("2", "ENTITIES")) + 1:]:
+        if code == "0":
+            ents.append((v, []))
+        elif not ents:
+            raise ValueError(f"{path}: group {code} {v} before the first entity")
+        else:
+            ents[-1][1].append((code, v))
+    out, poly, layer, closed = {}, None, None, [("66", "1"), ("70", "1")]   # 66: vertices follow; 70 1: closed
+    for i, (ent, groups) in enumerate(ents):
+        codes = [code for code, _ in groups]
+        if ent == "POLYLINE" and poly is None and codes == ["8", "66", "70"] and groups[1:] == closed:
+            layer, poly = groups[0][1], []
+            out.setdefault(layer, []).append(poly)
+        elif ent == "VERTEX" and poly is not None and codes == ["8", "10", "20"] and groups[0][1] == layer:
+            poly.append((float(groups[1][1]), float(groups[2][1])))
+        elif ent == "SEQEND" and poly is not None and groups == [("8", layer)]:
+            poly = None
+        elif ent == "ENDSEC" and poly is None and ents[i:] == [("ENDSEC", []), ("EOF", [])]:
+            return out
+        else:
+            raise ValueError(f"{path}: {ent} {groups[:4]}, not as write_dxf() writes it (ENDSEC and EOF last)")
+    raise ValueError(f"{path}: cut short, no ENDSEC and EOF")
+
+
+def check_dxf(path):
+    """The DXF as written against dxf_layers(), which mech/check_fit.py measures: the same layers, polygons and
+    vertices, each vertex within the file's 0.1 um."""
+    want, got = dxf_layers(), read_dxf(path)
+    if list(got) != list(want) or any(len(got[k]) != len(want[k]) for k in want):
+        raise SystemExit(f"{path}: layers {({k: len(v) for k, v in got.items()})}, written "
+                         f"{({k: len(v) for k, v in want.items()})}")
+    for layer, polys in want.items():
+        for i, (a, b) in enumerate(zip(polys, got[layer], strict=True)):
+            if len(a) != len(b) or max(math.dist(p, q) for p, q in zip(a, b, strict=True)) > 1e-4:
+                raise SystemExit(f"{path}: polygon {i} of {layer} is not the one built")
+    print(f"{path} read back: {sum(len(v) for v in got.values())} polygons on {len(got)} layers, the ones built")
+
+
 def write_svg(path):
     colours = {"CUT": ("none", "#202020"), "LASER": ("#d8dadd", "none"), "UV_AMBER": (S.AMBER["hex"], "none")}
     w, h = B.W + 2 * OVH, B.H + 2 * OVH
@@ -270,5 +317,6 @@ def write_svg(path):
 
 if __name__ == "__main__":                              # check_fit.py imports the layers
     write_dxf("avionics-panel-rev1-plate.dxf")
+    check_dxf("avionics-panel-rev1-plate.dxf")
     write_svg("avionics-panel-rev1-plate-preview.svg")
     print({k: len(v) for k, v in layers.items()}, "polygons")

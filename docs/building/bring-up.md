@@ -28,7 +28,7 @@ tilt and push.
 A board that arrives with a rail anyway, or with a V-cut (scored and snapped) edge that does not fit the body:
 
 1. If the rail is still on, break it off along its score with flat-nose pliers, without bending the board.
-2. Take that edge down with a flat file or coarse sandpaper on a block until the board drops into the body
+2. Take that edge down with a flat file or 240 grit sandpaper on a block until the board drops into the body
    (outdoors or wet: glass-fibre dust).
 
 ## Choosing the cap set
@@ -83,10 +83,16 @@ both: [When bring-up fails](#when-bring-up-fails)). On Linux, after every copy t
      the RP2040 and towards the nearer short edge.
    - C_OUT0: the small capacitor on U3's side towards the board edge.
    - GND: J1's metal shell, the easiest place for the black probe.
-2. Plug in USB. With empty flash the RP2040 starts its USB bootloader and shows a drive called RPI-RP2. Check
-   that 3V3 reads 3.2 to 3.4 V across C_OUT0 (or from its 3V3 end to J1's shell).
+2. Plug in USB. For the first plug-in of each board, use a current-limited USB supply or a USB power meter
+   with a cut-off, set to about 200 mA, if one is at hand. Otherwise plug into a powered hub or a USB charger
+   first, not straight into the PC. Unplug at once if anything smells or gets hot: a short behind the fuse
+   scorches R_IN, and one on 3V3 heats U3 ([why](../architecture/electronics.md#usb-protection)). Check that
+   3V3 reads 3.2 to 3.4 V across C_OUT0 (or from its 3V3 end to J1's shell). On a port with data, the PC's or
+   a hub's, the RP2040 starts its USB bootloader with empty flash and shows a drive called RPI-RP2; from a
+   charger or a supply without data, plug into the PC once 3V3 is right.
 3. Copy the [CircuitPython 9.2.9 UF2 file for the Raspberry Pi Pico][uf2] (same chip, 2 MB flash, 12 MHz
-   crystal) to RPI-RP2; the firmware is tested on 9.2.9. The board restarts with a CIRCUITPY drive.
+   crystal) to RPI-RP2. The firmware is written for 9.2.9 and tested on the PC against its source; this board
+   (or the Pico bench) is its first run on hardware. The board restarts with a CIRCUITPY drive.
 4. Copy `boot.py`, `code.py`, `panel.py`, `buttonmap.py`, `keys.py` and `version.py` from
    [firmware/](../../firmware/) to CIRCUITPY (the repository's `code.py`, with `PICO_TEST = False` and
    `divisor=2`, not the copy edited for the Pico bench). Then:
@@ -114,16 +120,32 @@ both: [When bring-up fails](#when-bring-up-fails)). On Linux, after every copy t
      `sudo ~/.local/bin/hid-recorder`, and pick "Avionics Panel": each report shows `ReportID: 4` (device 1)
      or `5` (device 2) and a `Button:` list of 0 and 1 in button order. If the lights stay dark, Linux has
      suspended the panel ([Linux](../using/mapping.md#linux)).
-   - Check every key and the three lights (before the plate goes on, the LEDs shine up through their cutouts
-     in the board) against [BUTTONS.md](../../firmware/BUTTONS.md). Device 2 only responds while unit 2 is
+   - Check every key against [BUTTONS.md](../../firmware/BUTTONS.md). Device 2 only responds while unit 2 is
      selected (SHIFT, HOME); [Mapping](../using/mapping.md#two-joysticks) says how to tell the two apart.
-   - Column check: hold each key and check that the button of the matrix position right below it (same column
-     of `MATRIX` in [buttonmap.py](../../firmware/buttonmap.py)) stays released. A column that recovers too
-     slowly shows a phantom press there ([why](../architecture/electronics.md#gpio-map)). The likeliest pairs
-     are UP to DN, DN to `RANGE_A` (a PAN button) and ENT to the FMS push (`FMS_CRSR`). Below HOME is SHIFT,
-     which sends no button: while HOME is held, the amber light must stay off. Below PROC is the RANGE centre
-     contact: hold PROC for a second and let go, no PTR during the hold or after it (the firmware sends PTR
-     only once that contact opens again). If a phantom shows up, check that column's pull-up before going on.
+   - Check the three lights (before the plate goes on, the LEDs shine up through their cutouts in the board).
+     Tap SHIFT: the amber light comes on, for 3 s (a second tap meanwhile cancels it). Once it is off, tap
+     SHIFT, then HOME: the white UNIT light comes on, unit 2 (the same again goes back to unit 1). Push FREQ
+     briefly: after a count of short flashes the green light stays on (NAV); push again and it blinks slowly
+     (ADF); push again and it stays off (COM).
+   - Column check: a column that recovers too slowly shows a phantom press of the same column in the next
+     scanned row ([why](../architecture/electronics.md#gpio-map)). `code.py` scans the rows of `MATRIX` in
+     [buttonmap.py](../../firmware/buttonmap.py) in the order 3, 0, 1, 2, 4 (`SCAN_ROWS`), so these are the
+     pairs that can show one. Hold the first key of each pair and check that the second stays released:
+     - Row 3 to row 0: DN to AP, FLC to ALT, LVL to HDG, SHIFT to MIC1 (see the note after this list), PROC to
+       COM1, CLR to CDI, ENT to `COM_SWAP`.
+     - Row 0 to row 1: AP to FD, ALT to VNV, HDG to NAV, MIC1 to MIC2, COM1 to COM2, CDI to VFR, `COM_SWAP` to
+       `NAV_SWAP`.
+     - Row 1 to row 2: FD to UP, VNV to VS, NAV to APR, MIC2 to HOME, COM2 to FPL, VFR to DIRECT, `NAV_SWAP`
+       to MENU.
+     - Row 2 to row 4: UP to `RANGE_A` (`PAN_UP`), VS to `RANGE_B`, APR to `RANGE_C`, HOME to `RANGE_D` (PAN
+       buttons too), FPL to `RANGE_COM`, DIRECT to the ALT/HDG push (`HDG_SYNC`), MENU to the FMS push
+       (`FMS_CRSR`). `RANGE_COM` sends PTR only once it opens again: hold FPL for a second and let go, no PTR
+       during the hold or after it.
+
+     Row 4 is scanned last: nothing follows it. The worst real case is DN making a phantom AP (GP1, at 168 mm
+     the longest column). For SHIFT to MIC1, hold SHIFT alone 1 s: the amber light comes on, then blinks dim
+     and bright (locked). If it goes dark instead, a phantom MIC1 went out as `ADF_AUDIO`. Tap SHIFT to unlock
+     before going on. If a phantom shows up, check that column's pull-up before going on.
 6. Check every ring (direction, outer / inner), the RANGE tilt directions and every push the same way as the
    keys in step 5. If a ring turns the wrong way, flip its reverse flag (the last field, `False` to `True`) in
    `RINGS` in [code.py](../../firmware/code.py). If outer and inner are swapped, swap the two ring names there
@@ -146,6 +168,8 @@ By the step of [Flash and test](#flash-and-test) that shows the fault:
   lights take turns for a moment after plugging in: HOME, the key above SHIFT, was held instead and switched the
   panel to the keyboard mode. Plug in once with HOME held to switch back
   ([Normal and update mode](#normal-and-update-mode)), then once more with SHIFT held.
+- Step 4.2, any other traceback on the console: copy the console output and report it in a GitHub issue, with
+  the version line.
 - Step 4.3 or later, CIRCUITPY and the console appear without SHIFT, no joysticks, and the console shows "You
   are in safe mode because:": CircuitPython started in safe mode, which skips `boot.py`, after a supply dip
   in its first second or a crash. Unplug for a few seconds and plug in again; if it comes back at every
@@ -161,10 +185,10 @@ By the step of [Flash and test](#flash-and-test) that shows the fault:
 
 Judge the lights behind their light pipes once the panel is assembled. The brightness is `LED_DUTY` in
 [code.py](../../firmware/code.py): 0x4800 for SHIFT, 0x5500 for UNIT and 0x7B00 for FREQ (28, 33 and 48 %), up
-to 0xFFFF. The green FREQ LED gives about half the amber's light at the same current, so its duty is about
-twice SHIFT's; push FREQ to NAV to see it lit, and set it to look as bright as the amber light. If the console
-showed "LED drive strength not set" in step 4 of [Flash and test](#flash-and-test), the SHIFT or FREQ light
-stays dimmer at the RP2040's 4 mA default.
+to 0xFFFF. The green FREQ LED gives about half the amber's light at the same current, so its duty is
+about 1.7 times SHIFT's; push FREQ to NAV to see it lit, and set it to look as bright as the amber light. If
+the console showed "LED drive strength not set" in step 4 of [Flash and test](#flash-and-test), the SHIFT or
+FREQ light stays dimmer at the RP2040's 4 mA default.
 
 ## Normal and update mode
 
@@ -185,12 +209,13 @@ Plug in with SHIFT held until CIRCUITPY appears, copy the changed files to CIRCU
 then replug without SHIFT before using MobiFlight. Copy `version.py` with them, so that the console names the
 files' new version (step 4.2 of [Flash and test](#flash-and-test)).
 
-For a new CircuitPython version, or if CircuitPython ever stops booting: bridge the two BOOT pads, under the
-5 mm hole in the body floor, with the tip of the 2 mm hex key or a small screwdriver, then connect USB with
-the bridge held, and start again at step 3 of [Flash and test](#flash-and-test), with the new version's UF2. A
-new UF2 keeps the files on CIRCUITPY, `boot.py` too; if SHIFT no longer brings the drive back, copy Raspberry
-Pi's [`flash_nuke.uf2`](https://datasheets.raspberrypi.com/soft/flash_nuke.uf2) (it downloads as
-`nuke_universal.uf2`) to RPI-RP2 first, which erases the whole flash.
+Stay on CircuitPython 9.2.9, the version the firmware is written for: circuitpython.org's Pico page offers
+10.x by default, so take the UF2 from the link in step 3 of [Flash and test](#flash-and-test). To install it
+again, or if CircuitPython ever stops booting: bridge the two BOOT pads, under the 5 mm hole in the body
+floor, with the tip of the 2 mm hex key or a small screwdriver, then connect USB with the bridge held, and
+start again at step 3. A new UF2 keeps the files on CIRCUITPY, `boot.py` too; if SHIFT no longer brings the
+drive back, copy Raspberry Pi's [`flash_nuke.uf2`](https://datasheets.raspberrypi.com/soft/flash_nuke.uf2) (it
+downloads as `nuke_universal.uf2`) to RPI-RP2 first, which erases the whole flash.
 
 ## Pico bench
 
@@ -203,7 +228,7 @@ Parts:
 - A Pico or Pico H (RP2040) with headers, not a Pico W (its radio takes GP23, GP24, GP25 and GP29) and not a
   Pico 2 (RP2350, which needs another CircuitPython build).
 - A data-capable micro-USB cable, a breadboard and jumper wires.
-- A few push buttons and a 1N4148 diode.
+- A few push buttons, a 1N4148 diode and three 10 k resistors.
 - One cheap EC11-type encoder with push and 30 detents / 15 pulses per turn (not one of the panel's three
   PEC11D).
 
@@ -219,6 +244,8 @@ numbers, not the header pin numbers; the keys are matrix positions, row and colu
   on it.
 - UP: a button from GP1 to GP5. HOME: a button from GP6 to GP5 (SHIFT, then HOME switches the unit). Plain
   buttons work as long as no three of them are held at once.
+- A 10 k resistor from each of GP1, GP6 and GP10 to 3V3: the column pull-ups of the board (R_PU0 to R_PU6),
+  without which a column recovers too slowly between two rows of a scan and can show phantom presses.
 - The encoder as the FMS inner ring, whose pins stay the same in `PICO_TEST`: A to GP16, B to GP17, common to
   GND (`rotaryio` pulls A and B up); its push from GP10 to GP0 (FMS push). `code.py` counts a detent every two
   quadrature steps (`divisor=2`), as the PEC11D's 30 detents and 15 pulses per turn need. A 20 detent / 20
@@ -226,7 +253,8 @@ numbers, not the header pin numbers; the keys are matrix positions, row and colu
   hide that when a quick spin is counted. For such a part set `divisor=4` in `code.py` on the bench, and back
   to 2 for the board.
 
-Run steps 3, 4 and 5 of [Flash and test](#flash-and-test) as on the board and check:
+Run steps 3, 4 and 5 of [Flash and test](#flash-and-test) as on the board, step 4 with the bench's `code.py`
+(the one edited above), and check:
 
 - Two joysticks in MobiFlight, both named "Avionics Panel": 128 buttons on device 1, 64 on device 2.
 - The [knob timing](../using/mapping.md#knob-timing), with the bench encoder as the FMS inner ring:

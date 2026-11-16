@@ -83,10 +83,11 @@ section() {
   job "$@" >"$LOGS/$i.log" 2>&1
 }
 # Which generator reads which output: check_fit.py reads the knobs and the light pipes (make_knobs.py), the caps
-# (make_caps.py) and the body's STL and STEP (make_mech.py), builds the plate and the plate's legends itself (it
-# imports their generators) and writes the fits table of docs/architecture/mechanics.md; check.py reads the Gerbers
-# (make.py) and the BOM and CPL (make_bom.py). Each runs in the section of the files it reads; no other generator
-# reads another one's files.
+# and the single caps (make_caps.py) and the body's STL and STEP (make_mech.py), builds the plate and the plate's
+# legends itself (it imports their generators; make_plate_step.py and make_plate_art.py read their STEP and DXF
+# back against what they built) and writes the fits table of docs/architecture/mechanics.md; check.py reads the
+# Gerbers (make.py) and the BOM and CPL (make_bom.py). Each runs in the section of the files it reads; no other
+# generator reads another one's files.
 # the tests, with their coverage of what .coveragerc names, as a table and as coverage.xml (CI sends it to Codecov)
 section "firmware" nix-shell "$SHELLS" -A firmware \
   --run "pytest -v --cov --cov-report=term-missing --cov-report=xml && cd firmware && python3 make_buttons.py >BUTTONS.md && python3 make_keys.py >KEYS.md"
@@ -124,4 +125,8 @@ cp pcb/render-front.png renders/5-pcb-top.png
 cp pcb/render-back.png renders/6-pcb-bottom.png
 cp mech/avionics-panel-rev1-plate-preview.png renders/7-plate-artwork.png
 cp mech/fit-check.png renders/8-fit-check.png
+# the files to order agree with each other as copied (tests/test_production.py checks the committed ones, which the
+# firmware section's pytest ran on before this copy)
+echo "== production files against each other"
+gen . "python3 tests/production_check.py production"
 echo "done: production/ and renders/ are up to date (renders 1-4 and 9: viewer/shots.py)"

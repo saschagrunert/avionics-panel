@@ -16,8 +16,10 @@ from sim.hardware import (
     Event,
     EventQueue,
     IncrementalEncoder,
+    KeyMatrix,
     Keys,
     Pull,
+    PWMOut,
     keys,
 )
 
@@ -263,6 +265,68 @@ def test_an_input_reads_a_rings_contact_once_its_pull_up_has_charged_it():
     a.deinit()
     b.deinit()
     assert IncrementalEncoder(board, *RING_PINS["RANGE"]).position == 0
+
+
+def test_every_stand_in_claims_its_pins():
+    # a pin is in use while a keypad, an encoder, a PWMOut or a DigitalInOut not deinitialised has it, whichever
+    # stand-in asks for it next, as on the board; a new run of code.py (a new VM) frees them all
+    makers = (lambda b, pin: Keys(b, [pin], value_when_pressed=False),
+              lambda b, pin: KeyMatrix(b, [pin], ["GP1"]),
+              lambda b, pin: IncrementalEncoder(b, pin, "GP29"),
+              lambda b, pin: PWMOut(b, pin),
+              DigitalInOut)
+    for first in makers:
+        for second in makers:
+            board = Board()
+            first(board, "GP28")
+            with pytest.raises(ValueError, match="GP28 in use"):
+                second(board, "GP28")
+    board = Board().boot()
+    PWMOut(board, "GP12")
+    board.run(10)
+    assert not board.printed and [led.pin for led in board.leds] == ["GP12", "GP12", "GP15", "GP14"]
+
+
+def test_a_pwm_duty_is_an_int_of_16_bits():
+    board = Board()
+    led = PWMOut(board, "GP12")
+    led.duty_cycle = 0xFFFF
+    for value, error in ((0x10000, ValueError), (-1, ValueError), (0.5, TypeError), (None, TypeError)):
+        with pytest.raises(error):
+            led.duty_cycle = value
+        with pytest.raises(error):
+            PWMOut(Board(), "GP12", duty_cycle=value)
+    assert led.duty_cycle == 0xFFFF
+
+
+def test_a_pwmout_that_fails_leaves_its_pin_free():
+    # GP13 shares GP12's PWM slice: at another frequency it fails, and a retry at GP12's then gets the pin
+    board = Board()
+    PWMOut(board, "GP12", frequency=500)
+    with pytest.raises(ValueError, match="another frequency"):
+        PWMOut(board, "GP13", frequency=1000)
+    assert PWMOut(board, "GP13", frequency=500).pin == "GP13"
+
+
+def test_supervisor_runtime_has_only_what_the_firmware_uses():
+    # usb_connected and rgb_status_brightness (an int, 0 to 255), nothing else: a name the firmware does not use
+    # fails
+    board = Board()
+    runtime = board.modules["supervisor"].runtime
+    assert runtime.usb_connected and runtime.rgb_status_brightness == 0xFF
+    runtime.rgb_status_brightness = 0
+    assert board.rgb_status_brightness == 0
+    with pytest.raises(ValueError):
+        runtime.rgb_status_brightness = 256
+    with pytest.raises(TypeError):                       # an int only, as mp_obj_get_int takes it
+        runtime.rgb_status_brightness = 0.0
+    assert board.rgb_status_brightness == 0
+    with pytest.raises(AttributeError):
+        runtime.serial_connected  # noqa: B018
+    with pytest.raises(AttributeError):
+        runtime.usb_connected = False
+    with pytest.raises(AttributeError):
+        runtime.autoreload = False
 
 
 def test_keypads_scan_every_20_ticks():

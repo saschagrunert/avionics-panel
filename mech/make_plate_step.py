@@ -28,7 +28,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "pcb"))
 import board as B
 import make_plate_art as PA
 import stack as S
-from occ_util import box, cut, cyl, fuse, move, revolve, rrect_prism, volume, write_step
+from occ_util import box, cut, cyl, face_diff, fuse, move, revolve, rrect_prism, volume, write_step
 
 NAME = "avionics-panel-rev1-plate"          # the STEP, the DXF and the drawing share it: JLCCNC pairs them by name
 
@@ -110,17 +110,26 @@ def measures(shape):
 
 
 def read_back(shape, name):
-    """The STEP file as written, read again: its solid must be the one built. mech/check_fit.py measures the
-    plate it builds from build(); this ties the ordered file to it."""
+    """The STEP file as written, read again: its solid must be the one built, face for face (occ_util.face_diff:
+    each face's type, area and centroid, so every hole, pocket, boss and the outline in its place and size), and
+    in face count, volume and extent. mech/check_fit.py measures the plate it builds from build(); this ties the
+    ordered file to it."""
     r = STEPControl_Reader()
     if r.ReadFile(name + ".step") != IFSelect_RetDone:
         raise RuntimeError(f"{name}.step cannot be read back")
     r.TransferRoots()
-    (nf, vol, ext), (nf2, vol2, ext2) = measures(shape), measures(r.OneShape())
+    read = r.OneShape()
+    (nf, vol, ext), (nf2, vol2, ext2) = measures(shape), measures(read)
     if nf != nf2 or abs(vol - vol2) > 1e-3 or max(abs(a - b) for a, b in zip(ext, ext2, strict=True)) > 1e-4:
         raise RuntimeError(f"{name}.step is not the solid built: {nf2} faces, {vol2:.3f} mm3, extent {ext2} against "
                            f"{nf} faces, {vol:.3f} mm3, {ext}")
-    print(f"{name}.step read back: {nf2} faces, {vol2 / 1000:.2f} cm3, the solid built")
+    built, written = face_diff(shape, read)
+    if built or written:
+        def show(fs):
+            return "; ".join(f"type {t:g}, {a:.3f} mm2 at ({x:.3f}, {y:.3f}, {z:.3f})" for t, a, x, y, z in fs[:3])
+        raise RuntimeError(f"{name}.step is not the solid built: {len(built)} faces built are not in the file "
+                           f"({show(built)}), {len(written)} faces of the file were not built ({show(written)})")
+    print(f"{name}.step read back: {nf2} faces, {vol2 / 1000:.2f} cm3, the solid built face for face")
 
 
 def main():
