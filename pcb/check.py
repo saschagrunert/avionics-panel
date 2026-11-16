@@ -15,7 +15,7 @@
    clear of its pad by the mask's registration, and the same minimum of mask between each tented via and the
    openings beside it; the fiducials
 6. copper path from every RP2040 supply pin to its nearest decoupling capacitor, one capacitor of its own per
-   IOVDD pin over the outer layers, and every decoupling capacitor with its own plane vias
+   IOVDD pin but 22 and 33 over the outer layers, and every decoupling capacitor with its own plane vias
 7. routed length of every net against its shortest tree (no detours), USB D+ / D- length and skew along each
    line's signal path, J1 -> ESD array -> 27 R -> RP2040, and all trace on each line's nets, stubs too, within the
    same length cap
@@ -1092,31 +1092,29 @@ def mask_dams(pads, vias):
 
 # Decoupling, measured as the copper path from the RP2040 pin to the capacitor pad: trace length on the outer
 # layers plus, through a plane, the straight distance from via to via (pad centre to pad centre).
-# - Pins with a capacitor of their own: the IOVDD pins 1 on C_IO1, 10 on C_IO10, 22 on C_IO22, 42 with ADC_AVDD
-#   43 and VREG_VIN 44 on C_D2 (1 uF) and 49 with USB_VDD 48 on C_IO49, VREG_VOUT 45 on C_1V0 and DVDD 50 on
-#   C_1V1: at most OWN_CAP_MAX of copper. Raspberry Pi's minimal design puts each capacitor right at its
+# - Pins with a capacitor of their own: the IOVDD pins 1 on C_IO1 and 10 on C_IO10, 42 with ADC_AVDD 43 and
+#   VREG_VIN 44 on C_D2 (1 uF) and 49 with USB_VDD 48 on C_IO49, VREG_VOUT 45 on C_1V0 and DVDD 23 on C_DV23 and
+#   50 on C_1V1: at most OWN_CAP_MAX of copper. Raspberry Pi's minimal design puts each capacitor right at its
 #   pin; the limit keeps the supply side of the loop at about 2 nH, the order of the capacitor's own ESL plus its
 #   GND via (a 0.25 mm trace 0.2 mm over the 3V3 plane has about 0.3 nH/mm). The C_IO capacitors have no 3V3 via
-#   of their own (cap_vias): their pin feeds the plane through its via under the chip, so those pins (1, 10, 22,
-#   48, 49) must also reach the 3V3 plane within PLANE_ENTRY_MAX of copper.
-# - Exceptions, no capacitor of their own: IOVDD 33 and RUN 26 (tied to 3V3) drop straight into the 3V3 plane (at
-#   most PLANE_ENTRY_MAX of copper to the via) and share the capacitors on it; east of pin 33's fan-out lane is
-#   the only way north for the ALT/HDG and FREQ lines, and no seed routed them past a capacitor there
-#   (board.add_io_caps). DVDD 23 on the north side has no room between the crystal and the fan-out (C_IO22 takes
-#   the gap above pins 22 and 23); it reaches the 1V1 capacitors over the top layer through V23. Its path is
-#   reported, not limited.
+#   of their own (cap_vias): their pin feeds the plane through its via under the chip, so those pins (1, 10, 48,
+#   49) must also reach the 3V3 plane within PLANE_ENTRY_MAX of copper.
+# - Exceptions, no capacitor of their own: IOVDD 22 and 33, and RUN 26 (tied to 3V3), drop straight into the 3V3
+#   plane (at most PLANE_ENTRY_MAX of copper to the via) and share the capacitors on it. East of pin 33's fan-out
+#   lane is the only way north for the ALT/HDG and FREQ lines, and no seed routed them past a capacitor there;
+#   the one gap above pins 22 and 23, between the crystal and the north fan-out, holds C_DV23 for DVDD 23, the
+#   datasheet's 100 nF at each DVDD pin (board.add_io_caps).
 OWN_CAP_MAX = 6.0
 # - The regulator's input and output want 1 uF at the pin (RP2040 datasheet 2.9.3 / 2.10.1): the nearest
 #   capacitor of VREG_VIN (44) and VREG_VOUT (45) must be at least CAP_MIN_UF.
 CAP_MIN_UF = {44: 1.0, 45: 1.0}
 PLANE_ENTRY_MAX = 2.0
-PLANE_SHARED = {26, 33}
-NO_ROOM = {23}
+PLANE_SHARED = {22, 26, 33}
 CAP_VIA_MAX = 1.0          # every decoupling capacitor: its own plane via at most one stub from the pad centre
-# - One capacitor per IOVDD pin: each IOVDD pin but 33 (above) reaches a capacitor of its own over the
+# - One capacitor per IOVDD pin: each IOVDD pin but 22 and 33 (above) reaches a capacitor of its own over the
 #   outer-layer copper alone (no plane in the path), within OWN_CAP_MAX, and no two IOVDD pins reach the same one
 #   first. A capacitor that only the plane brings within reach, or one shared by two IOVDD pins, fails.
-IOVDD = (1, 10, 22, 42, 49)
+IOVDD = (1, 10, 42, 49)
 
 
 def microfarads(value):
@@ -1142,9 +1140,6 @@ def decoupling(pads, segments, vias):
             entry = min((v for k, v in dist.items() if k[0] == "plane"), default=math.inf)
             ok = entry <= PLANE_ENTRY_MAX
             rule = f"exception: shared through the plane, pin to plane {entry:.2f} mm (max {PLANE_ENTRY_MAX})"
-        elif pin in NO_ROOM:
-            ok = d < math.inf
-            rule = "exception: no room at the pin, over the top layer"
         else:
             ok = d <= OWN_CAP_MAX
             rule = f"own capacitor (max {OWN_CAP_MAX})"

@@ -4,10 +4,11 @@ meshed here; the cap zips, every set's texture and legends and the single-cap zi
 legend_strokes(), cap_singles()) and on the plate as make_plate_step.py builds it, with the plate's layers as
 make_plate_art.py builds them. Those two scripts read the plate STEP and the DXF back after writing them and fail
 unless each holds what they built (face for face, vertex for vertex), and tests/test_production.py compares the
-ordered files with each other. A margin that is not over zero fails the build (report()). The rows that carry a doc
-make the table of the main margins in docs/architecture/mechanics.md (write_fits_table()). Also draws cross-sections
-through the ALT/HDG knob, the RANGE knob and the SHIFT light pipe -> fit-check.png (XZ plane, z = 0 is the PCB top).
-Grey: PCB and part outlines from the datasheets. Blue: plate. Black: printed parts."""
+ordered files with each other. A margin that is not over zero (or under zero, for a rule the design meets exactly)
+fails the build (report()); a row that takes tolerances RSS also prints its bounded worst case. The rows that carry
+a doc make the table of the main margins in docs/architecture/mechanics.md (write_fits_table()). Also draws
+cross-sections through the ALT/HDG knob, the RANGE knob and the SHIFT light pipe -> fit-check.png (XZ plane, z = 0
+is the PCB top). Grey: PCB and part outlines from the datasheets. Blue: plate. Black: printed parts."""
 import functools
 import io
 import itertools
@@ -459,7 +460,10 @@ def knob_measures(tri, kind):
     else:
         h = S.OUTER_KNOB["z1"] - S.OUTER_KNOB["z0"]
         zb = (K.outer_key_z0() + h) / 2                                         # beside the key
-    bore = max(across(tri, (0.0, 0.0, zb), d)[0] for d in TURN)
+    if kind == "range":                                 # ribbed: the side ribs' tips across, along y
+        bore = across(tri, (0.0, 0.0, zb), np.array([0.0, 1.0, 0.0]))[0]
+    else:
+        bore = max(across(tri, (0.0, 0.0, zb), d)[0] for d in TURN)
     relief = None if zr is None else min(max(across(tri, (0.0, 0.0, z), d)[0] for d in TURN)
                                          for z in (zr[0] + RELIEF_END, (zr[0] + zr[1]) / 2, zr[1] - RELIEF_END))
     ex, up = np.array([1.0, 0.0, 0.0]), np.array([0.0, 0.0, 1.0])
@@ -476,6 +480,15 @@ def knob_measures(tri, kind):
     else:
         # the D bore across its flat (the flat towards +x) and its end, up the axis from below
         seat = dict(flat=across(tri, (0.0, 0.0, zb), ex)[0], end=ray_hit(tri, np.array([0.0, 0.0, -1.0]), up) - 1.0)
+    if kind == "range":
+        # the ribbed bore: the flat face from the axis (the D across its flat is that and the ribs' radius), the
+        # groove's floor opposite it and the groove across
+        o = np.array([0.0, 0.0, zb])
+        seat["flat"] = ray_hit(tri, o, ex) + bore / 2
+        seat["groove"] = ray_hit(tri, o, -ex)
+        hg = S.RANGE_RIBS["groove"] / 2                             # its side walls, half way out along them
+        x = -(math.sqrt(max((bore / 2) ** 2 - hg * hg, 0.0)) + math.sqrt(max(seat["groove"] ** 2 - hg * hg, 0.0))) / 2
+        seat["groove_w"] = across(tri, (x, 0.0, zb), np.array([0.0, 1.0, 0.0]))[0]
     zf, far = h - f["cham"] - 0.5, 20.0
 
     def radius(a):
@@ -572,14 +585,15 @@ def knob_rows(meshes):
         rows.append(seat_row(kind, tags, got))
         # A bore v over the shaft's largest size, printed e off its size, sits on a shaft t under that size with an
         # interference of -(v + e + t), and grips within KNOB_GRIP. The windows of neighbouring bores overlap, so
-        # on every shaft (t from 0 to SHAFT_TOL) one of the bores grips for every e from lo to hi.
+        # on every shaft (t from 0 to its tolerance) one of the bores grips for every e from lo to hi.
         grip_lo, grip_hi = S.KNOB_GRIP
+        tol, tol_say = (S.LEVER_D_TOL, "assumed") if kind == "range" else (S.SHAFT_TOL, "Bourns")
         over = sorted(got[t]["bore"] - shaft for t in tags)                 # as built
         lap = (grip_hi - grip_lo) - max(b - a for a, b in itertools.pairwise(over))
-        lo, hi = -(grip_hi + over[-1]), -(S.SHAFT_TOL + grip_lo + over[0])
+        lo, hi = -(grip_hi + over[-1]), -(tol + grip_lo + over[0])
         rows.append((f"{kind} knob (stack.FIT {S.FIT:+.1f}): one of its bores (as built) grips its Ø{shaft} shaft "
-                     f"(+0/-{S.SHAFT_TOL}) with {grip_lo} to {grip_hi} of interference when they print {off_size(lo)} "
-                     f"to {off_size(hi)}: the grip windows of neighbouring bores overlap", lap,
+                     f"(+0/-{tol}, {tol_say}) with {grip_lo} to {grip_hi} of interference when they print "
+                     f"{off_size(lo)} to {off_size(hi)}: the grip windows of neighbouring bores overlap", lap,
                      ("Knobs", "Overlap of the grip windows of two neighbouring bores (outer ring, FMS ring, inner "
                                f"knob, RANGE knob), with `stack.FIT` at {S.FIT:+.1f}")))
     return rows
@@ -614,12 +628,23 @@ def seat_row(kind, tags, got):
     relief = {t: got[t]["relief"] for t in tags}
     off = max(max(abs(got[t]["seat"]["flat"] - flats[t]), abs(got[t]["seat"]["end"] - end),
                   got[t]["bore"] - relief[t], abs(relief[t] - K.relief_d(kind, t))) for t in tags)
+    ribs = ""
+    if kind == "range":                                             # the ribbed bore (make_knobs.range_bore)
+        rb = S.RANGE_RIBS
+        grooves = {t: (shaft + S.FIT + S.FIT_VARIANTS[t]) / 2 + rb["relief"] for t in tags}
+        off = max(off, *(max(abs(got[t]["seat"]["groove"] - grooves[t]), abs(got[t]["seat"]["groove_w"]
+                                                                              - rb["groove"])) for t in tags))
+        ribs = (f", the groove opposite the flat to r {min(got[t]['seat']['groove'] for t in tags):.2f} to "
+                f"{max(got[t]['seat']['groove'] for t in tags):.2f}, "
+                f"{min(got[t]['seat']['groove_w'] for t in tags):.2f} wide")
     across_ = ", ".join(f"{got[t]['seat']['flat']:.2f}" for t in tags)
     return (f"{kind} knob's seat as built ({span}): D bore {across_} "
-            f"across the flat, its end {min(got[t]['seat']['end'] for t in tags):.2f} over the knob's bottom, relief "
-            f"bores {', '.join(f'Ø{relief[t]:.2f}' for t in tags)} (the narrowest of three heights; measured on the "
-            f"solids) are the stack's ({', '.join(f'{v:g}' for v in flats.values())} on the Ø{shaft} shaft's "
-            f"{flat}, {end:.2f}; each relief bore at least the D bore over it)", 0.01 - off)
+            f"across the flat, its end {min(got[t]['seat']['end'] for t in tags):.2f} over the knob's bottom{ribs}, "
+            f"relief bores {', '.join(f'Ø{relief[t]:.2f}' for t in tags)} (the narrowest of three heights; measured "
+            f"on the solids) are the stack's ({', '.join(f'{v:g}' for v in flats.values())} on the Ø{shaft} shaft's "
+            f"{flat}, {end:.2f}" + (f", groove {S.RANGE_RIBS['relief']} deep, {S.RANGE_RIBS['groove']} wide"
+                                    if ribs else "")
+            + "; each relief bore at least the D bore over it)", 0.01 - off)
 
 
 BOTTOM_CHAM = 0.3                # occ_util.fluted: the chamfer on a knob's bottom edge (the RANGE knob has none)
@@ -657,15 +682,17 @@ def knob_mark_walls(meshes):
     mk, hole, size = S.KNOB_MARK, S.RESIN_TOL["hole"], S.RESIN_TOL["size"]
     ok, ik, rk = S.OUTER_KNOB, S.INNER_KNOB, S.RANGE_KNOB
     widest, most = S.FIT_STEP + max(S.FIT_VARIANTS.values()), max(S.FIT_VARIANTS)
-    # the knob's radius and height, the widest hole inside the dimples' circle, the dimples' top, the radius of the
-    # bottom face's edge where the dimples open in it, the knob's size
+    # the knob's radius and height, the widest hole inside the dimples' circle (the RANGE knob's: its relief bore or
+    # the grooves of its ribbed bore), the dimples' top, the radius of the bottom face's edge where the dimples open
+    # in it, the knob's size
     ring = (ok["d"] / 2, ok["z1"] - ok["z0"], max(K.outer_counterbore_d(), S.OUTER_D + widest) / 2, mk["depth"],
             ok["d"] / 2 - BOTTOM_CHAM, ok["d"])
     knobs = {"outer": ring, "outer_fms": ring,
              "inner": (ik["d"] / 2, ik["z1"] - ik["z0"],
                        max(S.INNER_D + 2 * S.INNER_BORE_RELIEF, S.INNER_D + widest) / 2,
                        K.inner_recess_top() + mk["depth"], math.inf, ik["d"]),
-             "range": (rk["d"] / 2, rk["z1"] - rk["z0"], max(S.RANGE_RELIEF[0], S.LEVER_D + widest) / 2,
+             "range": (rk["d"] / 2, rk["z1"] - rk["z0"],
+                       max(S.RANGE_RELIEF[0] / 2, (S.LEVER_D + widest) / 2 + S.RANGE_RIBS["relief"]),
                        K.range_mark_top(), math.inf, rk["skirt_d"])}
     out = []
     for kind, (radius, h, bore, top, edge, across_knob) in knobs.items():
@@ -1710,12 +1737,35 @@ def pipe_rows(back_lo, back_hi, face_lo, board, caps):
     return rows
 
 
+MEETS = object()                  # a row's marker: it checks a rule the design meets exactly, so it passes at zero
+
+
+class Bounded(float):
+    """a row's marker for a row that adds tolerances root sum square (spread()): its margin with those tolerances
+    summed linearly instead, every one at its worst end at once, the bounded worst case. The row passes or fails on
+    its RSS margin; report() prints both, and the table of the main margins shows both."""
+
+
+def spread(*tols):
+    """independent tolerances (each +-) combined: (their root sum square, their linear sum)."""
+    return math.sqrt(sum(t * t for t in tols)), sum(tols)
+
+
 def fit(row):
-    """a row (text, margin[, unit][, doc ...]) as (text, margin, unit, docs): the unit is mm unless the row gives
-    one (a string; "" for a ratio). A doc, (group, wording[, value]), puts the row into the table of the main
-    margins in docs/architecture/mechanics.md, with its margin or with `value`."""
+    """a row (text, margin[, unit][, doc ...][, MEETS][, Bounded]) as (text, margin, unit, docs, least, bounded):
+    the unit is mm unless the row gives one (a string; "" for a ratio). A doc, (group, wording[, value]), puts the
+    row into the table of the main margins in docs/architecture/mechanics.md, with its margin or with `value`.
+    least: the margin it must be over, 0, or (MEETS) the margin it must reach, also 0. bounded: the Bounded margin
+    of a row that adds tolerances RSS, or None."""
     text, margin, *more = row
-    return text, margin, next((m for m in more if isinstance(m, str)), "mm"), [m for m in more if isinstance(m, tuple)]
+    return (text, margin, next((m for m in more if isinstance(m, str)), "mm"),
+            [m for m in more if isinstance(m, tuple)], any(m is MEETS for m in more),
+            next((float(m) for m in more if isinstance(m, Bounded)), None))
+
+
+def passes(margin, meets):
+    """a row's margin passes: over zero, or zero or more for a row marked MEETS (NaN fails)."""
+    return margin >= 0 if meets else margin > 0
 
 
 # The table of the main margins in docs/architecture/mechanics.md, between these two lines: written from the rows
@@ -1735,14 +1785,18 @@ def fits_table(rows):
         txt += "0" * (2 - len(txt.partition(".")[2])) + ("°" if unit == "°" else "")
         return f"**{txt}**" if unit == "mm" and round(v, 3) <= 0.05 else txt
     table = {}
-    for _text, margin, unit, docs in rows:
+    for _text, margin, unit, docs, _meets, bounded in rows:
         for group, wording, *value in docs:
             if group not in FITS_GROUPS:                        # a plain raise: asserts vanish under -O
                 raise ValueError(f"no group {group!r} in FITS_GROUPS")
-            table.setdefault((group, wording), []).append(show(value[0] if value else margin, unit))
-    return ["| Group | Fit | Margin (mm) |", "| --- | --- | --- |",
-            *(f"| {g} | {wording} | {', '.join(vals)} |" for group in FITS_GROUPS
-              for (g, wording), vals in table.items() if g == group)]
+            vals, worst = table.setdefault((group, wording), ([], []))
+            vals.append(show(value[0] if value else margin, unit))
+            if bounded is not None:                             # a row that adds tolerances RSS
+                worst.append(show(bounded, unit))
+    return ["| Group | Fit | Margin (mm) | Bounded worst case (mm), RSS rows |", "| --- | --- | --- | --- |",
+            *(f"| {g} | {wording} | {', '.join(vals)}{' (RSS)' if worst else ''} |"
+              + (f" {', '.join(worst)} |" if worst else " |")   # an empty cell: one space (markdownlint)
+              for group in FITS_GROUPS for (g, wording), (vals, worst) in table.items() if g == group)]
 
 
 def write_fits_table(rows):
@@ -1796,7 +1850,7 @@ def fit_values(plate, outer, inner, range_knob, knobs):
     face_up = h_tol + S.PLATE_T_TOL + S.ANODISE         # plate face over its nominal height, worst
     # ---- positions: board offset from the caps; the plate's bosses locate the screws, the board floats on them ----
     pt, sc, bo, tp = S.POS_TOL, S.SCREW, S.BOSS, S.TAP
-    cap_err = math.sqrt(sum(v * v for v in S.CAP_TOL.values()))
+    cap_err, cap_err_sum = spread(*S.CAP_TOL.values())   # RSS, and every per-key error at its worst at once
     r_max = S.KEY_HOLE_R_MAX                            # the key holes' corners at their largest (drawing)
     if S.CAP_CREEP < S.CAP_TURN:                        # a plain raise: asserts vanish under -O
         raise ValueError("CAP_CREEP under CAP_TURN: the crept cap's row stands for the squared cap's too")
@@ -1806,7 +1860,7 @@ def fit_values(plate, outer, inner, range_knob, knobs):
     # a whole set printed large (WJP's outline error as a bias), squared: against the other per-key errors
     cap_print = S.WJP_TOL["size"]                       # cap outline, on the size
     cap_room_set = cap_shift_room(-cap_print, S.CAP_TURN, r_max)[0]
-    cap_err_set = math.sqrt(sum(v * v for k, v in S.CAP_TOL.items() if k != "cap"))
+    cap_err_set, cap_err_set_sum = spread(*(v for k, v in S.CAP_TOL.items() if k != "cap"))
     # the board offset the caps allow, at most: a whole set printed small in the largest holes
     cap_room_max = cap_shift_room(S.KEY_HOLE_TOL[0] + cap_print)[1]
     board = cap_room_max + pt["centring"]
@@ -1898,7 +1952,7 @@ def fit_values(plate, outer, inner, range_knob, knobs):
     open_bot = MM.USB_OPEN["z"] - MM.USB_OPEN["h"] / 2
     # the BOOT hole over the gap between the BOOT pads: the body on its screws, the board on them, MJF
     boot_at = min(math.dist(B.BOOT, m) for m in B.MOUNTS)
-    boot_off = math.sqrt(offset ** 2 + off ** 2 + mjf(boot_at) ** 2)
+    boot_off, boot_sum = spread(offset, off, mjf(boot_at))
     hex_d = S.SCREW["hex"] / math.cos(math.radians(30))         # the hex key across its corners
     an = S.ANODISE
     pads = B.build()                                    # every pad of the board, for what hangs under it
@@ -1910,17 +1964,28 @@ def fit_values(plate, outer, inner, range_knob, knobs):
     wall_gap = back_lo - bm["wall_top"][1] - seat_tol - pcb_tol - S.PLATE_FLAT * bow_wall
     legend_off, legend_at = legend_gap()
     # ---- RANGE: knob height from the lever top (+-0.3) and its bore depth (resin). A kept RANGE knob has at most
-    # stack.RANGE_PLAY on the lever: off the lever's axis by half of it, and pushed sideways at full tilt it cocks on
-    # its D bore (its length on the lever's flat, measured on the solid) by that play over the length, the way the
-    # lever tilts, about the bore's middle. The lever's centre push (stack.RANGE_PUSH) may go down at full tilt
-    # too (Alps does not say it cannot) ----
+    # stack.RANGE_PLAY on the lever. The groove (stack.RANGE_RIBS) opens the round wall opposite the flat: towards
+    # it the lever stops on the groove's two edges, not on the wall, so from the flat to the groove it has more than
+    # the play (worst on the thinnest lever, the groove as drawn). The knob is off the lever's axis by up to that
+    # side's share, and pushed sideways at full tilt it cocks on its D bore (its length on the lever's flat,
+    # measured on the solid) by that play over the length, the way the lever tilts, about the bore's middle. The
+    # lever's centre push (stack.RANGE_PUSH) may go down at full tilt too (Alps does not say it cannot) ----
     rk_lo = S.PLATE_Z1 + rk["z0"] - S.LEVER_TOL - resin    # knob bottom, lowest
     push_hi = S.RANGE_PUSH[0] + S.RANGE_PUSH[1]
     a = math.radians(S.RKJXT_TILT)
     pz = S.RKJXT_FULCRUM
     poff = S.RKJXT_FULCRUM_OFF
     rk_len = d_bore_len(range_knob, S.LEVER_D, S.LEVER_FLAT)
-    cock, rk_off = S.RANGE_PLAY / rk_len, S.RANGE_PLAY / 2
+
+    def to_groove(lever_d):
+        """how far the lever, centred in a bore with RANGE_PLAY on it, moves towards the groove: until its round
+        side meets the groove's edges, where the bore's circle ends"""
+        rl, hg = lever_d / 2, S.RANGE_RIBS["groove"] / 2
+        rb = rl + S.RANGE_PLAY / 2
+        return math.sqrt(rb * rb - hg * hg) - math.sqrt(rl * rl - hg * hg)
+    rk_off = max(to_groove(d) for d in (S.LEVER_D, S.LEVER_D - S.LEVER_D_TOL))   # over RANGE_PLAY / 2
+    rk_across = S.RANGE_PLAY / 2 + rk_off               # the play from the flat to the groove
+    cock = rk_across / rk_len
     rk_mid = (S.LEVER_Z1 - S.LEVER_TOL - rk_len / 2, S.LEVER_Z1 + S.LEVER_TOL - rk_len / 2)   # the bore's middle
 
     def turned(r, h, cr, cz, ang):
@@ -1990,6 +2055,7 @@ def fit_values(plate, outer, inner, range_knob, knobs):
     # ---- outer knob, in its own frame from the slot floor its key rests on ----
     slot_tol = S.ENC_TOL["lt10"]                        # slot width and depth, +-
     key_rss = math.hypot(es["slot"], resin)            # slot floor over the PCB and the key's height in the knob
+    key_sum = S.ENC_SPREAD_SUM["slot"] + resin
     cb_top = K.outer_counterbore_top() - K.outer_key_z0() + resin   # counterbore top, highest
     shaft_top = S.SLOT_LEN - slot_tol                   # 6 mm shaft top over the slot floor, shallow slot
     knob_top = ok["z1"] - ok["z0"] - K.outer_key_z0()                # top of the knob's bore
@@ -2014,18 +2080,32 @@ def fit_values(plate, outer, inner, range_knob, knobs):
 def knob_fits(fv):
     """Knobs: the dual knobs on their shafts and over the plate, their walls, flutes and dimples."""
     face_up, bow_enc, es, nub, ok, key_rss = fv.face_up, fv.bow_enc, fv.es, fv.nub, fv.ok, fv.key_rss
+    key_sum = fv.key_sum
     slot_tol, knob_top, shaft_top, cb_top = fv.slot_tol, fv.knob_top, fv.shaft_top, fv.cb_top
     key_resin, lash_nom, lash_max, shaft_tol = fv.key_resin, fv.lash_nom, fv.lash_max, fv.shaft_tol
     detent, hole_tol, bore_play, ecc, resin, ik = fv.detent, fv.hole_tol, fv.bore_play, fv.ecc, fv.resin, fv.ik
     p, cb_d, part_tol, rec_bot, rings, cb_bot = fv.p, fv.cb_d, fv.part_tol, fv.rec_bot, fv.rings, fv.cb_bot
     knurls, groove, fi, ring_r, fp, ff, outer = fv.knurls, fv.groove, fv.fi, fv.ring_r, fv.fp, fv.ff, fv.outer
     inner, d_len, mk, mark_walls, mark_reach = fv.inner, fv.d_len, fv.mk, fv.mark_walls, fv.mark_reach
+    push_dip = S.KNOB_PUSH_DIP["encoder"]
+    # the RANGE knob's ribbed bore (make_knobs.range_bore), for a bore v over the lever's largest size: a rib across
+    # its tip, from the flat's edge (where the flat face meets the bore's circle) round to the groove's edge
+    rb = S.RANGE_RIBS
+
+    def rib_w(v):
+        r, hg = (S.LEVER_D + v) / 2, rb["groove"] / 2
+        xf = S.LEVER_FLAT + v - r                                   # the flat face, off the axis
+        return math.dist((xf, math.sqrt(r * r - xf * xf)), (-math.sqrt(r * r - hg * hg), hg))
+    rib_min = min(rib_w(S.FIT + v) for v in S.FIT_VARIANTS.values())
+    groove_r = (S.LEVER_D + S.FIT_STEP + max(S.FIT_VARIANTS.values())) / 2 + rb["relief"]
+    notch = mark_reach + hole_tol / 2 - (ik["recess_d"] - hole_tol) / 2
     return [
-        (f"outer knob over plate (face +{face_up:.3f}, bowed {S.PLATE_FLAT * bow_enc:.3f} up there, the board "
-         f"{S.PCB_BOW * bow_enc:.3f} down, slot floor +-{es['slot']:.2f} and key resin, RSS; a support mark "
-         f"{nub} left on its bottom face)",
-         ok["z0"] - face_up - (S.PLATE_FLAT + S.PCB_BOW) * bow_enc - key_rss - nub,
-         ("Plate low", "Outer knob ring over the plate face")),
+        (f"outer knob over plate, the encoder pushed (face +{face_up:.3f}, bowed {S.PLATE_FLAT * bow_enc:.3f} up "
+         f"there, the board {S.PCB_BOW * bow_enc:.3f} down and {push_dip} more under a {S.KNOB_PUSH:.0f} N "
+         f"push, slot floor +-{es['slot']:.2f} and key resin, RSS; a support mark {nub} left on its bottom face)",
+         ok["z0"] - face_up - (S.PLATE_FLAT + S.PCB_BOW) * bow_enc - push_dip - key_rss - nub,
+         Bounded(ok["z0"] - face_up - (S.PLATE_FLAT + S.PCB_BOW) * bow_enc - push_dip - key_sum - nub),
+         ("Plate low", "Outer knob ring over the plate face, its encoder pushed")),
         (f"outer knob grip on the 6 mm shaft above the counterbore (slot depth -{slot_tol}, resin), beyond "
          f"{S.OUTER_GRIP_MIN}", min(knob_top, shaft_top) - cb_top - S.OUTER_GRIP_MIN),
         (f"outer knob key ({S.KEY_W} +{key_resin} resin) in the narrowest shaft slot ({S.SLOT_W} -{slot_tol})",
@@ -2042,15 +2122,19 @@ def knob_fits(fv):
          f"knob {bore_play:.3f} off its shaft (its play), shafts {ecc}",
          S.KEY_R - hole_tol / 2 - bore_play - ecc - S.INNER_D / 2,
          ("Knobs", "Outer knob's key face clear of the inner shaft in the slot")),
-        (f"outer knob counterbore over the bushing, key on the slot floor (+-{es['slot_sleeve']:.2f}, resin)",
+        (f"outer knob counterbore over the bushing, key on the slot floor (+-{es['slot_sleeve']:.2f}, RSS; resin)",
          K.outer_counterbore_top() - K.outer_key_z0() + (S.OUTER_TOP - S.SLOT_LEN) - S.SLEEVE_TOP
-         - es["slot_sleeve"] - resin, ("Knobs", "Outer knob's counterbore over the bushing")),
+         - es["slot_sleeve"] - resin,
+         Bounded(K.outer_counterbore_top() - K.outer_key_z0() + (S.OUTER_TOP - S.SLOT_LEN) - S.SLEEVE_TOP
+                 - S.ENC_SPREAD_SUM["slot_sleeve"] - resin), ("Knobs", "Outer knob's counterbore over the bushing")),
         (f"inner knob over outer knob, pushed (shafts +-{es['inner_outer']:.2f}, inner bore depth and outer key "
          f"height +-{resin}, RSS; a support mark {nub} left on its bottom face)",
          ik["z0"] - p - ok["z1"] - math.sqrt(es["inner_outer"] ** 2 + 2 * resin ** 2) - nub,
+         Bounded(ik["z0"] - p - ok["z1"] - (S.ENC_SPREAD_SUM["inner_outer"] + 2 * resin) - nub),
          ("Knobs", "Inner knob over the outer ring, pushed")),
-        ("inner recess over outer shaft top, pushed",
-         ik["recess_top"] - p - (S.OUTER_TOP - S.PLATE_Z1) - es["inner_shaft"]),
+        (f"inner recess over outer shaft top, pushed (shafts +-{es['inner_shaft']:.2f}, RSS)",
+         ik["recess_top"] - p - (S.OUTER_TOP - S.PLATE_Z1) - es["inner_shaft"],
+         Bounded(ik["recess_top"] - p - (S.OUTER_TOP - S.PLATE_Z1) - S.ENC_SPREAD_SUM["inner_shaft"])),
         (f"inner recess ({ik['recess_d']}) round the 6 mm shaft, radial: recess -{hole_tol}, the knob "
          f"{bore_play:.3f} off its shaft, shafts {ecc}",
          (ik["recess_d"] - hole_tol) / 2 - S.OUTER_D / 2 - bore_play - ecc),
@@ -2073,8 +2157,9 @@ def knob_fits(fv):
         (f"inner knob D bore ({d_len:.2f} up from the tip, measured on the knob solid) within the shortest D flat "
          f"({S.FLAT_LEN} -{S.ENC_TOL['lt10']}), bore depth +{resin}: the bore end sets the knob height",
          S.FLAT_LEN - S.ENC_TOL["lt10"] - d_len - resin),
-        (f"knob dimples Ø{mk['d']}, {mk['depth']} deep, beyond 0.8 (JLC3DP engraved detail)",
-         min(mk["d"], mk["depth"]) - 0.8),
+        # JLC3DP's least SLA hole: Ø1.0 for 1 to 3 mm deep. The dimples meet it exactly: the row passes at zero
+        (f"knob dimples Ø{mk['d']}, {mk['depth']} deep: Ø1.0 at least, no deeper than 3 (JLC3DP's least SLA hole), "
+         "and at least 0.8 deep (engraved detail)", min(mk["d"] - 1.0, 3.0 - mk["depth"], mk["depth"] - 0.8), MEETS),
         (f"knob dimples as built (the knob with the most, in plan): resin round them as drawn, with the largest "
          f"bore stack.FIT allows ({', '.join(f'{k} {down(w):.2f}' for k, w, *_r in mark_walls)}), beyond "
          f"{S.KNOB_MARK_WALL}", min(w for _k, w, *_r in mark_walls) - S.KNOB_MARK_WALL),
@@ -2086,8 +2171,18 @@ def knob_fits(fv):
          ("Knobs", "Resin round the knobs' dimples at the worst print, with the largest bore `stack.FIT` allows, "
                    "over JLC3DP's least wall for a part of the knob's size "
                    f"({min(m[3] for m in mark_walls):.2f} to {max(m[3] for m in mark_walls):.2f} mm)")),
-        (f"inner knob's dimples as built (Ø{mk['d']} at r {mk['r']['inner']}) inside the ceiling of its recess "
-         f"(Ø{ik['recess_d']}): they reach {mark_reach:.2f} from the axis", ik["recess_d"] / 2 - mark_reach),
+        (f"RANGE knob's ribbed bore (stack.FIT {S.FIT:+.1f}): its groove {rb['groove']} wide and its two ribs at "
+         f"least {rib_min:.2f} across their tips (the flat's edge to the groove's), every bore, beyond 0.8 (resin "
+         "detail, as the flutes)", min(rb["groove"], rib_min) - 0.8),
+        (f"RANGE knob's ribbed bore: its groove (to r {groove_r:.2f} with the largest bore stack.FIT allows) inside "
+         f"its relief bore under it (Ø{S.RANGE_RELIEF[0]}), so the resin round it is the relief bore's",
+         S.RANGE_RELIEF[0] / 2 - groove_r),
+        (f"inner knob's dimples as built (Ø{mk['d']} at r {mk['r']['inner']}) on the ceiling of its recess "
+         f"(Ø{ik['recess_d']}): they reach {mark_reach:.2f} from the axis, "
+         f"{ik['recess_d'] / 2 - mark_reach:.2f} inside its edge; at the worst print (dimples +{hole_tol}, recess "
+         f"-{hole_tol}) they notch its corner by up to {notch:.2f}, which does no harm, and their centres stay on "
+         "the ceiling",
+         (ik["recess_d"] - hole_tol) / 2 - (mark_reach - mk["d"] / 2)),
     ]
 
 
@@ -2100,6 +2195,7 @@ def control_fits(fv):
     hub_diag, push_hi, resin, nub, rk_lo, cock = fv.hub_diag, fv.push_hi, fv.resin, fv.nub, fv.rk_lo, fv.cock
     rk_len, face_up, pz, skirt_lows, skirt_low = fv.rk_len, fv.face_up, fv.pz, fv.skirt_lows, fv.skirt_low
     rk, rk_off, skirt_cover, arrow_in, diag = fv.rk, fv.rk_off, fv.skirt_cover, fv.arrow_in, fv.diag
+    rk_across = fv.rk_across
     knob_m, rim = fv.knob_m, fv.rim
     return [
         (f"encoder bushing ({S.SLEEVE_D} +0) in its {S.SHAFT_HOLE} plate hole (-{gen}, anodised -{an}), radial: "
@@ -2139,16 +2235,19 @@ def control_fits(fv):
          rk_lo - push_hi - S.RKJXT_HUB_TOP - nub),
         (f"RANGE knob's underside (the hub's corner and the dished skirt's rim, skirt +{part_tol}, dish -{resin}) "
          f"over the plate at {S.RKJXT_TILT:.0f} deg, cocked {math.degrees(cock):.1f} deg on the lever "
-         f"({S.RANGE_PLAY} play over its {rk_len:.2f} D bore) and pushed {push_hi:.1f}, low knob, high plate (face "
-         f"+{face_up:.2f}, bowed {S.PLATE_FLAT * bow_rng:.3f} up, the board {S.PCB_BOW * bow_rng:.3f} down): the "
-         f"fulcrum ({pz} up, {poff} off the axis) on the side it tilts away from, the worse; on the other side "
+         f"({S.RANGE_PLAY} play, {rk_across:.3f} from the flat to the groove, over its {rk_len:.2f} D bore) and "
+         f"pushed {push_hi:.1f}, low knob, high plate (face +{face_up:.2f}, bowed {S.PLATE_FLAT * bow_rng:.3f} up, "
+         f"the board {S.PCB_BOW * bow_rng:.3f} down and {S.KNOB_PUSH_DIP['range']} more under a "
+         f"{S.KNOB_PUSH:.0f} N push): the fulcrum ({pz} up, {poff} off the axis) on the side it tilts away from, "
+         f"the worse; on the other side "
          f"{skirt_lows[1] - skirt_lows[-1]:.2f} more; a support mark {nub} left on the underside",
-         skirt_low - S.PLATE_Z1 - face_up - (S.PLATE_FLAT + S.PCB_BOW) * bow_rng - nub,
+         skirt_low - S.PLATE_Z1 - face_up - (S.PLATE_FLAT + S.PCB_BOW) * bow_rng - S.KNOB_PUSH_DIP["range"] - nub,
          ("Plate low", "RANGE knob's underside over the plate at full tilt, cocked on the lever by its play and "
                        "pushed")),
         (f"RANGE skirt (Ø{rk['skirt_d']} -{part_tol}, high knob) still covers its {S.RANGE_HOLE} mm plate hole "
          f"(+{gen}) at full tilt, cocked and pushed or not, the fulcrum on either side, the worse: lever "
-         f"{on_board_r:.2f} off (board, plate, PCB, pins), the knob {rk_off:.3f} off it ({S.RANGE_PLAY} play)",
+         f"{on_board_r:.2f} off (board, plate, PCB, pins), the knob {rk_off:.3f} off it ({S.RANGE_PLAY} play, "
+         "towards the groove)",
          skirt_cover - (S.RANGE_HOLE + gen) / 2 - on_board_r - rk_off,
          ("Knobs", "RANGE skirt covers its hole at full tilt, cocked and pushed or not")),
         (f"RANGE pan arrows (from r {arrow_in:.2f}) outside the skirt seen square on (Ø{rk['skirt_d']} +{part_tol}), "
@@ -2225,6 +2324,7 @@ def cap_fits(fv):
     face_shift, cap_print, wall_h, shadow = fv.face_shift, fv.cap_print, fv.wall_h, fv.shadow
     cap_room_set, face_up, cap_proud, cap_room_creep = fv.cap_room_set, fv.face_up, fv.cap_proud, fv.cap_room_creep
     r_max, cap_err, cap_err_set = fv.r_max, fv.cap_err, fv.cap_err_set
+    cap_err_sum, cap_err_set_sum = fv.cap_err_sum, fv.cap_err_set_sum
     return [
         *cap_rows(face_lo, S.PLATE_FLAT * bow_key),
         *cap_build_rows(),
@@ -2249,11 +2349,13 @@ def cap_fits(fv):
         (f"cap crept round to {S.CAP_CREEP} deg on its plunger in use (stack.CAP_CREEP; squared on a rule it is "
          f"turned {S.CAP_TURN:.0f} deg at most), the board centred in the key holes: shift room "
          f"({cap_room_creep:.2f}, corners R{r_max} at most) over per-key RSS {cap_err:.2f}", cap_room_creep - cap_err,
+         Bounded(cap_room_creep - cap_err_sum),
          ("Caps", "Cap's play in its key hole beyond the per-key position errors (RSS), the board centred in the "
                   f"key holes and the cap crept round to {S.CAP_CREEP}° in use")),
         (f"a whole cap set printed +{cap_print} on its outline (WJP, a per-set bias, taken linearly), turned "
          f"{S.CAP_TURN:.0f} deg, the board centred in the key holes: shift room ({cap_room_set:.2f}) over the RSS "
          f"of the other per-key errors ({cap_err_set:.2f})", cap_room_set - cap_err_set,
+         Bounded(cap_room_set - cap_err_set_sum),
          ("Caps", f"The same for a whole set printed {cap_print} mm large (WJP's outline error as a bias), turned "
                   f"{S.CAP_TURN:.0f}°")),
     ]
@@ -2300,7 +2402,7 @@ def body_fits(fv):
     cav_w_tol, cav, cav_len, pcb_len, pads, board = fv.cav_w_tol, fv.cav, fv.cav_len, fv.pcb_len, fv.pads, fv.board
     pt, bm, bx1, bx0, by1, by0, mid_x, mid_y = fv.pt, fv.bm, fv.bx1, fv.bx0, fv.by1, fv.by0, fv.mid_x, fv.mid_y
     seat_tol, cav_want, open_bot, sc, hex_d = fv.seat_tol, fv.cav_want, fv.open_bot, fv.sc, fv.hex_d
-    offset, off, boot_at, boot_off = fv.offset, fv.off, fv.boot_at, fv.boot_off
+    offset, off, boot_at, boot_off, boot_sum = fv.offset, fv.off, fv.boot_at, fv.boot_off, fv.boot_sum
     return [
         (f"PCB width in the cavity (MJF -{cav_w_tol:.1f}; routed long edge +{S.PCB_OUTLINE_TOL}, or the V-cut rail "
          f"edge +{S.PCB_VCUT_TOL}), per side", cav,
@@ -2340,7 +2442,8 @@ def body_fits(fv):
         (f"the {sc['hex']:g} mm hex key's tip ({hex_d:.2f} across its corners) reaches the BOOT pads through the BOOT "
          f"hole (Ø{bm['boot']:.2f} measured, MJF -{pt['body_hole']} radial): the body {offset:.2f} off its screws, the "
          f"board {off:.2f} off them and the hole {mjf(boot_at):.1f} off its place (MJF), RSS {boot_off:.2f}",
-         bm["boot"] / 2 - pt["body_hole"] - hex_d / 2 - boot_off),
+         bm["boot"] / 2 - pt["body_hole"] - hex_d / 2 - boot_off,
+         Bounded(bm["boot"] / 2 - pt["body_hole"] - hex_d / 2 - boot_sum)),
     ]
 
 
@@ -2486,13 +2589,15 @@ def clearances(plate, outer, inner, range_knob, knobs):
 
 
 def report(rows):
-    """prints every row (text, margin[, unit][, doc ...]) with OK or FAIL and returns them as fit() gives them;
-    raises SystemExit, which fails the build, when a margin is not over zero."""
+    """prints every row (text, margin[, unit][, doc ...][, MEETS]) with OK or FAIL and returns them as fit() gives
+    them; raises SystemExit, which fails the build, when a margin does not pass (passes())."""
     rows = [fit(r) for r in rows]
-    for name, v, unit, _docs in rows:
-        print(f"  {name:106s} {v:6.3f} {unit:2s} {'OK' if v > 0 else 'FAIL'}")
-    if any(not v > 0 for _, v, _, _ in rows):        # NaN fails too; a plain raise: asserts vanish under -O
-        raise SystemExit(f"fit check failed: {[n for n, v, _, _ in rows if not v > 0]}")
+    for name, v, unit, _docs, meets, bounded in rows:
+        name += "" if bounded is None else f"; bounded worst case {bounded:.3f}"
+        print(f"  {name:106s} {v:6.3f} {unit:2s} {'OK' if passes(v, meets) else 'FAIL'}")
+    failed = [n for n, v, _u, _d, meets, _b in rows if not passes(v, meets)]
+    if failed:                                       # NaN fails too; a plain raise: asserts vanish under -O
+        raise SystemExit(f"fit check failed: {failed}")
     return rows
 
 

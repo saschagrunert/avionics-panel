@@ -269,7 +269,7 @@ SLEEVE_CLEAR = dict(radial=0.9, above=1.05)
 # The outer knob's bore grips the 6 mm shaft above that counterbore: 5.0 mm of shaft stand over the bushing, the
 # counterbore takes SLEEVE_CLEAR["above"] of them, which the resin's depth tolerance needs, and the slot depth and
 # the resin take more, so 3.45 are left at worst (check_fit.py). OUTER_GRIP_MIN keeps 0.1 of that in hand. How
-# firmly the knob holds is set by its bore's interference (FIT and the five bores about it).
+# firmly the knob holds is set by its bore's interference (FIT and the six bores about it).
 OUTER_GRIP_MIN = 3.35
 # The tongue on the plate's back edge, over the USB-C socket (pcb/board.py USB_X): the body's back wall has a slot
 # there, as wide as the plug opening and open to the top, so the socket (its face level with the cavity wall) passes
@@ -316,6 +316,10 @@ ENC_SPREAD = dict(
     slot_sleeve=(ENC_TOL["ge10"] ** 2 * 2 + ENC_TOL["lt10"] ** 2) ** 0.5,        # 18 - 2.5 vs 13: 0.77
     slot=(ENC_TOL["ge10"] ** 2 + ENC_TOL["lt10"] ** 2 * 2) ** 0.5,               # 8 + 10 - 2.5 vs the PCB: 0.66
 )
+# The same spreads with every tolerance at its worst end at once: the bounded worst case, which check_fit.py prints
+# beside each row that takes an RSS spread (it passes or fails on the RSS one).
+ENC_SPREAD_SUM = dict(inner_outer=ENC_TOL["ge10"] * 2 + ENC_TOL["lt10"], inner_shaft=ENC_TOL["ge10"] * 2,
+                      slot_sleeve=ENC_TOL["ge10"] * 2 + ENC_TOL["lt10"], slot=ENC_TOL["ge10"] + ENC_TOL["lt10"] * 2)
 # Outer knob key in the shaft slot (2.0 +-0.3): 1.4 wide, so even a key printed 0.2 wide clears the narrowest
 # slot (1.7); JLC3DP asks for positioning features over 1.5, which the slot does not leave room for. Its face
 # is KEY_R from the axis: 0.7 into the slot from the 6 mm shaft surface (0.5 with the shaft 0.1 small and the
@@ -327,31 +331,40 @@ KEY_W, KEY_R = 1.4, 2.3
 ENC_DETENTS = 30                           # PEC11D-4120F: 30 detents (15 pulses) a turn
 
 # knobs (heights above the plate top); resin, held on their shafts by friction alone
-# The bores that must grip are drawn at the shaft's largest size (the shafts are +0/-0.05 and +0/-0.1, SHAFT_TOL)
-# plus FIT plus one of FIT_VARIANTS: every knob (outer, FMS ring, inner, RANGE) comes with five bores, numbered 1
-# (the tightest) to 5, and each is ordered in the panel's quantity. A rigid fit grips over KNOB_GRIP of
-# interference (taken from the caps), a window wider than the step from one bore to the next: so one of the five
-# grips on every shaft whenever the bores print 0.02 to 0.45 small, and JLC3DP's resin holes come out small (its
-# tolerance is +-0.3, RESIN_TOL). check_fit.py has a row per knob. The knob to keep is the one that goes on by
-# hand and holds. Should a print lie outside that range, FIT moves all five bores for a second order, by FIT_STEP
-# so that they go on where the first five ended: +0.5 when even bore 5 is too tight, -0.5 when even bore 1 is
-# loose (docs/building/assembly.md). FIT is 0 for a first order; check_fit.py prints it with the knobs' rows.
+# The bores that must grip are drawn at the shaft's largest size (the shafts are +0/-0.05 and +0/-0.1, SHAFT_TOL;
+# the RANGE lever +0/-LEVER_D_TOL)
+# plus FIT plus one of FIT_VARIANTS: every knob (outer, FMS ring, inner, RANGE) comes with six bores, numbered 1
+# (the tightest) to 6, 0.1 apart, and each is ordered in the panel's quantity. A rigid fit grips over KNOB_GRIP of
+# interference, a window wider than that step, so one of the six grips on every shaft over a range of prints:
+# JLC3DP gives resin holes +-0.3 (RESIN_TOL), either way. check_fit.py has a row per knob with that range. The knob
+# to keep is the one that goes on by hand and holds. Should a print lie outside it, FIT moves all six bores for a
+# second order, by FIT_STEP: +0.5 when even bore 6 is too tight, -0.5 when even bore 1 is loose
+# (docs/building/assembly.md). The new bore 1 is then the old bore 6 (or the other way round), and with the grip
+# windows the second order's range of prints joins the first's. That repeats a bore just found not to fit, one of
+# the six wasted; a step of 0.6 would not, but leaves too little resin round the dimples at the largest bore.
+# FIT is 0 for a first order; check_fit.py prints it with the knobs' rows.
 FIT = 0.0
-FIT_VARIANTS = {1: -0.1, 2: 0.0, 3: 0.1, 4: 0.2, 5: 0.3}
+FIT_VARIANTS = {1: -0.2, 2: -0.1, 3: 0.0, 4: 0.1, 5: 0.2, 6: 0.3}
 FIT_STEP = 0.5
 if FIT not in (-FIT_STEP, 0.0, FIT_STEP):
     raise ValueError("FIT is 0, or FIT_STEP either way for a second order")
+# The window is the caps' (CAP_GRIP, set on their ribs), taken for every knob as an assumption: nobody has measured it
+# on a resin knob's bore (docs/architecture/mechanics.md, Assumptions).
 KNOB_GRIP = CAP_GRIP
-# Each knob carries as many dimples as its bore's number, KNOB_MARK["d"] across and `depth` deep (JLC3DP: engraved
-# detail 0.8 wide and deep), where they never show: on the outer rings in the bottom face, on the inner knob in
+
+
+# Each knob carries as many dimples as its bore's number, KNOB_MARK["d"] across (JLC3DP's least SLA hole, 1.0 for 1
+# to 3 mm deep) and `depth` deep, where they never show: on the outer rings in the bottom face, on the inner knob in
 # the ceiling of its recess, on the RANGE knob in its dished underside. They sit on a circle of radius r[knob]
 # about the axis, in places `pitch` degrees apart from `first` (degrees from +x) on. The place after the first
-# `group` stays empty, so four dimples read as three and one, five as three and two. On the outer rings each lies
-# under a flute's crest (every second of the 24, each of the FMS ring's 14), where the ring is thickest.
+# `group` stays empty, so four dimples read as three and one, five as three and two, six as three and three. None
+# lies on the knob's XZ section (the FMS ring's empty place does, on +x). On the outer rings each lies under a
+# flute's crest (every second of the 24, each of the FMS ring's 14), where the ring is thickest. The inner knob's
+# circle sits as far out as the ceiling of its recess (Ø8.6) allows, for the resin round the widest relief bore.
 # KNOB_MARK_WALL: the resin left round a dimple as drawn, with the largest bore FIT allows; at the worst print it
 # keeps JLC3DP's least wall for a resin part of the knob's size (RESIN_WALL; check_fit.py).
-KNOB_MARK = dict(d=0.9, depth=0.9, group=3, r=dict(outer=6.3, outer_fms=6.3, inner=3.8, range=4.5),
-                 first=dict(outer=105.0, outer_fms=360 / 14, inner=105.0, range=105.0),
+KNOB_MARK = dict(d=1.0, depth=0.9, group=3, r=dict(outer=6.3, outer_fms=6.3, inner=3.78, range=4.5),
+                 first=dict(outer=105.0, outer_fms=11 * 360 / 14, inner=105.0, range=105.0),
                  pitch=dict(outer=30.0, outer_fms=360 / 14, inner=45.0, range=30.0))
 KNOB_MARK_WALL = 1.0
 # The most diametral play a kept knob has on its shaft (assumed: more than the step past the bore that grips; a
@@ -364,10 +377,10 @@ KNOB_PLAY = 0.15
 # (docs/building/assembly.md, Fitting the knobs).
 SUPPORT_MARK = 0.05
 # Garmin proportions: outer rings 17 on all three dual knobs, inner knobs 12, so 2.5 of ring shows each side.
-# The outer ring ends flush with the 6 mm shaft top. Its bottom is 1.15 over the plate, over the slot floor's
-# spread and a high plate face (high bosses, a thick plate, anodised, bowed up) on a board bowed down
-# (check_fit.py).
-OUTER_KNOB = dict(d=17.0, z0=1.15, z1=7.45)
+# The outer ring ends flush with the 6 mm shaft top. Its bottom is 1.18 over the plate, over the slot floor's
+# spread and a high plate face (high bosses, a thick plate, anodised, bowed up) on a board bowed down and dipped
+# by a firm push (KNOB_PUSH_DIP; check_fit.py), with enough left for a plate 0.15 flat on bosses at +-0.1.
+OUTER_KNOB = dict(d=17.0, z0=1.18, z1=7.45)
 # 1.0 over the outer knob when pushed, so the PEC11D's shaft spread (ENC_SPREAD) never makes them touch. The
 # recess clears the outer shaft top when the shafts' spread lifts it into the inner knob; its ceiling has room
 # for the dimples outside the widest relief bore.
@@ -477,10 +490,28 @@ KNOB_LEGENDS = {
 # fluted body. The underside is dished: flat over the hub (hub_d across, z0 over the plate, which gives the D bore
 # its 3.7 mm on the lever), then a cone that rises by `dish` to the rim, steeper than the tilt's 9 degrees: at full
 # tilt the knob also cocks on the lever by its play (RANGE_PLAY over the D bore's length) and the lever may be
-# pushed in (RANGE_PUSH), which takes the rim down further than the hub's corner (check_fit.py, for the fulcrum on
-# either side).
+# pushed in (RANGE_PUSH), which takes the rim down further than the hub's corner, and the push dips the board
+# (KNOB_PUSH_DIP; check_fit.py, for the fulcrum on either side). With the dish this deep the hub's corner goes
+# lowest, so hub_d is only as wide as the relief bore (RANGE_RELIEF) and a 0.8 ring of resin round it.
 LEVER_Z0, LEVER_Z1, LEVER_D, LEVER_FLAT = 12.4, 17.4, 2.5, 1.8
-RANGE_KNOB = dict(d=13.6, skirt_d=17.3, z0=2.85, z1=11.05, rim=1.3, sink=0.3, hub_d=6.0, dish=1.3)
+RANGE_KNOB = dict(d=13.6, skirt_d=17.3, z0=2.85, z1=11.05, rim=1.3, sink=0.3, hub_d=5.6, dish=1.4)
+# Its D bore has one groove, `groove` wide (parallel sides) and `relief` deep (radial), cut into the round wall
+# opposite the flat (on -x), which leaves a rib each side, from the flat's edge round to the groove. The groove only
+# relieves the back of the bore and keeps the flat face whole, which bears on the lever's flat over its full width,
+# so the knob turns the lever. It does not grip as a cap's ribs do: the bore keeps 81 to 85 % of a plain D bore's
+# contact, so the strain on the 2.5 mm lever stays about a plain bore's. The knob takes the caps' grip window
+# (KNOB_GRIP) as an assumption, as every knob does. Should the real window be narrower, the lever can fall between
+# two bores, one loose and the next too tight to go on by hand: never force that one onto the lever, keep the
+# looser if it holds, or order the knob again (docs/building/assembly.md). The groove and both ribs (across their
+# tips, from the flat's edge to the groove) stay at least 0.8 wide (resin detail, as the flutes) on every bore, at
+# every FIT (check_fit.py). They run the D bore's whole length on the lever, 3.7 mm, all on its 5 mm flat (12.4 to
+# 17.4; the lever has no key), and the groove stays inside the round relief bore under it. The groove is 0.25 deep,
+# under JLC3DP's 0.8 for an engraved detail, on purpose (a deeper one needs a wider relief bore and hub): one that
+# prints shallow or closed leaves a plain D bore, as the inner knob's, with more contact (a firmer push-on) at the
+# same interference. Towards the open groove the lever has a little more than the play (check_fit.py).
+RANGE_RIBS = dict(groove=1.2, relief=0.25)
+# The lever's diameter: +0/-LEVER_D_TOL (assumed, as the PEC11D's shafts: Alps gives no tolerance on it).
+LEVER_D_TOL = SHAFT_TOL
 # The most diametral play a kept RANGE knob may have on the lever: a looser one cocks on the lever at full tilt
 # until its skirt touches the plate, so the next tighter bore replaces it (docs/building/assembly.md).
 RANGE_PLAY = KNOB_PLAY
@@ -549,10 +580,11 @@ PCB_BOW = 0.1
 # after bead blasting and anodising (milling most of a 12 mm plate off one side and blasting it can bow it; ISO
 # 2768-K alone would allow 0.4 over its 165 mm), either way. check_fit.py moves the plate at a part by that times
 # its plate_bow() (a dome, or a bow along or across the plate, held at the corner bosses), in the direction that
-# costs the row. The light pipe rows take PLATE_FLAT in full. Every row still passes up to 0.2 (the light pipes'
-# clamp row goes first, just above 0.22, with the resin's drift counted); that is what to answer should JLCCNC ask.
-# With the bosses at +-0.1 as well, up to 0.15 (the RANGE knob's underside over the plate goes first, just above
-# 0.15) (docs/building/ordering.md).
+# costs the row. The light pipe rows take PLATE_FLAT in full. Should JLCCNC ask, the answer is one of two pairs,
+# never 0.2 with +-0.1 together: flatness up to 0.2 with the bosses held at +-0.05 (the light pipes' clamp row goes
+# first, just above 0.22, with the resin's drift counted), or up to 0.15 with the bosses at +-0.1 (the clamp row
+# goes first, just above 0.17; the outer rings and the RANGE knob's hub flat are set for it)
+# (docs/building/ordering.md).
 PLATE_FLAT = 0.1
 # The body post under the PCB (make_mech.py) ends SUPPORT_SHORT under it, so with JLC3DP's MJF +-0.3 (post height
 # against the bosses) it never lifts the board. It is a backstop: with the board held at the middle mount, a firm
@@ -566,3 +598,14 @@ if SUPPORT_SHORT < MJF_TOL:
 # worst key, in the front row 18 mm in front of the middle mount, and 0.031 mm for a normal 1.6 N press.
 PRESS_FIRM = 10.0                          # N
 PRESS_DIP, PRESS_SLOPE = 0.25, 0.008
+# A push on a knob goes into the board at its control, which dips there: the whole push, the switch's force (the
+# PEC11D's push switch takes 350 +-100 gf, Bourns; the RKJXT's centre push 5 +-2 N, Alps) and whatever a hand adds
+# past the click or the end of the stroke, so a knob takes a firm press like a key's (KNOB_PUSH, PRESS_FIRM; the
+# values below are worked out for it by hand, KNOB_PUSH_DIP does not scale with KNOB_PUSH). The same plate model as
+# for the keys (the board clamped on its Ø5.5 boss faces; it gives the 13 to 17 N/mm at the lights) has the knobs
+# close to the corner mounts: 0.031 to 0.034 mm per 10 N at their axes, and with the board's tilt under the control
+# over the knob's radius 0.046 mm at an encoder's outer ring and 0.041 at the RANGE skirt. KNOB_PUSH_DIP bounds that
+# with PRESS_DIP's headroom over its model (0.25 over 0.195; assumed bounds). check_fit.py takes it on the rows of
+# the knobs over the plate face.
+KNOB_PUSH = PRESS_FIRM                     # N
+KNOB_PUSH_DIP = dict(encoder=0.06, range=0.055)

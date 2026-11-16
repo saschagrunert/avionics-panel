@@ -73,16 +73,16 @@ pipe, [change its brightness](bring-up.md#light-brightness).
 
 ### Fitting the knobs
 
-The knobs are held by friction alone, and printed bores vary, so the order has every knob in five bores,
-0.1 mm apart ([why](../architecture/mechanics.md#knobs)). One to five dimples name the bore: 1 is the
-tightest, 5 the loosest. They are deep round pits, 0.9 mm across, on one arc with a gap after the third, so
-four read as three and one, five as three and two. An outer ring has them in its bottom face, an inner knob
-inside the recess in its underside, the RANGE knob in its dished underside. Where the marks cannot be read,
-any of the five that goes on by hand and holds is the one to keep. Resin keeps changing size in its first
-week, so fit the knobs a few days after they arrive. The FMS knob takes the outer ring with the 14 deep
-flutes; ALT/HDG and FREQ take the rings with 24 fine ones.
+The knobs are held by friction alone, and printed bores vary, so the order has every knob in six bores,
+0.1 mm apart ([why](../architecture/mechanics.md#knobs)). One to six dimples name the bore: 1 is the
+tightest, 6 the loosest. They are deep round pits, 1.0 mm across, on one arc with a gap after the third, so
+four read as three and one, five as three and two, six as three and three. An outer ring has them in its
+bottom face, an inner knob inside the recess in its underside, the RANGE knob in its dished underside. Where
+the marks cannot be read, any of the six that goes on by hand and holds is the one to keep. Resin keeps
+changing size in its first week, so fit the knobs a few days after they arrive. The FMS knob takes the outer
+ring with the 14 deep flutes; ALT/HDG and FREQ take the rings with 24 fine ones.
 
-For each shaft, try the five bores from the loosest (5) to the tightest (1) and keep the first that grips,
+For each shaft, try the six bores from the loosest (6) to the tightest (1) and keep the first that grips,
 so no tight knob has to be pulled off again. A knob goes on by hand, the panel face up on the desk; one that
 grips stays on when the panel is turned over and does not wobble.
 
@@ -94,18 +94,21 @@ grips stays on when the panel is turned over and does not wobble.
   in every direction, also between two, and push it while tilted: the skirt must not touch the plate. A knob
   that does not grip cocks on the lever at full tilt until its skirt touches.
 - A knob that needs more than a firm thumb is too tight: do not force it, as the force goes into the
-  encoder's shaft (the inner one is the push switch).
+  encoder's shaft (the inner one is the push switch) or the RANGE knob's thin lever. Take the next bore up,
+  the looser one tried before it, and keep it if it holds and passes the checks above. If it does not, the
+  shaft falls between two bores and that knob needs a second order
+  ([why](../architecture/mechanics.md#knobs)).
 - An outer ring that rubs the plate when turned (the encoders' heights vary, and so does a support mark
   left on its bottom face): take it off, sand its bottom face on the fine sandpaper laid on the table, a few
   strokes at a time, until it clears. Then push the inner knob: it must still click without touching the
   ring.
 - An inner knob that touches its ring when pushed: sand the rim of its underside the same way.
-- If even bore 1 does not grip, or even bore 5 is too tight, set `FIT` in
-  [mech/stack.py](../../mech/stack.py) to -0.5 (1 was loose) or 0.5 (5 was tight), so that the five new
-  bores go on where the old ones ended. Run [`./build.sh`](../architecture/generators.md#build) and order
-  the five files of that knob again. `FIT` moves the bores of every knob type, so order only the type that
-  missed. Bag or discard the first set of that knob before the second arrives: the new knobs have the same
-  file names and dimple counts.
+- If even bore 1 does not grip, or even bore 6 is too tight, set `FIT` in [mech/stack.py](../../mech/stack.py)
+  to -0.5 (1 was loose) or 0.5 (6 was tight), so that the six new bores go on where the old ones ended: the
+  new bore 6 is the old bore 1 (at -0.5), or the new bore 1 the old bore 6 (at 0.5). Run
+  [`./build.sh`](../architecture/generators.md#build) and order the six files of that knob again. `FIT` moves
+  the bores of every knob type, so order only the type that missed. Bag or discard the first set of that knob
+  before the second arrives: the new knobs have the same file names and dimple counts.
 
 ## Disassembly
 

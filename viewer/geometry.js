@@ -498,7 +498,7 @@ window.GEOMETRY = {
  },
  "outer_knob": {
   "d": 17.0,
-  "z0": 1.15,
+  "z0": 1.18,
   "z1": 7.45
  },
  "parts": {
@@ -658,8 +658,8 @@ window.GEOMETRY = {
  },
  "range_knob": {
   "d": 13.6,
-  "dish": 1.3,
-  "hub_d": 6.0,
+  "dish": 1.4,
+  "hub_d": 5.6,
   "rim": 1.3,
   "sink": 0.3,
   "skirt_d": 17.3,

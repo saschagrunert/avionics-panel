@@ -215,32 +215,39 @@ and 4 (GND) top-right. The nets are hand-routed, as described in `add_crystal` i
 
 ## Decoupling
 
-Decoupling follows Raspberry Pi's minimal design: a capacitor at each IOVDD pin but 33, each on a trace of its
-own from the pin; the 100 nF ones at the pins are 0402 (C1525). Where each capacitor sits is described in
-`add_io_caps` and `add_core_caps` in `board.py`; `check.py` prints each pin's copper path.
+Decoupling follows Raspberry Pi's minimal design except at pins 22 and 33: a capacitor at each other IOVDD pin
+and at each DVDD pin, each on a trace of its own from the pin; the 100 nF ones at the pins are 0402 (C1525).
+Where each capacitor sits is described in `add_io_caps` and `add_core_caps` in `board.py`; `check.py` prints
+each pin's copper path.
 
 | RP2040 pin | Capacitor |
 | --- | --- |
-| 1, 10, 22 (IOVDD) | C_IO1, C_IO10, C_IO22: 100 nF |
+| 1, 10 (IOVDD) | C_IO1, C_IO10: 100 nF |
 | 42 (IOVDD), 43 (ADC_AVDD), 44 (VREG_VIN) | C_D2: 1 µF |
 | 48 (USB_VDD), 49 (IOVDD) | C_IO49: 100 nF |
 | 45 (VREG_VOUT) | C_1V0 (1 µF) and C_1V2 (100 nF) |
+| 23 (DVDD) | C_DV23: 100 nF |
 | 50 (DVDD) | C_1V1: 100 nF |
 | On the 3V3 plane | C_BULK (1 µF, on the matrix side of the chip), C_D1 and C_D3 (100 nF) |
 
 - Pin 33 (IOVDD): no room for a capacitor, as east of its fan-out lane is the only way north for the ALT/HDG
   and FREQ lines. It drops into the 3V3 plane through its via under the chip and shares the capacitors there.
+- Pin 22 (IOVDD): into the 3V3 plane the same way. The one gap on the north side, above pins 22 and 23 between
+  the crystal and the fan-out, holds C_DV23 for DVDD pin 23 instead: the datasheet (2.9.2) asks for 100 nF
+  close to each DVDD pin, and 1V1 has no plane, so without it pin 23 reached the 1V1 capacitors only over 10
+  mm of top-layer trace. Pins 22 and 33 thus go without the 100 nF that the datasheet (2.9.1) and Raspberry
+  Pi's minimal design put at each IOVDD pin: 3V3 can afford that, with its plane and the capacitors on it 7.7
+  to 9.2 mm away, where 1V1 could not. Pin 22 is the IOVDD pin next to XIN and XOUT.
 - Pin 26 (RUN, tied to 3V3): into the 3V3 plane the same way.
-- Pin 23 (DVDD): no capacitor of its own, against the datasheet's 100 nF close to each DVDD pin: between the
-  crystal and the chip the north fan-out and C_IO22 leave no room for one. It reaches the 1V1 capacitors over
-  the top layer through the 1V1 vias under the chip (10.05 mm, reported but not limited).
+- Pin 23 (DVDD): C_DV23 at the pin, and over the top layer through the 1V1 vias under the chip to the other 1V1
+  pins and their capacitors.
 
 The rules `check.py` holds, with their reasons in the comment above `OWN_CAP_MAX`:
 
 | Rule | Pins | Limit |
 | --- | --- | --- |
 | Copper to the nearest capacitor (trace, plus via to via through a plane) | Every supply pin with a capacitor of its own | At most 6 mm |
-| Copper to a capacitor of its own over the outer layers, none shared | IOVDD but 33 | At most 6 mm |
+| Copper to a capacitor of its own over the outer layers, none shared | IOVDD but 22 and 33 | At most 6 mm |
 | Copper to the 3V3 plane | 1, 10, 22, 26, 33, 48, 49 | At most 2 mm |
 | Capacitance of the nearest capacitor | 44 (VREG_VIN), 45 (VREG_VOUT) | At least 1 µF (RP2040 datasheet 2.9.3, 2.10.1) |
 | Own GND via, and own 3V3 via where there is one, to the pad | Every decoupling capacitor | At most 1 mm |
