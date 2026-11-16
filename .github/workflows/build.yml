@@ -259,6 +259,11 @@ jobs:
           python3 -m mobiflight --cards cards.zip
           python3 -m zipfile -e cards.zip viewer/cards
           test -f viewer/cards/avionics-panel-g1000-card.html
+      # the firmware files the panel plays with in the browser (viewer/play.js), at firmware/ beside the view,
+      # version.py as filled in above
+      - run: |
+          mkdir viewer/firmware
+          cp firmware/panel.py firmware/buttonmap.py firmware/version.py viewer/firmware/
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: viewer

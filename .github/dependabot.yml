@@ -1,8 +1,9 @@
 # Keeps the workflow actions and nixpkgs (the Python tools and linters) current. Dependabot does not track the
-# rest, which is moved by hand: three.js in viewer/vendor/, Python's embeddable package for the simulator's zip
-# (windows/make_zip.py; in the firmware shell tests/test_windows_zip.py fails when its minor version is not
-# the one of nixpkgs' Python), the Python and pytest of the Windows tests (build.yml) and CircuitPython's
-# mpy-cross (nix/mpy-cross.nix).
+# rest, which is moved by hand: three.js and MicroPython's WebAssembly port (micropython.mjs and .wasm, whose
+# npm integrity and sha256 sums micropython-LICENSE notes) in viewer/vendor/, Python's embeddable package for the
+# simulator's zip (windows/make_zip.py; in the firmware shell tests/test_windows_zip.py fails when its minor
+# version is not the one of nixpkgs' Python), the Python and pytest of the Windows tests (build.yml) and
+# CircuitPython's mpy-cross (nix/mpy-cross.nix).
 version: 2
 updates:
   - package-ecosystem: github-actions

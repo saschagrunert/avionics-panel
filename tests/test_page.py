@@ -213,7 +213,7 @@ def test_the_page_asks_for_nothing_that_older_tablets_lack():
     # the newest a script of the page could take for granted: AbortSignal.timeout (Safari 16, Chrome 103), without
     # which no request of the page leaves, and the operators ||=, &&= and ??= (Safari 14, Chrome 85) and ?. and ??
     # (Safari 13.1, Chrome 80), each a syntax error there that stops the whole script
-    scripts = viewer("sim.js") + viewer("index.html")
+    scripts = viewer("sim.js") + viewer("index.html") + viewer("play.js")
     assert not re.findall(r"AbortSignal\.timeout\(|\?\.(?!\d)|\?\?|\|\|=|&&=", scripts)
 
 
@@ -241,7 +241,9 @@ def test_the_focus_ring_stands_out_and_the_view_has_a_name():
 def test_the_view_links_to_the_repository_and_to_the_zip_the_docs_give():
     with open(os.path.join(os.path.dirname(VIEWER), "docs", "using", "simulator.md"), encoding="utf-8") as f:
         [zip_link] = re.findall(r"^\[sim-zip\]: (\S+)$", f.read(), re.M)
-    assert re.findall(r'<a href="([^"]+)"', viewer("index.html")) == [zip_link.split("/releases/")[0], zip_link]
+    # and to the panel that plays in the browser alone (viewer/play.js)
+    assert re.findall(r'<a href="([^"]+)"', viewer("index.html")) == ["?play", zip_link.split("/releases/")[0],
+                                                                       zip_link]
 
 
 def test_the_page_and_its_files_are_served(page):
@@ -263,9 +265,15 @@ def test_head_answers_as_get_does_without_the_body(page):
             return r.status, r.getheader("Location"), r.getheader("Content-Type"), r.read() if method == "HEAD" else b""
         finally:
             connection.close()
-    for path in ("/", "/?sim", "/sim.js", "/nothing", "/vendor/"):
+    for path in ("/", "/?play", "/?sim", "/sim.js", "/nothing", "/vendor/"):
         assert ask("HEAD", path) == ask("GET", path), path
     assert ask("HEAD", "/")[:2] == (302, "/?sim")
+    # the view's link to the panel that plays in the browser alone, from / or /index.html, plays it here, with the
+    # program
+    for path in ("/?play", "/index.html?play", "/?play=1&x", "/index.html?x&play"):
+        assert ask("HEAD", path)[:2] == (302, "/?sim"), path
+    for path in ("/?other", "/index.html", "/?sim&play", "/index.html?sim", "/?player"):
+        assert ask("HEAD", path)[0] == 200, path
     assert ask("HEAD", "/sim/events") == (200, None, "text/event-stream; charset=utf-8", b"") and not page.held
 
 

@@ -11,7 +11,8 @@ makes it a USB keyboard for MSFS on consoles and without MobiFlight.
 [![Top view: autopilot keys and ALT/HDG and RANGE knobs left, audio, radio and FMS keys, FREQ and FMS knobs right](renders/2-top.png)](https://saschagrunert.de/avionics-panel/)
 
 <p align="center">
-  <a href="https://saschagrunert.de/avionics-panel/">Interactive 3D view</a><br>
+  <a href="https://saschagrunert.de/avionics-panel/">Interactive 3D view</a>, also
+  <a href="https://saschagrunert.de/avionics-panel/?play">playable in the browser</a><br>
   More renders:
   <a href="renders/1-hero.png">hero</a>,
   <a href="renders/2-top.png">top</a>,

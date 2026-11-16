@@ -1,0 +1,180 @@
+micropython.mjs and micropython.wasm are MicroPython 1.29.0's WebAssembly port, PyScript variant, as published
+on npm: @micropython/micropython-webassembly-pyscript 1.29.0-6, tarball integrity
+sha512-kLwGPJFsLY/2aUPmzZxpvauFSmKc0SlJWVvvEttULR0poVQ6W9HV//1fUJyxrGWAxCVDw9aYqJ0LAog0ZLjYVA==, the two files
+unchanged from it:
+
+26cc7a99064a16518ab9a695e848efb248bfce504aee56ae73b2af35f3dcbf8b  micropython.mjs
+d5913c9327072e71d3e7a2e9384ea326f7d784bcc2f50a01b602c52bd2bdcafd  micropython.wasm
+
+Below: MicroPython's LICENSE (its top-level file at v1.29.0, with the tree of its third-party licenses), then
+the notices of the third-party code this build includes: re1.5 (the re module, BSD 3-clause) and uzlib (the
+deflate module, zlib license). The runtime and the C library that Emscripten adds come under Emscripten's
+licenses (MIT and the University of Illinois/NCSA Open Source License:
+https://github.com/emscripten-core/emscripten/blob/main/LICENSE).
+
+================================================================================
+MicroPython: LICENSE
+================================================================================
+
+The MIT License (MIT)
+
+Copyright (c) 2013-2026 Damien P. George
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+--------------------------------------------------------------------------------
+
+Unless specified otherwise (see below), the above license and copyright applies
+to all files in this repository.
+
+Individual files may include additional copyright holders.
+
+The various ports of MicroPython may include third-party software that is
+licensed under different terms. These licenses are summarised in the tree
+below, please refer to these files and directories for further license and
+copyright information. Note that (L)GPL-licensed code listed below is only
+used during the build process and is not part of the compiled source code.
+
+/ (MIT)
+    /drivers
+        /cc3100 (BSD-3-clause)
+    /lib
+        /CMSIS_5 (Apache-2.0)
+        /CMSIS_6 (Apache-2.0)
+        /asf4 (Apache-2.0)
+        /axtls (BSD-3-clause)
+            /config
+                /scripts
+                    /config (GPL-2.0-or-later)
+                /Rules.mak (GPL-2.0)
+        /berkeley-db-1xx (BSD-4-clause)
+        /btstack (See btstack/LICENSE)
+        /crypto-algorithms (NONE)
+        /libhydrogen (ISC)
+        /libmetal (BSD-3-clause)
+        /littlefs (BSD-3-clause)
+        /lwip (BSD-3-clause)
+        /mynewt-nimble (Apache-2.0)
+        /nrfx (BSD-3-clause)
+        /nxp_driver (BSD-3-Clause)
+        /oofatfs (BSD-1-clause)
+        /open-amp (BSD-3-clause)
+        /pico-sdk (BSD-3-clause)
+        /re15 (BSD-3-clause)
+        /stm32lib (BSD-3-clause)
+        /tinyusb (MIT)
+        /uzlib (Zlib)
+        /wiznet5k (MIT)
+    /logo (uses OFL-1.1)
+    /ports
+        /cc3200
+            /hal (BSD-3-clause)
+            /simplelink (BSD-3-clause)
+            /FreeRTOS (GPL-2.0 with FreeRTOS exception)
+        /esp32
+            /ppp_set_auth.* (Apache-2.0)
+        /rp2
+            /mutex_extra.c (BSD-3-clause)
+            /clocks_extra.c (BSD-3-clause)
+        /stm32
+            /usbd*.c (MCD-ST Liberty SW License Agreement V2)
+            /stm32_it.* (MIT + BSD-3-clause)
+            /system_stm32*.c (MIT + BSD-3-clause)
+            /boards
+                /startup_stm32*.s (BSD-3-clause)
+                /*/stm32*.h (BSD-3-clause)
+            /usbdev (MCD-ST Liberty SW License Agreement V2)
+            /usbhost (MCD-ST Liberty SW License Agreement V2)
+        /zephyr
+            /src (Apache-2.0)
+    /tools
+        /dfu.py (LGPL-3.0-only)
+
+================================================================================
+re1.5 (lib/re1.5): LICENSE
+================================================================================
+
+Copyright (c) 2007-2009 Russ Cox, Google Inc. All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+   * Redistributions of source code must retain the above copyright
+notice, this list of conditions and the following disclaimer.
+   * Redistributions in binary form must reproduce the above
+copyright notice, this list of conditions and the following disclaimer
+in the documentation and/or other materials provided with the
+distribution.
+   * Neither the name of Google, Inc. nor the names of its
+contributors may be used to endorse or promote products derived from
+this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+re1.5's own files add: Copyright 2014 Paul Sokolovsky, under the license above.
+
+================================================================================
+uzlib (lib/uzlib): its notice, from tinflate.c
+================================================================================
+
+uzlib  -  tiny deflate/inflate library (deflate, gzip, zlib)
+
+Copyright (c) 2003 by Joergen Ibsen / Jibz
+All Rights Reserved
+http://www.ibsensoftware.com/
+
+Copyright (c) 2014-2018 by Paul Sokolovsky
+
+Optimised for MicroPython:
+Copyright (c) 2023 by Jim Mussared
+
+This software is provided 'as-is', without any express
+or implied warranty.  In no event will the authors be
+held liable for any damages arising from the use of
+this software.
+
+Permission is granted to anyone to use this software
+for any purpose, including commercial applications,
+and to alter it and redistribute it freely, subject to
+the following restrictions:
+
+1. The origin of this software must not be
+   misrepresented; you must not claim that you
+   wrote the original software. If you use this
+   software in a product, an acknowledgment in
+   the product documentation would be appreciated
+   but is not required.
+
+2. Altered source versions must be plainly marked
+   as such, and must not be misrepresented as
+   being the original software.
+
+3. This notice may not be removed or altered from
+   any source distribution.

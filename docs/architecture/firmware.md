@@ -465,4 +465,6 @@ every button and reloads `code.py`, as on the board.
 it a HID device on Linux, [sim/vjoy.py](../../sim/vjoy.py) feeds vJoy and
 [sim/sendinput.py](../../sim/sendinput.py) types the keyboard mode's shortcuts on Windows, and
 [windows/make_zip.py](../../windows/make_zip.py) builds the zip for Windows. Each module's docstring describes
-it; [Simulator](../using/simulator.md) says how to use it.
+it; [Simulator](../using/simulator.md) says how to use it. Without the simulator, the page plays the panel in
+the browser alone ([viewer/play.py](../../viewer/play.py), in MicroPython): `panel.py` with what `code.py`'s loop
+does round it, which [tests/test_play.py](../../tests/test_play.py) compares with `code.py` on the stand-ins.
