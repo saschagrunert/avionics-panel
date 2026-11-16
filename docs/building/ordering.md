@@ -23,7 +23,7 @@ Keep with it what each shop confirms (JLCPCB's production file and placement pre
 JLCCNC and JLC3DP) and every review answer you accept.
 
 1. Before spending anything, three quotes:
-   - The key caps: their price moves the panel's by over a hundred dollars. Upload `caps-B.zip` to JLC3DP's
+   - The key caps: their price moves the panel's by over €100. Upload `caps-B.zip` to JLC3DP's
      quote page with Full Color Resin (WJP), Color Multicolor; that needs no order. JLC3DP prices WJP at about
      €4.77 a part (Surface Finish No) and asks for one model per file, and the zip holds a set of 28 separate
      caps. If the quote takes the zip as one part, the set and the three gauge caps come to about €20; if it

@@ -382,11 +382,12 @@ KNOB_MARK_WALL = 1.0
 # The most diametral play a kept knob has on its shaft (assumed: more than the step past the bore that grips; a
 # looser knob is replaced by the next tighter bore). The radial clearances of the knobs take it (check_fit.py).
 KNOB_PLAY = 0.15
-# The knobs print with supports on their bottom faces, the faces over the plate and over the outer ring; the
-# JLC3DP remark asks for none inside the bores and recesses. They come unsanded (Surface Finish No), and the
-# builder sands the marks flush before trying a knob: the flat faces on sandpaper laid on the table, the RANGE
-# knob's dish over a fingertip (docs/building/assembly.md, Fitting the knobs). At most SUPPORT_MARK is taken to
-# stay proud after that, which takes that much of the room under those faces (check_fit.py).
+# The knobs print with supports on their bottom faces, the faces over the plate and over the outer ring; the JLC3DP
+# remark asks for none inside the bores and recesses. Ordered unsanded (Surface Finish No, the default in
+# docs/building/ordering.md), the builder sands the marks flush before trying a knob: the flat faces on sandpaper laid
+# on the table, the RANGE knob's dish over a fingertip (docs/building/assembly.md, Fitting the knobs). Ordered with
+# General Sanding (the other choice there), the remark asks JLC3DP for the same. At most SUPPORT_MARK is taken to stay
+# proud after that, which takes that much of the room under those faces (check_fit.py).
 SUPPORT_MARK = 0.05
 # Garmin proportions: outer rings 17 on all three dual knobs, inner knobs 12, so 2.5 of ring shows each side.
 # The outer ring ends flush with the 6 mm shaft top. Its bottom is 1.18 over the plate, over the slot floor's

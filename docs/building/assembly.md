@@ -82,12 +82,12 @@ the marks cannot be read, any of the six that goes on by hand and holds is the o
 changing size in its first week, so fit the knobs a few days after they arrive. The FMS knob takes the outer
 ring with the 14 deep flutes; ALT/HDG and FREQ take the rings with 24 fine ones.
 
-Unsanded knobs (Surface Finish No, the default in [JLC3DP](ordering.md#jlc3dp)) come with their support marks
-on: small nubs on the bottom faces, the faces towards the plate and the outer ring; sanded ones come with them
-gone, and need this only where a nub is left to feel. Before trying a knob, sand them flush: the outer rings
-and the inner knobs on the fine sandpaper laid on the table, a few strokes at a time until the face is flat
-all over and no further; the RANGE knob's dished underside with the sandpaper over a fingertip, until no nub
-is left to feel. Keep the dimples open.
+Unsanded knobs (Surface Finish No, as [JLC3DP](ordering.md#jlc3dp) orders them unless the quote made sanding
+worth it) come with their support marks on: small nubs on the bottom faces, the faces towards the plate and
+the outer ring; sanded ones come with them gone, and need this only where a nub is left to feel. Before trying
+a knob, sand them flush: the outer rings and the inner knobs on the fine sandpaper laid on the table, a few
+strokes at a time until the face is flat all over and no further; the RANGE knob's dished underside with the
+sandpaper over a fingertip, until no nub is left to feel. Keep the dimples open.
 
 For each shaft, try the six bores from the loosest (6) to the tightest (1) and keep the first that grips,
 so no tight knob has to be pulled off again. A knob goes on by hand, the panel face up on the desk; one that
