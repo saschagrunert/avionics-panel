@@ -34,34 +34,34 @@ A board that arrives with a rail anyway, or with a V-cut (scored and snapped) ed
 ## Choosing the cap set
 
 The caps come in four sets (A to D, one to four dimples on the bottom) that differ only in their grip
-([why](../architecture/mechanics.md#key-caps)). The order has set B in full, the likeliest to fit, and one
-gauge cap of each other set: the AP cap of A, C and D. Before fitting the caps, try the gauges with set B's
-AP cap on the AP key of the board (no tools), set B's first: if it holds, the others need not be tried; if
-it is too loose, try A, then D; if it is too tight, try C. Stop as soon as one of the cases below is settled.
-With the hand-soldering option, try them on a loose key.
+([why](../architecture/mechanics.md#key-caps)). The order has all four in full. Before fitting the caps, try
+the AP cap of each set on the AP key of the board (no tools), set B's first, the likeliest to fit: if it
+holds, the others need not be tried; if it is too loose, try A, then D; if it is too tight, try C. Stop as
+soon as one of the cases below is settled. With the hand-soldering option, try them on a loose key.
 
 - A cap that holds pushes down by hand until it sits on the plunger top (it stops hard there), stays on when
   the board is turned over and does not wobble.
 - Too loose: it falls off or rocks. Too tight: it stops short of the plunger top or needs more than a firm
   thumb.
-- B holds: keep set B, the set in hand.
-- B is too loose: the first of A and D that holds names the set that fits better. B is too tight: C, if it
-  holds. Order that set's zip, `caps-A.zip`, `caps-C.zip` or `caps-D.zip`, from the same download as the
-  first order (or its `caps-single-*.zip`, if JLC3DP asked for single caps), and keep set B for the meantime.
+- B holds: fit set B.
+- B is too loose: fit the first of A and D that holds. B is too tight: fit C, if it holds.
 - Two neighbours miss in opposite directions, the looser one too loose and the tighter one too tight (B too
   tight and C too loose, B too loose and A too tight, or A too loose and D too tight): the print sits between
-  them. B and its neighbour: try another B cap on a second key; keep B if it holds there, otherwise order the
-  neighbour's set. A and D: try the A gauge on a second key; order set A if it holds there, otherwise set D.
+  them. Try both sets on a few more keys and fit the one that holds on more of them.
 - None holds (even C too tight, or even D too loose): in [mech/stack.py](../../mech/stack.py) raise
   `CAP_SETS_MOVE` by 0.1 mm for each set it missed by if C was too tight, or lower it the same way if D was
-  too loose (up to 0.3 mm either way), and set `full` in `CAP_ORDER` to that end set, C after a raise or D
-  after a lowering. Run [`./build.sh`](../architecture/generators.md#build) and order only that set in full
-  from `production/` (`caps-C.zip` or `caps-D.zip`): after a move, gauges of the other sets tell nothing. Try
-  it the same way; if it still misses, move again (one round may not do).
+  too loose (up to 0.3 mm either way), and set both `sets` and `first` in `CAP_ORDER` to that end set, C after
+  a raise or D after a lowering. Run [`./build.sh`](../architecture/generators.md#build) and order only that
+  set from `production/` (`caps-C.zip` or `caps-D.zip`): after a move, the other sets repeat sizes that
+  already missed. Try it the same way; if it still misses, move again (one round may not do).
+- If JLC3DP asked for one model per file, the order has set B and only the AP cap of A, C and D as gauges.
+  Try them the same way; if a gauge holds where B does not, order that set from the same download as the first
+  order, as its `caps-single-*.zip`, and keep set B for the meantime.
 
 The print varies a little from cap to cap. A cap that turns out loose or tight on its own key when the caps
-go on is ordered again from the next tighter or looser set: its zip is in `caps-single-<set>.zip`
-(`cap-A-05-COM-1.zip` and so on). The AP key keeps the cap that held on it.
+go on takes the same legend from the next tighter or looser set in hand, or is ordered again from that set:
+its zip is in `caps-single-<set>.zip` (`cap-A-05-COM-1.zip` and so on). The AP key keeps the cap that held on
+it.
 
 ## Flash and test
 

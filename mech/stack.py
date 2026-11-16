@@ -102,13 +102,13 @@ CAP_SOCKET = dict(d=3.8, rib_w=1.2, rib_angles=(0, 90, 180, 270), relief=0.35, l
 # off TE's model by as much, together with the print. TE's drawing allows +-0.30 on its diameter: a reprint for a
 # plunger lot beyond the sets moves every one by CAP_SETS_MOVE, 0.1 per set it missed by
 # (docs/building/bring-up.md); check_fit.py takes the plunger that far off.
-# The order takes one set in full and of each other set one gauge cap, the same plain cap in each, to find out on
-# the bench which set the print wants; a neighbour that fits better is ordered then (docs/building/bring-up.md,
-# Choosing the cap set). The full set is B: it grips a true print (no print error) with the most margin, though
-# A's is only 0.005 less, and JLC3DP's design guide says holes print small, which favours B or C, never A. After a
-# move, the reorder takes the end set the move was for in full, C after a raise and D after a lowering, and
-# CAP_ORDER["full"] names it (check_fit.py checks both cases).
-CAP_ORDER = dict(full="B", gauge="AP")
+# The order takes all four sets in full (JLC3DP prices a set's zip as one part, about as much as a single cap), and
+# the bench finds the one the print wants, trying CAP_ORDER["first"] first (docs/building/bring-up.md, Choosing the
+# cap set). That is B: it grips a true print (no print error) with the most margin, though A's is only 0.005 less,
+# and JLC3DP's design guide says holes print small, which favours B or C, never A. After a move, the reorder takes
+# only the end set the move was for, C after a raise and D after a lowering (the other sets, moved, repeat sizes
+# that missed), and CAP_ORDER names it in both keys (check_fit.py checks both cases).
+CAP_ORDER = dict(sets="ABCD", first="B")
 CAP_SETS_MOVE = 0.0
 CAP_SETS = {n: d + CAP_SETS_MOVE for n, d in {"A": 3.15, "B": 3.25, "C": 3.35, "D": 3.05}.items()}
 CAP_GRIP = (0.02, 0.15)                    # diametral interference: holds from, still seats by hand up to
@@ -383,11 +383,11 @@ KNOB_MARK_WALL = 1.0
 # looser knob is replaced by the next tighter bore). The radial clearances of the knobs take it (check_fit.py).
 KNOB_PLAY = 0.15
 # The knobs print with supports on their bottom faces, the faces over the plate and over the outer ring; the JLC3DP
-# remark asks for none inside the bores and recesses. Ordered unsanded (Surface Finish No, the default in
-# docs/building/ordering.md), the builder sands the marks flush before trying a knob: the flat faces on sandpaper laid
-# on the table, the RANGE knob's dish over a fingertip (docs/building/assembly.md, Fitting the knobs). Ordered with
-# General Sanding (the other choice there), the remark asks JLC3DP for the same. At most SUPPORT_MARK is taken to stay
-# proud after that, which takes that much of the room under those faces (check_fit.py).
+# remark asks for none inside the bores and recesses. Ordered with General Sanding (the default in
+# docs/building/ordering.md), the remark asks JLC3DP to sand the marks flush. Ordered unsanded (Surface Finish No, the
+# other choice there), the builder does it before trying a knob: the flat faces on sandpaper laid on the table, the
+# RANGE knob's dish over a fingertip (docs/building/assembly.md, Fitting the knobs). At most SUPPORT_MARK is taken to
+# stay proud after that, which takes that much of the room under those faces (check_fit.py).
 SUPPORT_MARK = 0.05
 # Garmin proportions: outer rings 17 on all three dual knobs, inner knobs 12, so 2.5 of ring shows each side.
 # The outer ring ends flush with the 6 mm shaft top. Its bottom is 1.18 over the plate, over the slot floor's

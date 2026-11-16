@@ -366,13 +366,15 @@ prints how many are exactly 0.13 mm, and checks that each opening clears its pad
 removes a dam it cannot hold rather than asking, so the order asks for the production file to be confirmed and
 the dams checked there; the fallback is green ([Ordering](../building/ordering.md#review-questions)).
 
-Via covering Tented matches the Gerbers: the mask covers every via on both sides, except:
+The Gerbers tent the vias: the mask covers every via on both sides, except:
 
 - The three 1V1 vias under the RP2040: probe points, open on the top and tented underneath.
 - The four GND vias in the RP2040's exposed pad: in that pad's mask opening, clear of its paste windows.
 
-JLCPCB keeps both, because the mask Gerber decides for a Gerber order. Should it tent them as well, only the
-1V1 probe points are lost.
+JLCPCB's form greys out Via Covering Tented for this board and upgrades it to Plugged for free, so the order
+says Plugged: the vias are plugged with mask ink as well as covered. JLCPCB keeps both exceptions, because the
+mask Gerber decides for a Gerber order. Should it plug or tent them as well, only the 1V1 probe points are
+lost.
 
 The pads are ENIG: flat for the RP2040's 0.4 mm QFN, which HASL is not, and JLCPCB's choice for slot rings
 under 0.3 mm, as round J1's shell slots (0.2 mm).

@@ -22,54 +22,47 @@ Download ZIP. Write down the commit: `firmware/version.py` in the download names
 Keep with it what each shop confirms (JLCPCB's production file and placement preview, the reviewed files of
 JLCCNC and JLC3DP) and every review answer you accept.
 
-1. Before spending anything, three quotes:
-   - The key caps: their price moves the panel's by over €100. Upload `caps-B.zip` to JLC3DP's
-     quote page with Full Color Resin (WJP), Color Multicolor; that needs no order. JLC3DP prices WJP at about
-     €4.77 a part (Surface Finish No) and asks for one model per file, and the zip holds a set of 28 separate
-     caps. If the quote takes the zip as one part, the set and the three gauge caps come to about €20; if it
-     counts each cap as a part (31), about €150. Then ask their support: "Will you print this file, a set of
-     28 separate key caps, as it is, and price it as one part?" A no means the higher price, or that JLC3DP
-     does not print the file at all; if they want one model per file, the caps go in from `caps-single-B.zip`
-     ([JLC3DP](#jlc3dp)). Joining the caps on runners is no way round it: JLC3DP's connected-parts printing
-     excludes WJP. Keep their answer for step 5.
-   - The plate: upload it to [JLCCNC](#jlccnc) with the settings and the remark there, and submit it with
-     review before payment, not automatic payment. JLCCNC answers in hours; nothing is paid until step 3.
-     Ask them how long the reviewed quote holds, since the plate may wait for Y1 (step 2).
-   - The knobs, sanded or not: upload the 24 knob files to JLC3DP's quote page twice, once with Surface
-     Finish No and once with Yes: Sanding, General Sanding, and compare the two totals; that needs no order
-     either. Unsanded saves the sanding fee and costs about an hour of sanding at home; sanded comes with the
-     support marks gone. Choose by the difference, and order them as [JLC3DP](#jlc3dp) says for that choice.
+1. Before spending anything, two quotes on JLC3DP's quote page; neither needs an order:
+   - The key caps: upload the four sets' zips, `caps-A.zip` to `caps-D.zip`, with Full Color Resin (WJP),
+     Color Multicolor, Surface Finish No. Each zip holds a set of 28 separate caps, and on 2026-11-16 the
+     quote priced each as one part, about €6.10 a set. If it counts each cap as a part instead, ask their
+     support: "Will you print this file, a set of 28 separate key caps, as it is, and price it as one part?"
+     A no means set B one model per file, with a gauge cap of each other set ([JLC3DP](#jlc3dp)). Joining the
+     caps on runners is no way round it: JLC3DP's connected-parts printing excludes WJP.
+   - The knobs, sanded or not: upload the 24 knob files twice, once with Surface Finish Yes: Sanding, General
+     Sanding and once with No, and compare the two totals. Unsanded saves the sanding fee and costs about an
+     hour of sanding at home; sanded comes with the support marks gone. In November 2026 sanding cost almost
+     nothing, about €1.40 for all 42 knobs, so the order takes it. Order them as [JLC3DP](#jlc3dp) says for
+     that choice.
 
-   Go on once you have all three answers.
-2. If JLCPCB has Y1 in stock, skip this step ([Parts and stock](#parts-and-stock)). Otherwise buy the crystals
-   for Y1 into your Parts Manager stock through Global Sourcing (ten, or Parts Manager's minimum quantity if
-   that is more), and the encoders from JLCPCB's stock (Parts Manager, Order Parts, JLCPCB Parts; search for
-   C19270361; those show at once): as many as the part's order guide on JLCPCB's parts page asks for two
-   boards (six, plus any attrition): own stock short of what the BOM step needs is not used at all. Global
-   Sourcing takes 2 to 5 weeks, and step 4 can use the crystals only once Parts Manager shows them in stock.
-   Steps 3, 6 and 7 need not wait.
-3. [JLCCNC](#jlccnc): once the plate's review has passed, leave it unpaid until step 5 and pay it in the
-   JLCPCB cart, so it ships with the boards; whether it does shows at checkout
-   ([Shipping, tax and cost](#shipping-tax-and-cost)). JLCCNC's help (How to combine orders) has the way:
-   from JLCCNC, open JLCPCB's order page through JLCCNC's navigation bar for steps 4 and 5, and the cart
-   lists the plate with the boards and the printed parts; tick "All" there to pay them together. If step 2
-   has to wait longer than the reviewed quote holds, or the plate should not wait, pay it here instead: it
-   then comes as a parcel of its own.
-4. [JLCPCB](#jlcpcb): the boards. Go through the [placement preview](#placement-preview).
-5. [JLC3DP](#jlc3dp): body, key caps, knobs, light pipes, added to the JLCPCB cart, so they come in one
-   parcel with the boards ([why](#shipping-tax-and-cost)). Then pay the cart, "All" ticked (step 3).
-6. Locally: the screws and the rest of the [shopping list](#shopping-list).
-7. Optional, to run the firmware before the boards arrive: the [Pico bench](bring-up.md#pico-bench) parts.
+   The quote page keeps the files only until "SAVE TO CART": save the batches you keep, and they wait in the
+   cart for step 5.
+2. If JLCPCB has Y1 in stock, skip this step ([Parts and stock](#parts-and-stock)); on 2026-11-16 it had,
+   the encoders too. Otherwise buy the crystals for Y1 into your Parts Manager stock through Global
+   Sourcing (ten, or Parts Manager's minimum quantity if that is more), and the encoders from JLCPCB's stock
+   (Parts Manager, Order Parts, JLCPCB Parts; search for C19270361; those show at once): as many as the
+   part's order guide on JLCPCB's parts page asks for two boards (six, plus any attrition): own stock short
+   of what the BOM step needs is not used at all. Global Sourcing takes 2 to 5 weeks, and step 3 can use the
+   crystals only once Parts Manager shows them in stock. Steps 4, 5, 7 and 8 need not wait.
+3. [JLCPCB](#jlcpcb): the boards, saved to the cart. Go through the [placement preview](#placement-preview).
+4. [JLCCNC](#jlccnc): the plate, saved from its quote page. It lands in the same cart: the JLC shops share
+   one.
+5. [JLC3DP](#jlc3dp): the body, the key caps, the knobs and the light pipes, saved to the same cart.
+6. Check out once: in the cart tick "All", so the boards, the plate and the printed parts are paid together
+   and ship in one parcel; pick the shipping ([Shipping, tax and cost](#shipping-tax-and-cost)) and tick
+   "Review Before Payment". Submit Order then only sends the files to the shops' reviews; you pay once they
+   have approved them.
+7. Locally: the screws and the rest of the [shopping list](#shopping-list).
+8. Optional, to run the firmware before the boards arrive: the [Pico bench](bring-up.md#pico-bench) parts.
 
-Before paying each order, read the [review questions](#review-questions) and the
-[tax lines](#shipping-tax-and-cost). Once step 1 has both answers, only the JLCPCB cart (boards, plate and
-printed parts) waits, for Y1 (step 2). To pay less:
+Before paying, read the [review questions](#review-questions) and the [tax lines](#shipping-tax-and-cost).
+To pay less:
 
-- One parcel: the plate and the printed parts paid in the JLCPCB cart (steps 3 and 5) ship with the boards.
 - Duty paid: pick DDP (delivered duty paid) shipping at checkout, the cheapest DDP line, so no duty, VAT or
   carrier's fee comes on delivery.
+- The plate at Economic build time: it waits for the boards anyway ([JLCCNC](#jlccnc)).
 - Coupons: before paying, look at JLCPCB's coupons (there is usually a monthly one for SMT assembly) and at
-  JLCCNC's and JLC3DP's (Account, Coupons).
+  JLCCNC's and JLC3DP's (Account, Coupons). They apply at payment, after the review.
 
 ## Shopping list
 
@@ -82,13 +75,13 @@ Everything one panel needs, with its spare board:
 | ☐ | Board, assembled | 2 (PCB quantity 5; three come bare) | JLCPCB | [Settings below](#jlcpcb) | The panel; the second is the spare for the first |
 | ☐ | Front plate | 1 | JLCCNC | [Settings below](#jlccnc) | [Putting it together](assembly.md#putting-it-together) |
 | ☐ | Body | 1 | JLC3DP | [Files and processes](#jlc3dp) | Step 4 of [Putting it together](assembly.md#putting-it-together) |
-| ☐ | Key caps | 28 + 3: set B in full, and the AP cap of sets A, C and D as gauges | JLC3DP | [Files and processes](#jlc3dp) | [Choosing the cap set](bring-up.md#choosing-the-cap-set) |
+| ☐ | Key caps | 4 sets of 28: A, B, C and D | JLC3DP | [Files and processes](#jlc3dp) | [Choosing the cap set](bring-up.md#choosing-the-cap-set) |
 | ☐ | Knobs | 42: the panel's 7, each in six bores | JLC3DP | [Files and processes](#jlc3dp) | [Fitting the knobs](assembly.md#fitting-the-knobs) |
 | ☐ | Light pipes | 6 (3 + 3 spare) | JLC3DP | [Files and processes](#jlc3dp) | Step 2 of [Putting it together](assembly.md#putting-it-together) |
 | ☐ | Screws | 7 (5 + 2 spare) | Local; or JLCMC, EDDH-C16E1-M3-L8 (10B21 blackened, 8.8) or EDDH-S1W-M3-L8 (A2-70), its pack minimum, as an order and a parcel of their own | M3 x 8 flanged button head, ISO 7380-2, 2 mm hex socket; steel (black, 8.8 or 10.9) or stainless A2 | Step 4 of [Putting it together](assembly.md#putting-it-together) |
 | ☐ | Feet | 4 | Local | Self-adhesive silicone (high friction), up to 10 mm across | Step 4 of [Putting it together](assembly.md#putting-it-together) |
 | ☐ | USB-C cable | 1 | Local | USB-C at the panel, the other end to suit the PC (USB-A or USB-C). Data-capable (a charge-only cable shows no RPI-RP2 drive). Any straight USB-C plug within the USB-C spec fits (its limit is 12.85 x 7.0 mm, [why](../architecture/mechanics.md#plate-and-body)); avoid angled plugs and chunky or braided boots | Step 2 of [Flash and test](bring-up.md#flash-and-test), step 5 of [Putting it together](assembly.md#putting-it-together) |
-| ☐ | Fine sandpaper | 1 sheet | Local | 400 to 1000 grit | The light pipes' support nubs, step 2 of [Putting it together](assembly.md#putting-it-together); the knobs' support marks and a knob that rubs, [Fitting the knobs](assembly.md#fitting-the-knobs) |
+| ☐ | Fine sandpaper | 1 sheet | Local | 400 to 1000 grit | The light pipes' support nubs, step 2 of [Putting it together](assembly.md#putting-it-together); a knob that rubs, or the support marks of knobs ordered unsanded, [Fitting the knobs](assembly.md#fitting-the-knobs) |
 | ☐ | Hex key | 1 | Local | 2 mm | The screws, the plate threads, the BOOT pads |
 | ☐ | Two blocks and a cloth | 2 | At home (books, wood) | At least 25 mm high | Face-down work in [Putting it together](assembly.md#putting-it-together) |
 | ☐ | Steel rule | 1 | Local | | Squaring the caps and checking the board's bow, steps 1 and 2 of [Putting it together](assembly.md#putting-it-together) |
@@ -106,27 +99,37 @@ Only if something does not fit or fails:
 
 ## JLCPCB
 
-Layers 4, PCB Thickness 1.6 mm, Surface Finish ENIG, PCB Color Black (white silkscreen), Via Covering
-Tented ([why](../architecture/electronics.md#solder-mask)); everything else at JLCPCB's defaults (0.3 mm via,
-1 oz outer copper, stackup, PCB quantity 5). Standard assembly of both sides, assembly quantity 2 (JLCPCB's
-minimum); the panel needs one, the second is the spare. Edge Rails/Fiducials: Added by JLCPCB. The form has no
-option to remove the rail: the PCB remark asks for it, and JLCPCB adds the fee for it in the review. Confirm
-Parts Placement and Confirm Production File: yes. PCB Remark:
+Layers 4, PCB Thickness 1.6 mm, Surface Finish ENIG, PCB Color Black (white silkscreen), Via Covering Plugged
+([why](../architecture/electronics.md#solder-mask)): the form greys out Tented for this board ("The Via
+Tented option is upgraded to Via Plugged for free"). Everything else at JLCPCB's defaults (0.3 mm via, 1 oz
+outer copper, stackup, PCB quantity 5). Edge Rails/Fiducials: Added by JLCPCB. Confirm Production file: Yes.
+Product Desc (the customs category, required): Research/Education/DIY > DIY. PCB Remark, 200 characters at
+most:
 
-> J1 (USB-C) overhangs the y = 60 mm edge by 0.5 mm by design: no rail there. One edge rail of at least
-> 10 mm on the y = 0 edge only, removed before delivery; keep the R3 corners milled. Solder mask: keep the
-> 0.13 mm dams between the pads of U1, J1 and C_X2/R_X; please ask before removing any. The three
-> 2.2 x 2.6 mm internal cutouts in the outline are for reverse-mount LEDs: please mill them with R0.5
-> inside corners (1.0 mm router).
+> J1 overhangs the y=60 edge 0.5mm: no rail there. One rail >=10mm on y=0 only, removed before delivery; keep
+> R3 corners. Keep mask dams at U1, J1, C_X2/R_X. 3 LED cutouts: R0.5 corners (1mm router).
 
-Upload `gerbers.zip`, then `BOM-full.csv` (the parts list) and `CPL-full.csv` (the placement file): one of
-each, for both sides. The BOM step must find all 29 lines with stock for 2 boards, the encoders and Y1 from
-your own parts if step 2 bought them ([Parts and stock](#parts-and-stock)). Under Advanced Options set PCBA
-Remark to Yes and enter:
+PCB Assembly: Standard, Assembly Side Both Sides, PCBA Qty 2 in the Custom Qty field (JLCPCB's minimum); the
+panel needs one, the second is the spare. Confirm Parts Placement: Yes. Each of the two confirmations opens a
+dialog: tick "Do not confirm automatically" in both, or JLCPCB confirms on its own after 48 hours (the
+production file) or 72 hours (the placement). Under Advanced Options set "Depanel boards & edge rail before
+delivery" to Yes (€2.10 in November 2026, charged after the review). Its note says it adds two 5 mm rails
+(the board then 160 x 70 mm); the remarks ask for one rail on y = 0 only, and the production file to confirm
+shows which JLCPCB made ([Edge rails](#edge-rails)). Set PCBA Remark to Yes and enter, in 500 characters at
+most (JLCPCB quotes it in the review):
 
 > Solder the mounting lugs of ENC_ALTHDG, ENC_FREQ and ENC_FMS in their slots. Solder the four J1 shell
 > tabs from the top, filling the slots. All through-hole joints by hand soldering: no wave or selective
-> soldering over the bottom side.
+> soldering over the bottom side. Rails: J1 overhangs the y=60 mm edge by 0.5 mm, so no rail and never a
+> V-cut on that edge; one rail on the y=0 edge only, removed before delivery.
+
+Upload `gerbers.zip`, then `BOM-full.csv` (the parts list) and `CPL-full.csv` (the placement file): one of
+each, for both sides. The BOM step must find all 29 lines with stock for 2 boards, the encoders and Y1 from
+your own parts if step 2 bought them ([Parts and stock](#parts-and-stock)). Lines that group several
+designators come up unticked, with "There may be multiple types of parts, but one type of part has been
+matched. Please check.": tick them, as the part numbers are ours. The three reverse-mount LEDs show "The
+processing of this component is difficult", with a review and maybe a fee
+([Review questions](#review-questions)).
 
 The reasons: [edge rails](#edge-rails), [solder mask](../architecture/electronics.md#solder-mask),
 [LED cutouts](../architecture/electronics.md#lights), [encoder lugs](hand-soldering.md#soldering),
@@ -143,14 +146,15 @@ The reasons: [edge rails](#edge-rails), [solder mask](../architecture/electronic
   a V-cut edge there that may need sanding.
 - In the confirmed production file: the rail on y = 0, the J1 edge free and the corners milled round (R3; a
   V-cut square corner does not fit the body). JLCPCB's default is a 5 mm rail on two opposite edges, the J1
-  edge included.
+  edge included, and the depanel option's note says the same.
 
 A board that arrives with a rail anyway: [On arrival](bring-up.md#on-arrival).
 
 ### Parts and stock
 
 `BOM-full.csv` lists the parts for one board; JLCPCB multiplies by the 2 assembled boards. The BOM step shows
-any line that is short. Two parts are worth a look before ordering.
+any line that is short. On 2026-11-16 all 29 lines were in stock, Y1 and the encoders among them, but stock
+moves: two parts are worth a look before ordering.
 
 Y1 (Abracon ABM8-272-T3, a 12 MHz crystal, C20625731) is rarely in stock at JLCPCB, and a board without it
 has no USB. JLCPCB places at least five of this part and adds attrition on top (the part's order guide on
@@ -183,7 +187,7 @@ number: the footprints and checks are made for these parts.
 In JLCPCB's placement preview every part must sit on its own pads, and the parts below the right way round.
 The preview draws JLC's own footprint over our pads; the marks are on our bottom silkscreen, so they hold
 whichever way round the preview shows the board. If a part shows turned, correct its rotation there or ask
-JLCPCB's engineer in the review; do not order as is.
+JLCPCB's engineer in the review; do not order as is. On the rev 1 order all of them showed right.
 
 - LED_SHIFT, LED_UNIT and LED_FREQ (reverse-mount LEDs over the three cutouts in the board): JLC's cathode
   (pin 1) at our cathode bar, west of LED_SHIFT and east of the other two (seen from the top), the part centred
@@ -207,88 +211,120 @@ JLCPCB's engineer in the review; do not order as is.
   have their two-pin row (the push switch) on the side of the three-pin row towards the J1 edge; the RANGE
   control's pattern fits one way only; a key is the same switch either way round.
 
+What right looks like, from the rev 1 order's preview of the bottom side (2D view, zoomed in). JLC's pin 1
+is the magenta dot or minus sign; our marks are the white silkscreen bars, dots and the corner L:
+
+![U3, U4 and Y1 with JLC's pin 1 at our dots; DK06's cathode band at our bar](images/placement-ics-diode.png)
+
+![U1's pin 1 at our corner L, U2's at our dot, LED_FREQ's cathode at our bar](images/placement-u1-u2-led-freq.png)
+
+![LED_UNIT's cathode at our bar (left in this bottom view), LED_SHIFT's at its bar on the right, turned against the other two as designed](images/placement-leds.png)
+
 ## JLCCNC
 
 JLCCNC's order form overrides the drawing, so set these on it (the labels may differ a little):
 
 - Material: aluminium 6061.
-- Surface finish: "Bead blasting + Anodizing", black. Anodising alone is still blasted, at 120 mesh, unless
-  the remark says no bead blasting.
-- Threads: yes (five M3).
+- Surface finish: "Bead blasting + Anodizing", colour Black in its dropdown (the default is Natural).
+  Anodising alone is still blasted, at 120 mesh, unless the remark says no bead blasting.
+- Threads: Yes (five M3). Its "+ Add file" says a 2D drawing with the thread information counts, so
+  `plate.pdf`, attached under the tolerance, does.
 - Tightest tolerance: ±0.05 mm, for the boss height. At the default, ISO 2768-m, the bosses come ±0.2 mm.
-- Marking: "+ Add finish", then "Laser marking"; no UV printing. The laser leaves one light grey on the black
-  anodising, so there is no colour to choose.
+  Attach `plate.pdf` with "+ Upload Drawing" under it.
+- Marking: "+ Add finish", then "Laser marking", which asks for `plate.dxf` through "+ Drawing Required"; no
+  UV printing. The laser leaves one light grey on the black anodising, so there is no colour to choose.
 - Appearance: Standard, which costs least. It allows up to four rack marks, where JLCCNC picks so that they do
   not affect assembly, and up to five scratches under 10 mm anywhere, the front face included. The remark
   asks for the rack marks off the front face and the boss end faces, which Standard does not promise. Strict,
   the level above, keeps rack marks and scratches off the cosmetic surfaces, the laser-marked face among
   them, for a price.
+- Build time: Economic, as the plate waits for the boards anyway. In November 2026 that was 11 days for
+  €51.70, against Standard (6 days, €58.05) and Expedited (3 days, €79.23).
+- Product Desc (the customs category, required): Aluminum Alloy Rectangular Plate.
 
-Files: `plate.step`, `plate.pdf` (the drawing, with every tolerance, the threads, the finish, the edge
-breaks and a front view of the marking) and `plate.dxf` (the marking).
-JLCCNC pairs a model with the drawings of the same name and takes the threads, the marking and the
-tolerances from them. The plate's line must then show both `plate.pdf` and `plate.dxf`; if it shows one,
-upload `plate.step`, `plate.pdf` and `plate.dxf` together as one zip. Remark:
+Files: `plate.step` (the model), `plate.pdf` (the drawing, with every tolerance, the threads, the finish, the
+edge breaks and a front view of the marking) and `plate.dxf` (the marking). Uploaded together, the drawings
+were not paired with the model: upload `plate.step` and attach the other two as above. Saved from the quote
+page, the plate goes into the cart it shares with JLCPCB and JLC3DP. Remark, 500 characters at most:
 
-> Machined to the drawing avionics-panel-rev1-plate.pdf; all its notes and tolerances apply, also where they
-> are tighter than your general tolerance. Threads M3-6H, plugged through blasting and anodising (your
-> standard under M5); they must gauge afterwards. Anodising rack contacts on the back face, inside the
-> pockets or in the bores of the three encoder holes and the RANGE hole; never on the boss end faces, the
-> front face, the outline or the key holes. The front face is the cosmetic surface. Marking per
-> avionics-panel-rev1-plate.dxf: layer LASER is laser marking, no UV print; layer CUT (the outline and the
-> through holes) is for reference only.
+> Machined to drawing avionics-panel-rev1-plate.pdf; all its notes and tolerances apply, even where tighter
+> than your general tolerance. Threads M3-6H, plugged through blasting and anodising; must gauge afterwards.
+> Anodising rack contacts on the back face, in the pockets or in the encoder and RANGE hole bores; never on
+> boss end faces, front face, outline or key holes. Front face cosmetic. Marking per
+> avionics-panel-rev1-plate.dxf: layer LASER laser marked (no UV print), layer CUT reference only.
 
 ## JLC3DP
 
-| File | Quantity | Process | Part |
-| --- | --- | --- | --- |
-| `body.step` | 1 | MJF PA12-HP, dyed black | Body |
-| `caps-B.zip` | 1 | Full Color Resin (WJP), Color Multicolor, Surface Finish No | The 28 key caps, set B |
-| `cap-A-01-AP.zip`, `cap-C-01-AP.zip`, `cap-D-01-AP.zip`, from `caps-single-A.zip`, `caps-single-C.zip` and `caps-single-D.zip` | 1 each | Full Color Resin (WJP), Color Multicolor, Surface Finish No | Gauge caps: the AP cap of sets A, C and D |
-| `knob-outer-1.step` to `knob-outer-6.step` | 2 each | SLA Black Resin, Surface Finish No | Outer rings of ALT/HDG and FREQ |
-| `knob-outer-fms-1.step` to `knob-outer-fms-6.step` | 1 each | SLA Black Resin, Surface Finish No | Outer ring of FMS (coarser grip) |
-| `knob-inner-1.step` to `knob-inner-6.step` | 3 each | SLA Black Resin, Surface Finish No | Inner knobs |
-| `knob-range-1.step` to `knob-range-6.step` | 1 each | SLA Black Resin, Surface Finish No | RANGE knob |
-| `lightpipes.step` | 6 | SLA 8001 Resin, translucent, Surface Finish No | One light pipe: the panel's three and three spare |
+| File | Quantity | Process | Product Desc | Part |
+| --- | --- | --- | --- | --- |
+| `body.step` | 1 | MJF PA12-HP, Dyed Black | Enclosure... > Plastic Enclosure | Body |
+| `caps-A.zip`, `caps-B.zip`, `caps-C.zip`, `caps-D.zip` | 1 each | Full Color Resin (WJP), Color Multicolor, Surface Finish No | Irregular shape > Plastic Button | The key caps: four sets of 28 |
+| `knob-outer-1.step` to `knob-outer-6.step` | 2 each | SLA Black Resin, Surface Finish Yes: Sanding, General Sanding | Irregular shape > Plastic Knob | Outer rings of ALT/HDG and FREQ |
+| `knob-outer-fms-1.step` to `knob-outer-fms-6.step` | 1 each | SLA Black Resin, Surface Finish Yes: Sanding, General Sanding | Irregular shape > Plastic Knob | Outer ring of FMS (coarser grip) |
+| `knob-inner-1.step` to `knob-inner-6.step` | 3 each | SLA Black Resin, Surface Finish Yes: Sanding, General Sanding | Irregular shape > Plastic Knob | Inner knobs |
+| `knob-range-1.step` to `knob-range-6.step` | 1 each | SLA Black Resin, Surface Finish Yes: Sanding, General Sanding | Irregular shape > Plastic Knob | RANGE knob |
+| `lightpipes.step` | 6 | SLA 8001 Resin, translucent, Surface Finish No | Irregular shape > Plastic Button | One light pipe: the panel's three and three spare |
 
-That is 30 files: the body, the set's zip and the three gauge caps (28 + 3 key caps), the 24 knob files and
-the light pipe, ordered 6 times. The quote page takes 10 per upload: upload them in three uploads into the
-same cart. The cart submits up to 30 together (JLC3DP's FAQ; its order guide says 50), so the 30 go in one
-submission. Each knob comes in six bores, 1 the tightest and 6 the loosest, every one in the panel's quantity:
-42 knobs ([why](../architecture/mechanics.md#knobs)). Black Resin is the material of that name, not JLC Black
-Resin or Imagine Black Resin, and Full Color Resin (WJP) is not Full-Color Tough Resin. Remark:
+That is 30 files: the body, the four sets' zips, the 24 knob files and the light pipe, ordered 6 times. The
+quote page takes at most 10 files at a time and keeps them only until "SAVE TO CART": upload them in three
+batches and save each to the cart. The cart submits up to 30 together (JLC3DP's FAQ; its order guide says
+50), so the 30 go in one submission. "Batch Edit" sets the material, the finish, the quantity, the Product
+Desc and the remark of all the rows ticked, but its quantity overwrites every one of them: set the
+quantities row by row after it. Build time: Standard (3 to 5 days), the default. Each knob comes in six
+bores, 1 the tightest and 6 the loosest, every one in the panel's quantity: 42 knobs
+([why](../architecture/mechanics.md#knobs)). Black Resin is the material of that name, not JLC Black Resin
+or Imagine Black Resin, and Full Color Resin (WJP) is not Full-Color Tough Resin.
 
-> Please print every part as designed. Knobs: supports on the bottom faces only, none inside the bores and
-> recesses; leave the support marks on, they are sanded at home. No sanding, blasting, oil or coating: the
-> bores hold the knobs by friction and stay as printed. The 1.0 mm dimples in the knobs' undersides number the
-> bores: keep them open, do not fill them. The 1.2 mm wide, 0.25 mm deep groove along the RANGE knobs' bores
-> (avionics-panel-rev1-knob-range-*.step) is on purpose: keep it open, no supports in it. Light pipes
-> (avionics-panel-rev1-lightpipes.step): upright, rod up, supports on the base's bottom face only; no sanding
-> and no oil spray; the 2.0 mm rod is 4.45 mm long on purpose. Body: the counterbore of the screw column in
-> the middle is open on two sides on purpose. Key caps: no oil spray or coating; the sockets hold the caps by
-> friction and stay as printed.
+The remark is per part, 500 characters at most. Body:
+
+> Please print as designed. The counterbore of the screw column in the middle is open on two sides on purpose.
+
+Key caps, each set:
+
+> Please print as designed: a set of 28 separate key caps, priced as one part. No oil spray or coating: the
+> sockets hold the caps by friction and stay as printed.
+
+Outer rings, FMS rings and inner knobs:
+
+> Please print as designed. Knobs: supports on the bottom faces only, none inside the bores and recesses;
+> support marks sanded flush, no more than 0.05 mm proud. The bores hold the knobs by friction: leave them as
+> printed, with no sanding, blasting, oil or coating inside; General Sanding is for the outside only. The
+> 1.0 mm dimples in the undersides number the bores: keep them open, do not fill them.
+
+RANGE knobs:
+
+> Please print as designed. Knobs: supports on the bottom faces only, none inside the bores and recesses;
+> support marks sanded flush, no more than 0.05 mm proud. The bores hold the knobs by friction: leave them as
+> printed, with no sanding, blasting, oil or coating inside; General Sanding is for the outside only. The
+> 1.0 mm dimples in the undersides number the bores: keep them open. The 1.2 mm wide, 0.25 mm deep groove
+> along the bore is on purpose: keep it open, no supports in it.
+
+Light pipe:
+
+> Please print as designed: upright, rod up, supports on the base's bottom face only; no sanding and no oil
+> spray. The 2.0 mm rod is 4.45 mm long on purpose.
 
 - Key caps: upload the zips, they carry the texture (the OBJ alone prints without legends). Which of the four
-  sets fits depends on the print ([why](../architecture/mechanics.md#key-caps)): set B fits a print without
-  error best, and the three gauge caps, the AP cap of each other set, show on the bench whether a neighbour
-  fits better ([Choosing the cap set](bring-up.md#choosing-the-cap-set)). Unzip the gauge caps' zips from
-  `caps-single-A.zip`, `caps-single-C.zip` and `caps-single-D.zip`. Step 1 of
-  [Order step by step](#order-step-by-step) settles their price first.
-- Key caps, one model per file, if JLC3DP asks for it in step 1: in place of `caps-B.zip`, unzip
-  `caps-single-B.zip`. It holds the set's 28 caps as one zip per cap (`cap-B-01-AP.zip` and so on); upload
-  those zips, quantity 1 each, 10 per upload. With the three gauge caps and the other 26 files that is 57
-  orders, more than the cart submits together (30, or 50 by the order guide): two submissions. In step 1,
-  ask their support how to place them so they ship together with the boards.
-- Knobs: Surface Finish No, unless the quote in step 1 made sanding worth its price. With No the support
-  marks stay on the bottom faces, and the builder sands them flush
-  ([Fitting the knobs](assembly.md#fitting-the-knobs)). The bores stay as printed, whose grip the six sizes
-  are made for ([why](../architecture/mechanics.md#knobs)).
-- Knobs sanded instead: Surface Finish Yes: Sanding, General Sanding (the form's default for Black Resin),
-  which sands, bead blasts and oils them, in the four knob rows of the table. In the remark, replace "leave
-  the support marks on, they are sanded at home. No sanding, blasting, oil or coating: the bores hold the
-  knobs by friction and stay as printed." with "support marks sanded flush, no more than 0.05 mm proud. The
-  bores hold the knobs by friction: leave them as printed, with no sanding, blasting, oil or coating inside;
-  General Sanding is for the outside only." If their review says they cannot keep it out of the bores: No.
+  sets fits depends on the print ([why](../architecture/mechanics.md#key-caps)), and the bench finds it, set
+  B first ([Choosing the cap set](bring-up.md#choosing-the-cap-set)). The order takes all four: JLC3DP
+  priced a set as one part, €6.08 to €6.13 in November 2026 with Surface Finish No (€7.60 with the default,
+  Oil Spraying), while a single cap costs at least €6.26: the three other sets cost less than a cap of each.
+- Key caps, one model per file, if JLC3DP asks for it in step 1: set B alone, from `caps-single-B.zip`. It
+  holds the set's 28 caps as one zip per cap (`cap-B-01-AP.zip` and so on); upload those zips, quantity 1
+  each, with the AP cap of each other set as a gauge: `cap-A-01-AP.zip`, `cap-C-01-AP.zip` and
+  `cap-D-01-AP.zip`, unzipped from `caps-single-A.zip`, `caps-single-C.zip` and `caps-single-D.zip`. With the
+  other 26 files that is 57, more than the cart submits together (30, or 50 by the order guide): two
+  submissions. In step 1, ask their support how to place them so they ship together with the boards.
+- Knobs: General Sanding (the form's default for Black Resin) sands, bead blasts and oils them, and the
+  remark keeps it out of the bores, whose grip the six sizes are made for
+  ([why](../architecture/mechanics.md#knobs)).
+- Knobs unsanded instead, if the quote in step 1 made sanding not worth its price or their review says they
+  cannot keep it out of the bores: Surface Finish No in the four knob rows, and in both knob remarks replace
+  "support marks sanded flush, no more than 0.05 mm proud. The bores hold the knobs by friction: leave them
+  as printed, with no sanding, blasting, oil or coating inside; General Sanding is for the outside only."
+  with "leave the support marks on, they are sanded at home. No sanding, blasting, oil or coating: the bores
+  hold the knobs by friction and stay as printed." The support marks then stay on the bottom faces, and the
+  builder sands them flush ([Fitting the knobs](assembly.md#fitting-the-knobs)).
 - Light pipes: set Surface Finish to No. The form's default is Oil Spraying for transparent 8001 and Fine
   Sanding for translucent, and either can break the thin rods; the remark asks for neither.
 
@@ -301,7 +337,7 @@ answer of their own:
 | --- | --- | --- |
 | JLCPCB | Black solder mask: 64 dams on the bottom (U1's pads, J1's contacts, C_X2 to R_X) are 0.13 mm wide, between pads 0.2 mm apart; JLCPCB's rule for a dam in black mask is a pad spacing of at least 0.13 mm (green 0.10 mm) | Check that the confirmed production file still has a dam between every pair of those pads. If any is gone, change the order to green, whose rule is 0.10 mm |
 | JLCPCB | Encoder lug slots 1.5 x 3.0 mm, 0.4 mm longer than JLC's own footprint of C19270361 (and Bourns' recommended 2.6) | As drawn, on purpose: 3.0 mm meets JLC's 2:1 rule for slots, and the lugs are soldered in, so the extra length only takes solder |
-| JLCPCB | The reverse-mount LEDs over their board cutouts: JLCPCB may question them, as reverse-mount parts over a cutout are rare | As designed (PCB remark): the cutouts are 2.2 x 2.6 mm with R0.5 corners, and each LED sits on its pads over its cutout ([why](../architecture/electronics.md#lights)); check it in the [placement preview](#placement-preview) |
+| JLCPCB | The reverse-mount LEDs over their board cutouts: JLCPCB may question them, as reverse-mount parts over a cutout are rare. The BOM step already flags them: "The processing of this component is difficult", reviewed, with additional fees | As designed (PCB remark): the cutouts are 2.2 x 2.6 mm with R0.5 corners, and each LED sits on its pads over its cutout ([why](../architecture/electronics.md#lights)); check it in the [placement preview](#placement-preview). Accept the fee |
 | JLCPCB | J1 overhangs the y = 60 mm edge by 0.5 mm | By design, as the PCB remark says: the plug reaches it through the body wall. No rail on that edge ([Edge rails](#edge-rails)) |
 | JLCPCB | A single edge rail, on y = 0 | As in the PCB remark. If the line needs a second one, it goes on a short edge (x = 0 or x = 160 mm), with no bottom-side part within 12.8 mm of either (the nearest are D_ALTHDG and D_FMS); never on the J1 edge, which J1 overhangs and C_OUT0 and U3 sit 3.7 and 6.75 mm from |
 | JLCCNC | The laser marking's small legends: capitals 1.55 and 1.7 mm high (6.1 and 6.7 pt), strokes 0.19 mm at the thinnest. JLCCNC's marking guide gives no minimum for the laser (only lines thick enough to keep their detail); for its print it asks for 6 pt and 0.176 mm lines | Mark as drawn, which meets the print's figures too; accept a sample or a little blur |
@@ -318,20 +354,50 @@ in `production/` changed and upload each to its shop again.
 
 ## Shipping, tax and cost
 
-Each JLC shop has its own checkout. JLC3DP parts can join the JLCPCB cart, so put them there: they then ship
-with the boards, once Y1 has arrived and the boards are built. The plate comes as a parcel of its own, with
-its own shipping and import fees, unless it was paid in the JLCPCB cart and the checkout ships it with the
-boards (step 3). Screws from JLCMC come as an order and a parcel of their own, which costs more to ship than
-the screws do.
+The JLC shops share one cart: the boards, the plate and the printed parts are paid in one checkout and ship
+in one parcel once the boards are built (step 6). Screws from JLCMC come as an order and a parcel of their
+own, which costs more to ship than the screws do.
 
-In the EU, up to €150 of goods the shop collects the VAT at checkout (IOSS); a flat customs duty of €3 per
-item line declared is added at checkout or paid on delivery, with any carrier's fee. Over €150 the standard
-duty replaces the flat one, and VAT, duty and the carrier's fee are paid on delivery. Where the checkout
-offers DDP shipping (delivered duty paid), pick it: it collects all of these at checkout.
+The checkout offers CPT shipping (DHL, UPS or FedEx), DDP (DHL Express DDP, FedEx Express DDP) and FCA. Pick
+the cheapest DDP line: it collects the duty, the VAT and any carrier's fee at checkout. On 2026-11-16, for the
+cart below, that was FedEx Express (DDP), which waives the duty and tax disbursement fee:
 
-JLCPCB's share with the spare board: its fees for assembling both sides come to about $130 and its parts to
-about $80, about $50 of that the encoders, before the boards, shipping, VAT and the carrier's fee. The
-plate, the printed parts and the local items, the screws among them, come on top; the quotes give the totals,
-and the key caps move them most (step 1). Allow 2 to 5 weeks for Y1 through Global Sourcing before the JLCPCB
-order can be placed, then at least 4 days of Standard assembly; at least 72 hours of build time for the key
-caps (WJP).
+| Shipping | Shipping fee | Duty and tax | Carrier's fee | Total |
+| --- | --- | --- | --- | --- |
+| FedEx Express (DDP) | €38.53 | €89.21 | none | €508.28 |
+| DHL Express (DDP) | €34.68 | €88.48 | €7.49 disbursement fee | €511.18 |
+| CPT, DHL | €31.48 | on delivery | on delivery | €412.01, plus VAT, duty and the carrier's fee on delivery |
+
+In the EU, IOSS lets the shop collect the VAT at checkout on up to €150 of goods. The panel's order is well
+over that, so with CPT the VAT, the duty and the carrier's fee are all paid on delivery. Under €150 (a cap
+set reordered, say), the CPT notes say that IOSS cannot prepay the customs duty (since 1 July 2026, a flat
+€3 per item line declared) or the Union Handling Fee (since 1 November 2026): they come on delivery, with the
+carrier's fee. DDP collects all of it at checkout, whatever the value.
+
+### What rev 1 cost (November 2026)
+
+The quotes and the checkout on 2026-11-16, in EUR; prices move, so take them as a guide:
+
+| Item | Shop | EUR |
+| --- | --- | --- |
+| PCB, 5 boards: engineering 22.65, ENIG 16.22, black mask 7.25, board 6.34, production file confirmation 0.95 | JLCPCB | 53.41 |
+| Standard assembly of 2 boards, both sides: setup 46.66, stencil 7.49, parts (29 lines) 72.09, feeders 36.52, SMT 1.65, placement confirmation 0.41, hand soldering 3.27, manual assembly 4.60, fixture 14.99, packaging 0.45 | JLCPCB | 188.14 |
+| Front plate, Economic build time | JLCCNC | 51.70 |
+| Key caps, sets A to D (6.08 to 6.13 a set) | JLC3DP | 24.43 |
+| Knobs, 42 with General Sanding: outer rings 11.88, FMS rings 5.88, inner knobs 17.64, RANGE knobs 6.00 | JLC3DP | 41.40 |
+| Body, MJF PA12-HP, Dyed Black | JLC3DP | 13.43 |
+| Light pipes, 6 at 0.29 | JLC3DP | 1.74 |
+| Merchandise at checkout | | 380.53 |
+| Shipping, FedEx Express (DDP) | | 38.53 |
+| Duty and tax, collected at checkout | | 89.21 |
+| Total before coupons | | 508.28 |
+
+The shops round each fee and line on its own, so sums can differ by a few cents. The checkout's merchandise
+came to €6.36 more than the cart's lines (€374.17), about the plate's step from Economic to Standard (€6.35):
+check its build time before paying. The cart showed a JLCPCB coupon of -€18.12. After the review JLCPCB adds
+the depanelling (€2.10) and whatever it quotes for the PCBA remark. The local items, the screws among them,
+come on top.
+
+Build times: JLCPCB 3 days for the PCB and 5 to 6 days for the assembly (a day more with the advanced
+options), JLCCNC 11 days at Economic, JLC3DP 3 to 5 days at Standard; the parcel leaves once all are done.
+If step 2 is needed, allow 2 to 5 weeks for Y1 through Global Sourcing before the boards can be ordered.

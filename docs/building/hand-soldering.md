@@ -16,8 +16,9 @@ again. This page has what differs from [Ordering](ordering.md) and [Bring-up](br
   (C19270361) and 1 RANGE control (C160841); the `Needed` column gives the count per board. Order a second
   set for the spare board if wanted.
 - JLCPCB: Standard assembly of the bottom side only, with `BOM.csv` and `CPL.csv` (the BOM step must find all
-  26 lines with stock for 2 boards) and no PCBA remark. The PCB settings, the PCB remark, the edge rail and
-  the bottom side of the [placement preview](ordering.md#placement-preview) stay the same.
+  26 lines with stock for 2 boards), and of the PCBA remark only its last sentence, the one on the rails. The
+  PCB settings, the PCB remark, the edge rail and the bottom side of the
+  [placement preview](ordering.md#placement-preview) stay the same.
 - Locally: the soldering iron, solder, flux, solder wick and the magnifier of the
   [shopping list](ordering.md#shopping-list).
 
