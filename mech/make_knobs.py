@@ -7,17 +7,17 @@ come from stack.py (datasheet shaft dimensions); each part has its bottom at z =
               FMS ring has fewer, deeper flutes, so it feels different from FREQ above it.
   inner knob  dia 12, all three: D bore on the 3.5 mm inner shaft. The bore bottom sits on the shaft tip,
               so a push goes straight to the switch.
-  RANGE knob  dia 13.6 with a 17.3 skirt over the 11.1 mm plate hole, D bore on the RKJXT lever; the underside
-              is dished from the hub to the skirt's rim, so the rim clears the plate at full tilt, cocked on the
-              lever by its play and pushed.
+  RANGE knob  dia 13.6 with a 17.3 skirt over the 11.1 mm plate hole, D bore on the RKJXT lever, its back
+              relieved by one groove (stack.RANGE_RIBS); the underside is dished from the hub to the skirt's
+              rim, so the rim clears the plate at full tilt, cocked on the lever by its play and pushed.
   light pipes translucent resin, stepped: a base that stands on the board over the LED's cutout, up to a
               shoulder under the plate back, and the rod through the plate hole; captive, no glue. All three
               are printed as one part on a snap-off bar under their bases (JLC3DP's minimum resin part is 10 x 2
               x 2 mm), on 1.0 mm necks (resin pillars 1.0 min.).
-The knobs are held by friction only, so each of the four (outer ring, FMS ring, inner, RANGE) comes with five
-bores, 0.1 mm apart (stack.FIT_VARIANTS): knob-<type>-1 has the tightest, knob-<type>-5 the loosest, and as many
-dimples on its underside as its number, with a gap after the third (stack.KNOB_MARK). The one to keep goes on
-by hand and holds.
+The knobs are held by friction only, so each of the four (outer ring, FMS ring, inner, RANGE) comes with six
+bores, 0.1 mm apart (stack.FIT_VARIANTS): knob-<type>-1 has the tightest, knob-<type>-6 the loosest, and as many
+dimples on its underside as its number, with a gap after the third (stack.KNOB_MARK). The one to keep goes on by
+hand and holds.
 Needs pythonocc-core (nix-shell nix/shells.nix -A gen, from the repository root).
 """
 import contextlib
@@ -28,7 +28,7 @@ from concurrent.futures import ProcessPoolExecutor
 from concurrent.futures.process import BrokenProcessPool
 
 import stack as S
-from occ_util import box, cut, cyl, dbore, export, fluted, fuse, move, revolve
+from occ_util import box, common, cut, cyl, dbore, export, fluted, fuse, move, revolve
 
 # the bore drawn at the shaft size plus stack.FIT: the knob in the sections and the 3D view
 NOMINAL = min(S.FIT_VARIANTS, key=lambda n: abs(S.FIT_VARIANTS[n]))
@@ -143,7 +143,18 @@ def range_knob(n=NOMINAL):
     body = cut(body, revolve([(r0, -1), (r0, 0), (sk + 1, range_dish(sk + 1)), (sk + 1, -1)]))
     lever0 = S.LEVER_Z0 - S.PLATE_Z1 - rk["z0"]; lever1 = S.LEVER_Z1 - S.PLATE_Z1 - rk["z0"]
     return cut(body, cyl(relief_d("range", n) / 2, -1, max(lever0, S.RANGE_RELIEF[1])),
-               dbore(S.LEVER_D + fit, S.LEVER_FLAT + fit, -1, lever1), *marks("range", n, -1, range_mark_top()))
+               range_bore(fit, -1, lever1), *marks("range", n, -1, range_mark_top()))
+
+
+def range_bore(fit, z0, z1):
+    """the RANGE knob's ribbed D bore from z0 to z1, `fit` over the lever's largest size: the D bore (flat towards
+    +x) and the groove cut into its round wall opposite the flat, which leaves a rib each side (stack.RANGE_RIBS)."""
+    rb = S.RANGE_RIBS
+    d, hg = S.LEVER_D + fit, rb["groove"] / 2
+    rg = d / 2 + rb["relief"]                                       # the groove's floor
+    # the box ends inside the D (r / 2 behind the axis), clear of the axis, which check_fit.py's sections follow
+    groove = common(cyl(rg, z0, z1), box(-rg - 1, -hg, z0 - 1, -d / 4, hg, z1 + 1))
+    return fuse(dbore(d, S.LEVER_FLAT + fit, z0, z1), groove)
 
 
 def light_pipe():

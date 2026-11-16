@@ -68,7 +68,7 @@ Everything one panel needs, with its spare board:
 | ☐ | Front plate | 1 | JLCCNC | [Settings below](#jlccnc) | [Putting it together](assembly.md#putting-it-together) |
 | ☐ | Body | 1 | JLC3DP | [Files and processes](#jlc3dp) | Step 4 of [Putting it together](assembly.md#putting-it-together) |
 | ☐ | Key caps | 4 sets of 28 (A to D) | JLC3DP | [Files and processes](#jlc3dp); one set fits, the others are spares | [Choosing the cap set](bring-up.md#choosing-the-cap-set) |
-| ☐ | Knobs | 35: the panel's 7, each in five bores | JLC3DP | [Files and processes](#jlc3dp) | [Fitting the knobs](assembly.md#fitting-the-knobs) |
+| ☐ | Knobs | 42: the panel's 7, each in six bores | JLC3DP | [Files and processes](#jlc3dp) | [Fitting the knobs](assembly.md#fitting-the-knobs) |
 | ☐ | Light pipes | 2 bars of three pipes (1 bar spare) | JLC3DP | [Files and processes](#jlc3dp) | Step 2 of [Putting it together](assembly.md#putting-it-together) |
 | ☐ | Screws | 7 (5 + 2 spare) | Local; or JLCMC, EDDH-C16E1-M3-L8 (10B21 blackened, 8.8) or EDDH-S1W-M3-L8 (A2-70), its pack minimum, as an order and a parcel of their own | M3 x 8 flanged button head, ISO 7380-2, 2 mm hex socket; steel (black, 8.8 or 10.9) or stainless A2 | Step 4 of [Putting it together](assembly.md#putting-it-together) |
 | ☐ | Feet | 4 | Local | Self-adhesive silicone (high friction), up to 10 mm across | Step 4 of [Putting it together](assembly.md#putting-it-together) |
@@ -230,37 +230,38 @@ upload `plate.step`, `plate.pdf` and `plate.dxf` together as one zip. Remark:
 | --- | --- | --- | --- |
 | `body.step` | 1 | MJF PA12-HP, dyed black | Body |
 | `caps-A.zip`, `caps-B.zip`, `caps-C.zip`, `caps-D.zip` | 1 each | Full Color Resin (WJP), Color Multicolor, Surface Finish No | Four sets of 28 key caps |
-| `knob-outer-1.step` to `knob-outer-5.step` | 2 each | SLA Black Resin, Surface Finish Yes: Sanding, General Sanding | Outer rings of ALT/HDG and FREQ |
-| `knob-outer-fms-1.step` to `knob-outer-fms-5.step` | 1 each | SLA Black Resin, Surface Finish Yes: Sanding, General Sanding | Outer ring of FMS (coarser grip) |
-| `knob-inner-1.step` to `knob-inner-5.step` | 3 each | SLA Black Resin, Surface Finish Yes: Sanding, General Sanding | Inner knobs |
-| `knob-range-1.step` to `knob-range-5.step` | 1 each | SLA Black Resin, Surface Finish Yes: Sanding, General Sanding | RANGE knob |
+| `knob-outer-1.step` to `knob-outer-6.step` | 2 each | SLA Black Resin, Surface Finish Yes: Sanding, General Sanding | Outer rings of ALT/HDG and FREQ |
+| `knob-outer-fms-1.step` to `knob-outer-fms-6.step` | 1 each | SLA Black Resin, Surface Finish Yes: Sanding, General Sanding | Outer ring of FMS (coarser grip) |
+| `knob-inner-1.step` to `knob-inner-6.step` | 3 each | SLA Black Resin, Surface Finish Yes: Sanding, General Sanding | Inner knobs |
+| `knob-range-1.step` to `knob-range-6.step` | 1 each | SLA Black Resin, Surface Finish Yes: Sanding, General Sanding | RANGE knob |
 | `lightpipes.step` | 2 | SLA 8001 Resin, translucent, Surface Finish No | Three light pipes on one bar; the second bar is the spare |
 
-That is 26 files, and the quote page takes 10 per upload: upload them in three uploads into the same cart.
-The cart submits up to 30 together (JLC3DP's FAQ; its order guide says 50), so the 26 go in one submission.
-Each knob comes in five bores, 1 the tightest and 5 the loosest, every one in the panel's quantity: 35 knobs
+That is 30 files, and the quote page takes 10 per upload: upload them in three uploads into the same cart.
+The cart submits up to 30 together (JLC3DP's FAQ; its order guide says 50), so the 30 go in one submission.
+Each knob comes in six bores, 1 the tightest and 6 the loosest, every one in the panel's quantity: 42 knobs
 ([why](../architecture/mechanics.md#knobs)). Black Resin is the material of that name, not JLC Black Resin or
 Imagine Black Resin, and Full Color Resin (WJP) is not Full-Color Tough Resin. Remark:
 
 > Please print every part as designed. Knobs: supports on the bottom faces only, none inside the bores and
 > recesses; support marks sanded flush, no more than 0.05 mm proud. The bores hold the knobs by friction:
 > leave them as printed, with no sanding, blasting, oil or coating inside; General Sanding is for the outside
-> only. The 0.9 mm dimples in the knobs' undersides number the bores: keep them open, do not fill them. Light
-> pipes (avionics-panel-rev1-lightpipes.step): rods up, supports on the bar only; no sanding and no oil spray;
-> the 2.0 mm rods are 4.45 mm long on purpose. Body: the counterbore of the screw column in the middle is open
-> on two sides on purpose. Key caps: no oil spray or coating; the sockets hold the caps by friction and stay
-> as printed.
+> only. The 1.0 mm dimples in the knobs' undersides number the bores: keep them open, do not fill them. The
+> 1.2 mm wide, 0.25 mm deep groove along the RANGE knobs' bores (avionics-panel-rev1-knob-range-*.step) is on
+> purpose: keep it open, no supports in it. Light pipes (avionics-panel-rev1-lightpipes.step): rods up,
+> supports on the bar only; no sanding and no oil spray; the 2.0 mm rods are 4.45 mm long on purpose. Body:
+> the counterbore of the screw column in the middle is open on two sides on purpose. Key caps: no oil spray or
+> coating; the sockets hold the caps by friction and stay as printed.
 
 - Key caps: upload the zips, they carry the texture (the OBJ alone prints without legends). All four sets are
   ordered at once: which one fits depends on the print ([why](../architecture/mechanics.md#key-caps)). Step 1
   of [Order step by step](#order-step-by-step) settles their price first.
 - Key caps, one model per file, if JLC3DP asks for it in step 1: in place of `caps-A.zip` to `caps-D.zip`,
   unzip `caps-single-A.zip` to `caps-single-D.zip`. Each holds a set's 28 caps as one zip per cap
-  (`cap-A-01-AP.zip` and so on); upload those zips, quantity 1 each, 10 per upload. With the other 22 files
-  that is 134 orders, more than the cart submits together (30, or 50 by the order guide): five submissions
+  (`cap-A-01-AP.zip` and so on); upload those zips, quantity 1 each, 10 per upload. With the other 26 files
+  that is 138 orders, more than the cart submits together (30, or 50 by the order guide): five submissions
   (three at 50). In step 1, ask their support how to place them so they ship together with the boards.
 - Knobs: General Sanding, the form's default for Black Resin, sands, bead blasts and oils them. That keeps the
-  support marks within 0.05 mm; the remark keeps all of it out of the bores, whose grip the five sizes are
+  support marks within 0.05 mm; the remark keeps all of it out of the bores, whose grip the six sizes are
   made for ([why](../architecture/mechanics.md#knobs)).
 - Light pipes: set Surface Finish to No. The form's default is Oil Spraying for transparent 8001 and Fine
   Sanding for translucent, and either can break the thin rods; the remark asks for neither.
@@ -279,9 +280,9 @@ answer of their own:
 | JLCPCB | A single edge rail, on y = 0 | As in the PCB remark. If the line needs a second one, it goes on a short edge (x = 0 or x = 160 mm), with no bottom-side part within 12.8 mm of either (the nearest are D_ALTHDG and D_FMS); never on the J1 edge, which J1 overhangs and C_OUT0 and U3 sit 3.7 and 6.75 mm from |
 | JLCCNC | The UV legends: capitals 1.55 and 1.7 mm high (6.1 and 6.7 pt), at the 6 pt minimum, and 0.7 mm from the key holes | Accept a sample or a little blur. Keep them where drawn: they leave 0.5 mm beyond the hole's edge break for the print's register. If JLCCNC will not print that close to a hole: laser marking for those legends, in the laser's one tone |
 | JLCCNC | The laser marking: the line between the AUDIO and RADIO keys passes 0.575 mm from the key holes beside it, where JLCCNC usually keeps 3 mm from an edge | Mark it as drawn. Where the line meets a hole's edge break it is only cosmetic: accept it fading or ending short there |
-| JLCCNC | The pocket floors: 0.95 mm over the RANGE pocket (at least 0.85 mm, the drawing's note), 1.5 mm over the encoder pockets; JLCCNC recommends 0.8 mm, and over 1.5 mm where the part is bead blasted | As drawn. Hold the pocket depths +0/-0.1 mm (a thicker floor takes the room over the parts) and the flatness after blasting. If they will not blast it as drawn: anodising without blasting (tool marks may then show), and write "no bead blasting" in the remark; never a thicker floor, and no blasting of the front face alone, which can bow the plate |
-| JLCCNC | The boss height, 6.55 ±0.05 mm | ±0.1 mm is acceptable |
-| JLCCNC | Flatness 0.1 mm: milling most of a 12 mm plate off one side can bow it, and JLCCNC publishes no flatness figure | Up to 0.2 mm is acceptable; with the boss height at ±0.1 mm, up to 0.15 mm ([why](../architecture/mechanics.md#light-pipes)). Stress-relieved plate (T651) helps, if they offer it |
+| JLCCNC | The pocket floors: 0.95 mm over the RANGE pocket (at least 0.85 mm, the drawing's note), 1.5 mm over the encoder pockets; JLCCNC recommends 0.8 mm, and over 1.5 mm where the part is bead blasted | As drawn. Hold the pocket depths +0/-0.1 mm (a thicker floor takes the room over the parts) and the flatness after blasting. If they will not blast it as drawn: anodising without blasting (tool marks may then show); never a thicker floor, and no blasting of the front face alone, which can bow the plate |
+| JLCCNC | The boss height, 6.55 ±0.05 mm | ±0.1 mm is acceptable, with the flatness then held to 0.15 mm (see the next row) |
+| JLCCNC | Flatness 0.1 mm: milling most of a 12 mm plate off one side can bow it, and JLCCNC publishes no flatness figure | Up to 0.2 mm is acceptable with the boss height held at ±0.05 mm, or up to 0.15 mm with the bosses at ±0.1 mm; not 0.2 mm and ±0.1 mm together ([why](../architecture/mechanics.md#light-pipes)). Stress-relieved plate (T651) helps, if they offer it |
 | JLC3DP | Light pipes: the 2.0 mm rods are 4.45 mm long, over the pillar guideline (Ø2.0 up to 4 mm) | Print as is. If they refuse: set `top_len` in `PIPE` in `mech/stack.py` to 4.0, run `./build.sh` and upload `lightpipes.step` again |
 | JLC3DP | Light pipes joined to their bar by Ø1.0 mm necks, under the 1.5 mm of the connected-parts guideline | As drawn, so the necks snap off by hand and leave a small stub to sand. If refused: set `neck_d` in `PIPE` in `mech/stack.py` to 1.6, run `./build.sh` and upload `lightpipes.step` again. Those necks do not snap cleanly: cut each next to its pipe's base with a side cutter and sand the stub flush ([Putting it together](assembly.md#putting-it-together)) |
 | JLC3DP | Knobs: General Sanding outside, the bores left as printed | As in the remark. If they cannot keep the sanding, blasting and oil out of the bores: Surface Finish No, and sand off the support marks at home, on the bottom faces as in [Fitting the knobs](assembly.md#fitting-the-knobs) |

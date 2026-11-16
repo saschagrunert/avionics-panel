@@ -843,8 +843,9 @@ def add_support(pads):
         via(vx, vy, net_c)
         pads.append(Pad(f"{ref}.E", net_c, vx, vy, "circle", 0.3, 0.3, "F", paste=False, mask=False))
         JOINED.add(f"{ref}.2")
-    # decoupling on the 3V3 / GND planes, besides the capacitor at each IOVDD pin (add_io_caps). C_D0 sat north-west
-    # of the chip, where the USB lines now leave the ESD array; the pins it shared have capacitors of their own.
+    # decoupling on the 3V3 / GND planes, besides the capacitors at the supply pins (add_core_caps, add_io_caps).
+    # C_D0 sat north-west of the chip, where the USB lines now leave the ESD array; the pins it shared have
+    # capacitors of their own.
     for name, (cxx, cyy, d3, dg) in (("C_D1", (136.4, 12.8, (1.0, 0), (1.0, 0))),
                                      ("C_D2", (*d2, (1.0, 0), (1.0, 0))),        # next to pins 42-44, 1 uF
                                      ("C_D3", (MCU[0] - 4.5, 47.4, (-1.0, 0), (1.0, 0)))):
@@ -897,8 +898,8 @@ def add_core_caps(pads):
     was, fed straight from pin 42 and through the 3V3 via of pins 42-44 (IOVDD, ADC_AVDD, VREG_VIN), and
     beside it two 0402 capacitors fed straight from pin 45: C_1V0 (1 uF, VREG_VOUT) and C_1V2 (100 nF). C_1V1
     (100 nF, DVDD) sits right below pin 50, between the QSPI and USB fan-outs. Every capacitor has its own GND
-    via. Pin 23 (DVDD, north side) joins over the top layer: V23 -> V45 -> V50 over the chip. Returns C_D2's
-    centre and the top of the free band below the corner, for the USB resistors."""
+    via. Pin 23 (DVDD, north side) has C_DV23 (add_io_caps) and joins over the top layer: V23 -> V45 -> V50 over
+    the chip. Returns C_D2's centre and the top of the free band below the corner, for the USB resistors."""
     mx, my = MCU
     yo = my + 3.875                                     # outer end of the south QFN pads
     x45 = mx + qfn_pad_xy(45)[0][0]
@@ -941,17 +942,21 @@ def add_core_caps(pads):
 
 
 def add_io_caps(pads):
-    """One 100 nF (0402) per IOVDD pin, as in Raspberry Pi's minimal design, each on its own trace
-    from the pin and with its own GND via. Pin 42 has C_D2 (add_core_caps), pin 49 C_IO49 (with USB_VDD, pin 48).
-    The others sit inside the fan-out, where no pin of theirs fans out:
+    """The 100 nF (0402) capacitors at the IOVDD pins that have room, as in Raspberry Pi's minimal design, and
+    C_DV23 at DVDD pin 23; each on its own trace from the pin and with its own GND via. Pin 42 has C_D2
+    (add_core_caps), pin 49 C_IO49 (with USB_VDD, pin 48). The others sit inside the fan-out, where no pin of
+    theirs fans out:
     - pin 1 (west, the corner pin): below pin 2's fan-out line, south-west of the pin
     - pin 10 (west): along the pin's own fan-out lane (it has no signal), the capacitor in the lane just past the
       fan-out vias, where that pin's via would be; the matrix lanes on the top layer leave that row free
-    - pin 22 (north): in the gap above pins 22 and 23 (DVDD) between the fan-outs of pins 21 and 24
+    - C_DV23 (north, on 1V1): above pins 22 and 23, on a trace from pin 23's pad end
     Pin 33 (east) has none: the same spot east of the fan-out is the only way north for the ALT/HDG and FREQ lines
     (GP18 to GP23), between the fan-out vias and the FREQ encoder's pin A 3.4 mm further east. A capacitor there,
     with its GND via south, north or north-east of it, left one of GP20 to GP24 unrouted on every seed from 1 to
-    14. Pin 33 drops into the 3V3 plane through its via under the chip, as before (check.py: PLANE_SHARED)."""
+    14. Pin 22 (north) has none either: the one gap on the north side, above pins 22 and 23 between the fan-outs
+    of pins 21 and 24, holds C_DV23 for DVDD pin 23 (RP2040 datasheet 2.9.2: 100 nF at each DVDD pin), which
+    otherwise had only the 1V1 capacitors 10 mm away over the top layer. Pins 22 and 33 drop into the 3V3 plane
+    through their vias under the chip (check.py: PLANE_SHARED)."""
     mx, my = MCU
 
     def outer(pin):
@@ -969,10 +974,11 @@ def add_io_caps(pads):
     a, b = chip(pads, "C_IO10", ex - 0.95, ey, "GND", "3V3", "100nF", "C1525", size="0402")
     path("3V3", [(ox, oy), (ox + nx * 0.4, oy), (ex, ey), b])
     plane_via(a, "GND", -1.0, 0)
-    # pin 22: up from the pad's outer end, the capacitor 0.2 mm east of the pin, its GND via above it
-    ox, oy, *_ = outer(22)
-    a, b = chip(pads, "C_IO22", ox + 0.2, oy - 1.225, "GND", "3V3", "100nF", "C1525", vertical=True, size="0402")
-    path("3V3", [(ox, oy), (ox, oy - 0.525), b], w=0.2)
+    # pin 23 (DVDD): up from the pad's outer end, the capacitor 0.2 mm west of the pin, above pin 22, its GND via
+    # above it
+    ox, oy, *_ = outer(23)
+    a, b = chip(pads, "C_DV23", ox - 0.2, oy - 1.225, "GND", "1V1", "100nF", "C1525", vertical=True, size="0402")
+    path("1V1", [(ox, oy), (ox, oy - 0.525), b], w=0.2)
     plane_via(a, "GND", 0, -1.0)
 
 

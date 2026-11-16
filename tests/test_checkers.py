@@ -1,24 +1,25 @@
-"""The checkers fail on known-bad cases: pcb/check.py on a via whose annular ring is under JLCPCB's minimum, on
-drills under its smallest, on swapped pin nets, on a pin table whose LCSC number no part has, on the exposed pad's
-paste windows bunched in one corner, on a bottom legend that reads from the top, on a USB line too long or too
-skewed on its path or too long in all with a stub, on a mask opening grown too far on one axis, on inner copper at
-the board edge, on holes too close by their extent (a slot's end) and on a horizontal slot drilled along y or with
-a thin ring, after reading one back as make.py drills it; its reader (gerber_io.py) on any number format, unit,
-command or drill header make.py does not write; each of its checks of the files on a copy of them with one thing
-changed (a short on F_Cu, a file's polarity, the zip against the files, copper in a mounting hole's keep-out or an
-LED cutout, a pad flash or a paste opening deleted, a mounting hole or an LED cutout moved, legend on a pad or past
-the board edge, a cathode bar or the pin 1 dots deleted, the CPL's Layer in lowercase, parts turned in the CPL);
-its fit of JLC's through-hole footprints on the encoder slot fallback of docs/building/ordering.md (it passes) and
-on half of it; its checks of board.py's pads on a cathode pad renamed, swapped or on a part board.py does not have,
-a decoupling capacitor or a fiducial gone; pcb/precheck.py on a pad on another one, at the board edge or in a
-mounting hole's keep-out and on a body on another; mech/check_fit.py on a row whose margin is below zero or not a
-number, on a tap drill of another depth than the stack's, on bare copper under a body boss, on a cap legend missing
-or ink on a cap without one, a set's texture or a single cap off its set (its shape, UVs, zip, material or tile),
-and its plate and body measures on a light hole moved and the walls raised; the read-backs of the plate's STEP and
-DXF and of the body's STL on a hole, a vertex, a polygon, a layer's order or a triangle changed and on DXF groups
-the writer does not write; occ_util.face_diff on a face of another type, area or centroid and on a face twice. They
-need the generators' packages (numpy, shapely, OpenCascade), which the gen shell of nix/shells.nix has and the test
-shell does not, so each case runs there, through nix-shell; without nix-shell these tests skip."""
+"""The checkers fail on known-bad cases: pcb/check.py on a via whose annular ring is under JLCPCB's minimum, on drills
+under its smallest, on swapped pin nets, on a pin table whose LCSC number no part has, on the exposed pad's paste
+windows bunched in one corner, on a bottom legend that reads from the top, on a USB line too long or too skewed on
+its path or too long in all with a stub, on a mask opening grown too far on one axis, on inner copper at the board
+edge, on holes too close by their extent (a slot's end) and on a horizontal slot drilled along y or with a thin
+ring, after reading one back as make.py drills it; its reader (gerber_io.py) on any number format, unit, command or
+drill header make.py does not write; each of its checks of the files on a copy of them with one thing changed (a
+short on F_Cu, a file's polarity, the zip against the files, copper in a mounting hole's keep-out or an LED cutout,
+a pad flash or a paste opening deleted, a mounting hole or an LED cutout moved, legend on a pad or past the board
+edge, a cathode bar or the pin 1 dots deleted, the CPL's Layer in lowercase, parts turned in the CPL); its fit of
+JLC's through-hole footprints on the encoder slot fallback of docs/building/ordering.md (it passes) and on half of
+it; its checks of board.py's pads on a cathode pad renamed, swapped or on a part board.py does not have, a
+decoupling capacitor or a fiducial gone; pcb/precheck.py on a pad on another one, at the board edge or in a mounting
+hole's keep-out and on a body on another; mech/check_fit.py on a row whose margin is below zero or not a number (or
+zero, unless the row is marked MEETS), and it prints a row's bounded worst case beside its RSS margin, passing on
+the RSS one; on a tap drill of another depth than the stack's, on bare copper under a body boss, on a cap legend
+missing or ink on a cap without one, a set's texture or a single cap off its set (its shape, UVs, zip, material or
+tile), and its plate and body measures on a light hole moved and the walls raised; the read-backs of the plate's
+STEP and DXF on a hole, a vertex, a polygon or a layer's order changed and on DXF groups the writer does not write;
+occ_util.face_diff on a face of another type, area or centroid and on a face twice. They need the generators'
+packages (numpy, shapely, OpenCascade), which the gen shell of nix/shells.nix has and the test shell does not, so
+each case runs there, through nix-shell; without nix-shell these tests skip."""
 import os
 import re
 import shlex
@@ -214,6 +215,39 @@ for name, margin in (("holds", 0.1), ("under zero", -0.01), ("not a number", flo
         print("RESULT", name, "fails")
 """
     assert gen("mech", code) == ["holds passes", "under zero fails", "not a number fails"]
+    code = """
+import check_fit
+for name, row in (("MEETS at zero", (0.0, check_fit.MEETS)), ("MEETS under zero", (-0.001, check_fit.MEETS)),
+                  ("plain at zero", (0.0,))):
+    try:
+        check_fit.report([(f"a row, {name}", *row)])
+        print("RESULT", name, "passes")
+    except SystemExit:
+        print("RESULT", name, "fails")
+"""
+    assert gen("mech", code) == ["MEETS at zero passes", "MEETS under zero fails", "plain at zero fails"]
+
+
+def test_check_fit_py_prints_the_bounded_worst_case_of_an_rss_row_and_passes_on_the_rss_one():
+    # 0.3, 0.4 and 1.2 add to 1.3 as a root sum square and to 1.9 linearly: a row with 1.4 of room passes on its
+    # RSS margin (0.1) and prints its bounded worst case (-0.5) beside it; with 1.2 of room it fails, on RSS
+    code = """
+import contextlib, io, check_fit
+rss, linear = check_fit.spread(0.3, 0.4, 1.2)
+print("RESULT spread", f"{rss:.3f}", f"{linear:.3f}", linear == 0.3 + 0.4 + 1.2)
+for name, room in (("room 1.4", 1.4), ("room 1.2", 1.2)):
+    out = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(out):
+            rows = check_fit.report([(f"a row, {name}, RSS", room - rss, check_fit.Bounded(room - linear))])
+        result = f"passes, bounded {rows[0][5]:.3f}"
+    except SystemExit:
+        result = "fails"
+    line = out.getvalue().strip()
+    print("RESULT", name, result, f"{room - rss:.3f}" in line, f"bounded worst case {room - linear:.3f}" in line)
+"""
+    assert gen("mech", code) == ["spread 1.300 1.900 True", "room 1.4 passes, bounded -0.500 True True",
+                                 "room 1.2 fails True True"]
 
 
 def test_check_py_fails_on_a_long_or_skewed_usb_line_and_on_a_long_stub():

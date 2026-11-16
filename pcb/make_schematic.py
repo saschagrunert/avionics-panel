@@ -349,12 +349,12 @@ def sheet_power(s):
         p = s.two(ref, 26 + i * 20, 74, "d", pins=(top, bot))
         s.end(*p[top], ref, top, "u")
         s.end(*p[bot], ref, bot, "d")
-    s.note(20, 46, ["C_IO1, C_IO10, C_IO22, C_IO49: one at each IOVDD pin but 33 (C_IO49 also USB_VDD); C_D2 (1 uF):",
-                    "IOVDD 42, ADC_AVDD and VREG_VIN. C_D1, C_D3, C_BULK: on the 3V3 plane, shared by IOVDD 33. C_FL:",
-                    "flash VCC. C_1V0 to C_1V2: DVDD and VREG_VOUT (the RP2040's internal 1.1 V core regulator).",
-                    "U4 takes D+ and D- through two channels each. R_IN (1 ohm) damps the hot-plug ringing on C_IN",
-                    "and gives way first on a short on VBUS_F (U4's clamp included); F1 (0.5 A PTC) covers slow",
-                    "overloads."])
+    s.note(20, 46, ["C_IO1, C_IO10, C_IO49: one at each IOVDD pin but 22 and 33 (C_IO49 also USB_VDD); C_D2 (1 uF):",
+                    "IOVDD 42, ADC_AVDD and VREG_VIN. C_D1, C_D3, C_BULK: on the 3V3 plane, shared by IOVDD 22 and 33.",
+                    "C_FL: flash VCC. C_DV23: DVDD 23. C_1V0 to C_1V2: DVDD 50 and VREG_VOUT (the RP2040's internal",
+                    "1.1 V core regulator). U4 takes D+ and D- through two channels each. R_IN (1 ohm) damps the",
+                    "hot-plug ringing on C_IN and gives way first on a short on VBUS_F (U4's clamp included); F1",
+                    "(0.5 A PTC) covers slow overloads."])
 
 
 # ---------------- sheet 2: RP2040, flash, crystal ----------------
