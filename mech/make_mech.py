@@ -69,7 +69,7 @@ BOSS_R = 4.0    # boss top on the PCB: PA12 on solder mask past the 3.6 mm coppe
 # the counterbore and the boss both printed 0.3 off on the diameter (check_fit.py measures it on the body)
 BOSS_R_LOW = HEAD_R + 1.9
 JOIN_SHORT = 0.2                    # the blocks from a boss to the walls and the middle bar end this far under the PCB
-BOOT_HOLE = 5.0                     # bridge the BOOT pads with a small screwdriver
+BOOT_HOLE = 6.1                     # the 2 mm hex key's tip bridges the BOOT pads (check_fit.py)
 # The hollow stops where it is 1 mm high: in front of that the floor is solid down to the desk plane (BOOT hole
 # and front feet). No slot or sliver under 0.8 mm anywhere: check_fit.py rasterises sections to prove it.
 HOLLOW_H_MIN = 1.0
@@ -94,7 +94,7 @@ SUPPORT_TOP = -S.PCB_T - S.SUPPORT_SHORT
 # and the post and between the knobs and key blocks, one across through the middle column; 2.0 thick (JLC3DP MJF,
 # parts over 100 mm). Under the floor the middle column is a round sleeve (BOSS_R_LOW) on the crossing of two ribs.
 RIB_T = 2.0
-# the last rib keeps 3.6 mm from the BOOT hole's edge (x 125)
+# the last rib keeps 3.6 mm from the BOOT hole's edge (x 124.45)
 RIBS_X = (36.0, B.MID_MOUNT[0], SUPPORTS[0][0], B.BOOT[0] - BOOT_HOLE / 2 - RIB_T / 2 - 3.6)
 RIBS_Y = (B.MID_MOUNT[1],)
 # flat pads for four self-adhesive feet up to 10 mm across (pads 12 mm), wide apart

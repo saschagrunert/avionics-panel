@@ -8,8 +8,8 @@ drill header make.py does not write; each of its checks of the files on a copy o
 short on F_Cu, a file's polarity, the zip against the files, copper in a mounting hole's keep-out or an LED cutout,
 a pad flash or a paste opening deleted, a mounting hole or an LED cutout moved, legend on a pad or past the board
 edge, a cathode bar or the pin 1 dots deleted, the CPL's Layer in lowercase, parts turned in the CPL); its fit of
-JLC's through-hole footprints on the encoder slot fallback of docs/building/ordering.md (it passes) and on half of
-it; its checks of board.py's pads on a cathode pad renamed, swapped or on a part board.py does not have, a
+JLC's through-hole footprints on the encoder lug slots as drawn (it passes), without their allowance and drawn as
+JLC's; its checks of board.py's pads on a cathode pad renamed, swapped or on a part board.py does not have, a
 decoupling capacitor or a fiducial gone; pcb/precheck.py on a pad on another one, at the board edge or in a mounting
 hole's keep-out and on a body on another; mech/check_fit.py on a row whose margin is below zero or not a number (or
 zero, unless the row is marked MEETS), and it prints a row's bounded worst case beside its RSS margin, passing on
@@ -562,30 +562,23 @@ for name, edits, check_name in (
     assert len(got) == 18 and all(ln.endswith(" True") for ln in got[1:]), got
 
 
-def test_the_encoder_slot_fallback_of_the_review_questions_passes(made):
-    # docs/building/ordering.md's answer to a refused lug slot, its three edits read from the row as written:
-    # check.tht_footprints passes on the board as shipped and on the board built with them, and fails with the
-    # TH_SLOT_EXTRA edit left out or made alone on JLC's own slot (so it holds once the fallback is shipped too)
-    with open(os.path.join(ROOT, "docs", "building", "ordering.md")) as f:
-        row = next(ln for ln in f if ln.startswith("| JLCPCB | Encoder lug slots"))
-    edits = re.search(r"`SLOT` in `pcb/board\.py` to (\([\d., ]+\)).*slot length in `TH_SHEET` to (\([\d., ]+\)) and "
-                      r"its `TH_SLOT_EXTRA` to ([\d.]+)", row)
-    assert edits, row
-    code = BOARD + f"SLOT, LENGTH, EXTRA = {edits[1]}, {edits[2]}, {edits[3]}" + r"""
-sheet, slot0, extra0 = check.TH_SHEET["C19270361"], board.SLOT, check.TH_SLOT_EXTRA.get("C19270361", 0.0)
-JLC = (1.5, 2.6), 2.6                              # JLC's own footprint of C19270361: the slot, and its length
+def test_the_encoder_lug_slots_fit_jlcs_footprint_only_with_their_allowance(made):
+    # the lug slots are drawn 1.5 x 3.0, 0.4 mm longer than JLC's own footprint of C19270361, for JLCPCB's 2:1 slot
+    # rule: check.tht_footprints passes on the board as shipped, and fails without TH_SLOT_EXTRA or with the slots
+    # drawn as JLC's 1.5 x 2.6 under it
+    code = BOARD + r"""
+sheet, slot0, extra0 = check.TH_SHEET["C19270361"], board.SLOT, check.TH_SLOT_EXTRA["C19270361"]
 def footprints(slot, length, extra):
     board.SLOT, check.TH_SLOT_EXTRA["C19270361"] = slot, extra
     check.TH_SHEET["C19270361"] = (sheet[0], (sheet[1][0], length))
     parts, bad = check.assembly_files()             # CPL-full.csv: the slots' length leaves it as made
     return run(check.tht_footprints, board.build(), parts) + bad
 with case():
-    print("RESULT as shipped", footprints(slot0, sheet[1][1], extra0))
-    print("RESULT the fallback", footprints(SLOT, LENGTH, EXTRA))
-    print("RESULT without TH_SLOT_EXTRA", footprints(SLOT, LENGTH, 0.0))
-    print("RESULT TH_SLOT_EXTRA alone", footprints(*JLC, EXTRA))
+    print("RESULT as shipped", slot0, extra0, footprints(slot0, sheet[1][1], extra0))
+    print("RESULT without TH_SLOT_EXTRA", footprints(slot0, sheet[1][1], 0.0))
+    print("RESULT JLC's 2.6 under it", footprints((1.5, 2.6), (2.6, 2.7), extra0))
 """
-    assert gen(made, code) == ["as shipped 0", "the fallback 0", "without TH_SLOT_EXTRA 3", "TH_SLOT_EXTRA alone 3"]
+    assert gen(made, code) == ["as shipped (1.5, 3.0) 0.4 0", "without TH_SLOT_EXTRA 3", "JLC's 2.6 under it 3"]
 
 
 def test_check_py_fails_on_a_part_changed_in_the_model(made):

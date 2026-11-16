@@ -1,11 +1,12 @@
-"""Front plate artwork for JLCCNC (1:1, mm): CNC outline + holes, laser marking, UV print.
+"""Front plate artwork for JLCCNC (1:1, mm): CNC outline + holes, laser marking.
 
-Writes avionics-panel-rev1-plate.dxf (R12, layers CUT / LASER / UV_AMBER, each with its colour in the layer
-table), reads it back against the layers built (check_dxf: mech/check_fit.py measures those), and a coloured SVG
-preview.
-The plate is black anodised aluminium. JLCCNC laser marking is single-tone (light grey on black), so the
-white legends and frame lines are LASER; the amber shift legends and knob functions are UV printed
-(UV_AMBER). Geometry follows pcb/board.py and mech/stack.py, as the 3D view does.
+Writes avionics-panel-rev1-plate.dxf (R12, layers CUT / LASER, each with its colour in the layer table), reads it
+back against the layers built (check_dxf: mech/check_fit.py measures those), and an SVG preview.
+The plate is black anodised aluminium. JLCCNC laser marking is single-tone (light grey on black), and every mark
+is laser marked: the frame, the titles, the knob legends and the shift legends under the keys and on the knobs'
+outer arcs. Those shift legends (SHIFT_MARKS) are told apart by where they sit, under the keys and outside the
+knobs' plain legends; check_fit.py holds them to the holes. Geometry follows pcb/board.py and mech/stack.py, as the
+3D view does.
 """
 import math
 import sys
@@ -32,11 +33,13 @@ HOLE = S.KEY_HOLE
 SHAFT_HOLE, RANGE_HOLE = S.SHAFT_HOLE, S.RANGE_HOLE
 
 SHIFT_LEGENDS = [[shift for _, shift in row] for row in S.KEY_LEGENDS]   # stack.py holds the legends
-# knob legends on the side facing the keys: (position, white text, amber text or None), one type size
+# knob legends on the side facing the keys: (position, plain text, shift text or None), one type size
 KNOBS = {name: (pos, *S.KNOB_LEGENDS[name])
          for name, pos in (("ALTHDG", B.ALTHDG), ("RANGE", B.RANGE), ("FREQ", B.FREQ), ("FMS", B.FMS))}
 
-layers = {"CUT": [], "LASER": [], "UV_AMBER": []}     # closed polygons, PCB coordinates (y down)
+# closed polygons, PCB coordinates (y down), drawn as the layers' parts: the shift legends ("SHIFT") go to LASER
+# with the rest (below) and stay apart as SHIFT_MARKS
+layers = {"CUT": [], "LASER": [], "SHIFT": []}
 
 
 # ---------------- geometry helpers ----------------
@@ -145,7 +148,7 @@ layers["CUT"].append(circle(*B.RANGE, RANGE_HOLE / 2))
 for (lx, ly), _, _ in B.LEDS.values():
     layers["CUT"].append(circle(lx, ly, S.LIGHT_HOLE / 2, 36))
 
-# ---------------- LASER: frame, titles, white knob legends, pan arrows ----------------
+# ---------------- LASER: frame, titles, knob legends, pan arrows ----------------
 def em(mm):
     return mm / S.PLATE_TEXT["cap"]                     # a capital height in mm as the font's em
 FRAME, TITLE = S.key_frame(B.COLS, B.ROWS), S.GROUP_TITLE   # stack.py holds the frame and the titles
@@ -198,7 +201,7 @@ for name, ((kx, ky), main, shift) in KNOBS.items():
     r0 = S.RANGE_ART["legend_r"] if name == "RANGE" else S.OUTER_KNOB["d"] / 2 + KL["off"]
     arc_text("LASER", [(main, SEMI, em(KL["size"]))], kx, ky, r0, mid, KL["track"])
     if shift:
-        arc_text("UV_AMBER", [(shift, SEMI, em(KL["size"]))], kx, ky, r0 + KL["shift_off"], mid, KL["track"])
+        arc_text("SHIFT", [(shift, SEMI, em(KL["size"]))], kx, ky, r0 + KL["shift_off"], mid, KL["track"])
 rx, ry = B.RANGE
 for i in range(4):                                           # pan arrows, outside the skirt (check_fit.py)
     a = i * math.pi / 2
@@ -206,23 +209,27 @@ for i in range(4):                                           # pan arrows, outsi
     px, py = rx + S.RANGE_ART["arrow_r"] * c, ry + S.RANGE_ART["arrow_r"] * s
     layers["LASER"].append([(px + u * c - v * s, py + u * s + v * c) for u, v in S.RANGE_ART["arrow"]])
 
-# ---------------- UV_AMBER: shift legends under the keys ----------------
+# ---------------- SHIFT (laser marked): shift legends under the keys ----------------
 SL = S.SHIFT_LEGEND
 for rI, y in enumerate(B.ROWS):
     for cI, x in enumerate(B.COLS):
         t = SHIFT_LEGENDS[rI][cI]
         if t.endswith("⇆"):
-            flip_legend("UV_AMBER", t, x, y + CAP[1] / 2 + SL["dy"], SEMI, em(SL["size"]), SL["track"])
+            flip_legend("SHIFT", t, x, y + CAP[1] / 2 + SL["dy"], SEMI, em(SL["size"]), SL["track"])
         elif t:
-            text("UV_AMBER", t, x, y + CAP[1] / 2 + SL["dy"], SEMI, em(SL["size"]), SL["track"])
+            text("SHIFT", t, x, y + CAP[1] / 2 + SL["dy"], SEMI, em(SL["size"]), SL["track"])
+
+
+SHIFT_MARKS = layers.pop("SHIFT")                       # laser marked, after the other marks
+layers["LASER"] += SHIFT_MARKS
 
 
 # ---------------- writers ----------------
 # A minimal DXF HEADER: $INSUNITS 4 = millimetres (CAM reads it as the drawing unit; R12 readers that do not know
 # it skip it), $MEASUREMENT 1 = metric.
 DXF_HEADER = ["0", "SECTION", "2", "HEADER", "9", "$INSUNITS", "70", "4", "9", "$MEASUREMENT", "70", "1", "0", "ENDSEC"]
-# The layers' colours in a CAD program (AutoCAD colour index): CUT grey, LASER white, UV_AMBER orange.
-DXF_COLOUR = {"CUT": 8, "LASER": 7, "UV_AMBER": 30}
+# The layers' colours in a CAD program (AutoCAD colour index): CUT grey, LASER white.
+DXF_COLOUR = {"CUT": 8, "LASER": 7}
 
 
 def dxf_tables():
@@ -303,7 +310,7 @@ def check_dxf(path):
 
 
 def write_svg(path):
-    colours = {"CUT": ("none", "#202020"), "LASER": ("#d8dadd", "none"), "UV_AMBER": (S.AMBER["hex"], "none")}
+    colours = {"CUT": ("none", "#202020"), "LASER": ("#d8dadd", "none")}
     w, h = B.W + 2 * OVH, B.H + 2 * OVH
     body = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}mm" height="{h}mm" viewBox="{-OVH} {-OVH} {w} {h}">',
             f'<rect x="{-OVH}" y="{-OVH}" width="{w}" height="{h}" fill="#2d2f33"/>']

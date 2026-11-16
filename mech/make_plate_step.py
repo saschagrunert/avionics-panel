@@ -4,7 +4,7 @@ features and the notes on sheet 1, the front with its marking on sheet 2.
 6061 aluminium, milled from 12 mm stock, black anodised: a 4 mm web and five round bosses on its back (at the
 four corner mounts and in the middle of the key field), each tapped M3 from its end face, 10.55 mm high in all, and
 a tongue on its back edge over the USB-C socket (stack.USB_TONGUE), shorter than the bosses. Front face (+Z) is
-flat: laser marking and UV print follow the DXF from make_plate_art.py, in the same coordinates. Back face (Z = 0):
+flat: the laser marking follows the DXF from make_plate_art.py, in the same coordinates. Back face (Z = 0):
 pockets for the encoder and RANGE bodies, the bosses, which stand down to the PCB, and the tongue. The front is
 faced first; then everything else is machined from the back in one setup, so the 4 mm web is never faced while it
 is held on its bosses.
@@ -35,6 +35,7 @@ NAME = "avionics-panel-rev1-plate"          # the STEP, the DXF and the drawing 
 OVH, T = S.OVH, S.PLATE_T
 PW, PH = B.W + 2 * OVH, B.H + 2 * OVH
 LIGHT_TOL = f"+{S.LIGHT_HOLE_TOL[0]}/-{S.LIGHT_HOLE_TOL[1]:g}"      # light holes: never smaller
+RANGE_TOL = f"+{S.RANGE_HOLE_TOL[0]}/-{S.RANGE_HOLE_TOL[1]:g}"      # RANGE hole: the hub's room and the skirt's cover
 KEY_TOL = f"+{S.KEY_HOLE_TOL[0]}/-{S.KEY_HOLE_TOL[1]:g}"            # key holes, after anodising
 BOSS, TAP, TONGUE = S.BOSS, S.TAP, S.USB_TONGUE
 STOCK = 12.0                     # plate stock, mm: web and bosses are 10.55 (up to 10.7), the next common size
@@ -82,7 +83,7 @@ def build():
     cx, cy = P(*B.RANGE)
     tools.append(cyl(S.RANGE_HOLE / 2, -e, T + e, cx, cy))
     tools.append(cyl(S.RANGE_POCKET[0] / 2, -e, S.RANGE_POCKET[1], cx, cy))
-    features.append(("RANGE hole", f"dia {S.RANGE_HOLE}", "through", 1))
+    features.append(("RANGE hole", f"dia {S.RANGE_HOLE} {RANGE_TOL}", "through", 1))
     features.append(("RANGE pocket", f"dia {S.RANGE_POCKET[0]}",
                      f"{S.RANGE_POCKET[1]} +0/-{S.POCKET_TOL} deep from back, floor corner R{S.POCKET_FLOOR_R} max", 1))
     for name, ((lx, ly), _, _) in B.LEDS.items():
@@ -180,12 +181,14 @@ def drawing_notes(vol):
         f"Encoder pockets and RANGE pocket: floor corner (inside radius between wall and floor) at most "
         f"{S.POCKET_FLOOR_R} mm; the parts' top corners come within about 0.2 mm of the pocket walls.",
         "Finish: black anodised, matte (bead blasted before anodising); the pockets may be anodised or bare, but "
-        "all pockets alike (all anodised or all bare). Anodising rack contacts on the back face, on the boss end "
-        "faces or inside the pockets; never on the front face, the outline or the key holes.",
+        "all pockets alike (all anodised or all bare). Anodising rack contacts on the back face, inside the pockets "
+        "or in the bores of the three encoder holes and the RANGE hole (the knobs hide them); never on the boss end "
+        "faces (they set the plate height), the front face, the outline or the key holes.",
         f"Key holes {S.KEY_HOLE[0]} x {S.KEY_HOLE[1]} {KEY_TOL} after anodising (never smaller: the key caps "
         f"centre the board in them), corners R{S.KEY_HOLE[2]}, R{S.KEY_HOLE_R_MAX} max. Light holes dia "
         f"{S.LIGHT_HOLE} {LIGHT_TOL} before anodising (never smaller: the light pipes slide in them, with room for "
-        "the coating). "
+        f"the coating). RANGE hole dia {S.RANGE_HOLE} {RANGE_TOL} before anodising (the control's hub tilts in it, "
+        "and the knob's skirt covers it). "
         f"Deburr all edges: edge break at most {S.FRONT_BREAK} on the front outline and hole edges; on the back "
         f"edges of the key holes {S.KEY_BACK_BREAK} to {S.KEY_BACK_BREAK_MAX} (a lead-in for the key caps); the light "
         f"holes' back edges sharp, deburred only ({S.LIGHT_HOLE_BACK_BREAK} max: the light pipes' shoulders bear "
@@ -195,17 +198,13 @@ def drawing_notes(vol):
 
 def marking_notes():
     """the notes on sheet 2, the marking, one paragraph each."""
-    r, g, b = S.AMBER["rgb"]
-    k = 1 - max(r, g, b) / 255
-    cmyk = [round(100 * (1 - v / 255 - k) / (1 - k)) for v in (r, g, b)] + [round(100 * k)]
     n = {layer: len(polys) for layer, polys in PA.layers.items()}
     return [
         f"Marking on the front face per {NAME}.dxf, at 1:1 in mm, from the same origin as this view and the model: "
         "the plate's bottom-left corner seen from the front, X to the right, Y up. Position it by the outline.",
-        f"Layer LASER ({n['LASER']} closed contours, shown light): laser marking. Layer UV_AMBER ({n['UV_AMBER']} "
-        f"closed contours, shown in its colour): UV print, amber, sRGB {r} / {g} / {b} ({S.AMBER['hex'].upper()}), "
-        f"CMYK {' / '.join(map(str, cmyk))}. Layer CUT ({n['CUT']} closed contours): the outline and the through "
-        "holes, for reference; cut per the model.",
+        f"Layer LASER ({n['LASER']} closed contours, shown light): laser marking, the anodising's one tone; no UV "
+        f"print and no other colour. Layer CUT ({n['CUT']} closed contours): the outline and the through holes, for "
+        "reference; cut per the model.",
         "Fill the closed contours even-odd: a contour inside a letter is its counter, not ink. No stroke of the "
         f"marking is under {S.MARK_STROKE_MIN} mm wide.",
     ]
@@ -267,7 +266,6 @@ def front_sheet(plt):
     layers = PA.dxf_layers()
     patch(PA.filled(layers["CUT"]), fc="#2d2f33", ec="k", lw=0.8)      # the plate, its holes open
     patch(PA.filled(layers["LASER"]), fc="#f2f2f2", ec="none")
-    patch(PA.filled(layers["UV_AMBER"]), fc=S.AMBER["hex"], ec="none")
     ax.plot([-4, 4], [0, 0], color="k", lw=0.6); ax.plot([0, 0], [-4, 4], color="k", lw=0.6)   # the origin
     ax.annotate("0, 0: origin of the DXF and the model", (0, 0), xytext=(-4.5, -3.2), ha="left", va="top",
                 fontsize=6.5)

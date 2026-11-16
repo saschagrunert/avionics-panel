@@ -11,9 +11,9 @@ come from stack.py (datasheet shaft dimensions); each part has its bottom at z =
               relieved by one groove (stack.RANGE_RIBS); the underside is dished from the hub to the skirt's
               rim, so the rim clears the plate at full tilt, cocked on the lever by its play and pushed.
   light pipes translucent resin, stepped: a base that stands on the board over the LED's cutout, up to a
-              shoulder under the plate back, and the rod through the plate hole; captive, no glue. All three
-              are printed as one part on a snap-off bar under their bases (JLC3DP's minimum resin part is 10 x 2
-              x 2 mm), on 1.0 mm necks (resin pillars 1.0 min.).
+              shoulder under the plate back, and the rod through the plate hole; captive, no glue. One pipe in
+              the file, ordered PIPE_ORDER times (JLC3DP's minimum resin part is 10 x 2 x 2 mm); with
+              stack.PIPE_ON_BAR, the fallback, all three on a snap-off bar under their bases.
 The knobs are held by friction only, so each of the four (outer ring, FMS ring, inner, RANGE) comes with six
 bores, 0.1 mm apart (stack.FIT_VARIANTS): knob-<type>-1 has the tightest, knob-<type>-6 the loosest, and as many
 dimples on its underside as its number, with a gap after the third (stack.KNOB_MARK). The one to keep goes on by
@@ -165,21 +165,28 @@ def light_pipe():
     return fuse(base, cyl((S.LIGHT_HOLE - pp["clear"]) / 2, pp["base_len"] - 0.01, pp["len"]))   # joined in the base
 
 
-PIPE_PITCH = 12.0                 # the light pipes on their bar, axis to axis
+PIPE_PITCH = 12.0                 # the light pipes on their bar (the fallback), axis to axis
 PIPES = 3                         # one for each light (pcb/board.py LEDS)
+# single pipes to order, one spare for each (the fallback: 2 bars); check_fit.py holds ordering.md's quantity to it
+PIPE_ORDER = 2 if S.PIPE_ON_BAR else 2 * PIPES
 
 
 def light_pipe_bar(pitch=PIPE_PITCH, n=PIPES):
-    """The light pipes in a row on one snap-off bar: JLC3DP prints resin parts from 2 x 2 x 10 mm only. The bar
-    runs under the bases on thin necks, so the visible tops stay as printed; sand the stubs flat after breaking
-    off."""
-    pp = S.PIPE
-    nr, neck = pp["neck_d"] / 2, pp["neck_len"]                          # neck: the stub left after breaking off
-    bw, bh = pp["bar"]                                                    # at least 2 x 2: the part's minimum
+    """The fallback (stack.PIPE_ON_BAR): the light pipes in a row on one snap-off bar, for a pipe shorter than
+    JLC3DP's least resin part (2 x 2 x 10 mm). The bar runs under the bases on thin necks, so the visible tops stay
+    as printed; sand the stubs flat after breaking off."""
+    pb = S.PIPE_BAR
+    nr, neck = pb["neck_d"] / 2, pb["neck_len"]                          # neck: the stub left after breaking off
+    bw, bh = pb["bar"]                                                    # at least 2 x 2: the part's minimum
     out = box(-bw / 2, -bw / 2, -neck - bh, (n - 1) * pitch + bw / 2, bw / 2, -neck)
     for i in range(n):
         out = fuse(out, fuse(move(light_pipe(), dx=i * pitch), cyl(nr, -neck - 0.01, 0.01, i * pitch, 0)))
     return out
+
+
+def light_pipes():
+    """lightpipes.step: one pipe, which JLC3DP prints PIPE_ORDER times, or with stack.PIPE_ON_BAR the bar."""
+    return light_pipe_bar() if S.PIPE_ON_BAR else light_pipe()
 
 
 # the four knobs: (file name part, FLUTES name, solid function, its arguments before the bore's number), and how
@@ -196,7 +203,7 @@ def parts():
     its bores (stack.FIT_VARIANTS), then the light pipes."""
     out = [(f"avionics-panel-rev1-knob-{name}-{n}", solid, (*args, n))
            for name, _kind, solid, args in KNOBS for n in S.FIT_VARIANTS]
-    return out + [("avionics-panel-rev1-lightpipes", light_pipe_bar, ())]   # the pipes are alike: any one in any hole
+    return out + [("avionics-panel-rev1-lightpipes", light_pipes, ())]   # the pipes are alike: any one in any hole
 
 
 def build(part):

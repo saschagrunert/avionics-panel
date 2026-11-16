@@ -345,6 +345,14 @@ def slot_xy(p):
     return (w, ln) if p.h >= p.w else (ln, w)
 
 
+def slot_ring_xy(p):
+    """The inner-plane ring of a slotted pad of the plane's net, along x and along y: THERMAL_RING round the slot,
+    and along it at least as long as the outer pad (the encoder lugs' board.SLOT_RING at the slot ends)."""
+    sw, sh = slot_xy(p)
+    rw, rh = sw + 2 * THERMAL_RING, sh + 2 * THERMAL_RING
+    return (rw, max(rh, p.h)) if p.h >= p.w else (max(rw, p.w), rh)
+
+
 def plane(layer, net, fname, func):
     """Inner plane: solid copper, anti-pads around every hole of another net, thermals on THT pads of its own net,
     and nothing narrower than PLANE_MIN_W."""
@@ -367,12 +375,12 @@ def plane(layer, net, fname, func):
         if not p.drill:
             continue
         if p.slot:
-            sw, sh = slot_xy(p)
             if p.net == net:
                 thermals.append(p)
-                ring = 2 * (THERMAL_RING + THERMAL_GAP)
-                clear("O", sw + ring, p.x, p.y, sh + ring)
+                rw, rh = slot_ring_xy(p)
+                clear("O", rw + 2 * THERMAL_GAP, p.x, p.y, rh + 2 * THERMAL_GAP)
             else:
+                sw, sh = slot_xy(p)
                 clear("O", sw + 2 * PLANE_CLEAR, p.x, p.y, sh + 2 * PLANE_CLEAR)
         else:
             if p.net == net:
@@ -415,9 +423,9 @@ def plane(layer, net, fname, func):
     dropped = []
     for p in thermals:
         if p.slot:
-            sw, sh = slot_xy(p)
-            g.flash(g.ap("O", sw + 2 * THERMAL_RING, sh + 2 * THERMAL_RING), p.x, p.y)
-            lx, ly = sw / 2 + THERMAL_RING + THERMAL_GAP + 0.1, sh / 2 + THERMAL_RING + THERMAL_GAP + 0.1
+            rw, rh = slot_ring_xy(p)
+            g.flash(g.ap("O", rw, rh), p.x, p.y)
+            lx, ly = rw / 2 + THERMAL_GAP + 0.1, rh / 2 + THERMAL_GAP + 0.1
         else:
             g.flash(g.ap("C", p.drill + 2 * THERMAL_RING), p.x, p.y)
             lx = ly = p.drill / 2 + THERMAL_RING + THERMAL_GAP + 0.1

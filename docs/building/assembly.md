@@ -17,10 +17,10 @@ the bosses. The nearest caps and shafts are about 10 mm in.
 1. Caps: lay the board face up with J1 at the back; its front edge is the one away from J1. Push each cap of
    the [chosen set](bring-up.md#choosing-the-cap-set) onto the key whose name is printed in front of it
    (SHIFT: the key with the SHIFT light's cutout in front of it), legend upright, until it sits on the plunger
-   top. For a cap that is loose or too tight on its key, take the same legend from the next set. The tactile
-   bars of SHIFT and DN are then at the front edge, the bar of UP at the back edge. Square the caps: hold a
-   steel rule against the front edges of each row and turn every cap until its edge lies flat on the rule. A
-   cap left turned rubs in its hole or lands on the plate back instead.
+   top. A cap that is loose or too tight on its key: [Choosing the cap set](bring-up.md#choosing-the-cap-set)
+   says what then. The tactile bars of SHIFT and DN are then at the front edge, the bar of UP at the back
+   edge. Square the caps: hold a steel rule against the front edges of each row and turn every cap until its
+   edge lies flat on the rule. A cap left turned rubs in its hole or lands on the plate back instead.
 2. Light pipes (before or after step 1): first check that the board is flat enough for them. Stand the steel
    rule on its edge on the board's top face, along the front edge (the strip in front of the keys is free of
    parts). Fold a sheet of printer paper once (about 0.2 mm) and try it under the rule at the middle and,
@@ -29,14 +29,14 @@ the bosses. The nearest caps and shafts are about 10 mm in.
    folded sheet: sand each pipe's base a single sheet's thickness (about 0.1 mm) past flush, so its top sits
    that much deeper, and check in step 3 that the board comes to rest on the bosses, not on a pipe.
 
-   Break the three pipes off their bar and sand the stubs flush with the base on fine sandpaper laid on the
-   table, no further (the visible tops stay as printed). Necks that JLC3DP printed thicker than drawn ([Review
-   questions](ordering.md#review-questions)) do not snap cleanly: cut each next to its pipe's base with a side
-   cutter instead. The three pipes are the same. Lay the plate face down on the blocks and the cloth. Drop a
-   pipe, rod first, into each of the three small round holes among the key holes: one between the front row of
-   key holes and the front edge, one between the two front rows and one between the two middle rows. Each
-   rests on its shoulder on the plate back. A rod that has grown too tight for its hole (resin keeps changing
-   size in its first week) sands free in a fold of the fine sandpaper.
+   Take three pipes and sand the support nubs on each base's bottom face flush on fine sandpaper laid on the
+   table, no further (the visible tops stay as printed); the other three are spares. Pipes that came on a bar
+   ([Review questions](ordering.md#review-questions)) are snapped off it first and their stubs sanded the same
+   way. The pipes are all the same. Lay the plate face down on the blocks and the cloth. Drop a pipe, rod
+   first, into each of the three small round holes among the key holes: one between the front row of key holes
+   and the front edge, one between the two front rows and one between the two middle rows. Each rests on its
+   shoulder on the plate back. A rod that has grown too tight for its hole (resin keeps changing size in its
+   first week) sands free in a fold of the fine sandpaper.
 3. Board: lower it face down into the plate, J1 towards the plate's tongue. The caps drop into their key
    holes and centre the board, and it comes to rest on the five bosses, the pipes' bases standing clear under
    it. Look at the face between the blocks: every cap must stand up through its hole. One that sits on the
@@ -82,6 +82,13 @@ the marks cannot be read, any of the six that goes on by hand and holds is the o
 changing size in its first week, so fit the knobs a few days after they arrive. The FMS knob takes the outer
 ring with the 14 deep flutes; ALT/HDG and FREQ take the rings with 24 fine ones.
 
+Unsanded knobs (Surface Finish No, the default in [JLC3DP](ordering.md#jlc3dp)) come with their support marks
+on: small nubs on the bottom faces, the faces towards the plate and the outer ring; sanded ones come with them
+gone, and need this only where a nub is left to feel. Before trying a knob, sand them flush: the outer rings
+and the inner knobs on the fine sandpaper laid on the table, a few strokes at a time until the face is flat
+all over and no further; the RANGE knob's dished underside with the sandpaper over a fingertip, until no nub
+is left to feel. Keep the dimples open.
+
 For each shaft, try the six bores from the loosest (6) to the tightest (1) and keep the first that grips,
 so no tight knob has to be pulled off again. A knob goes on by hand, the panel face up on the desk; one that
 grips stays on when the panel is turned over and does not wobble.
@@ -98,8 +105,8 @@ grips stays on when the panel is turned over and does not wobble.
   the looser one tried before it, and keep it if it holds and passes the checks above. If it does not, the
   shaft falls between two bores and that knob needs a second order
   ([why](../architecture/mechanics.md#knobs)).
-- An outer ring that rubs the plate when turned (the encoders' heights vary, and so does a support mark
-  left on its bottom face): take it off, sand its bottom face on the fine sandpaper laid on the table, a few
+- An outer ring that rubs the plate when turned (the encoders' heights vary, or a support mark was left
+  on its bottom face): take it off, sand its bottom face on the fine sandpaper laid on the table, a few
   strokes at a time, until it clears. Then push the inner knob: it must still click without touching the
   ring.
 - An inner knob that touches its ring when pushed: sand the rim of its underside the same way.

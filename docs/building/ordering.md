@@ -22,20 +22,25 @@ Download ZIP. Write down the commit: `firmware/version.py` in the download names
 Keep with it what each shop confirms (JLCPCB's production file and placement preview, the reviewed files of
 JLCCNC and JLC3DP) and every review answer you accept.
 
-1. Before spending anything, two quotes:
-   - The key caps: their price moves the panel's by several hundred dollars. Upload `caps-A.zip` to JLC3DP's
-     quote page with Full Color Resin (WJP), Color Multicolor; that needs no order. JLC3DP prices
-     WJP from $5 a part and asks for one model per file, and each zip holds a set of 28 separate caps. If the
-     quote takes the zip as one part, the four sets start at about $20; if it counts 28 parts, at $560. Then
-     ask their support: "Will you print this file, a set of 28 separate key caps, as it is, and price it as
-     one part?" A no means the higher price, or that JLC3DP does not print the file at all; if they want one
-     model per file, the caps go in from the `caps-single-*.zip` files ([JLC3DP](#jlc3dp)). Joining the caps
-     on runners is no way round it: JLC3DP's connected-parts printing excludes WJP. Keep their answer for
-     step 5.
+1. Before spending anything, three quotes:
+   - The key caps: their price moves the panel's by over a hundred dollars. Upload `caps-B.zip` to JLC3DP's
+     quote page with Full Color Resin (WJP), Color Multicolor; that needs no order. JLC3DP prices WJP at about
+     €4.77 a part (Surface Finish No) and asks for one model per file, and the zip holds a set of 28 separate
+     caps. If the quote takes the zip as one part, the set and the three gauge caps come to about €20; if it
+     counts each cap as a part (31), about €150. Then ask their support: "Will you print this file, a set of
+     28 separate key caps, as it is, and price it as one part?" A no means the higher price, or that JLC3DP
+     does not print the file at all; if they want one model per file, the caps go in from `caps-single-B.zip`
+     ([JLC3DP](#jlc3dp)). Joining the caps on runners is no way round it: JLC3DP's connected-parts printing
+     excludes WJP. Keep their answer for step 5.
    - The plate: upload it to [JLCCNC](#jlccnc) with the settings and the remark there, and submit it with
      review before payment, not automatic payment. JLCCNC answers in hours; nothing is paid until step 3.
+     Ask them how long the reviewed quote holds, since the plate may wait for Y1 (step 2).
+   - The knobs, sanded or not: upload the 24 knob files to JLC3DP's quote page twice, once with Surface
+     Finish No and once with Yes: Sanding, General Sanding, and compare the two totals; that needs no order
+     either. Unsanded saves the sanding fee and costs about an hour of sanding at home; sanded comes with the
+     support marks gone. Choose by the difference, and order them as [JLC3DP](#jlc3dp) says for that choice.
 
-   Go on once you have both answers.
+   Go on once you have all three answers.
 2. If JLCPCB has Y1 in stock, skip this step ([Parts and stock](#parts-and-stock)). Otherwise buy the crystals
    for Y1 into your Parts Manager stock through Global Sourcing (ten, or Parts Manager's minimum quantity if
    that is more), and the encoders from JLCPCB's stock (Parts Manager, Order Parts, JLCPCB Parts; search for
@@ -43,18 +48,28 @@ JLCCNC and JLC3DP) and every review answer you accept.
    boards (six, plus any attrition): own stock short of what the BOM step needs is not used at all. Global
    Sourcing takes 2 to 5 weeks, and step 4 can use the crystals only once Parts Manager shows them in stock.
    Steps 3, 6 and 7 need not wait.
-3. [JLCCNC](#jlccnc): pay the plate once its review has passed. If step 2 was skipped, you can instead leave
-   it unpaid until step 5 and pay it in the JLCPCB cart; whether it then ships with the boards shows at
-   checkout ([Shipping, tax and cost](#shipping-tax-and-cost)).
+3. [JLCCNC](#jlccnc): once the plate's review has passed, leave it unpaid until step 5 and pay it in the
+   JLCPCB cart, so it ships with the boards; whether it does shows at checkout
+   ([Shipping, tax and cost](#shipping-tax-and-cost)). JLCCNC's help (How to combine orders) has the way:
+   from JLCCNC, open JLCPCB's order page through JLCCNC's navigation bar for steps 4 and 5, and the cart
+   lists the plate with the boards and the printed parts; tick "All" there to pay them together. If step 2
+   has to wait longer than the reviewed quote holds, or the plate should not wait, pay it here instead: it
+   then comes as a parcel of its own.
 4. [JLCPCB](#jlcpcb): the boards. Go through the [placement preview](#placement-preview).
 5. [JLC3DP](#jlc3dp): body, key caps, knobs, light pipes, added to the JLCPCB cart, so they come in one
-   parcel with the boards ([why](#shipping-tax-and-cost)). Then pay the cart.
+   parcel with the boards ([why](#shipping-tax-and-cost)). Then pay the cart, "All" ticked (step 3).
 6. Locally: the screws and the rest of the [shopping list](#shopping-list).
 7. Optional, to run the firmware before the boards arrive: the [Pico bench](bring-up.md#pico-bench) parts.
 
 Before paying each order, read the [review questions](#review-questions) and the
-[tax lines](#shipping-tax-and-cost). Once step 1 has both answers, only the JLCPCB cart (boards and printed
-parts) waits, for Y1 (step 2).
+[tax lines](#shipping-tax-and-cost). Once step 1 has both answers, only the JLCPCB cart (boards, plate and
+printed parts) waits, for Y1 (step 2). To pay less:
+
+- One parcel: the plate and the printed parts paid in the JLCPCB cart (steps 3 and 5) ship with the boards.
+- Duty paid: pick DDP (delivered duty paid) shipping at checkout, the cheapest DDP line, so no duty, VAT or
+  carrier's fee comes on delivery.
+- Coupons: before paying, look at JLCPCB's coupons (there is usually a monthly one for SMT assembly) and at
+  JLCCNC's and JLC3DP's (Account, Coupons).
 
 ## Shopping list
 
@@ -67,13 +82,13 @@ Everything one panel needs, with its spare board:
 | ☐ | Board, assembled | 2 (PCB quantity 5; three come bare) | JLCPCB | [Settings below](#jlcpcb) | The panel; the second is the spare for the first |
 | ☐ | Front plate | 1 | JLCCNC | [Settings below](#jlccnc) | [Putting it together](assembly.md#putting-it-together) |
 | ☐ | Body | 1 | JLC3DP | [Files and processes](#jlc3dp) | Step 4 of [Putting it together](assembly.md#putting-it-together) |
-| ☐ | Key caps | 4 sets of 28 (A to D) | JLC3DP | [Files and processes](#jlc3dp); one set fits, the others are spares | [Choosing the cap set](bring-up.md#choosing-the-cap-set) |
+| ☐ | Key caps | 28 + 3: set B in full, and the AP cap of sets A, C and D as gauges | JLC3DP | [Files and processes](#jlc3dp) | [Choosing the cap set](bring-up.md#choosing-the-cap-set) |
 | ☐ | Knobs | 42: the panel's 7, each in six bores | JLC3DP | [Files and processes](#jlc3dp) | [Fitting the knobs](assembly.md#fitting-the-knobs) |
-| ☐ | Light pipes | 2 bars of three pipes (1 bar spare) | JLC3DP | [Files and processes](#jlc3dp) | Step 2 of [Putting it together](assembly.md#putting-it-together) |
+| ☐ | Light pipes | 6 (3 + 3 spare) | JLC3DP | [Files and processes](#jlc3dp) | Step 2 of [Putting it together](assembly.md#putting-it-together) |
 | ☐ | Screws | 7 (5 + 2 spare) | Local; or JLCMC, EDDH-C16E1-M3-L8 (10B21 blackened, 8.8) or EDDH-S1W-M3-L8 (A2-70), its pack minimum, as an order and a parcel of their own | M3 x 8 flanged button head, ISO 7380-2, 2 mm hex socket; steel (black, 8.8 or 10.9) or stainless A2 | Step 4 of [Putting it together](assembly.md#putting-it-together) |
 | ☐ | Feet | 4 | Local | Self-adhesive silicone (high friction), up to 10 mm across | Step 4 of [Putting it together](assembly.md#putting-it-together) |
 | ☐ | USB-C cable | 1 | Local | USB-C at the panel, the other end to suit the PC (USB-A or USB-C). Data-capable (a charge-only cable shows no RPI-RP2 drive). Any straight USB-C plug within the USB-C spec fits (its limit is 12.85 x 7.0 mm, [why](../architecture/mechanics.md#plate-and-body)); avoid angled plugs and chunky or braided boots | Step 2 of [Flash and test](bring-up.md#flash-and-test), step 5 of [Putting it together](assembly.md#putting-it-together) |
-| ☐ | Fine sandpaper | 1 sheet | Local | 400 to 1000 grit | The light pipe stubs, step 2 of [Putting it together](assembly.md#putting-it-together); a knob that rubs, [Fitting the knobs](assembly.md#fitting-the-knobs) |
+| ☐ | Fine sandpaper | 1 sheet | Local | 400 to 1000 grit | The light pipes' support nubs, step 2 of [Putting it together](assembly.md#putting-it-together); the knobs' support marks and a knob that rubs, [Fitting the knobs](assembly.md#fitting-the-knobs) |
 | ☐ | Hex key | 1 | Local | 2 mm | The screws, the plate threads, the BOOT pads |
 | ☐ | Two blocks and a cloth | 2 | At home (books, wood) | At least 25 mm high | Face-down work in [Putting it together](assembly.md#putting-it-together) |
 | ☐ | Steel rule | 1 | Local | | Squaring the caps and checking the board's bow, steps 1 and 2 of [Putting it together](assembly.md#putting-it-together) |
@@ -85,16 +100,15 @@ Only if something does not fit or fails:
 | --- | --- | --- | --- |
 | ☐ | Flat file or 240 grit sandpaper on a block | Local | A square corner, a burr or a V-cut edge that does not fit the body, [On arrival](bring-up.md#on-arrival); a body wall that touches the plate, step 4 of [Putting it together](assembly.md#putting-it-together) |
 | ☐ | Flat-nose pliers | Local | A board that arrives with its rail, [On arrival](bring-up.md#on-arrival) |
-| ☐ | Side cutter (flush cutter) | Local | Light pipes printed on thicker necks, step 2 of [Putting it together](assembly.md#putting-it-together) ([Review questions](#review-questions)) |
 | ☐ | Drill, 4.2 mm, and a pin vice to turn it by hand | Local | A screw that does not pass a body hole, step 4 of [Putting it together](assembly.md#putting-it-together) |
 | ☐ | Magnifier or loupe | Local | [When bring-up fails](bring-up.md#when-bring-up-fails); the joints after [soldering](hand-soldering.md#soldering) |
 | ☐ | Soldering iron (temperature controlled), solder, flux, solder wick | Local | Rework ([Soldering](hand-soldering.md#soldering)) |
 
 ## JLCPCB
 
-4 layers, 1.6 mm, ENIG (gold-plated pads), black solder mask with white silkscreen, via covering Tented
-([why](../architecture/electronics.md#solder-mask)); everything else at JLCPCB's defaults (0.3 mm via, 1 oz
-outer copper, stackup, PCB quantity 5). Standard assembly of both sides, assembly quantity 2 (JLCPCB's
+Layers 4, PCB Thickness 1.6 mm, Surface Finish ENIG, PCB Color Black (white silkscreen), Via Covering
+Tented ([why](../architecture/electronics.md#solder-mask)); everything else at JLCPCB's defaults (0.3 mm via,
+1 oz outer copper, stackup, PCB quantity 5). Standard assembly of both sides, assembly quantity 2 (JLCPCB's
 minimum); the panel needs one, the second is the spare. Edge Rails/Fiducials: Added by JLCPCB. The form has no
 option to remove the rail: the PCB remark asks for it, and JLCPCB adds the fee for it in the review. Confirm
 Parts Placement and Confirm Production File: yes. PCB Remark:
@@ -202,67 +216,79 @@ JLCCNC's order form overrides the drawing, so set these on it (the labels may di
   the remark says no bead blasting.
 - Threads: yes (five M3).
 - Tightest tolerance: ±0.05 mm, for the boss height. At the default, ISO 2768-m, the bosses come ±0.2 mm.
-- Marking: laser marking and UV printing. The UV colour is the amber the drawing gives (sRGB 217 / 164 / 65,
-  CMYK 0 / 24 / 70 / 15); the remark asks JLCCNC to print that CMYK value and to confirm it or send a photo,
-  with orange as the fallback. Where the form only lists colour names, pick orange.
-- Appearance: Strict, which keeps rack marks and scratches off the cosmetic surface, the marked front face
-  (the remark names it). Standard allows four rack marks and five scratches wherever they do not affect
-  assembly; Premium is the level above Strict.
+- Marking: "+ Add finish", then "Laser marking"; no UV printing. The laser leaves one light grey on the black
+  anodising, so there is no colour to choose.
+- Appearance: Standard, which costs least. It allows up to four rack marks, where JLCCNC picks so that they do
+  not affect assembly, and up to five scratches under 10 mm anywhere, the front face included. The remark
+  asks for the rack marks off the front face and the boss end faces, which Standard does not promise. Strict,
+  the level above, keeps rack marks and scratches off the cosmetic surfaces, the laser-marked face among
+  them, for a price.
 
 Files: `plate.step`, `plate.pdf` (the drawing, with every tolerance, the threads, the finish, the edge
-breaks and a front view of the marking with the amber's colour values) and `plate.dxf` (the marking).
+breaks and a front view of the marking) and `plate.dxf` (the marking).
 JLCCNC pairs a model with the drawings of the same name and takes the threads, the marking and the
 tolerances from them. The plate's line must then show both `plate.pdf` and `plate.dxf`; if it shows one,
 upload `plate.step`, `plate.pdf` and `plate.dxf` together as one zip. Remark:
 
 > Machined to the drawing avionics-panel-rev1-plate.pdf; all its notes and tolerances apply, also where they
 > are tighter than your general tolerance. Threads M3-6H, plugged through blasting and anodising (your
-> standard under M5); they must gauge afterwards. Anodising rack contacts on the back face, on the boss end
-> faces or inside the pockets; never on the front face, the outline or the key holes. The front face is the
-> cosmetic surface. Marking per avionics-panel-rev1-plate.dxf: layer LASER is laser marking, layer UV_AMBER is
-> UV print in the amber the drawing gives; layer CUT (the outline and the through holes) is for reference
-> only. Please print the amber at the drawing's CMYK 0 / 24 / 70 / 15 and confirm it, or send a photo of the
-> print, before shipping; if it cannot be matched, orange.
+> standard under M5); they must gauge afterwards. Anodising rack contacts on the back face, inside the
+> pockets or in the bores of the three encoder holes and the RANGE hole; never on the boss end faces, the
+> front face, the outline or the key holes. The front face is the cosmetic surface. Marking per
+> avionics-panel-rev1-plate.dxf: layer LASER is laser marking, no UV print; layer CUT (the outline and the
+> through holes) is for reference only.
 
 ## JLC3DP
 
 | File | Quantity | Process | Part |
 | --- | --- | --- | --- |
 | `body.step` | 1 | MJF PA12-HP, dyed black | Body |
-| `caps-A.zip`, `caps-B.zip`, `caps-C.zip`, `caps-D.zip` | 1 each | Full Color Resin (WJP), Color Multicolor, Surface Finish No | Four sets of 28 key caps |
-| `knob-outer-1.step` to `knob-outer-6.step` | 2 each | SLA Black Resin, Surface Finish Yes: Sanding, General Sanding | Outer rings of ALT/HDG and FREQ |
-| `knob-outer-fms-1.step` to `knob-outer-fms-6.step` | 1 each | SLA Black Resin, Surface Finish Yes: Sanding, General Sanding | Outer ring of FMS (coarser grip) |
-| `knob-inner-1.step` to `knob-inner-6.step` | 3 each | SLA Black Resin, Surface Finish Yes: Sanding, General Sanding | Inner knobs |
-| `knob-range-1.step` to `knob-range-6.step` | 1 each | SLA Black Resin, Surface Finish Yes: Sanding, General Sanding | RANGE knob |
-| `lightpipes.step` | 2 | SLA 8001 Resin, translucent, Surface Finish No | Three light pipes on one bar; the second bar is the spare |
+| `caps-B.zip` | 1 | Full Color Resin (WJP), Color Multicolor, Surface Finish No | The 28 key caps, set B |
+| `cap-A-01-AP.zip`, `cap-C-01-AP.zip`, `cap-D-01-AP.zip`, from `caps-single-A.zip`, `caps-single-C.zip` and `caps-single-D.zip` | 1 each | Full Color Resin (WJP), Color Multicolor, Surface Finish No | Gauge caps: the AP cap of sets A, C and D |
+| `knob-outer-1.step` to `knob-outer-6.step` | 2 each | SLA Black Resin, Surface Finish No | Outer rings of ALT/HDG and FREQ |
+| `knob-outer-fms-1.step` to `knob-outer-fms-6.step` | 1 each | SLA Black Resin, Surface Finish No | Outer ring of FMS (coarser grip) |
+| `knob-inner-1.step` to `knob-inner-6.step` | 3 each | SLA Black Resin, Surface Finish No | Inner knobs |
+| `knob-range-1.step` to `knob-range-6.step` | 1 each | SLA Black Resin, Surface Finish No | RANGE knob |
+| `lightpipes.step` | 6 | SLA 8001 Resin, translucent, Surface Finish No | One light pipe: the panel's three and three spare |
 
-That is 30 files, and the quote page takes 10 per upload: upload them in three uploads into the same cart.
-The cart submits up to 30 together (JLC3DP's FAQ; its order guide says 50), so the 30 go in one submission.
-Each knob comes in six bores, 1 the tightest and 6 the loosest, every one in the panel's quantity: 42 knobs
-([why](../architecture/mechanics.md#knobs)). Black Resin is the material of that name, not JLC Black Resin or
-Imagine Black Resin, and Full Color Resin (WJP) is not Full-Color Tough Resin. Remark:
+That is 30 files: the body, the set's zip and the three gauge caps (28 + 3 key caps), the 24 knob files and
+the light pipe, ordered 6 times. The quote page takes 10 per upload: upload them in three uploads into the
+same cart. The cart submits up to 30 together (JLC3DP's FAQ; its order guide says 50), so the 30 go in one
+submission. Each knob comes in six bores, 1 the tightest and 6 the loosest, every one in the panel's quantity:
+42 knobs ([why](../architecture/mechanics.md#knobs)). Black Resin is the material of that name, not JLC Black
+Resin or Imagine Black Resin, and Full Color Resin (WJP) is not Full-Color Tough Resin. Remark:
 
 > Please print every part as designed. Knobs: supports on the bottom faces only, none inside the bores and
-> recesses; support marks sanded flush, no more than 0.05 mm proud. The bores hold the knobs by friction:
-> leave them as printed, with no sanding, blasting, oil or coating inside; General Sanding is for the outside
-> only. The 1.0 mm dimples in the knobs' undersides number the bores: keep them open, do not fill them. The
-> 1.2 mm wide, 0.25 mm deep groove along the RANGE knobs' bores (avionics-panel-rev1-knob-range-*.step) is on
-> purpose: keep it open, no supports in it. Light pipes (avionics-panel-rev1-lightpipes.step): rods up,
-> supports on the bar only; no sanding and no oil spray; the 2.0 mm rods are 4.45 mm long on purpose. Body:
-> the counterbore of the screw column in the middle is open on two sides on purpose. Key caps: no oil spray or
-> coating; the sockets hold the caps by friction and stay as printed.
+> recesses; leave the support marks on, they are sanded at home. No sanding, blasting, oil or coating: the
+> bores hold the knobs by friction and stay as printed. The 1.0 mm dimples in the knobs' undersides number the
+> bores: keep them open, do not fill them. The 1.2 mm wide, 0.25 mm deep groove along the RANGE knobs' bores
+> (avionics-panel-rev1-knob-range-*.step) is on purpose: keep it open, no supports in it. Light pipes
+> (avionics-panel-rev1-lightpipes.step): upright, rod up, supports on the base's bottom face only; no sanding
+> and no oil spray; the 2.0 mm rod is 4.45 mm long on purpose. Body: the counterbore of the screw column in
+> the middle is open on two sides on purpose. Key caps: no oil spray or coating; the sockets hold the caps by
+> friction and stay as printed.
 
-- Key caps: upload the zips, they carry the texture (the OBJ alone prints without legends). All four sets are
-  ordered at once: which one fits depends on the print ([why](../architecture/mechanics.md#key-caps)). Step 1
-  of [Order step by step](#order-step-by-step) settles their price first.
-- Key caps, one model per file, if JLC3DP asks for it in step 1: in place of `caps-A.zip` to `caps-D.zip`,
-  unzip `caps-single-A.zip` to `caps-single-D.zip`. Each holds a set's 28 caps as one zip per cap
-  (`cap-A-01-AP.zip` and so on); upload those zips, quantity 1 each, 10 per upload. With the other 26 files
-  that is 138 orders, more than the cart submits together (30, or 50 by the order guide): five submissions
-  (three at 50). In step 1, ask their support how to place them so they ship together with the boards.
-- Knobs: General Sanding, the form's default for Black Resin, sands, bead blasts and oils them. That keeps the
-  support marks within 0.05 mm; the remark keeps all of it out of the bores, whose grip the six sizes are
-  made for ([why](../architecture/mechanics.md#knobs)).
+- Key caps: upload the zips, they carry the texture (the OBJ alone prints without legends). Which of the four
+  sets fits depends on the print ([why](../architecture/mechanics.md#key-caps)): set B fits a print without
+  error best, and the three gauge caps, the AP cap of each other set, show on the bench whether a neighbour
+  fits better ([Choosing the cap set](bring-up.md#choosing-the-cap-set)). Unzip the gauge caps' zips from
+  `caps-single-A.zip`, `caps-single-C.zip` and `caps-single-D.zip`. Step 1 of
+  [Order step by step](#order-step-by-step) settles their price first.
+- Key caps, one model per file, if JLC3DP asks for it in step 1: in place of `caps-B.zip`, unzip
+  `caps-single-B.zip`. It holds the set's 28 caps as one zip per cap (`cap-B-01-AP.zip` and so on); upload
+  those zips, quantity 1 each, 10 per upload. With the three gauge caps and the other 26 files that is 57
+  orders, more than the cart submits together (30, or 50 by the order guide): two submissions. In step 1,
+  ask their support how to place them so they ship together with the boards.
+- Knobs: Surface Finish No, unless the quote in step 1 made sanding worth its price. With No the support
+  marks stay on the bottom faces, and the builder sands them flush
+  ([Fitting the knobs](assembly.md#fitting-the-knobs)). The bores stay as printed, whose grip the six sizes
+  are made for ([why](../architecture/mechanics.md#knobs)).
+- Knobs sanded instead: Surface Finish Yes: Sanding, General Sanding (the form's default for Black Resin),
+  which sands, bead blasts and oils them, in the four knob rows of the table. In the remark, replace "leave
+  the support marks on, they are sanded at home. No sanding, blasting, oil or coating: the bores hold the
+  knobs by friction and stay as printed." with "support marks sanded flush, no more than 0.05 mm proud. The
+  bores hold the knobs by friction: leave them as printed, with no sanding, blasting, oil or coating inside;
+  General Sanding is for the outside only." If their review says they cannot keep it out of the bores: No.
 - Light pipes: set Surface Finish to No. The form's default is Oil Spraying for transparent 8001 and Fine
   Sanding for translucent, and either can break the thin rods; the remark asks for neither.
 
@@ -274,18 +300,16 @@ answer of their own:
 | Shop | They may question | Answer |
 | --- | --- | --- |
 | JLCPCB | Black solder mask: 64 dams on the bottom (U1's pads, J1's contacts, C_X2 to R_X) are 0.13 mm wide, between pads 0.2 mm apart; JLCPCB's rule for a dam in black mask is a pad spacing of at least 0.13 mm (green 0.10 mm) | Check that the confirmed production file still has a dam between every pair of those pads. If any is gone, change the order to green, whose rule is 0.10 mm |
-| JLCPCB | Encoder lug slots 1.5 x 2.6 mm (1.73:1, under JLC's 2:1 slot rule) | As drawn: Bourns' recommended size and JLC's own footprint of C19270361. If refused, 1.5 x 3.0, in three edits: set `SLOT` in `pcb/board.py` to (1.5, 3.0); in `pcb/check.py`, set the C19270361 slot length in `TH_SHEET` to (3.0, 3.1) and its `TH_SLOT_EXTRA` to 0.4 (the slots then 0.4 mm longer than JLC's footprint on purpose). Run `./build.sh` and upload `gerbers.zip` again |
+| JLCPCB | Encoder lug slots 1.5 x 3.0 mm, 0.4 mm longer than JLC's own footprint of C19270361 (and Bourns' recommended 2.6) | As drawn, on purpose: 3.0 mm meets JLC's 2:1 rule for slots, and the lugs are soldered in, so the extra length only takes solder |
 | JLCPCB | The reverse-mount LEDs over their board cutouts: JLCPCB may question them, as reverse-mount parts over a cutout are rare | As designed (PCB remark): the cutouts are 2.2 x 2.6 mm with R0.5 corners, and each LED sits on its pads over its cutout ([why](../architecture/electronics.md#lights)); check it in the [placement preview](#placement-preview) |
 | JLCPCB | J1 overhangs the y = 60 mm edge by 0.5 mm | By design, as the PCB remark says: the plug reaches it through the body wall. No rail on that edge ([Edge rails](#edge-rails)) |
 | JLCPCB | A single edge rail, on y = 0 | As in the PCB remark. If the line needs a second one, it goes on a short edge (x = 0 or x = 160 mm), with no bottom-side part within 12.8 mm of either (the nearest are D_ALTHDG and D_FMS); never on the J1 edge, which J1 overhangs and C_OUT0 and U3 sit 3.7 and 6.75 mm from |
-| JLCCNC | The UV legends: capitals 1.55 and 1.7 mm high (6.1 and 6.7 pt), at the 6 pt minimum, and 0.7 mm from the key holes | Accept a sample or a little blur. Keep them where drawn: they leave 0.5 mm beyond the hole's edge break for the print's register. If JLCCNC will not print that close to a hole: laser marking for those legends, in the laser's one tone |
-| JLCCNC | The laser marking: the line between the AUDIO and RADIO keys passes 0.575 mm from the key holes beside it, where JLCCNC usually keeps 3 mm from an edge | Mark it as drawn. Where the line meets a hole's edge break it is only cosmetic: accept it fading or ending short there |
-| JLCCNC | The pocket floors: 0.95 mm over the RANGE pocket (at least 0.85 mm, the drawing's note), 1.5 mm over the encoder pockets; JLCCNC recommends 0.8 mm, and over 1.5 mm where the part is bead blasted | As drawn. Hold the pocket depths +0/-0.1 mm (a thicker floor takes the room over the parts) and the flatness after blasting. If they will not blast it as drawn: anodising without blasting (tool marks may then show); never a thicker floor, and no blasting of the front face alone, which can bow the plate |
+| JLCCNC | The laser marking's small legends: capitals 1.55 and 1.7 mm high (6.1 and 6.7 pt), strokes 0.19 mm at the thinnest. JLCCNC's marking guide gives no minimum for the laser (only lines thick enough to keep their detail); for its print it asks for 6 pt and 0.176 mm lines | Mark as drawn, which meets the print's figures too; accept a sample or a little blur |
+| JLCCNC | The laser marking near the holes: the shift legends start 0.7 mm from the key holes, and the line between the AUDIO and RADIO keys passes 0.575 mm from the key holes beside it, where JLCCNC usually keeps a 3 mm margin from an edge | Mark it as drawn. The shift legends keep 0.5 mm beyond the holes' edge breaks for the marking's register. Where the line meets a hole's edge break it is only cosmetic: accept it fading or ending short there |
+| JLCCNC | The floor over the RANGE pocket: 0.95 mm (at least 0.85 mm, the drawing's note); JLCCNC recommends 0.8 mm, and over 1.5 mm where the part is bead blasted (the floors over the encoder pockets are 1.65 mm) | As drawn. Hold the pocket depths +0/-0.1 mm (a thicker floor takes the room over the parts) and the flatness after blasting. If they will not blast it as drawn: anodising without blasting (tool marks may then show); never a thicker floor, and no blasting of the front face alone, which can bow the plate |
 | JLCCNC | The boss height, 6.55 ±0.05 mm | ±0.1 mm is acceptable, with the flatness then held to 0.15 mm (see the next row) |
 | JLCCNC | Flatness 0.1 mm: milling most of a 12 mm plate off one side can bow it, and JLCCNC publishes no flatness figure | Up to 0.2 mm is acceptable with the boss height held at ±0.05 mm, or up to 0.15 mm with the bosses at ±0.1 mm; not 0.2 mm and ±0.1 mm together ([why](../architecture/mechanics.md#light-pipes)). Stress-relieved plate (T651) helps, if they offer it |
-| JLC3DP | Light pipes: the 2.0 mm rods are 4.45 mm long, over the pillar guideline (Ø2.0 up to 4 mm) | Print as is. If they refuse: set `top_len` in `PIPE` in `mech/stack.py` to 4.0, run `./build.sh` and upload `lightpipes.step` again |
-| JLC3DP | Light pipes joined to their bar by Ø1.0 mm necks, under the 1.5 mm of the connected-parts guideline | As drawn, so the necks snap off by hand and leave a small stub to sand. If refused: set `neck_d` in `PIPE` in `mech/stack.py` to 1.6, run `./build.sh` and upload `lightpipes.step` again. Those necks do not snap cleanly: cut each next to its pipe's base with a side cutter and sand the stub flush ([Putting it together](assembly.md#putting-it-together)) |
-| JLC3DP | Knobs: General Sanding outside, the bores left as printed | As in the remark. If they cannot keep the sanding, blasting and oil out of the bores: Surface Finish No, and sand off the support marks at home, on the bottom faces as in [Fitting the knobs](assembly.md#fitting-the-knobs) |
+| JLC3DP | Light pipes: the 2.0 mm rods are 4.45 mm long, over the pillar guideline (Ø2.0 up to 4 mm) | Print as is. If they refuse: in `mech/stack.py` set `top_len` in `PIPE` to 4.0 and `PIPE_ON_BAR` to `True`, run `./build.sh` and upload `lightpipes.step` again, quantity 2 (also in the file table and the shopping list). The pipe is then 9.65 mm long, under the least part of 10 mm, so the three come on one bar on Ø1.0 mm necks that snap off by hand ([Putting it together](assembly.md#putting-it-together)); the remark then reads "supports on the bar only" |
 
 The answer to every other question is "as drawn" (JLC3DP: "print as is"). Accept a change only if it keeps
 the drawing's notes (JLCCNC) and the remarks. If a review does end in a change, change
@@ -301,9 +325,9 @@ boards (step 3). Screws from JLCMC come as an order and a parcel of their own, w
 the screws do.
 
 In the EU, up to €150 of goods the shop collects the VAT at checkout (IOSS); a flat customs duty of €3 per
-kind of goods is added at checkout or paid on delivery, with any carrier's fee. Over €150 the standard duty
-replaces the flat one, and VAT, duty and the carrier's fee are paid on delivery. Where the checkout offers DDP
-shipping (delivered duty paid), pick it: it collects all of these at checkout.
+item line declared is added at checkout or paid on delivery, with any carrier's fee. Over €150 the standard
+duty replaces the flat one, and VAT, duty and the carrier's fee are paid on delivery. Where the checkout
+offers DDP shipping (delivered duty paid), pick it: it collects all of these at checkout.
 
 JLCPCB's share with the spare board: its fees for assembling both sides come to about $130 and its parts to
 about $80, about $50 of that the encoders, before the boards, shipping, VAT and the carrier's fee. The
