@@ -332,7 +332,8 @@ class Panel:
         if not pressed:
             self.pending[name] = at
             return
-        self._freq_hold(t)                                 # a FREQ hold read late, before its release is applied
+        self._freq_hold(t, at)                             # a FREQ hold read late, as long as this event's scan
+                                                           # finds it, before its release is applied
         last = self.pending.pop(name, None)
         if last is not None:
             if at - last < BOUNCE_MS:
@@ -517,10 +518,14 @@ class Panel:
             self.flash, self.flash_squawk = (t + 1, 0), False   # before it shows the lights); the mode shows from
             self.flash_free, self.lit_at = t + 1, -FLASH_PAUSE_MS - 1   # the next ms, LIT_MIN_MS counts from there
 
-    def _freq_hold(self, t):
+    def _freq_hold(self, t, scan=None):
         """A plain FREQ push held FREQ_HOLD_MS returns the knob to COM. A release still waiting out BOUNCE_MS
-        counts as held until its scan: the push is long if it was down that long before it."""
-        if self.freq_since is not None and self.pending.get("FREQ_PUSH", t) - self.freq_since >= FREQ_HOLD_MS:
+        counts as held until its scan: the push is long if it was down that long before it. Else it counts as
+        held until scan, the scan of the event read now (key() passes it: a pass that waited for the host reads
+        seconds of events at once, in scan order, and a release scanned after this event is not read yet), or
+        until t."""
+        until = self.pending.get("FREQ_PUSH", t if scan is None else scan)
+        if self.freq_since is not None and until - self.freq_since >= FREQ_HOLD_MS:
             self._saw_lit(t)
             self.freq_mode, self.freq_since = 0, None      # (no FREQ step is queued: a turn ended the hold)
             self._count(1, t)

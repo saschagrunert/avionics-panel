@@ -430,6 +430,28 @@ def test_a_freq_hold_runs_from_the_scan_of_its_press():
     assert s.p.freq_mode == 0
 
 
+def test_a_freq_hold_read_late_counts_until_the_scan_of_each_event():
+    # a pass that waited for the host reads the events of 1.5 s at once, in scan order: a key scanned before the
+    # release judges the hold at its own scan, so a short push stays the next mode (NAV after COM), and a push
+    # released after FREQ_HOLD_MS still returns to COM, read late or not
+    long = P.FREQ_HOLD_MS + 200
+    for key, release, mode in ((100, 150, 1), (100, long, 0), (long - 100, long, 0)):   # ms after the press
+        s = Sim()
+        pressed = s.t
+        s.p.key("FREQ_PUSH", True, s.t)                                    # NAV
+        s.t += 1500                                                        # a wait for the host: no tick
+        s.p.key("AP", True, s.t, at=pressed + key)
+        s.p.key("FREQ_PUSH", False, s.t, at=pressed + release)
+        s.p.key("AP", False, s.t, at=pressed + release + 50)
+        s.run(P.BOUNCE_MS + 10)
+        assert s.p.freq_mode == mode, (key, release)
+    s = Sim()                                                              # the release alone, read late
+    pressed = s.t
+    s.p.key("FREQ_PUSH", True, s.t); s.t += 1500
+    s.p.key("FREQ_PUSH", False, s.t, at=pressed + 150); s.run(P.BOUNCE_MS + 10)
+    assert s.p.freq_mode == 1
+
+
 def squawk(s):
     """SHIFT, then one detent of the FREQ inner ring: a new squawk entry, on digit 1"""
     s.key("SHIFT"); s.turn("FREQ_INNER", 1)

@@ -16,7 +16,8 @@
 6. copper path from every RP2040 supply pin to its nearest decoupling capacitor, one capacitor of its own per
    IOVDD pin over the outer layers, and every decoupling capacitor with its own plane vias
 7. routed length of every net against its shortest tree (no detours), USB D+ / D- length and skew along each
-   line's signal path, J1 -> ESD array -> 27 R -> RP2040
+   line's signal path, J1 -> ESD array -> 27 R -> RP2040, and all trace on each line's nets, stubs too, within the
+   same length cap
 8. JLCPCB's footprint of every bottom-side part on our pads at its place and rotation in the CPL file (pad
    numbers, positions; the cathode and anode of the diodes and LEDs by the pin names of JLC's symbol), and the
    net of every pin of the RP2040, the flash, the regulator, the LED switch and the USB-C socket against its name
@@ -450,11 +451,12 @@ def symbol_pins(pads):
     bad, done = 0, []
     for lcsc in (MCU, *PIN_NET, FET):
         ours = {num: pin for pin, num in FP_PIN.get(lcsc, {}).items()}   # JLC's pad number -> our pin, where named
-        pins = jlc_footprint(lcsc)["pins"]
         refs = sorted(ref for ref, _v, lc, *_r in B.PARTS if lc == lcsc)
-        if not refs:                                        # a part whose LCSC number changed: not left unchecked
-            bad += 1
+        if not refs:                                        # a part whose LCSC number changed: not left unchecked,
+            bad += 1                                        # and its stale footprint file may be gone
             print(f"PINS {lcsc}: no part has this LCSC number; its pin table needs the part's new one")
+            continue
+        pins = jlc_footprint(lcsc)["pins"]
         for ref in refs:
             mine = {p.name.split(".", 1)[1] for p in pads if p.name.startswith(ref + ".")}
             mine = {n for n in mine if not re.fullmatch(r"[FV]\d+", n)}   # the pins: not U1's breakout points
@@ -1201,7 +1203,8 @@ def cap_vias(pads, vias):
 
 def lengths(pads, segments, vias):
     """Every net's routed length against geom.detour_limits (DETOUR_FACTOR times its shortest tree plus
-    DETOUR_SLACK), and the USB pair along its signal paths (geom.usb_paths)."""
+    DETOUR_SLACK), the USB pair along its signal paths (geom.usb_paths), and all trace on each USB line's nets,
+    stubs too, within USB_MAX (geom.usb_totals)."""
     bad = 0
     length = net_lengths(segments)
     rows = []
@@ -1217,14 +1220,15 @@ def lengths(pads, segments, vias):
           "mm; closest to the limit: " + ", ".join(f"{n} {g:.1f} / {lim:.1f}" for _r, n, g, _t, lim in rows[:4]))
     paths, ok = usb_paths(pads, segments, vias)
     bad += not ok
-    rows = ", ".join(f"row {row} D+ {r['D+']:.1f} mm, D- {r['D-']:.1f} mm, skew {abs(r['D+'] - r['D-']):.1f} mm"
+    rows = "; ".join(f"row {row} D+ {r['D+']:.1f}, D- {r['D-']:.1f}, skew {abs(r['D+'] - r['D-']):.1f} mm"
                      for row, r in paths.items())
     total = usb_totals(length)                          # stubs too: a long one passes the paths but not this
     ok = ok and max(total.values()) <= USB_MAX
     bad += max(total.values()) > USB_MAX
-    print(f"USB, J1 -> U4 -> 27 R -> U1: {rows} (max {USB_MAX:.0f} each, skew {USB_SKEW:.0f}); all trace on the "
-          f"nets, stubs too: D+ {total['D+']:.1f} mm, D- {total['D-']:.1f} mm (max {USB_MAX:.0f})  "
-          f"{'OK' if ok else 'FAIL'}")
+    # the paths run from pad centres, so a path can read longer than all of its line's trace
+    print(f"USB, J1 -> U4 -> 27 R -> U1, from pad centres: {rows} (max {USB_MAX:.0f} mm each, skew "
+          f"{USB_SKEW:.0f} mm); trace on the nets, stubs too: D+ {total['D+']:.1f} mm, D- {total['D-']:.1f} mm "
+          f"(max {USB_MAX:.0f} mm)  {'OK' if ok else 'FAIL'}")
     return bad
 
 

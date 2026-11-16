@@ -21,12 +21,27 @@ pytestmark = pytest.mark.skipif(shutil.which("nix-shell") is None,
 
 
 def gen(where, code):
-    """the lines starting with RESULT that code prints, run by the gen shell's python3 in where (pcb or mech)"""
+    """the lines starting with RESULT that code prints, run by the gen shell's python3 in where (pcb or mech, or
+    a folder)"""
     r = subprocess.run(["nix-shell", os.path.join(ROOT, "nix", "shells.nix"), "-A", "gen", "--run",
                         "python3 -c " + shlex.quote(code)],
                        cwd=os.path.join(ROOT, where), capture_output=True, text=True, timeout=600)
     assert r.returncode == 0, r.stdout + r.stderr
     return [ln.split(None, 1)[1] for ln in r.stdout.splitlines() if ln.startswith("RESULT ")]
+
+
+@pytest.fixture(scope="module")
+def made(tmp_path_factory):
+    """a copy of pcb/ with Gerbers of its own, made by make.py: pcb/gerbers may be missing (a fresh clone) or
+    being rewritten (build.sh runs the tests and the board section at once). mech/ is linked, for board.py's
+    stack.py"""
+    root = tmp_path_factory.mktemp("made")
+    pcb = root / "pcb"
+    shutil.copytree(os.path.join(ROOT, "pcb"), pcb,
+                    ignore=shutil.ignore_patterns("gerbers", "__pycache__", "avionics-panel-rev1-*"))
+    os.symlink(os.path.join(ROOT, "mech"), root / "mech")
+    gen(str(pcb), "import make")
+    return str(pcb)
 
 
 def test_check_py_fails_on_a_thin_annular_ring_and_on_small_drills():
@@ -125,40 +140,58 @@ for name, margin in (("holds", 0.1), ("under zero", -0.01), ("not a number", flo
 
 
 def test_check_py_fails_on_a_long_or_skewed_usb_line_and_on_a_long_stub():
-    # D- 10 mm longer: over USB_MAX on its path and in all (2); D+ 6 mm longer under a USB_MAX of 100: skew alone
-    # (7.7 + 6, clear of the 10 mm either way); an 8 mm dead-end stub on USB_DP_C: the paths as routed, the total
-    # over USB_MAX (1)
+    # each change sized from the margins as routed, so a re-route keeps it: D- 1 mm per side past USB_MAX, on its
+    # path and in all (2); D+ 1 mm per side past USB_SKEW under a USB_MAX raised clear of it: skew alone (1); a
+    # dead-end stub on USB_DP_C 1 mm past USB_MAX in all: the paths as routed, the total over USB_MAX (1)
     code = """
 import json, board, check, geom
 rd = json.load(open("routed.json"))
-pads, vias = board.build(), rd["vias"]
-def detour(net, at, up):    # net's segment from at, along x, replaced by a U up mm off it: 2 x up longer
-    s = next(s for s in rd["segments"] if s[5] == net and s[:2] == at)
-    (x0, y), x1 = at, s[2]
-    return [t for t in rd["segments"] if t is not s] + [[*a, *b, *s[4:]] for a, b in (
+pads, segs, vias = board.build(), rd["segments"], rd["vias"]
+paths, _ok = geom.usb_paths(pads, segs, vias)
+total = geom.usb_totals(geom.net_lengths(segs))
+def flat(net):              # net's longest segment along x
+    return max((s for s in segs if s[5] == net and s[1] == s[3]), key=lambda s: abs(s[2] - s[0]))
+def detour(net, up):        # flat(net) replaced by a U up mm off it: 2 x up longer
+    s = flat(net)
+    (x0, y), x1 = s[:2], s[2]
+    return [t for t in segs if t is not s] + [[*a, *b, *s[4:]] for a, b in (
         ((x0, y), (x0, y + up)), ((x0, y + up), (x1, y + up)), ((x1, y + up), (x1, y)))]
-stub = [124.75, 17.5, 116.75, 17.5, "F", "USB_DP_C", 0.25]
-for name, segs, most in (("as routed", rd["segments"], 50.0), ("D- long", detour("USB_DM", [134.5, 32.0], 5.0), 50.0),
-                         ("skewed", detour("USB_DP", [134.5, 33.0], 3.0), 100.0),
-                         ("stub", rd["segments"] + [stub], 50.0)):
-    geom.USB_MAX = check.USB_MAX = most
-    print("RESULT", name, geom.usb_paths(pads, segs, vias)[1], check.lengths(pads, segs, vias))
+long = (geom.USB_MAX - min(max(r["D-"] for r in paths.values()), total["D-"])) / 2 + 1
+skew = (geom.USB_SKEW - min(r["D+"] - r["D-"] for r in paths.values())) / 2 + 1
+most = max([*total.values()] + [v for r in paths.values() for v in r.values()]) + 2 * skew + 1
+x, y, *_x, ly, _n, w = flat("USB_DP_C")
+stub = [x, y, x, y - (geom.USB_MAX - total["D+"] + 1), ly, "USB_DP_C", w]
+for name, segs_, most_ in (("as routed", segs, geom.USB_MAX), ("D- long", detour("USB_DM", long), geom.USB_MAX),
+                           ("skewed", detour("USB_DP", skew), most), ("stub", segs + [stub], geom.USB_MAX)):
+    geom.USB_MAX = check.USB_MAX = most_
+    got, ok = geom.usb_paths(pads, segs_, vias)
+    print("RESULT", name, ok, got == paths, check.lengths(pads, segs_, vias))
 """
-    assert gen("pcb", code) == ["as routed True 0", "D- long False 2", "skewed False 1", "stub True 1"]
+    assert gen("pcb", code) == ["as routed True True 0", "D- long False False 2", "skewed False False 1",
+                                "stub True True 1"]
 
 
 def test_check_py_fails_on_a_pin_table_whose_lcsc_no_part_has():
+    # also once the old number's footprint file is gone: a problem counted, not a crash
     code = """
 import board, check
 pads = board.build()
 print("RESULT as built", check.symbol_pins(pads))
+old = next(lc for ref, _v, lc, *_r in board.PARTS if ref == "U3")
 board.PARTS[:] = [(ref, v, "C0" if ref == "U3" else lc, *r) for ref, v, lc, *r in board.PARTS]
 print("RESULT U3 on another LCSC", check.symbol_pins(pads))
+read = check.jlc_footprint
+def gone(lcsc):
+    if lcsc == old:
+        raise FileNotFoundError(f"footprints/{lcsc}.json")
+    return read(lcsc)
+check.jlc_footprint = gone
+print("RESULT its footprint file gone", check.symbol_pins(pads))
 """
-    assert gen("pcb", code) == ["as built 0", "U3 on another LCSC 1"]
+    assert gen("pcb", code) == ["as built 0", "U3 on another LCSC 1", "its footprint file gone 1"]
 
 
-def test_check_py_fails_on_a_mask_opening_grown_on_one_axis():
+def test_check_py_fails_on_a_mask_opening_grown_on_one_axis(made):
     # F1.1's opening 0.05 mm longer at each end: its narrowest margin as before, its widest past MASK_MAX_GROW
     code = """
 import contextlib, io, board, check, gerber_io
@@ -173,10 +206,10 @@ for name, read in (("as made", gerber_io.flashes), ("grown", grown)):
         check.mask_dams(pads, [])
     print("RESULT", name, "OVER F1.1 " in out.getvalue())
 """
-    assert gen("pcb", code) == ["as made False", "grown True"]
+    assert gen(made, code) == ["as made False", "grown True"]
 
 
-def test_check_py_fails_on_inner_copper_at_the_board_edge():
+def test_check_py_fails_on_inner_copper_at_the_board_edge(made):
     code = """
 import board, check, gerber_io
 from shapely.geometry import box
@@ -185,7 +218,7 @@ print("RESULT as made", check.inner_edge(copper))
 copper["In1"] = copper["In1"].union(box(0.2, board.H / 2 - 1, 1.0, board.H / 2 + 1))
 print("RESULT In1 0.2 mm from the edge", check.inner_edge(copper))
 """
-    assert gen("pcb", code) == ["as made 0", "In1 0.2 mm from the edge 1"]
+    assert gen(made, code) == ["as made 0", "In1 0.2 mm from the edge 1"]
 
 
 def test_check_py_pairs_holes_by_their_extent():
@@ -228,27 +261,26 @@ for name, w, tall in (("as made", 3.6, None), ("along y", 3.6, True), ("short pa
 
 
 def test_check_fit_py_fails_on_bare_copper_under_a_body_boss():
-    # the row of boss_fits(), the fit values as fit_values() works them out; a fiducial moved next to a mount
+    # the row of boss_fits(), the fit values as fit_values() works them out (the reach and the bare copper by
+    # boss_bare(), as there); a fiducial moved next to a mount
     code = '''
 import types, check_fit, board as B, make_mech as MM, stack as S
-from geom import item_dist, pad_geom
 pt, sc, bo, tp = S.POS_TOL, S.SCREW, S.BOSS, S.TAP
 hole = B.MOUNT_HOLE
 hole_lo, hole_hi = (hole - pt["npth_d"]) / 2, (hole + pt["npth_d"]) / 2
 off = hole_hi - sc["d_min"] / 2 + pt["thread"]
 fv = dict(hole=hole, pt=pt, need=0.0, hole_lo=hole_lo, hole_hi=hole_hi, bo=bo, off=off, keepout=B.MOUNT_KEEPOUT,
           boss_lo=(bo["d"] - bo["d_tol"]) / 2, boss_hi=(bo["d"] + bo["d_tol"]) / 2, offset=MM.SCREW_OFFSET,
-          boss_reach=MM.BOSS_R + pt["body_hole"] + MM.SCREW_OFFSET + off,
           pm=dict(boss_h=(bo["h"],) * 2, boss_d=(bo["d"],) * 2, boss_off=0.0, drill=(tp["drill"],) * 2,
                   sink=(tp["drill"],) * 2, tap=tp["depth"] + tp["point"]))
 pads = B.build()
+reach = check_fit.boss_bare(pads, fv["offset"], off)[0]
 for name, move in (("as placed", False), ("fiducial at a mount", True)):
     if move:
         fid = next(p for p in pads if p.name == "FID.1")
-        fid.x, fid.y = B.MOUNTS[0][0] + fv["boss_reach"], B.MOUNTS[0][1]
-    bare, bare_pad = min((item_dist(("cap", mx, my, mx, my, 0.0), pad_geom(p)), p.name)
-                         for mx, my in B.MOUNTS for p in pads if "B" in p.mask)
-    rows = check_fit.boss_fits(types.SimpleNamespace(**fv, bare=bare, bare_pad=bare_pad))
+        fid.x, fid.y = B.MOUNTS[0][0] + reach, B.MOUNTS[0][1]
+    boss_reach, bare, bare_pad = check_fit.boss_bare(pads, fv["offset"], off)
+    rows = check_fit.boss_fits(types.SimpleNamespace(**fv, boss_reach=boss_reach, bare=bare, bare_pad=bare_pad))
     print("RESULT", name, next(r for r in rows if r[0].startswith("body boss tops (R"))[1] > 0)
 '''
     assert gen("mech", code) == ["as placed True", "fiducial at a mount False"]
