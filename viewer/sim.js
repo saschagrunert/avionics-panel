@@ -1,7 +1,8 @@
 // The panel page: index.html loads this when python3 -m sim.page (sim/page.py) serves it with ?sim. The firmware
 // runs in that program; this page sends it raw input events as they happen and shows what comes back: the lights,
 // the buttons each joystick reports (with --family, a line of what the one pressed last does in that profile), a firmware
-// error and a lost connection. The camera stays put.
+// error and a lost connection. The camera stays put. With ?play, as on GitHub Pages, the firmware's panel.py runs in
+// the page itself instead (play.js: V.engine), which takes the same input events and gives back the same.
 //   key cap: pointer down presses it, up (or cancel) lets go
 //   knob: the inner knob, or the outer ring round it, by the pointer's distance from the knob's axis. The wheel
 //     turns that ring, a detent per notch; a mouse button pushes the knob as long as it is down. A finger turns the
@@ -303,34 +304,47 @@ window.playPanel = function playPanel(V) {
   // program's numbers: the angle of a detent, the detents one action takes and the actions one request takes at
   // most, and how often the page tells the program that it is still there. A page that reconnects to another build,
   // as after a newer simulator was unpacked and started, reloads: its files go with the old one.
+  // The engine of play.js stands in for the program: the same hello (no build, no requests to count or pace), the
+  // same states and faults, the same actions.
+  const engine = V.engine || null;
   let events, client = null, build = null, inputs = null, busy = false, beat = false, beatTimer;
   let DETENT, TURN_MAX, ACTS_MAX, BEAT_MS;
   const queue = [];
+  function hello(h) {
+    if (build !== null && h.build !== build) { events.close(); location.reload(); return; }
+    ({ client, build, version, inputs, legend, turn_max: TURN_MAX, acts_max: ACTS_MAX, beat_ms: BEAT_MS } = h);
+    DETENT = 2 * Math.PI / h.detents;
+    clearInterval(beatTimer);
+    if (!engine) beatTimer = setInterval(() => { beat = true; flush(); }, BEAT_MS);
+    say('');
+  }
+  const fault = f => say(`Firmware error, ${engine ? 'panel.py started again' : 'code.py reloaded'}: ${f.message}`, ALERT_MS);
   function connect() {
+    if (engine) {
+      say('loading the panel…');
+      engine.open({ hello, state: update, fault, lost: message => { drop(); say(message); } });
+      return;
+    }
     say('connecting…');
     events = new EventSource('sim/events');
-    events.addEventListener('hello', e => {
-      const hello = JSON.parse(e.data);
-      if (build !== null && hello.build !== build) { events.close(); location.reload(); return; }
-      ({ client, build, version, inputs, legend, turn_max: TURN_MAX, acts_max: ACTS_MAX, beat_ms: BEAT_MS } = hello);
-      DETENT = 2 * Math.PI / hello.detents;
-      clearInterval(beatTimer);
-      beatTimer = setInterval(() => { beat = true; flush(); }, BEAT_MS);
-      say('');
-    });
+    events.addEventListener('hello', e => hello(JSON.parse(e.data)));
     events.addEventListener('state', e => update(JSON.parse(e.data)));
-    events.addEventListener('fault', e => say(`Firmware error, code.py reloaded: ${JSON.parse(e.data).message}`, ALERT_MS));
+    events.addEventListener('fault', e => fault(JSON.parse(e.data)));
     events.onerror = () => { drop(); say('disconnected: start the simulator again'); };
   }
   // the program lets go of what this page held: forget it here too
   function drop() { letGo(); clearInterval(beatTimer); queue.length = 0; client = null; canvas.style.cursor = ''; clear(); }
-  function disconnect() { if (events) events.close(); drop(); }
+  function disconnect() { if (engine) engine.close(); else if (events) events.close(); drop(); }
   if (!document.hidden) connect();     // (a page that loads hidden connects once it shows)
   // one request at a time, so the actions arrive in order; what comes up meanwhile goes in the next ones, ACTS_MAX
   // each. An empty one every BEAT_MS says that the page is still there. A request that is refused, lost or hangs
   // (given up after two of those) may have dropped a release, so the page starts again as a new client: closing
   // its stream makes the program let go of everything the old one held, and what still arrives for it is refused.
-  function send(...lines) { queue.push(...lines); flush(); }
+  // The engine takes the actions at once.
+  function send(...lines) {
+    if (engine) { if (client !== null) engine.act(lines); return; }
+    queue.push(...lines); flush();
+  }
   function restart(from) {
     if (from !== client) return;       // (already started again)
     disconnect();
@@ -590,7 +604,7 @@ window.playPanel = function playPanel(V) {
   }, { passive: false });
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) disconnect();
-    else if (!events || events.readyState === EventSource.CLOSED) connect();
+    else if (engine || !events || events.readyState === EventSource.CLOSED) connect();
   });
   window.addEventListener('blur', letGo);
 };

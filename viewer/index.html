@@ -64,7 +64,8 @@
   <span id="dims"></span>
   <span class="mouse">drag to rotate · scroll to zoom · right-drag to pan</span>
   <span class="touch">drag to rotate · pinch to zoom · drag with two fingers to pan</span>
-  <span class="links"><a href="https://github.com/saschagrunert/avionics-panel">Docs and source on GitHub</a> ·
+  <span class="links"><a href="?play">Play the panel</a> ·
+    <a href="https://github.com/saschagrunert/avionics-panel">Docs and source on GitHub</a> ·
     <a href="https://github.com/saschagrunert/avionics-panel/releases/download/rolling/avionics-panel-sim-windows.zip">Simulator for Windows (zip)</a></span>
 </div>
 <div class="bar" role="group" aria-label="View">
@@ -825,8 +826,11 @@ async function main() {
   }
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
 
-  // python3 -m sim.page serves this page with ?sim: the panel then plays, its firmware run by that program (sim.js)
-  const play = new URLSearchParams(location.search).has('sim');
+  // python3 -m sim.page serves this page with ?sim: the panel then plays, its firmware run by that program (sim.js).
+  // With ?play (the header's link; sim.page sends it to ?sim) it plays alone, as on GitHub Pages: the firmware's
+  // panel.py runs in the page (play.js)
+  const query = new URLSearchParams(location.search), alone = query.has('play') && !query.has('sim');
+  const play = query.has('sim') || alone;
   // clean stills for the renders: #shot-h, -c, -e, -a and -b hide the page UI and show the hero close-up, the plan
   // view (on a transparent background, without the ground shadow), the exploded, the seated and the bottom view
   function readHash() {
@@ -879,16 +883,24 @@ async function main() {
   }
   readHash();
   if (play) {
-    const s = document.createElement('script');
-    s.src = 'sim.js';
-    // a sim.js that is missing or fails to start says so, as a missing geometry.js does: the view alone is no panel
-    const broken = e => { if (e) console.error(e); fail('The panel could not start: sim.js is missing or does not match this page.'); };
-    s.onerror = () => broken();
-    s.onload = () => {
-      try { window.playPanel({ G, camera, controls, canvas, assembly, ground, go, invalidate, reduce, view: views.P, keys: keyList, knobs: KNOBS, lights: LIGHTS, px, pz }); }
-      catch (e) { broken(e); }
+    // a sim.js (or play.js) that is missing or fails to start says so, as a missing geometry.js does: the view alone
+    // is no panel
+    const names = alone ? 'sim.js or play.js' : 'sim.js';
+    const broken = e => { if (e) console.error(e); fail(`The panel could not start: ${names} is missing or does not match this page.`); };
+    const add = (src, then) => {
+      const s = document.createElement('script');
+      s.src = src; s.onerror = () => broken(); s.onload = then;
+      document.head.appendChild(s);
     };
-    document.head.appendChild(s);
+    const start = () => {
+      try {
+        const engine = alone ? window.playEngine(window.GEOMETRY) : null;
+        window.playPanel({ G, camera, controls, canvas, assembly, ground, go, invalidate, reduce, view: views.P, keys: keyList, knobs: KNOBS, lights: LIGHTS, px, pz, engine });
+      } catch (e) { broken(e); }
+    };
+    const scripts = alone ? ['play.js', 'sim.js'] : ['sim.js'];   // loaded side by side, started once all are in
+    let left = scripts.length;
+    for (const src of scripts) add(src, () => { if (--left === 0) start(); });
   }
 }
 main().catch(e => { console.error(e); fail(); });

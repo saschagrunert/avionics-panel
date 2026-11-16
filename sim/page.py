@@ -30,7 +30,9 @@ The API, under /sim/:
   body over BODY_MAX, 503 once the panel has stopped.
 
 Any other GET is for a file of viewer/: 200, or 404 for one that is not there and for a folder, which has no
-listing (a folder named without its trailing slash first gets http.server's 301 to it), but / goes to /?sim (302).
+listing (a folder named without its trailing slash first gets http.server's 301 to it), but / goes to /?sim (302),
+and so does the page with play and without sim in its query (/?play, /index.html?play), the view's link to the
+panel that plays in the browser alone (viewer/play.js): here it plays with the program.
 HEAD answers as GET does, without the body (the stream's opens no stream). A POST to another path gets 404, any
 other method 501, and a request http.server cannot read its 400, 414, 431 or 505.
 
@@ -353,7 +355,9 @@ class Handler(SimpleHTTPRequestHandler):
         path = urlsplit(self.path)
         if self.foreign():
             return
-        if path.path == "/" and not path.query:            # the panel, not the plain 3D view
+        query = parse_qs(path.query, keep_blank_values=True)
+        if ((path.path == "/" and not path.query)        # the panel, not the plain 3D view or play.js's
+                or (path.path in ("/", "/index.html") and "play" in query and "sim" not in query)):
             self.send_response(302)
             self.send_header("Location", "/?sim")
             self.end_headers()

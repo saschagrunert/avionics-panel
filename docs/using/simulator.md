@@ -7,6 +7,9 @@ the hardware exists, to get used to SHIFT, UNIT and the knob modes ([Controls](c
 bindings in MobiFlight. The firmware is the same as on the board, not a copy of its logic: what the simulator
 sends is what the panel will send.
 
+To only try the controls, nothing needs installing: the [3D view](https://saschagrunert.de/avionics-panel/)
+plays the panel in the browser too ([In the browser alone](#in-the-browser-alone)).
+
 ## Windows
 
 The simulator is one zip with everything it needs, Python included. The virtual joysticks come from
@@ -105,6 +108,33 @@ are one, it is cut to 48 characters. On Windows, close the `start.bat` window, o
 folder and run `start.bat --family g1000`; on Linux, add `--family g1000` to the command in [Linux](#linux).
 Without `--family` the page shows no legend. The legend is for the joysticks only: the [keyboard
 mode](#keyboard-mode) shows shortcuts, not joystick buttons, and refuses `--family`.
+
+### In the browser alone
+
+"Play the panel" at the top of the [3D view](https://saschagrunert.de/avionics-panel/) (or `?play` after its
+address) opens the same page without the simulator: the browser runs the firmware's own `panel.py` and
+`buttonmap.py` itself, in [MicroPython](https://micropython.org/) compiled to WebAssembly, which comes with the
+page (about 0.5 MB, loaded only then). It is played as [the page](#the-page) says, and the lights and the
+lines at the bottom left follow the firmware the same way; their last line names the commit the view was
+published from. What differs:
+
+- Nothing leaves the browser: no vJoy, MobiFlight, uhid or keystrokes, so it is for getting to know the
+  controls, not for flying. There is no [legend](#legend) and no [keyboard mode](#keyboard-mode).
+- It runs `panel.py`, the panel's logic, but not `code.py`, the loop round it on the board: a small bridge,
+  `viewer/play.py`, does what that loop does (a pass every 3 ms that hands the panel the keys and knobs, ticks
+  it and reads the lights and both joysticks' buttons), and the tests check it against `code.py` on the
+  simulator. The key scans and USB of the board are not modelled: keys and knobs that change in the same
+  millisecond go to the panel in the order they came, where the board's scan takes SHIFT first and the keys
+  before the FREQ push.
+- A firmware error starts the panel again at once, with the message at the top, where the board waits 2 s.
+  If the new panel fails too, the page says that the panel stopped; switching to another tab and back, or
+  reloading the page, starts it anew.
+- While the page is hidden the panel stops, and it goes on where it was when the page shows again.
+
+The page served from a copy of the repository plays the same way, opened as `viewer/?play` from any static
+server started in the repository's folder (`python3 -m http.server`, then
+`http://localhost:8000/viewer/?play`): at an address that ends in `/viewer/` the page takes the firmware's
+files from `firmware/` beside `viewer/`. `python3 -m sim.page` sends `?play` to its own panel page.
 
 ## What MobiFlight shows
 

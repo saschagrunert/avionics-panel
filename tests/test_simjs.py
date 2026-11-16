@@ -1,6 +1,9 @@
 """The panel page's script (viewer/sim.js) in a browser, against the real `python3 -m sim.page`: what a wheel, a
 finger and a refused request make the page send, and the page's alert when sim.js is missing (a server that
-answers 404 for it) or its playPanel throws. The page's requests are read in the page (a wrapper round its fetch,
+answers 404 for it) or its playPanel throws. And the page that plays the panel alone (?play, viewer/play.js), served
+as plain files laid out as the Pages workflow lays them out, with the vendored MicroPython running the firmware's
+panel.py in the browser: what the lights and lines show for keys and knobs, and that the plain view loads none of
+it. The page's requests are read in the page (a wrapper round its fetch,
 which can also refuse one), and the input is the browser's own (Chrome's DevTools protocol), at the screen point of
 a knob or cap that the page's camera gives.
 
@@ -9,6 +12,8 @@ The browser comes from Playwright: Playwright for Python where it is installed, 
 Chromium, the tests skip; REQUIRE_BROWSER=1 turns that skip into a failure."""
 import contextlib
 import ctypes
+import functools
+import http.server
 import json
 import os
 import re
@@ -18,6 +23,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 
 import pytest
@@ -30,14 +36,19 @@ ARGS = ["--enable-unsafe-swiftshader", "--use-angle=swiftshader"]     # WebGL in
 # fails even headless
 ENV = {k: v for k, v in os.environ.items() if k != "WAYLAND_DISPLAY"}
 GAP_S = 0.4          # longer than sim.js's WHEEL_GAP_MS: the next wheel event starts a new spin
-# before the page's scripts: the actions the page sends, by client ([client, line]), the statuses that refuse the
+# before the page's scripts: the actions the page sends, by client ([client, line]; play.js's engine takes them as
+# client "browser"), the states the engine gives, the intervals of the timers started, the statuses that refuse the
 # next requests with actions, without the server (__refuse; an empty beat goes through), and the view index.html
-# hands sim.js (V); __playThrows, set before it, makes playPanel throw
+# hands sim.js (V); __playThrows, set before it, makes playPanel throw, and __fail, a RegExp, fails the requests for
+# the URLs it matches as a network error does
 INIT = r"""
 localStorage.setItem('avionics-panel-quiet', '1');      // the sound off: no audio device to start
-window.__acts = []; window.__refuse = [];
-const fetched = window.fetch.bind(window);
+window.__acts = []; window.__refuse = []; window.__states = []; window.__intervals = [];
+const fetched = window.fetch.bind(window), every = window.setInterval.bind(window);
+window.setInterval = (f, ms) => { window.__intervals.push(ms); return every(f, ms); };
 window.fetch = (url, options) => {
+  // a request that fails as a network error does (__fail, a RegExp of URLs)
+  if (window.__fail && window.__fail.test(String(url))) return Promise.reject(new TypeError('Failed to fetch'));
   const act = String(url).match(/sim\/act\?client=(.*)$/), body = String(options && options.body || '');
   if (act) {
     for (const line of body.split('\n')) if (line) window.__acts.push([act[1], line]);
@@ -45,6 +56,14 @@ window.fetch = (url, options) => {
   }
   return fetched(url, options);
 };
+let engine;
+Object.defineProperty(window, 'playEngine', { configurable: true, get: () => engine,
+  set: f => { engine = g => {
+    const e = f(g), act = e.act, open = e.open;
+    e.act = lines => { for (const l of lines) window.__acts.push(['browser', l]); act(lines); };
+    e.open = h => open({ ...h, state: st => { window.__states.push(st); h.state(st); } });
+    return e;
+  }; } });
 let play;
 Object.defineProperty(window, 'playPanel', { configurable: true, get: () => play,
   set: f => { play = V => { window.__V = V; if (window.__playThrows) throw new Error('a test'); return f(V); }; } });
@@ -196,9 +215,23 @@ READY = "window.__V && !document.querySelector('.fail') && !!document.querySelec
 
 
 class Panel:
-    """The page in a browser, served by `python3 -m sim.page` (or by server, python3 -c code), once ready is true"""
+    """The page in a browser, served by `python3 -m sim.page` (or by server, python3 -c code), or the page at url of
+    another server, once ready is true"""
 
-    def __init__(self, init=INIT, server=None, ready=READY):
+    def __init__(self, init=INIT, server=None, ready=READY, url=None):
+        self.server = None
+        if url:
+            self.url = url
+        else:
+            self.start(server)
+        try:
+            self.browser = browser(self.url, init)
+            self.until(ready)
+        except BaseException:
+            self.stop()
+            raise
+
+    def start(self, server):
         self.errors = tempfile.TemporaryFile("w+")  # noqa: SIM115 (closed in stop(): the server writes it until then)
         run = ["-c", server] if server else ["-m", "sim.page"]
         self.server = subprocess.Popen([sys.executable, *run, "--port", "0"], cwd=ROOT, text=True,
@@ -214,16 +247,12 @@ class Panel:
             self.errors.seek(0)
             pytest.fail(f"sim.page did not start: {line!r}\n{self.errors.read()}")
         self.url = found[0]
-        try:
-            self.browser = browser(self.url, init)
-            self.until(ready)
-        except BaseException:
-            self.stop()
-            raise
 
     def stop(self):
         if getattr(self, "browser", None):
             self.browser.close()
+        if not self.server:
+            return
         self.server.terminate()
         self.server.communicate(timeout=TIMEOUT_S)
         self.errors.close()
@@ -302,6 +331,206 @@ def test_a_missing_or_failing_sim_js_shows_the_alert(init, server):
         assert "sim.js" in panel.evaluate("document.querySelector('.fail[role=alert]').textContent")
     finally:
         panel.stop()
+
+
+VERSION = "2026-11-16, 1234abc"  # the commit the Pages workflow writes into firmware/version.py
+
+
+@contextlib.contextmanager
+def static_site(root, edits=(), layout="pages", requests=None):
+    """viewer/ served as plain files, laid out as
+    - "pages": GitHub Pages serves the artifact of the pages-pack job (build.yml), the firmware files play.js loads
+      at firmware/ beside the page (at /);
+    - "repository": a static server of a checkout, the page at /viewer/ and the firmware at /firmware/;
+    - "project": a project site at /site/ that lacks its firmware/, with other files at the domain's /firmware/.
+    version.py filled in. edits: (old, new) text of panel.py, each once. requests: a list that gets the path of
+    every request. Gives the URL of the page."""
+    page = {"pages": "viewer", "repository": "viewer", "project": "site"}[layout]
+    shutil.copytree(os.path.join(ROOT, "viewer"), root / page)
+    firmware = root / ("viewer/firmware" if layout == "pages" else "firmware")
+    firmware.mkdir()
+    for name in ("panel.py", "buttonmap.py"):
+        shutil.copy(os.path.join(ROOT, "firmware", name), firmware)
+    (firmware / "version.py").write_text(f'VERSION = "{VERSION}"\n')
+    text = (firmware / "panel.py").read_text(encoding="utf-8")
+    for old, new in edits:
+        assert text.count(old) == 1, old
+        text = text.replace(old, new)
+    (firmware / "panel.py").write_text(text, encoding="utf-8")
+
+    class Quiet(http.server.SimpleHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
+        def send_head(self):
+            if requests is not None:
+                requests.append(self.path)
+            return super().send_head()
+    served = root / "viewer" if layout == "pages" else root
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(Quiet, directory=served))
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        yield f"http://127.0.0.1:{server.server_address[1]}/" + ("" if layout == "pages" else f"{page}/")
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+@pytest.fixture(scope="module")
+def site(tmp_path_factory):
+    with static_site(tmp_path_factory.mktemp("site")) as url:
+        yield url
+
+
+def test_the_plain_view_loads_nothing_of_the_panel(site):
+    # the view for looking only: no sim.js, play.js, MicroPython or firmware, and a link to the panel
+    page = Panel(url=site, ready="document.readyState === 'complete' && !!document.querySelector('canvas')")
+    try:
+        time.sleep(0.5)
+        loaded = page.evaluate("performance.getEntriesByType('resource').map(e => e.name)")
+        assert any(name.endswith("/geometry.js") for name in loaded)
+        assert not [name for name in loaded if re.search(r"sim\.js|play\.|micropython|firmware/", name)], loaded
+        assert page.evaluate("document.querySelector('.hdr a').getAttribute('href')") == "?play"
+    finally:
+        page.stop()
+
+
+def test_the_page_plays_the_panel_alone(site):
+    # ?play, without the program: MicroPython runs panel.py in the page, and the page shows what it does as with the
+    # program. A key held with the mouse, a wheel's detent and its pulse, the FREQ push's NAV and its light, a SHIFT
+    # tap and its light, the shifted HOME's UNIT 2 and its light, a RANGE tilt, and the build from version.py
+    page = Panel(url=site + "?play")
+    light = "window.__V.lights.find(L => L.name === '{}').lens.emissiveIntensity"
+    shown = "document.querySelector('.sim .lines').textContent"
+    states = "window.__states.some(s => {})"
+    try:
+        assert f"build {VERSION}" in page.evaluate(shown) and page.evaluate(light.format("SHIFT")) == 0
+        # idle: a step every IDLE_MS; an input steps at once, and every STEP_MS from then on
+        page.until("window.__intervals.at(-1) === 250")
+        cap = page.evaluate("window.__cap('AP')")
+        since = page.mark()
+        page.mouse("mousePressed", cap)
+        assert page.evaluate("window.__intervals.at(-1)") == 10
+        page.until(f"{shown}.includes('J1: AP')")
+        page.mouse("mouseReleased", cap)
+        page.until(f"{shown}.includes('J1: none')")
+        time.sleep(GAP_S)
+        page.wheel(page.knob("radio"), -100)
+        page.until(states.format("s.buttons['1'].includes('COM_KHZ_UP')"))
+        centre = page.knob("radio")
+        page.mouse("mousePressed", centre)
+        page.mouse("mouseReleased", centre)
+        page.until(f"{shown}.includes('UNIT 1 · NAV') && {light.format('FREQ')} === 1")
+        for label in ("SHIFT", "HOME"):
+            cap = page.evaluate(f"window.__cap('{label}')")
+            page.mouse("mousePressed", cap)
+            page.mouse("mouseReleased", cap)
+            if label == "SHIFT":
+                page.until(f"{shown}.includes('SHIFT') && {light.format('SHIFT')} === 1")
+        page.until(f"{shown}.includes('UNIT 2') && {light.format('UNIT')} === 1")
+        arrow = page.knob("range", page.evaluate("window.__V.G.plate_art.range.arrow_r"), -90)
+        page.mouse("mousePressed", arrow)
+        page.until(states.format("s.buttons['1'].includes('PAN_UP')"))
+        page.mouse("mouseReleased", arrow)
+        assert page.lines(since) == [
+            "press AP", "release AP", "turn FREQ_INNER 1", "press FREQ_PUSH", "release FREQ_PUSH", "press SHIFT",
+            "release SHIFT", "press HOME", "release HOME", "press RANGE_COM", "press RANGE_A", "release RANGE_A",
+            "release RANGE_COM"]
+        assert {client for client, _ in page.acts(since)} == {"browser"}
+    finally:
+        page.stop()
+
+
+# panel.py with an error in the FREQ light while the mode is NAV, which a new panel (COM) gets past
+FREQ_FAULT = (("    def freq_lit(self, t):\n", "    def freq_lit(self, t):\n"
+               "        if self.freq_mode == 1:\n            raise ZeroDivisionError('a test')\n"),)
+# ... with an error in the SHIFT light that a new panel has too: from the start, or from a CDI press on
+STUCK = (("import buttonmap as BM\n", "import buttonmap as BM\nSTUCK = []\n"),
+         ("    def shift_level(self, t):\n",
+          "    def shift_level(self, t):\n        if STUCK:\n            raise ZeroDivisionError('stuck')\n"),
+         ("    def key(self, name, pressed, t, at=None):\n",
+          "    def key(self, name, pressed, t, at=None):\n        if name == 'CDI':\n            STUCK.append(1)\n"))
+ALERT = "document.querySelector('.sim-alert').textContent"
+LINES = "document.querySelector('.sim .lines').textContent"
+
+
+def test_an_error_in_the_panel_alone_starts_it_again_and_says_so(tmp_path):
+    # as code.py's handler: the alert names the error, and the panel goes on anew (COM, not NAV)
+    with static_site(tmp_path, FREQ_FAULT) as url:
+        page = Panel(url=url + "?play")
+        try:
+            centre = page.knob("radio")
+            page.mouse("mousePressed", centre)
+            page.mouse("mouseReleased", centre)
+            page.until(f"{ALERT}.includes('Firmware error, panel.py started again: ZeroDivisionError: a test')")
+            page.until(f"{LINES}.startsWith('UNIT 1 · COM')")
+            cap = page.evaluate("window.__cap('AP')")
+            page.mouse("mousePressed", cap)
+            page.until(f"{LINES}.includes('J1: AP')")
+            page.mouse("mouseReleased", cap)
+        finally:
+            page.stop()
+
+
+@pytest.mark.parametrize("start", (True, False), ids=["at the start", "in a step"])
+def test_an_error_the_panel_alone_cannot_get_past_stops_it_and_says_so(tmp_path, start):
+    # an error play.py hands on (the new panel has it too) stops the panel, in the start (hello and the first
+    # step, where the page would say "loading the panel…" for ever) as in a later step, and the page says so
+    edits = STUCK + ((("STUCK = []", "STUCK = [1]"),) if start else ())
+    ready = f"!!document.querySelector('.sim-alert') && {ALERT}.startsWith('The panel stopped')" if start else READY
+    with static_site(tmp_path, edits) as url:
+        page = Panel(url=url + "?play", ready=ready)
+        try:
+            if not start:
+                cap = page.evaluate("window.__cap('CDI')")
+                page.mouse("mousePressed", cap)
+                page.mouse("mouseReleased", cap)
+                page.until(f"{ALERT}.startsWith('The panel stopped')")
+            assert page.evaluate(ALERT) == ("The panel stopped: ZeroDivisionError: stuck. Switch to another tab and "
+                                            "back, or reload the page, to start it again.")
+            assert page.evaluate("document.querySelector('.sim').classList.contains('none')")
+            if start:
+                return
+            # hidden and shown again: a new MicroPython, whose panel.py starts without the error (STUCK empty)
+            for hidden in ("true", "false"):
+                page.evaluate("Object.defineProperty(document, 'hidden', { configurable: true, get: () => "
+                              f"{hidden} }}); document.dispatchEvent(new Event('visibilitychange'))")
+            page.until(READY)
+            cap = page.evaluate("window.__cap('AP')")
+            page.mouse("mousePressed", cap)
+            page.until(f"{LINES}.includes('J1: AP')")
+            page.mouse("mouseReleased", cap)
+        finally:
+            page.stop()
+
+
+def test_a_checkout_s_page_takes_the_firmware_beside_viewer(tmp_path):
+    # the page at .../viewer/ of a static server of the repository: firmware/ beside the page is not there, a
+    # failed request (as a network error) no more than a missing file, and the repository's firmware/ is
+    requests = []
+    with static_site(tmp_path, layout="repository", requests=requests) as url:
+        page = Panel("window.__fail = /^firmware\\/buttonmap/;\n" + INIT, url=url + "?play")
+        try:
+            assert "/firmware/panel.py" in requests and "/firmware/buttonmap.py" in requests
+            assert "/viewer/firmware/panel.py" in requests and "/viewer/firmware/buttonmap.py" not in requests
+        finally:
+            page.stop()
+
+
+def test_a_site_s_page_loads_no_firmware_from_above_it(tmp_path):
+    # a project site on Pages (/site/) whose firmware/ went missing does not run the domain's /firmware/
+    requests = []
+    with static_site(tmp_path, layout="project", requests=requests) as url:
+        page = Panel(url=url + "?play", ready="!!document.querySelector('.sim-alert') && "
+                                              f"{ALERT}.endsWith('.py is missing')")
+        try:
+            # (whichever of panel.py and buttonmap.py the server answered first)
+            assert re.fullmatch(r"The panel could not start in this browser: firmware/(panel|buttonmap)\.py is missing",
+                                page.evaluate(ALERT))
+            assert any(r.startswith("/site/firmware/") for r in requests)
+            assert not [r for r in requests if r.startswith("/firmware/")]
+        finally:
+            page.stop()
 
 
 def test_a_wheel_turns_a_detent_per_notch_and_a_touchpad_one_per_100_px(panel):
