@@ -28,9 +28,10 @@ aircraft each. The steps below follow MobiFlight 11.3. The profiles to download:
 - [COWS DA40](#cows-da40), the G1000 NXi with its autopilot: [avionics-panel-cows-da40.mfproj][da40]
 - [Carenado C182T](#carenado-c182t), the G1000 with the KAP 140: [avionics-panel-carenado-c182t.mfproj][c182t]
 
-For other avionics, join [avionics parts](#avionics-parts) instead. Each profile has a
-[quick-reference card](#quick-reference-cards) to print, and MobiFlight can show the buttons by their names
-([Button names in MobiFlight](#button-names-in-mobiflight)). The downloads are on the release [Latest
+For other avionics, join [avionics parts](#avionics-parts) instead. Each profile has a cheat sheet, the
+panel with what every control does in that aircraft ([Aircraft](aircraft/README.md)), and a [quick-reference
+card](#quick-reference-cards) with the events each control sends. MobiFlight can show the buttons by their
+names ([Button names in MobiFlight](#button-names-in-mobiflight)). The downloads are on the release [Latest
 build][rolling]. To use one:
 
 1. Install MobiFlight 11.2 or newer. Every command of the profiles goes through MobiFlight's WASM module in
@@ -136,6 +137,8 @@ differ by aircraft).
 
 ### G1000 NXi
 
+Cheat sheet: [G1000 NXi](aircraft/g1000.md).
+
 The Working Title G1000 NXi, as in the Cessna 172 Skyhawk G1000. The autopilot, knob and FMS rows follow
 Working Title's source of the NXi. The NXi itself turns ALT's 100 ft steps into 1000 ft steps from the 11th
 step of a quick turn (steps less than 0.3 s apart, one way). Differences from the real G1000:
@@ -167,6 +170,8 @@ in NAV), the dimmers.
 
 ### GFC 500 and G3X Touch
 
+Cheat sheet: [GFC 500 and G3X Touch](aircraft/g3x.md).
+
 The GFC 500 autopilot with Working Title's G3X Touch, as in the CubCrafters XCub (one display) and the Draco X
 (PFD and MFD). Unit 1 works the PFD, or the only display, with COM 1 / NAV 1, and unit 2 the MFD with COM 2 /
 NAV 2. If the FMS keys in unit 1 work the MFD, the aircraft numbers its displays the other way round. The FMS
@@ -188,6 +193,8 @@ has none), FPL, ENT, MSG, VNAV, TERR, MAP, RANGE, the map's pan and PTR (on the 
 with the inner FMS knob on the map page), PROC (the G3X loads no procedures), the dimmers.
 
 ### GNS 530/430
+
+Cheat sheet: [GNS 530/430 with the KAP 140](aircraft/gns.md).
 
 The Working Title GNS 530 as unit 1 and GNS 430 as unit 2 in the KAP 140 cockpit: the KAP 140 with a KR 87
 ADF, a KT 76 transponder and a KMA 28 audio panel, as in the Cessna 172 Skyhawk Classic. The same profile
@@ -216,6 +223,8 @@ has none), NRST and TERR (the GNS has pages for them, not keys), the RANGE knob 
 
 ### TDS GTN 750Xi and 650Xi
 
+Cheat sheet: [TDS GTN 750Xi and 650Xi with the KAP 140](aircraft/gtn.md).
+
 The KAP 140 cockpit of the [GNS profile](#gns-530430) with TDS's GTN 750Xi as unit 1 and GTN 650Xi as unit 2,
 which TDS numbers as its GTN 750Xi unit 1 and GTN 650Xi unit 2. For an aircraft that loads them otherwise, as
 a GTN 650Xi unit 1 beside the GTN 750Xi, join [avionics parts](#avionics-parts) with the GTN of TDS's unit it
@@ -239,6 +248,8 @@ FPL, PROC, MENU, CLR, ENT, MSG, NRST, TERR, VNAV, MAP, CDI, OBS, the RANGE knob 
 touchscreen), the dimmers.
 
 ### Black Square Bonanza
+
+Cheat sheet: [Black Square Bonanza](aircraft/black-square-bonanza.md).
 
 Black Square's Bonanza with the Bendix/King KFC 150 and the KAS 297B altitude selector, by the inputs Black
 Square's guide lists for home cockpits, for every avionics selection on the options page of its tablet. Unit 1
@@ -302,6 +313,8 @@ VNAV in unit 2 (the GNS 430 and the GTN have none).
 
 ### COWS DA40
 
+Cheat sheet: [COWS DA40](aircraft/cows-da40.md).
+
 The COWS DA40 (XLS and NG) with Working Title's G1000 NXi and its autopilot: the [G1000 NXi
 profile](#g1000-nxi) under the DA40's name, so a project of its own can be linked to the aircraft, with the
 same differences from the real units, and the DA40's lighting as a project it is flown with sets it: the
@@ -311,6 +324,8 @@ cabin light push turns the three cabin lights on or off.
 Does nothing in this profile: TEST, GPSS and ½ BANK (as in the G1000 NXi profile).
 
 ### Carenado C182T
+
+Cheat sheet: [Carenado C182T](aircraft/carenado-c182t.md).
 
 Carenado's CT182T Skylane with the G1000 and the KAP 140. Both are taken to be the sim's own: its product
 pages name the "default MSFS G1000" and the "default KAP140" autopilot, and in MSFS 2024 that G1000 is Working
