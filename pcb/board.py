@@ -118,7 +118,7 @@ TITLE = ("Avionics Panel rev 1 - RP2040 - USB-C", (COLS[2] + COLS[3]) / 2, 2.6)
 # 5.925 mm), where the SHIFT cap does not stand in front of it. FREQ (the FREQ knob's mode, on GP14, the last free
 # GPIO) at the bottom of the RADIO box, midway between columns 5 and 6, between VFR/IDENT and NAV/ADF: GP6's fixed
 # lane at y 28.2 keeps its cutout's copper clearance from y 29.825, and below it the plate hole nears the FMS frame
-# line (0.85 mm at y 29.9, 0.7 with the hole 0.1 large and 0.1 off, as the shift legends keep to the key holes).
+# line (0.85 mm at y 29.9, 0.7 with the hole 0.1 large and 0.1 off, as the amber legends keep to the key holes).
 LEDS = {"SHIFT": ((COLS[3], ROWS[3] + 5.75), "GP12", "amber"),
         "UNIT": ((COLS[3] + 5.5, (ROWS[2] + ROWS[3]) / 2), "GP15", "white"),
         "FREQ": (((COLS[5] + COLS[6]) / 2, 29.9), "GP14", "green")}

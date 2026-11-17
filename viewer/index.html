@@ -140,7 +140,7 @@ const KNOBS = {
 // and the squawk digit in short flashes
 const light = name => ({ name, x: G.lights[name].x, y: G.lights[name].y, r: G.lights[name].d / 2 });
 const LIGHTS = [
-  { ...light('SHIFT'), color: 0x20180a, emissive: G.amber, on: 1.0 },     // shown armed, same amber as the SHIFT cap
+  { ...light('SHIFT'), color: 0x20180a, emissive: G.amber, on: 1.0 },     // shown armed, same amber as the legends
   { ...light('UNIT'), color: 0x8c8f94, emissive: 0xffffff, on: 0.0 },     // shown off
   { ...light('FREQ'), color: 0x8c8f94, emissive: 0x9cff3c, on: 0.0 } ];   // shown off (COM)
 // one laser-marked frame around all keys, split by single lines (no double rule between groups).
@@ -499,7 +499,7 @@ async function main() {
     }
   }
 
-  // ---------------- front plate (anodised aluminium, laser-marked legends) ----------------
+  // ---------------- front plate (anodised aluminium, laser-marked and UV-printed legends) ----------------
   const plateG = new THREE.Group(); assembly.add(plateG);
   const pipeG = new THREE.Group(); assembly.add(pipeG);
   {
@@ -551,7 +551,7 @@ async function main() {
       line(f.v_radio, f.y0, f.v_radio, f.h_fms);      // AUDIO | RADIO
       for (const [text, x, y] of f.titles) title(text, X(x), Y(y));
     }
-    // shift legends under the keys, laser marked like the rest, as mech/make_plate_art.py draws them:
+    // shift legends under the keys (amber = shifted, as on the SHIFT cap), as mech/make_plate_art.py prints them:
     // the next row's caps hide them only from a low eye height
     // a legend ending in the flip-flop arrows gets the same two-arrow icon as the caps (right arrow on top)
     const flipLegend = (text, x, y, type, color, trackMm) => {
@@ -563,10 +563,10 @@ async function main() {
     };
     for (const k of keyList) if (k.shift) {
       const SL = ART.shift_legend, y = Y(k.y + CAP[1] / 2 + SL.dy), type = mmType(SL.size);
-      if (k.shift.endsWith('⇆')) flipLegend(k.shift, X(k.x), y, type, WHITE_ENGR, SL.track);
-      else spaced(k.shift, X(k.x), y, type, WHITE_ENGR, SL.track);
+      if (k.shift.endsWith('⇆')) flipLegend(k.shift, X(k.x), y, type, AMBER, SL.track);
+      else spaced(k.shift, X(k.x), y, type, AMBER, SL.track);
     }
-    // knob legends on arcs, laser marked: inner arc = turn, outer arc = with SHIFT
+    // knob legends on arcs: white = turn, amber = with SHIFT
     // legends on the side facing the keys: seated, the near side of a rear knob is hidden behind the front knob
     for (const k of Object.values(KNOBS)) {
       const tilt = k.legendTilt * Math.PI / 180;                        // turned towards the user (stack.py)
@@ -574,7 +574,7 @@ async function main() {
       const KL = ART.knob, font = mmType(KL.size);
       const r0 = (k.kind === 'range' ? ART.range.legend_r : k.r + KL.off) * ppm;   // legend radius (stack.py)
       arcText(g, k.main, font, X(k.x), Y(k.y), r0, mid, WHITE_ENGR, KL.track * ppm);
-      if (k.shift) arcText(g, k.shift, font, X(k.x), Y(k.y), r0 + KL.shift_off * ppm, mid, WHITE_ENGR, KL.track * ppm);
+      if (k.shift) arcText(g, k.shift, font, X(k.x), Y(k.y), r0 + KL.shift_off * ppm, mid, AMBER, KL.track * ppm);
     }
     // pan arrows around RANGE, in the four pan directions
     {

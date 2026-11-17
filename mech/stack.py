@@ -415,24 +415,23 @@ OUTER_FLUTES = {"ALTHDG": "outer", "FREQ": "outer", "FMS": "outer_fms"}   # each
 # knob legends: degrees their arc is turned from the horizontal towards the user, for the plate artwork and
 # the 3D view alike, chosen so a seated eye (CAP_VIEW_DEG) sees as much of each as the knobs allow.
 KNOB_LEGEND_TILT = {"ALTHDG": 20, "FREQ": 10, "FMS": 20, "RANGE": 35}
-# Their capitals are `size` high and `track` apart; the plain arc lies `off` outside a dual knob's outer ring (RANGE:
-# RANGE_ART) and the shift one `shift_off` outside the plain one (arc radii to the glyph centres), both laser marked.
+# Their capitals are `size` high and `track` apart; the white arc lies `off` outside a dual knob's outer ring (RANGE:
+# RANGE_ART) and the amber one `shift_off` outside the white one (arc radii to the glyph centres).
 KNOB_ART = dict(size=1.55, track=0.22, off=1.9, shift_off=2.2)
 
 # Legends, the one source for the caps (make_caps.py), the plate (make_plate_art.py), the board silkscreen
 # (pcb/board.py) and the 3D view (geometry.js). Only the firmware button map (firmware/buttonmap.py,
 # CircuitPython) keeps its own names; tests/test_labels.py checks they agree with these.
-# The one amber: the SHIFT cap legend and the 3D view's SHIFT cap and light. The plate has none: it is laser
-# marked in the anodising's one tone.
+# The one amber: the plate's UV print (the drawing gives it as sRGB and as CMYK), the SHIFT cap legend, the
+# artwork preview and the 3D view (its legends and the SHIFT light).
 AMBER = dict(hex="#d9a441", rgb=(217, 164, 65))
-# The shift legends under the keys on the plate (make_plate_art.py and the 3D view): the middle of their capitals dy
-# below the cap's front edge, capitals `size` high, letters `track` apart. With dy 2.0 the mark starts 0.7 from the
-# largest key hole (0.5 past its edge break, for the marking's register) and ends 1.3 short of the next row's.
+# The amber legends under the keys on the plate (make_plate_art.py and the 3D view): the middle of their capitals dy
+# below the cap's front edge, capitals `size` high, letters `track` apart. With dy 2.0 the ink starts 0.7 from the
+# largest key hole (0.5 past its edge break, for the UV print's register) and ends 1.3 short of the next row's.
 SHIFT_LEGEND = dict(dy=2.0, size=1.7, track=0.08)
 # The plate's legends (em): their sizes are capital heights in mm, `cap` of the font's em; a space is `space` wide;
-# a glyph is centred `mid` over its baseline, the middle of the capitals. JLCCNC's marking guide keeps lines from
-# MARK_STROKE_MIN (given for its print; it gives no figure for the laser), and the laser marking is held to that
-# (check_fit.py measures the artwork).
+# a glyph is centred `mid` over its baseline, the middle of the capitals. JLCCNC's UV print keeps lines from
+# MARK_STROKE_MIN, and the laser marking is held to the same (check_fit.py measures both layers of the artwork).
 # `thin` names the glyphs with thinner strokes than the others and their thinnest stroke (em): where it comes
 # out under `stroke` (mm) at a legend's size, the glyph is grown all round until it is that wide. That is the
 # fraction of "½ BANK" and the B of the knob legends; the B of the larger key legends stays as it is.
@@ -441,7 +440,7 @@ PLATE_TEXT = dict(cap=0.72, space=0.26, mid=0.35, stroke=0.2, thin={"½": 0.065,
 # The marked frame round all keys (make_plate_art.py and the 3D view): lines `line` wide, `side`, `back` and
 # `front` outside the outer caps, corners of radius r. One line splits AUTOPILOT from the rest (between key columns
 # 2 and 3, counted from 0 as in pcb/board.py), one AUDIO from RADIO (between columns 4 and 5) and one both from FMS
-# below: it runs through the middle of what is left between key rows 1 and 2 after `fms` under row 1 for its shift
+# below: it runs through the middle of what is left between key rows 1 and 2 after `fms` under row 1 for its amber
 # legends.
 KEY_FRAME = dict(side=3.0, back=4.2, front=4.6, fms=2.6, r=1.6, line=0.3)
 # The group titles break the frame's lines: capitals `size` high, letters `track` apart, the line cleared `pad`
@@ -465,7 +464,7 @@ def key_frame(cols, rows):
                 line=f["line"])
 
 
-# Keys: (cap label, shift legend on the plate under it) per key, rows top to bottom, columns left to right.
+# Keys: (cap label, amber shift legend under it) per key, rows top to bottom, columns left to right.
 KEY_LEGENDS = [
     [("AP", "TEST"), ("ALT", "ARM"), ("HDG", "CRS CTR"), ("MIC 1", "ADF"), ("COM 1", "NAV 1"), ("CDI", "OBS"),
      ("COM ⇆", "121.5")],
@@ -477,7 +476,7 @@ KEY_LEGENDS = [
 # The flip-flop icon of "COM ⇆" and "ADF ⇆": Barlow has no such glyph and fallback fonts draw it the other
 # way round, so the caps, the plate and the 3D view all fill these polygons. Units are em, from the icon's
 # left edge and the middle of the cap height (0.7 em), y down: the right arrow on top, the left one below. Its
-# lines are lw wide: 0.2 mm at the size of the plate's shift legends (SHIFT_LEGEND).
+# lines are lw wide: 0.2 mm at the size of the plate's amber legends (SHIFT_LEGEND).
 FLIP_W, FLIP_GAP = 0.6, 0.22                  # icon width, gap after the text
 
 
@@ -491,7 +490,7 @@ def _flip_icon(w=FLIP_W, dy=0.7 * 0.24, hl=0.22, hh=0.13, lw=0.085):
 FLIP_ICON = _flip_icon()
 CAP_FLIP_ICON = _flip_icon(lw=LEGEND_LINE)   # on the caps: lines that still print 0.4 mm wide
 
-# Knobs: (plain legend, shift legend with SHIFT or None): what the rings do, outer first, then the push.
+# Knobs: (white legend, amber legend with SHIFT or None): what the rings do, outer first, then the push.
 KNOB_LEGENDS = {
     "ALTHDG": ("ALT · HDG · PUSH SYNC", "BARO · CRS · PUSH STD"),
     "RANGE": ("RANGE · PUSH PTR", None),

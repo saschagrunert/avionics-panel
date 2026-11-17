@@ -13,7 +13,7 @@ SPECIAL = {"121.5": "COM_121_5", "½ BANK": "HALF_BANK"}
 
 
 def shift_name(key, legend):
-    """shift legend -> firmware button name of the shifted key"""
+    """amber legend -> firmware button name of the shifted key"""
     if not legend:
         return "S_" + key                              # no legend: the key's own shifted button
     if legend in SPECIAL:

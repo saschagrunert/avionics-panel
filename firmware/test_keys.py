@@ -41,7 +41,7 @@ def every_shortcut():
 
 
 def owner(dev, name):
-    """The button whose shortcut another one sends: SHIFT with a key without a shift legend, the key's plain one;
+    """The button whose shortcut another one sends: SHIFT with a key without an amber legend, the key's plain one;
     in unit 2, everything but COM and NAV, unit 1's"""
     if dev == 2 and not (name.startswith(("COM_", "NAV_")) and name != "COM_121_5"):
         dev = 1

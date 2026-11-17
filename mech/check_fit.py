@@ -1505,11 +1505,11 @@ def room_rows(pads, board_off, bar):
 
 
 def legend_gap():
-    """least distance from the shift legends' outlines (make_plate_art.SHIFT_MARKS, laser marked) to the edge of a
-    hole in the plate, the key and light holes at their largest: the gap and which holes."""
+    """least distance from the amber legends' outlines (make_plate_art.py's UV_AMBER layer) to the edge of a hole
+    in the plate, the key and light holes at their largest: the gap and which holes."""
     lt = (S.LIGHT_HOLE + S.LIGHT_HOLE_TOL[0]) / 2
     best = (math.inf, "none")
-    for poly in PA.SHIFT_MARKS:
+    for poly in PA.layers["UV_AMBER"]:
         pts = np.array(poly + poly[:1])
         seg = np.diff(pts, axis=0)
         n = np.maximum(np.ceil(np.hypot(seg[:, 0], seg[:, 1]) / 0.02).astype(int), 1)   # a point every 0.02 mm
@@ -2097,7 +2097,8 @@ def fit_values(plate, outer, inner, range_knob, knobs):
     rim = knob_m["rim"]
     mk, mark_walls = S.KNOB_MARK, knob_mark_walls(knobs)
     mark_reach = next(m[4] for m in mark_walls if m[0] == "inner")
-    marks = stroke_width(PA.filled(PA.layers["LASER"]), 3 * S.MARK_STROKE_MIN, 1e-4)
+    marks = {layer: stroke_width(PA.filled(PA.layers[layer]), 3 * S.MARK_STROKE_MIN, 1e-4)
+             for layer in ("LASER", "UV_AMBER")}
     d_len = d_bore_len(inner, S.INNER_D, S.INNER_FLAT)   # inner knob D bore, measured on the solid
     return types.SimpleNamespace(**locals())
 
@@ -2334,13 +2335,14 @@ def plate_fits(fv):
         (f"plate left over the RANGE pocket, thin plate, beyond {S.CNC_WALL} (JLCCNC recommended; {S.CNC_WALL_MIN} "
          "is its minimum)", t_min - S.RANGE_POCKET[1] - S.CNC_WALL,
          ("Controls", f"Plate left over the RANGE pocket on a thin plate, over {S.CNC_WALL} mm")),
-        (f"shift legends (laser) {legend_off:.2f} from the nearest hole edge ({legend_at}, at their largest), "
-         f"beyond the front edge break ({S.FRONT_BREAK} at most): what is left is for the marking's register, which "
-         "JLCCNC does not state", legend_off - S.FRONT_BREAK,
-         ("Caps", "Shift legends beyond the largest key hole's edge break, for the laser marking's register")),
-        (f"plate marking strokes (laser) {marks:.3f} at the thinnest (measured on the layer make_plate_art.py builds "
-         f"and writes to the DXF), beyond {S.MARK_STROKE_MIN} (JLCCNC's least line for its marking, given for the "
-         "print; it gives no figure for the laser)", marks - S.MARK_STROKE_MIN),
+        (f"amber legends {legend_off:.2f} from the nearest hole edge ({legend_at}, at their largest), beyond the "
+         f"front edge break ({S.FRONT_BREAK} at most): what is left is for the UV print's register, which JLCCNC "
+         "does not state", legend_off - S.FRONT_BREAK,
+         ("Caps", "Amber legends beyond the largest key hole's edge break, for the UV print's register")),
+        (f"plate marking strokes: UV print {marks['UV_AMBER']:.3f} at the thinnest, laser {marks['LASER']:.3f} "
+         "(measured on the layers make_plate_art.py builds and writes to the DXF), beyond "
+         f"{S.MARK_STROKE_MIN} (JLCCNC's UV print; the laser marking is held "
+         "to the same)", min(marks.values()) - S.MARK_STROKE_MIN),
         (f"plate, body and board as placed share no volume: plate and body {shared[0]:.4f}, plate and board "
          f"{shared[1]:.4f}, body and board {shared[2]:.4f} mm3 (the plate as built, body.step, the board's outline "
          f"{S.PCB_T} thick), within 0.01", 0.01 - max(shared), "mm3"),

@@ -111,15 +111,15 @@ Heights as drawn, z = 0 at the top of the board. Anodising raises the plate's fa
   face-down assembly blocks reach at most 6 mm under the plate's long edges: the SHIFT light hole starts
   6.6 mm in (6.45 mm at the ends of its tolerances), and a block over it would hold the pipe, and the board
   on it, off the bosses. The laser-marked line between the AUDIO and RADIO keys passes 0.575 mm from the key
-  holes beside it (0.525 mm with a hole 0.1 mm large). Where a frame line meets a hole's edge break it is
-  only cosmetic, so the fit check holds only the shift legends to the holes. The FREQ light's hole keeps
-  0.85 mm to the FMS box's frame line and 1.93 mm to the ADF ⇆ shift legend as drawn (0.7 and 1.78 mm with
-  the hole 0.1 mm large and 0.1 mm off); the fit check does not hold the light holes to the frame lines, the
-  knobs or the encoder pockets.
-- Marking: laser only, in the one light grey the laser leaves on the black anodising, with no UV print. The
-  shift legends are told apart from the plain ones by where they sit, as the same grey: under each key on the
-  plate, where the plain legend is on the cap, and on each knob's outer arc, 2.2 mm outside its plain arc and
-  in the same size. The SHIFT cap's own legend stays amber, printed with the cap.
+  holes beside it (0.525 mm with a hole 0.1 mm large). Where a laser mark meets a hole's edge break it is
+  only cosmetic, so the fit check holds only the amber print to the holes. The FREQ light's hole keeps
+  0.85 mm to the FMS box's frame line and 1.93 mm to the amber ADF ⇆ legend as drawn (0.7 and 1.78 mm with the
+  hole 0.1 mm large and 0.1 mm off); the fit check does not hold the light holes to the laser marks, the knobs
+  or the encoder pockets.
+- Marking: the frame, the titles and the knobs' plain legends are laser marked, in the one light grey the
+  laser leaves on the black anodising. The shift legends, under each key and on each knob's outer arc, are UV
+  printed in amber, the colour of the SHIFT cap's legend and light, so a shifted function stands out from a
+  plain one at a glance.
 - USB-C: the USB-C socket (J1) stands 0.52 mm past the board edge, level with the cavity wall, so the plug
   opening in the back wall (16.8 x 8.7 mm) runs on up through the wall top as a slot of the same width, and
   the socket passes the wall when the body goes on. A tongue on the plate's back edge (15.0 mm wide, 2.0 mm
@@ -296,7 +296,7 @@ plate STEP and DXF and the body STEP.
 | Light pipes | Base clear of the switch bodies (SHIFT, UNIT, FREQ) | **0.025**, 0.748, 1.699 | |
 | Light pipes | Base out from under the key holes (SHIFT, UNIT, FREQ) | 0.20, 0.432, 1.427 | |
 | Light pipes | Light hole web to the next key hole at tolerance, over JLCCNC's 0.5 mm minimum (SHIFT, UNIT, FREQ) | 0.30, 0.532, 1.527 | |
-| Caps | Shift legends beyond the largest key hole's edge break, for the laser marking's register | 0.50 | |
+| Caps | Amber legends beyond the largest key hole's edge break, for the UV print's register | 0.50 | |
 | Caps | Wall round the socket at the worst print, over 1.0 mm | 0.10 | |
 | Caps | Cap sets' coverage beyond a rib circle printed 0.2 mm small or 0.2 mm large | **0.012** | |
 | Caps | Cap set tried first (B): its lead over the next set on a rib circle printed true | **0.005** | |
@@ -404,7 +404,7 @@ Values that no datasheet or vendor states; the fit rows take them as given.
 - MJF: rounds a counterbore's floor corner by 0.2 mm at most (`stack.CB_FLOOR_R`); the body does not warp
   beyond JLC3DP's tolerances, which leave warp out. The wall tops have 0.33 mm to the plate for it
   ([Assembly](../building/assembly.md)).
-- JLCCNC's laser marking: registers within 0.5 mm.
+- JLCCNC's UV print: registers within 0.5 mm.
 - JLCPCB's drill positions: ±0.075 mm (`stack.POS_TOL`).
 - JLCPCB's routed LED cutouts: ±0.1 mm per side (`stack.PCB_CUTOUT_TOL`).
 - JLCPCB's placement of the LEDs: within 0.1 mm and 2° (`stack.LED_LENS`).
@@ -421,4 +421,4 @@ Values that no datasheet or vendor states; the fit rows take them as given.
 | Caps | 9.6 x 6.4 mm, 1.95 mm over the plate, one legend size (capitals about 2.0 mm high, strokes at least 0.4 mm). The flip-flop icon is narrow, so COM ⇆ does not shrink every legend |
 | Dual knob centres | x 15 and 145, y 15 and 45 (30 mm apart). Between the knobs: 12.85 mm on the left (ALT/HDG ring to RANGE skirt), 13 mm on the right |
 | Knobs | Matte black resin, vertical flutes, slight taper, chamfered flat top. Outer ring Ø17 x 6.3 mm on all three, inner knob Ø12 x 10.4 mm above it. RANGE knob Ø13.6 x 8.2 mm with a Ø17.3 skirt |
-| Amber | #d9a441 (RGB 217, 164, 65): the SHIFT cap legend and, in the 3D view, that cap and the SHIFT light (`stack.AMBER`); the plate has no amber |
+| Amber | #d9a441 (RGB 217, 164, 65; CMYK 0, 24, 70, 15): the plate's UV print, as the drawing gives it, the SHIFT cap legend and the 3D view (`stack.AMBER`) |

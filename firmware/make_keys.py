@@ -16,7 +16,7 @@ def shortcut_name(mods, key):
 
 
 def owners():
-    """{(modifiers, key): the function the shortcut stands for}; SHIFT with a key without a shift legend sends
+    """{(modifiers, key): the function the shortcut stands for}; SHIFT with a key without an amber legend sends
     the key's, unit 2 unit 1's except for COM and NAV, whose own the name marks"""
     out = {}
     for dev in (1, 2):

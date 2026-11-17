@@ -16,7 +16,7 @@ MATRIX = (
     ("RANGE_A", "RANGE_B", "RANGE_C", "RANGE_D", "RANGE_COM", "ALTHDG_PUSH", "FMS_PUSH"),
 )
 
-# the keys' shift legends; keys without one send "S_<name>". HOME + SHIFT is UNIT (firmware state, no button).
+# amber (SHIFT) legends; keys without one send "S_<name>". HOME + SHIFT is UNIT (firmware state, no button).
 SHIFTED = {
     "AP": "TEST", "ALT": "ARM", "HDG": "CRS_CTR", "FD": "YD", "NAV": "GPSS", "APR": "BC", "LVL": "HALF_BANK",
     "MIC1": "ADF_AUDIO", "COM1": "NAV1_AUDIO", "MIC2": "DME_AUDIO", "COM2": "NAV2_AUDIO",

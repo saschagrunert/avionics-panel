@@ -1143,7 +1143,7 @@ def test_the_c182t_vnv_takes_the_g1000_nxis_required_rate_first():
 
 @pytest.mark.parametrize("key", sorted(set(VNV) - {BONANZA}))
 def test_shift_vnv_is_vnv(key):
-    # VNV has no shift legend: a stray SHIFT changes nothing (controls.md), also in a profile joined from the parts
+    # VNV has no amber legend: a stray SHIFT changes nothing (controls.md), also in a profile joined from the parts
     assert TABLES[key].DEVICE[1]["S_VNV"] == TABLES[key].DEVICE[1]["VNV"]
     joined = part.compose("x", AUTOPILOTS["kap140"], COCKPITS["bendix-king"], *navigators("gtn750-tds1", "gns430"))
     assert joined.DEVICE[1]["S_VNV"] == joined.DEVICE[1]["VNV"]

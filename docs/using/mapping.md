@@ -338,7 +338,7 @@ for you to set, with an eye on the airspeed and the power.
    where you are.
 
 VNV does nothing without a distance or at 30 knots or less (in the C182T, unless the NXi gives a required
-vertical speed, below), or unless the selected altitude is more than 100 ft below. VNV has no shift legend, so
+vertical speed, below), or unless the selected altitude is more than 100 ft below. VNV has no amber legend, so
 SHIFT, VNV does the same and a stray SHIFT changes nothing; in the Bonanza, SHIFT, VNV stays the KR 87's BFO
 key.
 
@@ -467,7 +467,7 @@ MobiFlight show them.
   input scan: a plain AP press comes from device 1, ENT in unit 2 from device 2.
 - Every knob detent is a short press, and so is every step of a held UP or DN (without SHIFT), every pan step
   of a RANGE tilt and the RANGE push (PTR): map them "on press".
-- Shifted functions are buttons of their own. The keys without a shift legend (VS, UP, FLC, DN, VNV, ENT) and
+- Shifted functions are buttons of their own. The keys without an amber legend (VS, UP, FLC, DN, VNV, ENT) and
   the RANGE knob (turn, tilt, push) still send a shifted button of their own: these are free for your own
   mappings. Map the keys you do not use to the same function as the plain control, so a stray SHIFT before DN
   or ENT does no harm; held, SHIFT, DN then steps once, as it does not repeat. The generated profiles use

@@ -4,7 +4,7 @@ features and the notes on sheet 1, the front with its marking on sheet 2.
 6061 aluminium, milled from 12 mm stock, black anodised: a 4 mm web and five round bosses on its back (at the
 four corner mounts and in the middle of the key field), each tapped M3 from its end face, 10.55 mm high in all, and
 a tongue on its back edge over the USB-C socket (stack.USB_TONGUE), shorter than the bosses. Front face (+Z) is
-flat: the laser marking follows the DXF from make_plate_art.py, in the same coordinates. Back face (Z = 0):
+flat: laser marking and UV print follow the DXF from make_plate_art.py, in the same coordinates. Back face (Z = 0):
 pockets for the encoder and RANGE bodies, the bosses, which stand down to the PCB, and the tongue. The front is
 faced first; then everything else is machined from the back in one setup, so the 4 mm web is never faced while it
 is held on its bosses.
@@ -198,13 +198,17 @@ def drawing_notes(vol):
 
 def marking_notes():
     """the notes on sheet 2, the marking, one paragraph each."""
+    r, g, b = S.AMBER["rgb"]
+    k = 1 - max(r, g, b) / 255
+    cmyk = [round(100 * (1 - v / 255 - k) / (1 - k)) for v in (r, g, b)] + [round(100 * k)]
     n = {layer: len(polys) for layer, polys in PA.layers.items()}
     return [
         f"Marking on the front face per {NAME}.dxf, at 1:1 in mm, from the same origin as this view and the model: "
         "the plate's bottom-left corner seen from the front, X to the right, Y up. Position it by the outline.",
-        f"Layer LASER ({n['LASER']} closed contours, shown light): laser marking, the anodising's one tone; no UV "
-        f"print and no other colour. Layer CUT ({n['CUT']} closed contours): the outline and the through holes, for "
-        "reference; cut per the model.",
+        f"Layer LASER ({n['LASER']} closed contours, shown light): laser marking. Layer UV_AMBER ({n['UV_AMBER']} "
+        f"closed contours, shown in its colour): UV print, amber, sRGB {r} / {g} / {b} ({S.AMBER['hex'].upper()}), "
+        f"CMYK {' / '.join(map(str, cmyk))}. Layer CUT ({n['CUT']} closed contours): the outline and the through "
+        "holes, for reference; cut per the model.",
         "Fill the closed contours even-odd: a contour inside a letter is its counter, not ink. No stroke of the "
         f"marking is under {S.MARK_STROKE_MIN} mm wide.",
     ]
@@ -266,6 +270,7 @@ def front_sheet(plt):
     layers = PA.dxf_layers()
     patch(PA.filled(layers["CUT"]), fc="#2d2f33", ec="k", lw=0.8)      # the plate, its holes open
     patch(PA.filled(layers["LASER"]), fc="#f2f2f2", ec="none")
+    patch(PA.filled(layers["UV_AMBER"]), fc=S.AMBER["hex"], ec="none")
     ax.plot([-4, 4], [0, 0], color="k", lw=0.6); ax.plot([0, 0], [-4, 4], color="k", lw=0.6)   # the origin
     ax.annotate("0, 0: origin of the DXF and the model", (0, 0), xytext=(-4.5, -3.2), ha="left", va="top",
                 fontsize=6.5)
