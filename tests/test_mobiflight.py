@@ -95,7 +95,7 @@ READ = re.compile(r"\((?:(?:A:([A-Z0-9 ]+(?::[1-9])?)|(L:[A-Za-z0-9_]+)), [A-Za-
 WRITE = re.compile(r"\(>(?:(K:[A-Z0-9_]+|H:[A-Za-z0-9_]+|L:[A-Za-z0-9_]+|B:[A-Z0-9_]+_Set)|(A:[A-Z ]+:[1-9]), Enum)\)")
 REGISTER = re.compile(r"(sp|s|l)([0-9])")         # a register: store and pop, store, load
 NUMBER = re.compile(r"[0-9]+(?:\.[0-9]+)?|0x[0-9A-F]+")
-VALUE = re.compile(NUMBER.pattern + r"|[-+!<>%*/]|==|and|neg|abs|min|max|dnor|near|if\{|els\{|\}|" +
+VALUE = re.compile(NUMBER.pattern + r"|[-+!<>%*/]|==|and|or|neg|abs|min|max|dnor|near|flr|if\{|els\{|\}|" +
                    REGISTER.pattern)
 
 
@@ -125,11 +125,11 @@ def run(code, variables=()):
     variables, stack, out, registers = dict(variables), [], [], {}
     binary = {"+": lambda x, y: x + y, "-": lambda x, y: x - y, "%": lambda x, y: x % y, "*": lambda x, y: x * y,
               "/": lambda x, y: x / y, ">": lambda x, y: x > y, "<": lambda x, y: x < y,
-              "==": lambda x, y: x == y, "and": lambda x, y: bool(x and y),
+              "==": lambda x, y: x == y, "and": lambda x, y: bool(x and y), "or": lambda x, y: bool(x or y),
               "min": min, "max": max}
     # near rounds half up, as the SDK's RPN page says (Python's round() goes to the even number)
     unary = {"!": lambda x: not x, "near": lambda x: math.floor(x + 0.5), "dnor": lambda x: x % 360, "abs": abs,
-             "neg": lambda x: -x}
+             "neg": lambda x: -x, "flr": math.floor}
 
     def block(tokens, live):
         """Runs the tokens up to the } that closes their block, if live, and returns the ones after it"""
@@ -194,7 +194,9 @@ def unit(variable):
     """The unit a variable is read in: degrees for a heading or course, millibars for the altimeter's setting,
     feet for an altitude, knots for the ground speed, nmiles for the GPS's distance, number for an index, the
     G1000's CDI source, a dimmer, a selector or an L: variable's distance, feet per minute for a rate, enum for a
-    state, bool for a flag"""
+    state, bool for a flag (an autopilot's mode, as AUTOPILOT HEADING LOCK, which the IFR-1's lights read)"""
+    if variable.startswith("AUTOPILOT ") and variable.endswith((" LOCK", " HOLD")):
+        return "bool"
     if re.search(r"HEADING|OBS|RADIAL|NAV LOCALIZER", variable):
         return "degrees"
     if variable.startswith("KOHLSMAN SETTING MB"):
@@ -1648,7 +1650,8 @@ def test_the_command_line_lists_the_profiles_and_the_parts(tmp_path, monkeypatch
     cli.main(["--list"])
     lines = capsys.readouterr().out.splitlines()
     units = " ".join(sorted(UNIT_NAVIGATORS) + ["none"])
-    assert lines == [f"--family: {' '.join(sorted(FAMILIES))}", f"--autopilot: {' '.join(sorted(AUTOPILOTS))}",
+    assert lines == [f"--family: {' '.join(sorted(FAMILIES))}", f"--ifr1: {' '.join(sorted(FAMILIES))}",
+                     f"--autopilot: {' '.join(sorted(AUTOPILOTS))}",
                      f"--cockpit: {' '.join(sorted(COCKPITS))}", f"--navigator: {' '.join(sorted(NAVIGATORS))}",
                      f"--unit1, --unit2: {units}"]
     assert not os.listdir(tmp_path)

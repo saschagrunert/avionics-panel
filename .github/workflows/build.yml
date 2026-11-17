@@ -122,10 +122,11 @@ jobs:
           retention-days: 7
   # The profile of every avionics family and aircraft in mobiflight/families/ and a zip with a project of every
   # avionics part, bound to no joysticks: MobiFlight asks for both when it opens one
-  # (docs/using/mapping.md#generated-profiles); a zip with the quick-reference card and cheat sheet of every
-  # profile, MobiFlight's joystick definition of the panel, and profiles.tsv, the key and name of each profile for
-  # the latest build's notes. Each project's name ends in the commit's date and short hash: git archive fills in
-  # firmware/version.py, as in a release's source code and the zip.
+  # (docs/using/mapping.md#generated-profiles); every profile for the Octavi IFR-1, which MobiFlight binds to the
+  # one connected (docs/using/ifr1.md); a zip with the quick-reference card and cheat sheet of every profile, for
+  # the panel and the IFR-1, MobiFlight's joystick definition of the panel, and profiles.tsv, the key and name of
+  # each profile for the latest build's notes. Each project's name ends in the commit's date and short hash: git
+  # archive fills in firmware/version.py, as in a release's source code and the zip.
   profiles:
     name: MobiFlight profiles
     runs-on: ubuntu-24.04
@@ -143,11 +144,13 @@ jobs:
           python3 -c "from mobiflight.families import FAMILIES as F; [print(k, F[k].NAME, sep='\t') for k in F]" >profiles.tsv
           while IFS=$'\t' read -r family _; do
             python3 -m mobiflight --family "$family" -o "avionics-panel-$family.mfproj" </dev/null
+            python3 -m mobiflight --ifr1 "$family" -o "avionics-panel-ifr1-$family.mfproj" </dev/null
           done <profiles.tsv
           python3 -m mobiflight --parts-zip avionics-panel-parts.zip
           python3 -m mobiflight --cards avionics-panel-cards.zip
           python3 -m mobiflight --joystick-definition avionics-panel.joystick.json
           grep -q '"Name": "Avionics Panel: .* ([0-9-]*, [0-9a-f]\{7\})"' avionics-panel-g1000.mfproj
+          grep -q '"Name": "Avionics Panel for the IFR-1: .* ([0-9-]*, [0-9a-f]\{7\})"' avionics-panel-ifr1-g1000.mfproj
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: avionics-panel-mobiflight
@@ -263,6 +266,8 @@ jobs:
           python3 -m zipfile -e cards.zip viewer/cards
           test -f viewer/cards/avionics-panel-g1000-card.html
           test -f viewer/cards/avionics-panel-g1000-sheet.svg
+          test -f viewer/cards/avionics-panel-ifr1-g1000-card.html
+          test -f viewer/cards/avionics-panel-ifr1-g1000-sheet.html
       # the firmware files the panel plays with in the browser (viewer/play.js), at firmware/ beside the view,
       # version.py as filled in above
       - run: |
@@ -383,14 +388,19 @@ jobs:
           while IFS=$'\t' read -r key name; do
             notes+=$'\n'"  - [$name]($docs/aircraft/$key.md): \`avionics-panel-$key.mfproj\`"
           done <profiles.tsv
+          notes+=$'\n'"- **An Octavi IFR-1 instead of the panel**, \`avionics-panel-ifr1-<profile>.mfproj\`: the same"
+          notes+=" profiles for the IFR-1, for MobiFlight 11.3 or newer, with Octavi's plugin closed. MobiFlight binds"
+          notes+=" the project to the IFR-1 by itself; the AP keys' lights are meant to follow the autopilot. Not yet"
+          notes+=" tried on the device ([IFR-1]($docs/ifr1.md))."
           notes+=$'\n'"- **Avionics no profile covers**, \`avionics-panel-parts.zip\`: a MobiFlight project for each"
           notes+=" avionics part. Join an autopilot, a cockpit and the navigators (one for both units, or one for"
           notes+=" each) into a profile of your own"
           notes+=" ([Avionics parts]($docs/mapping.md#avionics-parts))."
           notes+=$'\n'"- **Something to print**, \`avionics-panel-cards.zip\`: for each profile, a quick-reference card"
           notes+=" (\`avionics-panel-<profile>-card.html\`, what every control sends) and a cheat sheet"
-          notes+=" (\`avionics-panel-<profile>-sheet.svg\`, the panel with what every control does)"
-          notes+=" ([Quick-reference cards]($docs/mapping.md#quick-reference-cards))."
+          notes+=" (\`avionics-panel-<profile>-sheet.svg\`, the panel with what every control does), and the IFR-1's"
+          notes+=" card and cheat sheet (\`avionics-panel-ifr1-<profile>-card.html\`, \`-sheet.html\`)"
+          notes+=" ([Quick-reference cards]($docs/mapping.md#quick-reference-cards), [IFR-1]($docs/ifr1.md#downloads))."
           notes+=$'\n'"- **No panel yet**, \`avionics-panel-sim-windows.zip\`: the simulator for Windows. It runs the"
           notes+=" panel's firmware on the PC, shows the panel in the browser and sends its buttons to two vJoy joysticks"
           notes+=" that MobiFlight reads like the panel's. Install vJoy 2.2.2.0, unblock and extract the zip, run"

@@ -28,5 +28,6 @@ Profiles made for one aircraft, its own avionics and lighting:
 | Carenado C182T | [Carenado C182T](carenado-c182t.md) | G1000 NXi with the KAP 140 |
 | COWS DA40 | [COWS DA40](cows-da40.md) | G1000 NXi with its GFC 700 |
 
-How to install a profile: [Mapping](../mapping.md#generated-profiles). What each control is meant for on any
+How to install a profile: [Mapping](../mapping.md#generated-profiles). The cheat sheets of the same profiles
+for the Octavi IFR-1: [Octavi IFR-1](../ifr1.md#downloads). What each control is meant for on any
 aircraft: [Controls](../controls.md).

@@ -2,6 +2,7 @@
 py -m mobiflight --autopilot kap140 --cockpit g1000 --navigator g1000 [...]
 py -m mobiflight --autopilot kap140 --cockpit bendix-king --unit1 gns530 --unit2 gtn650-tds2 [...]
 py -m mobiflight --parts-zip avionics-panel-parts.zip [...]
+py -m mobiflight --ifr1 g1000 [--vfr 1200]
 py -m mobiflight --cards avionics-panel-cards.zip
 py -m mobiflight --sheets docs/using/aircraft
 py -m mobiflight --joystick-definition avionics-panel.joystick.json
@@ -9,15 +10,16 @@ py -m mobiflight --list
 
 Writes the MobiFlight project of a profile, or of the avionics parts given (one autopilot, one cockpit, and a
 navigator of both units or one per unit), for both joysticks; or a zip with a project of each part, to add to a
-project as its tabs; or a zip with the quick-reference card and cheat sheet of each profile (card.py, sheet.py); or
-the cheat sheet of each profile as SVG (sheet.py); or MobiFlight's joystick definition, which labels the buttons
-(joystick.py). Without --from or --serials, MobiFlight asks for the two joysticks once when it opens the project
-(docs/using/mapping.md). With them, the project is bound to your joysticks: read, names and all, from a project
-saved in MobiFlight with ENT bound in unit 1 and in unit 2, or given by their serials, JS- and the DirectInput
-instance GUID, which names both "Avionics Panel". For joysticks of another name, as the simulator's vJoy devices,
-use --from: MobiFlight asks again for two joysticks of one name in a project that it does not find by name and
-serial (ControllerAutoBinder.cs). The project's name ends in the commit of the files, in a release's files
-(profile.VERSION), or in what --stamp gives. --list lists the profiles and the parts."""
+project as its tabs; or the project of a profile for the Octavi IFR-1 instead (ifr1.py), which MobiFlight binds to
+the one IFR-1 connected; or a zip with the quick-reference card and cheat sheet of each profile, for the panel and
+for the IFR-1 (card.py, sheet.py, ifr1_card.py); or the cheat sheet of each profile as SVG (sheet.py); or
+MobiFlight's joystick definition, which labels the buttons (joystick.py). Without --from or --serials, MobiFlight
+asks for the two joysticks once when it opens the project (docs/using/mapping.md). With them, the project is bound to
+your joysticks: read, names and all, from a project saved in MobiFlight with ENT bound in unit 1 and in unit 2, or
+given by their serials, JS- and the DirectInput instance GUID, which names both "Avionics Panel". For joysticks of
+another name, as the simulator's vJoy devices, use --from: MobiFlight asks again for two joysticks of one name in a
+project that it does not find by name and serial (ControllerAutoBinder.cs). The project's name ends in the commit of
+the files, in a release's files (profile.VERSION), or in what --stamp gives. --list lists the profiles and the parts."""
 import argparse
 import contextlib
 import errno
@@ -27,7 +29,7 @@ import sys
 import tempfile
 import zipfile
 
-from mobiflight import card, joystick, profile
+from mobiflight import card, ifr1, joystick, profile
 from mobiflight.families import (
     AUTOPILOTS,
     COCKPITS,
@@ -93,8 +95,8 @@ UNITS = sorted(UNIT_NAVIGATORS) + ["none"]   # what --unit1 and --unit2 take (no
 def listing():
     """The profiles and the parts, a line for each option that takes them"""
     return "\n".join(f"{option}: {' '.join(sorted(keys))}" for option, keys in (
-        ("--family", FAMILIES), ("--autopilot", AUTOPILOTS), ("--cockpit", COCKPITS), ("--navigator", NAVIGATORS),
-        ("--unit1, --unit2", UNITS)))
+        ("--family", FAMILIES), ("--ifr1", FAMILIES), ("--autopilot", AUTOPILOTS), ("--cockpit", COCKPITS),
+        ("--navigator", NAVIGATORS), ("--unit1, --unit2", UNITS)))
 
 
 def chosen(parser, args):
@@ -126,8 +128,10 @@ def main(argv=None):
     what.add_argument("--family", choices=sorted(FAMILIES), help="a whole profile")
     what.add_argument("--autopilot", choices=sorted(AUTOPILOTS), help="the autopilot part")
     what.add_argument("--parts-zip", metavar="OUT.zip", help="a zip with a project of every part")
+    what.add_argument("--ifr1", choices=sorted(FAMILIES), help="a whole profile for the Octavi IFR-1")
     what.add_argument("--cards", metavar="OUT.zip",
-                      help="a zip with the quick-reference card and the cheat sheet of every profile")
+                      help="a zip with the quick-reference card and the cheat sheet of every profile, for the panel "
+                           "and for the IFR-1")
     what.add_argument("--sheets", metavar="DIR", help="the cheat sheet of every profile, as DIR/<profile>.svg")
     what.add_argument("--joystick-definition", metavar="OUT.joystick.json",
                       help="MobiFlight's joystick definition, with a label for every button")
@@ -146,7 +150,8 @@ def main(argv=None):
                            help="the serials of the panel's joysticks, JS-<guid>: device 1 (128 buttons), "
                                 "device 2 (64)")
     parser.add_argument("-o", "--output", metavar="OUT.mfproj",
-                        help="default: avionics-panel-FAMILY.mfproj, or avionics-panel.mfproj for parts")
+                        help="default: avionics-panel-FAMILY.mfproj, avionics-panel-ifr1-FAMILY.mfproj for --ifr1, "
+                             "or avionics-panel.mfproj for parts")
     parser.add_argument("--stamp", metavar="TEXT", default=profile.VERSION,
                         help="the text in brackets after the project's, the card's or the sheet's name, as the date "
                              f"and short hash of the commit (default: {profile.VERSION or 'none'}, from "
@@ -166,18 +171,26 @@ def main(argv=None):
         parser.error("--cards takes no other option but --stamp")
     if args.sheets and others("sheets"):
         parser.error("--sheets takes no other option")
+    if args.ifr1 and others("ifr1", "vfr", "output", "stamp"):
+        parser.error("--ifr1 is a whole profile, bound to the IFR-1: it takes only --vfr, --output and --stamp")
     if args.joystick_definition and others("joystick_definition"):
         parser.error("--joystick-definition takes no other option")
     if args.joystick_definition and not args.joystick_definition.lower().endswith(".joystick.json"):
         parser.error("MobiFlight loads only files named *.joystick.json")
     try:
         if args.cards:
-            from mobiflight import sheet  # reads viewer/geometry.js and mech/stack.py, which a profile does without
+            # sheet reads viewer/geometry.js and mech/stack.py, which a profile does without, and ifr1_card reads sheet
+            from mobiflight import ifr1_card, sheet
             with replacing(args.cards, binary=True) as f, zipfile.ZipFile(f, "w", zipfile.ZIP_DEFLATED) as z:
                 for key, family in sorted(FAMILIES.items()):
                     z.writestr(entry(f"avionics-panel-{key}-card.html"), card.page(family, key, args.stamp))
                     z.writestr(entry(f"avionics-panel-{key}-sheet.svg"), sheet.svg(key, sheet.TITLES[key], args.stamp))
-            print(f"wrote {args.cards}: {len(FAMILIES)} cards and cheat sheets", file=sys.stderr)
+                    one = ifr1.build(key)
+                    z.writestr(entry(f"avionics-panel-ifr1-{key}-card.html"), ifr1_card.page(one, args.stamp))
+                    z.writestr(entry(f"avionics-panel-ifr1-{key}-sheet.html"),
+                               ifr1_card.page(one, args.stamp, words=True))
+            print(f"wrote {args.cards}: {len(FAMILIES)} cards and cheat sheets, and as many for the IFR-1",
+                  file=sys.stderr)
             return
         if args.sheets:
             from mobiflight import sheet  # reads mech/stack.py's legends, which a profile does without
@@ -188,6 +201,19 @@ def main(argv=None):
             with replacing(args.joystick_definition) as f:
                 f.write(joystick.dumps(joystick.definition()))
             print(f"wrote {args.joystick_definition}", file=sys.stderr)
+            return
+        if args.ifr1:
+            one = ifr1.build(args.ifr1, args.vfr)
+            output = args.output or ifr1.filename(args.ifr1)
+            with replacing(output) as f:
+                f.write(profile.dumps(ifr1.project(one, args.stamp)))
+            print(f"IFR-1 ({ifr1.NAME}, {ifr1.SERIAL}): {len(one.DEVICE)} buttons mapped", file=sys.stderr)
+            reasons = {}
+            for button, reason in one.UNMAPPED.items():
+                reasons.setdefault(reason, []).append(button.removeprefix("Button_"))
+            for reason, buttons in reasons.items():
+                print(f"  unmapped {', '.join(buttons)}: {reason}", file=sys.stderr)
+            print(f"wrote {output}", file=sys.stderr)
             return
         if args.saved:
             controllers = profile.controllers_from(args.saved)

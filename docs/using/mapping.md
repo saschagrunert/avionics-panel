@@ -28,7 +28,8 @@ aircraft each. The steps below follow MobiFlight 11.3. The profiles to download:
 - [COWS DA40](#cows-da40), the G1000 NXi with its autopilot: [avionics-panel-cows-da40.mfproj][da40]
 - [Carenado C182T](#carenado-c182t), the G1000 with the KAP 140: [avionics-panel-carenado-c182t.mfproj][c182t]
 
-For other avionics, join [avionics parts](#avionics-parts) instead. Each profile has a cheat sheet, the
+For other avionics, join [avionics parts](#avionics-parts) instead. Each profile also comes for the Octavi
+IFR-1 ([Octavi IFR-1](ifr1.md)). Each profile has a cheat sheet, the
 panel with what every control does in that aircraft ([Aircraft](aircraft/README.md)), and a [quick-reference
 card](#quick-reference-cards) with the events each control sends. MobiFlight can show the buttons by their
 names ([Button names in MobiFlight](#button-names-in-mobiflight)). The downloads are on the release [Latest
@@ -472,7 +473,8 @@ code, so the card also tells which row of the project to open. Unpack the zip, o
 print it on A4 in landscape; on Letter, scale it to fit the page. The cards are of the profiles to download,
 not of [avionics parts](#avionics-parts) or a profile changed in MobiFlight. Beside each card the zip holds
 the profile's [cheat sheet](aircraft/README.md), `avionics-panel-g1000-sheet.svg` and the like, with the
-commit of the download in its title, as the card has it.
+commit of the download in its title, as the card has it, and the IFR-1's card and cheat sheet of the profile,
+`avionics-panel-ifr1-g1000-card.html` and `-sheet.html` ([Octavi IFR-1](ifr1.md#downloads)).
 
 The cards of main are also on the web, to open and print without the zip: [G1000 NXi][card-g1000], [GFC 500
 and G3X Touch][card-g3x], [GNS 530/430][card-gns], [GTN 750Xi/650Xi][card-gtn], [Black Square
