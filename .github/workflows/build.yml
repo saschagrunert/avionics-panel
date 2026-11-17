@@ -122,9 +122,9 @@ jobs:
           retention-days: 7
   # The profile of every avionics family and aircraft in mobiflight/families/ and a zip with a project of every
   # avionics part, bound to no joysticks: MobiFlight asks for both when it opens one
-  # (docs/using/mapping.md#generated-profiles); a zip with the quick-reference card of every profile, and
-  # MobiFlight's joystick definition of the panel. Each project's name ends in the commit's date and short hash:
-  # git archive fills in firmware/version.py, as in a release's source code and the zip.
+  # (docs/using/mapping.md#generated-profiles); a zip with the quick-reference card and cheat sheet of every
+  # profile, and MobiFlight's joystick definition of the panel. Each project's name ends in the commit's date and
+  # short hash: git archive fills in firmware/version.py, as in a release's source code and the zip.
   profiles:
     name: MobiFlight profiles
     runs-on: ubuntu-24.04
@@ -252,13 +252,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      # the quick-reference cards beside the view, at cards/ (docs/using/mapping.md#quick-reference-cards), with
-      # the commit in their titles as the release's
+      # the quick-reference cards and cheat sheets beside the view, at cards/
+      # (docs/using/mapping.md#quick-reference-cards), with the commit in their titles as the release's
       - run: |
           git -c core.abbrev=7 archive HEAD firmware/version.py | tar -x
           python3 -m mobiflight --cards cards.zip
           python3 -m zipfile -e cards.zip viewer/cards
           test -f viewer/cards/avionics-panel-g1000-card.html
+          test -f viewer/cards/avionics-panel-g1000-sheet.svg
       # the firmware files the panel plays with in the browser (viewer/play.js), at firmware/ beside the view,
       # version.py as filled in above
       - run: |

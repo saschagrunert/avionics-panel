@@ -28,7 +28,7 @@ echo    --vfr 1200 makes the VFR key squawk 1200 (US). Without --from the joysti
 echo    downloaded profiles.
 echo 3. Open the new project in MobiFlight (File, Open).
 echo.
-echo profile.bat --cards cards.zip writes a printable card of every profile (one page of HTML each), and
+echo profile.bat --cards cards.zip writes a printable card and cheat sheet of every profile (HTML and SVG), and
 echo profile.bat --joystick-definition avionics-panel.joystick.json the file that names the panel's buttons in
 echo MobiFlight (copy it into a folder of MobiFlight's Joysticks folder).
 echo.

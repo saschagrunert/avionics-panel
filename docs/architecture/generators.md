@@ -85,7 +85,7 @@ not committed. The firmware prints it on its console, the page shows it, and the
 | Repository root | `pytest` | The [firmware tests](firmware.md#code-and-tests); `tests/test_checkers.py` runs the checkers on known-bad cases and `tests/test_production.py` compares the files in `production/` with each other, both in the gen shell through nix-shell, and they skip without it |
 | Repository root | `python3 -m sim.page` | The [simulator](../using/simulator.md): the firmware on the PC, played in the browser |
 | Repository root | `python3 -m mobiflight --family g1000` | The MobiFlight profile of a family or aircraft, or of avionics parts, or the parts zip ([Mapping](../using/mapping.md#generated-profiles)); `--stamp` puts any text in place of the commit in its name |
-| Repository root | `python3 -m mobiflight --cards cards.zip` | The [quick-reference cards](../using/mapping.md#quick-reference-cards), one page of HTML per profile, named with the commit as the profiles (`--stamp` too) |
+| Repository root | `python3 -m mobiflight --cards cards.zip` | The [quick-reference cards](../using/mapping.md#quick-reference-cards), one page of HTML per profile, and beside each its [cheat sheet](../using/aircraft/README.md) as SVG, both named with the commit as the profiles (`--stamp` too) |
 | Repository root | `python3 -m mobiflight --sheets docs/using/aircraft` | The [aircraft cheat sheets](../using/aircraft/README.md), one SVG per profile from `mobiflight/sheet_text.py`; `tests/test_sheet.py` fails while they are out of date |
 | Repository root | `python3 -m mobiflight --joystick-definition avionics-panel.joystick.json` | MobiFlight's [joystick definition](../using/mapping.md#button-names-in-mobiflight), which names the buttons |
 | Repository root | `python3 windows/make_zip.py` | The simulator's zip for Windows ([Simulator](../using/simulator.md#windows)), with `profile.bat` for the profiles; it writes the commit into the zip's `firmware/version.py` |
@@ -127,7 +127,9 @@ To add:
   [Mapping](../using/mapping.md#avionics-parts) does not, so add the part to it by hand.
 - A profile of an avionics family: one line in `FAMILIES`, `compose()` of its parts. Its download needs, in
   [Mapping](../using/mapping.md), a link with its reference at the end of the file and its name in the
-  `--family` list of the steps, and its card's web link in Quick-reference cards (a test checks that one); a
+  `--family` list of the steps, its card's web link in Quick-reference cards, its words in
+  `mobiflight/sheet_text.py` and its cheat sheet's page with its web link in `docs/using/aircraft/` (tests check
+  these); a
   line in [Compatibility](../using/compatibility.md) and its name in that page's opening list of profiles; and
   its name in the `start.bat --family` lists of [Simulator](../using/simulator.md#legend) and of
   `windows/README.txt`.

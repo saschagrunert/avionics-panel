@@ -12,6 +12,8 @@ Good to know:
 - The BARO push only sets STD; leave it with the BARO ring.
 - UP and DN step the VS, IAS or pitch reference, not the altitude in ALT hold.
 
+The same sheet with the commit of the latest build in its title:
+[avionics-panel-g3x-sheet.svg](https://saschagrunert.de/avionics-panel/cards/avionics-panel-g3x-sheet.svg).
 The profile:
 [avionics-panel-g3x.mfproj](https://github.com/saschagrunert/avionics-panel/releases/download/rolling/avionics-panel-g3x.mfproj)
 ([how to use it](../mapping.md#generated-profiles)). Every detail, and what each control sends:

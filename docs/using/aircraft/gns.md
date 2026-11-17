@@ -15,6 +15,8 @@ Good to know:
   and sets it ([how](../mapping.md#vnv-without-vnav)).
 - The KAP 140 has no VS, FLC or FD key: it engages in VS, and UP and DN set the rate.
 
+The same sheet with the commit of the latest build in its title:
+[avionics-panel-gns-sheet.svg](https://saschagrunert.de/avionics-panel/cards/avionics-panel-gns-sheet.svg).
 The profile:
 [avionics-panel-gns.mfproj](https://github.com/saschagrunert/avionics-panel/releases/download/rolling/avionics-panel-gns.mfproj)
 ([how to use it](../mapping.md#generated-profiles)). Every detail, and what each control sends:

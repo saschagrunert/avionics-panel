@@ -12,7 +12,7 @@ import panel as P
 import pytest
 
 from mobiflight import __main__ as cli
-from mobiflight import card, profile
+from mobiflight import card, profile, sheet
 from mobiflight.families import FAMILIES
 
 FAMILY = pytest.mark.parametrize("key", sorted(FAMILIES))
@@ -280,9 +280,12 @@ def test_the_command_writes_the_cards_of_every_profile(tmp_path):
     cli.main(["--cards", str(again)])
     assert out.read_bytes() == again.read_bytes()                 # the same profiles make the same zip
     with zipfile.ZipFile(out) as z:
-        assert z.namelist() == sorted(f"avionics-panel-{key}-card.html" for key in FAMILIES)
+        # each profile's card, then its cheat sheet (mobiflight/sheet.py)
+        assert z.namelist() == [f"avionics-panel-{key}-{kind}" for key in sorted(FAMILIES)
+                                for kind in ("card.html", "sheet.svg")]
         for key, family in FAMILIES.items():
             assert z.read(f"avionics-panel-{key}-card.html").decode() == card.page(family, key), key
+            assert z.read(f"avionics-panel-{key}-sheet.svg").decode() == sheet.svg(key, sheet.TITLES[key]), key
         assert {info.date_time for info in z.infolist()} == {cli.STAMP}
         assert {info.external_attr >> 16 for info in z.infolist()} == {0o644}
 
@@ -292,6 +295,7 @@ def test_the_cards_take_the_stamp_as_the_profiles(tmp_path):
     cli.main(["--cards", str(out), "--stamp", "test1"])
     with zipfile.ZipFile(out) as z:
         assert z.read("avionics-panel-g1000-card.html").decode() == card.page(FAMILIES["g1000"], "g1000", "test1")
+        assert ">G1000 NXi (test1)</text>" in z.read("avionics-panel-g1000-sheet.svg").decode()
 
 
 def test_a_failed_write_leaves_no_cards(tmp_path, monkeypatch):
