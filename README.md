@@ -49,6 +49,7 @@ Using the panel:
 - [Compatibility](docs/using/compatibility.md): what each control maps to per avionics family and aircraft
 - [Keyboard mode](docs/using/keyboard.md): the panel as a keyboard, for MSFS on Xbox and PS5 and without
   MobiFlight
+- [Octavi IFR-1](docs/using/ifr1.md): the ready profiles for the IFR-1, with a card and cheat sheet each
 - [Simulator](docs/using/simulator.md): the panel on the PC before the hardware exists,
   [download for Windows][sim-zip]
 

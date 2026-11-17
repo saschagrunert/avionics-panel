@@ -107,9 +107,9 @@ ADF = {
 # (ASOBO_Transponder_Knob_Setting_Template in the SDK's Asobo\Transponder\Transponder.xml, with this statement):
 # standby or off goes to ALT, any other mode to standby. A code entered with the squawk digits forgets the code VFR
 # kept, so VFR on the VFR code never returns to an old one
-_FORGET_SQUAWK = f"0 (>L:{_KEEPS})"
+FORGET_SQUAWK = f"0 (>L:{_KEEPS})"
 SQUAWK = {
-    **{f"SQK_D{d}_{way}": f"{k(f'XPNDR_{step}_{event}')} {_FORGET_SQUAWK}"
+    **{f"SQK_D{d}_{way}": f"{k(f'XPNDR_{step}_{event}')} {FORGET_SQUAWK}"
        for d, step in ((1, 1000), (2, 100), (3, 10), (4, 1)) for way, event in (("UP", "INC"), ("DN", "DEC"))},
     "IDENT": k("XPNDR_IDENT_ON"),
     "VFR": vfr(),

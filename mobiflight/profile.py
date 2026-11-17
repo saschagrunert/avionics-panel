@@ -106,30 +106,55 @@ def serial(text):
     return out
 
 
-def build(family, controllers=UNBOUND, vfr=None, stamp=None):
-    """The project of a profile or a part (families/) as a dict. controllers: {1: (name, serial), 2: (name,
-    serial)}, the user's joysticks or UNBOUND. vfr: the squawk the VFR key sets, in place of the one in the
-    family's table (None: that one); ValueError for a code that is none, or for a family whose VFR key has no
-    VFR toggle. stamp: the text in brackets after the project's name, as the commit (None: none). A part's project
-    names it in its label, which MobiFlight shows as the tab it adds."""
-    part = hasattr(family, "KIND")             # a part, as a tab of its own beside others: named in its label
-    title = family.TITLE if part else family.NAME
-    tables = {1: dict(family.DEVICE[1]), 2: family.DEVICE[2]}
+def tables(family, vfr=None):
+    """A profile's or a part's DEVICE tables, {1: {button: entry}, 2: {button: entry}}, with the VFR key's squawk
+    vfr in place of the one in the family's table (None: that one); ValueError for a code that is none, or for a
+    family whose VFR key has no VFR toggle. The IFR-1's profiles take theirs from here too (ifr1.py)."""
+    out = {1: dict(family.DEVICE[1]), 2: family.DEVICE[2]}
     if vfr is not None:
         parts.vfr(vfr)                                        # a wrong code fails first
-        toggle = parts.vfr_toggle(tables[1].get("VFR"))
+        toggle = parts.vfr_toggle(out[1].get("VFR"))
         if not toggle:
             raise ValueError(f"the VFR key of {family.NAME} has no VFR toggle")
-        tables[1]["VFR"] = parts.vfr(vfr, toggle["alt"])     # with the family's way to select ALT
+        out[1]["VFR"] = parts.vfr(vfr, toggle["alt"])        # with the family's way to select ALT
+    return out
+
+
+def button_config(acts):
+    """An item's "button": its actions ({"onPress": code, ...}, actions()) as custom code, the others null (onHold
+    always: no profile holds a button for it), and the delays"""
+    config = dict.fromkeys(("onPress", "onRelease", "onLongRelease", "onHold"))
+    config.update({event: {"Type": "MSFS2020CustomInputAction", "Command": code} for event, code in acts.items()})
+    config.update(LongReleaseDelay=LONG_MS, HoldDelay=HOLD_MS, RepeatDelay=0)
+    return config
+
+
+def project(name, label, items):
+    """A project of these items in one embedded config file named label, as MobiFlight saves it"""
+    return {
+        "Name": name,
+        "Sim": "msfs",
+        "Features": {"FSUIPC": False, "ProSim": False},
+        "Aircraft": [],
+        "ConfigFiles": [{"Label": label, "FileName": None, "ReferenceOnly": False, "EmbedContent": True,
+                         "ConfigItems": items}],
+        "_version": SCHEMA,
+    }
+
+
+def build(family, controllers=UNBOUND, vfr=None, stamp=None):
+    """The project of a profile or a part (families/) as a dict. controllers: {1: (name, serial), 2: (name,
+    serial)}, the user's joysticks or UNBOUND. vfr: the squawk the VFR key sets (tables()). stamp: the text in
+    brackets after the project's name, as the commit (None: none). A part's project names it in its label, which
+    MobiFlight shows as the tab it adds."""
+    part = hasattr(family, "KIND")             # a part, as a tab of its own beside others: named in its label
+    title = family.TITLE if part else family.NAME
+    device_tables = tables(family, vfr)
     items = []
     for device in (1, 2):
         name, joystick = controllers[device]
-        for button, entry in sorted(tables[device].items(), key=lambda kv: BM.BUTTON[device][kv[0]]):
+        for button, entry in sorted(device_tables[device].items(), key=lambda kv: BM.BUTTON[device][kv[0]]):
             acts = actions(entry)
-            button_config = dict.fromkeys(("onPress", "onRelease", "onLongRelease", "onHold"))
-            button_config.update({event: {"Type": "MSFS2020CustomInputAction", "Command": code}
-                                  for event, code in acts.items()})
-            button_config.update(LongReleaseDelay=LONG_MS, HoldDelay=HOLD_MS, RepeatDelay=0)
             items.append({
                 "GUID": str(uuid.uuid5(ITEMS, f"{title}/{device}/{button}")),
                 "Active": True,
@@ -137,17 +162,9 @@ def build(family, controllers=UNBOUND, vfr=None, stamp=None):
                 "Type": "InputConfigItem",
                 "Controller": {"Name": name, "Serial": joystick},
                 "Device": {"Type": "Button", "Name": f"Button {BM.BUTTON[device][button] + 1}"},
-                "button": button_config,
+                "button": button_config(acts),
             })
-    return {
-        "Name": f"{NAME}: {title}{f' ({stamp})' if stamp else ''}",
-        "Sim": "msfs",
-        "Features": {"FSUIPC": False, "ProSim": False},
-        "Aircraft": [],
-        "ConfigFiles": [{"Label": f"{NAME}: {title}" if part else NAME, "FileName": None, "ReferenceOnly": False,
-                         "EmbedContent": True, "ConfigItems": items}],
-        "_version": SCHEMA,
-    }
+    return project(f"{NAME}: {title}{f' ({stamp})' if stamp else ''}", f"{NAME}: {title}" if part else NAME, items)
 
 
 def dumps(project):

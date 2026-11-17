@@ -12,7 +12,7 @@ import panel as P
 import pytest
 
 from mobiflight import __main__ as cli
-from mobiflight import card, profile, sheet
+from mobiflight import card, ifr1, ifr1_card, profile, sheet
 from mobiflight.families import FAMILIES
 
 FAMILY = pytest.mark.parametrize("key", sorted(FAMILIES))
@@ -280,12 +280,16 @@ def test_the_command_writes_the_cards_of_every_profile(tmp_path):
     cli.main(["--cards", str(again)])
     assert out.read_bytes() == again.read_bytes()                 # the same profiles make the same zip
     with zipfile.ZipFile(out) as z:
-        # each profile's card, then its cheat sheet (mobiflight/sheet.py)
-        assert z.namelist() == [f"avionics-panel-{key}-{kind}" for key in sorted(FAMILIES)
-                                for kind in ("card.html", "sheet.svg")]
+        # each profile's card, then its cheat sheet (mobiflight/sheet.py), then the IFR-1's (mobiflight/ifr1_card.py)
+        assert z.namelist() == [name for key in sorted(FAMILIES) for name in (
+            f"avionics-panel-{key}-card.html", f"avionics-panel-{key}-sheet.svg",
+            f"avionics-panel-ifr1-{key}-card.html", f"avionics-panel-ifr1-{key}-sheet.html")]
         for key, family in FAMILIES.items():
             assert z.read(f"avionics-panel-{key}-card.html").decode() == card.page(family, key), key
             assert z.read(f"avionics-panel-{key}-sheet.svg").decode() == sheet.svg(key, sheet.TITLES[key]), key
+            one = ifr1.build(key)
+            assert z.read(f"avionics-panel-ifr1-{key}-card.html").decode() == ifr1_card.page(one), key
+            assert z.read(f"avionics-panel-ifr1-{key}-sheet.html").decode() == ifr1_card.page(one, words=True), key
         assert {info.date_time for info in z.infolist()} == {cli.STAMP}
         assert {info.external_attr >> 16 for info in z.infolist()} == {0o644}
 
