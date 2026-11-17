@@ -222,10 +222,11 @@ _AUDIO = {
 # the KR 87: the FREQ knob's ADF mode tunes it, ADF ⇆ is its FRQ key
 _ADF = {"ADF_SWAP": h("adf_frqTransfert")}
 
-# the KAS 297B's mode: XPDR mode presses the GTX 327's ALT or STBY key (its H: events), by the mode the simulator
-# keeps: standby or off goes to ALT, any other mode to standby
+# the GTX 327's mode: XPDR mode presses its ALT or STBY key (its H: events), by the mode the simulator keeps:
+# standby or off goes to ALT, any other mode to standby; VFR presses its ALT key as it squawks the VFR code
 _SQUAWK = {
     "XPDR_MODE": "(A:TRANSPONDER STATE:1, Enum) 1 > if{ (>H:TRANSPONDER_Push_STBY) } els{ (>H:TRANSPONDER_Push_ALT) }",
+    "VFR": parts.vfr(alt=h("TRANSPONDER_Push_ALT")),
 }
 
 # the profile: the KFC 150, the Bendix/King cockpit (its radios, ADF tuning, transponder codes and the knobs round

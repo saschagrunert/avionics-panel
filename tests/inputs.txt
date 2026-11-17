@@ -32,6 +32,7 @@ A:NAV OBS:1
 A:NAV OBS:2
 A:NAV RADIAL:1
 A:NAV RADIAL:2
+A:TRANSPONDER CODE:1
 A:TRANSPONDER STATE:1
 
 # the simulator's input events, as projects the aircraft are flown with use them
@@ -193,7 +194,10 @@ H:GTN750_VolDec
 H:GTN750_VolInc
 
 # the profiles' own
+L:AvionicsPanel_Baro
 L:AvionicsPanel_G1000_Engine
+L:AvionicsPanel_Squawk
+L:AvionicsPanel_Squawk_Kept
 
 # TDS's GTNXi manual (Reading specific TDS GTNXi Data)
 L:TDSGTNXI_NextWaypointDistanceNM

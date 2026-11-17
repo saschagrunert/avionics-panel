@@ -41,8 +41,8 @@ The ALT/HDG knob:
 - Plain: the outer ring sets ALT, the inner knob HDG, and the push syncs the heading, as on the G1000. ALT
   gets the bigger outer ring: it changes most per flight and is easier to spin.
 - With SHIFT: the outer ring sets BARO, the inner knob CRS, as on the G1000's CRS/BARO knob. The push sets
-  BARO to standard (STD), for transition altitudes in Europe. Centring the course is a key: CRS CTR (SHIFT,
-  HDG).
+  BARO to standard (STD), for transition altitudes in Europe; pressed again, it returns to the setting before
+  (not in the G3X profile). Centring the course is a key: CRS CTR (SHIFT, HDG).
 - BARO and CRS have no knob of their own: a knob stays shifted while it is turned (both rings, 5 s after the
   last detent), so setting either is one tap and then turning, and a fourth dual knob would make the panel
   wider.
@@ -139,9 +139,10 @@ transponder key and the flip-flops next to the FREQ knob:
 | MIC 1 (ADF) | COM 1 (NAV 1) | CDI (OBS) | COM ⇆ (121.5) |
 | MIC 2 (DME) | COM 2 (NAV 2) | VFR (IDENT) | NAV ⇆ (ADF ⇆) |
 
-- VFR squawks the VFR code. It is the plain function because squawking VFR is the common case in VFR flying;
-  IDENT is SHIFT, VFR. The [generated profiles](mapping.md#generated-profiles) set 7000 (EASA), or the code a
-  profile is made for (1200 in the US).
+- VFR squawks the VFR code and selects ALT; pressed again, it squawks the code from before. It is the plain
+  function because squawking VFR is the common case in VFR flying; IDENT is SHIFT, VFR. The [generated
+  profiles](mapping.md#generated-profiles) set 7000 (EASA), or the code a profile is made for (1200 in the
+  US).
 - 121.5 tunes the emergency frequency, like holding the COM flip-flop for two seconds on the G1000 and GNS, or
   the volume knob on the GTN.
 - ADF ⇆ is the ADF flip-flop (FRQ on the KR 87). MIC 1 (ADF) is different: it only listens to the ADF.
@@ -227,7 +228,8 @@ The full rules and the state diagram are in [Firmware](../architecture/firmware.
   detent of the outer ring, and so on. Pause less than 5 s between digits: the entry ends 5 s after the last
   detent. To start over, turn the outer ring counter-clockwise to its stop, the first digit.
 - Ident: SHIFT, VFR (IDENT). Right after a squawk entry the amber light is still on, but VFR alone sends VFR
-  there and squawks the VFR code over the one just set: tap SHIFT again first.
+  there and squawks the VFR code over the one just set: tap SHIFT again first, or press VFR again to get the
+  code back.
 
 ## HOTAS
 

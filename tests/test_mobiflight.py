@@ -91,7 +91,7 @@ def test_every_button_is_mapped_or_listed_as_unmapped(key):
 # a code's tokens: a variable, read as (A:NAME:INDEX, unit) or (L:NAME, unit) or set as (>X:NAME) or
 # (>A:NAME:INDEX, unit), a number or an operator
 TOKEN = re.compile(r"\([^()]*\)|[^\s()]+")
-READ = re.compile(r"\((?:(?:A:([A-Z0-9 ]+(?::[1-9])?)|(L:[A-Za-z0-9_]+)), [A-Za-z][A-Za-z ]*|(B:[A-Z0-9_]+))\)")
+READ = re.compile(r"\((?:(?:A:([A-Z0-9 ]+(?::[1-9])?)|(L:[A-Za-z0-9_]+)), [A-Za-z][A-Za-z0-9 ]*|(B:[A-Z0-9_]+))\)")
 WRITE = re.compile(r"\(>(?:(K:[A-Z0-9_]+|H:[A-Za-z0-9_]+|L:[A-Za-z0-9_]+|B:[A-Z0-9_]+_Set)|(A:[A-Z ]+:[1-9]), Enum)\)")
 REGISTER = re.compile(r"(sp|s|l)([0-9])")         # a register: store and pop, store, load
 NUMBER = re.compile(r"[0-9]+(?:\.[0-9]+)?|0x[0-9A-F]+")
@@ -205,10 +205,12 @@ def unit(variable):
         return "knots"
     if variable == "GPS WP DISTANCE":
         return "nmiles"
+    if variable == "TRANSPONDER CODE":
+        return "bcd16"
     if variable.endswith("Required_VS"):
         return "feet per minute"
     if variable.endswith(("SELECTED", "PFD_CDI_Source", "LightingKnob", "dmeMode", "RadarTilt", "DistanceNM",
-                          "RNAV_DME")):
+                          "RNAV_DME", "AvionicsPanel_Squawk", "AvionicsPanel_Baro")):
         return "number"
     return "enum" if variable.endswith("STATE") else "bool"
 
@@ -312,6 +314,8 @@ def test_turns_and_tilts_use_codes_of_their_direction(key):
             continue
         for name, sign in writes(code):
             if re.search(r"Master\w*Lights|LightButton", name):   # a lights switch, on with its dimmer above 0
+                continue
+            if name.startswith("AvionicsPanel_"):        # the profile's own: a value kept for STD or VFR, forgotten
                 continue
             way = [w for w in [*words(name), sign] if w in UP | DOWN]
             if name in TDS_VALUE_WAY:                # TDS's volume knob: its value says the way
@@ -541,9 +545,12 @@ EVERY = """
     NAV2_AUDIO=K:RADIO_VOR2_IDENT_TOGGLE NAV_KHZ_DN=K:NAV1_RADIO_FRACT_DEC NAV_KHZ_DN@2=K:NAV2_RADIO_FRACT_DEC
     NAV_KHZ_UP=K:NAV1_RADIO_FRACT_INC NAV_KHZ_UP@2=K:NAV2_RADIO_FRACT_INC NAV_MHZ_DN=K:NAV1_RADIO_WHOLE_DEC
     NAV_MHZ_DN@2=K:NAV2_RADIO_WHOLE_DEC NAV_MHZ_UP=K:NAV1_RADIO_WHOLE_INC NAV_MHZ_UP@2=K:NAV2_RADIO_WHOLE_INC
-    NAV_SWAP=K:NAV1_RADIO_SWAP NAV_SWAP@2=K:NAV2_RADIO_SWAP SQK_D1_DN=K:XPNDR_1000_DEC SQK_D1_UP=K:XPNDR_1000_INC
-    SQK_D2_DN=K:XPNDR_100_DEC SQK_D2_UP=K:XPNDR_100_INC SQK_D3_DN=K:XPNDR_10_DEC SQK_D3_UP=K:XPNDR_10_INC
-    SQK_D4_DN=K:XPNDR_1_DEC SQK_D4_UP=K:XPNDR_1_INC VFR=0x7000,K:XPNDR_SET
+    NAV_SWAP=K:NAV1_RADIO_SWAP NAV_SWAP@2=K:NAV2_RADIO_SWAP SQK_D1_DN=K:XPNDR_1000_DEC,0,L:AvionicsPanel_Squawk_Kept
+    SQK_D1_UP=K:XPNDR_1000_INC,0,L:AvionicsPanel_Squawk_Kept
+    SQK_D2_DN=K:XPNDR_100_DEC,0,L:AvionicsPanel_Squawk_Kept SQK_D2_UP=K:XPNDR_100_INC,0,L:AvionicsPanel_Squawk_Kept
+    SQK_D3_DN=K:XPNDR_10_DEC,0,L:AvionicsPanel_Squawk_Kept SQK_D3_UP=K:XPNDR_10_INC,0,L:AvionicsPanel_Squawk_Kept
+    SQK_D4_DN=K:XPNDR_1_DEC,0,L:AvionicsPanel_Squawk_Kept SQK_D4_UP=K:XPNDR_1_INC,0,L:AvionicsPanel_Squawk_Kept
+    VFR=0x7000,K:XPNDR_SET,0,L:AvionicsPanel_Squawk_Kept,4,A:TRANSPONDER_STATE:1,L:AvionicsPanel_Squawk,1,L:AvionicsPanel_Squawk_Kept,K:XPNDR_SET,4,A:TRANSPONDER_STATE:1
 """
 SETS = {
     "g1000": """
@@ -589,7 +596,9 @@ SETS = {
     "g3x": """
         ADF_SWAP=K:ADF1_RADIO_SWAP ADF_SWAP@2=K:ADF1_RADIO_SWAP ALT=K:AP_ALT_HOLD ALT_1000_DN=1000,K:AP_ALT_VAR_DEC
         ALT_1000_UP=1000,K:AP_ALT_VAR_INC ALT_100_DN=K:AP_ALT_VAR_DEC ALT_100_UP=K:AP_ALT_VAR_INC AP=K:AP_MASTER
-        APR=K:AP_APR_HOLD BARO_DN=1,K:KOHLSMAN_DEC BARO_STD=1,K:BAROMETRIC_STD_PRESSURE BARO_UP=1,K:KOHLSMAN_INC
+        APR=K:AP_APR_HOLD BARO_DN=1,K:KOHLSMAN_DEC
+        BARO_STD=1,K:BAROMETRIC_STD_PRESSURE
+        BARO_UP=1,K:KOHLSMAN_INC
         CABIN_LT=K:TOGGLE_CABIN_LIGHTS CDI=K:TOGGLE_GPS_DRIVES_NAV1 CDI@2=K:TOGGLE_GPS_DRIVES_NAV1
         CLR=H:AS3X_Touch_1_Back_Push CLR@2=H:AS3X_Touch_2_Back_Push
         CRS_10_DN=10,-,K:GPS_OBS_SET,2,10,-,K:VOR2_SET,10,-,K:VOR1_SET
@@ -615,8 +624,10 @@ SETS = {
     "gns": """
         ADF_SWAP=K:ADF1_RADIO_SWAP ADF_SWAP@2=K:ADF1_RADIO_SWAP ALT=H:KAP140_Push_ALT
         ALT_1000_DN=H:KAP140_Knob_Outer_DEC ALT_1000_UP=H:KAP140_Knob_Outer_INC ALT_100_DN=H:KAP140_Knob_Inner_DEC
-        ALT_100_UP=H:KAP140_Knob_Inner_INC AP=H:KAP140_Push_AP APR=H:KAP140_Push_APR BARO_DN=K:KOHLSMAN_DEC
-        BARO_STD=1,K:BAROMETRIC_STD_PRESSURE BARO_UP=K:KOHLSMAN_INC BC=H:KAP140_Push_REV CABIN_LT=K:TOGGLE_CABIN_LIGHTS
+        ALT_100_UP=H:KAP140_Knob_Inner_INC AP=H:KAP140_Push_AP APR=H:KAP140_Push_APR
+        BARO_DN=K:KOHLSMAN_DEC,0,L:AvionicsPanel_Baro
+        BARO_STD=1013.23,-,0.1,0,16,K:KOHLSMAN_SET,0,L:AvionicsPanel_Baro,L:AvionicsPanel_Baro,1,K:BAROMETRIC_STD_PRESSURE
+        BARO_UP=K:KOHLSMAN_INC,0,L:AvionicsPanel_Baro BC=H:KAP140_Push_REV CABIN_LT=K:TOGGLE_CABIN_LIGHTS
         CDI=H:AS530_CDI_Push CDI@2=H:AS430_CDI_Push CLR=H:AS530_CLR_Push CLR@2=H:AS430_CLR_Push
         CRS_10_DN=10,-,K:VOR1_SET CRS_10_UP=10,+,K:VOR1_SET CRS_1_DN=K:VOR1_OBI_DEC CRS_1_UP=K:VOR1_OBI_INC
         CRS_CTR=K:VOR1_SET,180,+,K:VOR1_SET DIRECT=H:AS530_DirectTo_Push DIRECT@2=H:AS430_DirectTo_Push
@@ -641,8 +652,10 @@ SETS = {
     "gtn": """
         ADF_SWAP=K:ADF1_RADIO_SWAP ADF_SWAP@2=K:ADF1_RADIO_SWAP ALT=H:KAP140_Push_ALT
         ALT_1000_DN=H:KAP140_Knob_Outer_DEC ALT_1000_UP=H:KAP140_Knob_Outer_INC ALT_100_DN=H:KAP140_Knob_Inner_DEC
-        ALT_100_UP=H:KAP140_Knob_Inner_INC AP=H:KAP140_Push_AP APR=H:KAP140_Push_APR BARO_DN=K:KOHLSMAN_DEC
-        BARO_STD=1,K:BAROMETRIC_STD_PRESSURE BARO_UP=K:KOHLSMAN_INC BC=H:KAP140_Push_REV CABIN_LT=K:TOGGLE_CABIN_LIGHTS
+        ALT_100_UP=H:KAP140_Knob_Inner_INC AP=H:KAP140_Push_AP APR=H:KAP140_Push_APR
+        BARO_DN=K:KOHLSMAN_DEC,0,L:AvionicsPanel_Baro
+        BARO_STD=1013.23,-,0.1,0,16,K:KOHLSMAN_SET,0,L:AvionicsPanel_Baro,L:AvionicsPanel_Baro,1,K:BAROMETRIC_STD_PRESSURE
+        BARO_UP=K:KOHLSMAN_INC,0,L:AvionicsPanel_Baro BC=H:KAP140_Push_REV CABIN_LT=K:TOGGLE_CABIN_LIGHTS
         CRS_10_DN=10,-,K:VOR1_SET CRS_10_UP=10,+,K:VOR1_SET CRS_1_DN=K:VOR1_OBI_DEC CRS_1_UP=K:VOR1_OBI_INC
         CRS_CTR=K:VOR1_SET,180,+,K:VOR1_SET DIRECT=2,K:GPS_DIRECTTO_BUTTON/4,K:GPS_DIRECTTO_BUTTON
         DIRECT@2=26,K:GPS_DIRECTTO_BUTTON/28,K:GPS_DIRECTTO_BUTTON DN=H:KAP140_Push_DN
@@ -664,8 +677,9 @@ SETS = {
     BONANZA: """
         ADF_SWAP=H:adf_frqTransfert ADF_SWAP@2=H:adf_frqTransfert ALT=K:AP_ALT_HOLD ALT_1000_DN=H:kas297b_1000_DEC
         ALT_1000_UP=H:kas297b_1000_INC ALT_100_DN=H:kas297b_100_DEC ALT_100_UP=H:kas297b_100_INC AP=K:AP_MASTER
-        APR=K:AP_APR_HOLD ARM=H:kas297b_ArmButton BARO_DN=K:KOHLSMAN_DEC BARO_STD=1,K:BAROMETRIC_STD_PRESSURE
-        BARO_UP=K:KOHLSMAN_INC BC=K:AP_BC_HOLD
+        APR=K:AP_APR_HOLD ARM=H:kas297b_ArmButton BARO_DN=K:KOHLSMAN_DEC,0,L:AvionicsPanel_Baro
+        BARO_STD=1013.23,-,0.1,0,16,K:KOHLSMAN_SET,0,L:AvionicsPanel_Baro,L:AvionicsPanel_Baro,1,K:BAROMETRIC_STD_PRESSURE
+        BARO_UP=K:KOHLSMAN_INC,0,L:AvionicsPanel_Baro BC=K:AP_BC_HOLD
         CABIN_LT=0,1,L:var_LIGHTING_Push_Cockpit_1,L:var_LIGHTING_Push_Cockpit_2,L:var_LIGHTING_Push_Cockpit_3,L:var_LIGHTING_Push_Cockpit_4,L:var_LIGHTING_Push_Cockpit_5,L:var_LIGHTING_Push_Cockpit_6,L:OatMapCompassLightButton_2,L:var_OatMapCompassLightButton_2
         CDI=K:TOGGLE_GPS_DRIVES_NAV1 CDI@2=H:AS430_CDI_Push CLR=H:AS530_CLR_Push,H:KLN90B_CLR_Push
         CLR@2=H:AS430_CLR_Push CRS_10_DN=10,-,K:VOR1_SET CRS_10_UP=10,+,K:VOR1_SET CRS_1_DN=K:VOR1_OBI_DEC
@@ -712,7 +726,9 @@ SETS = {
         S_RANGE_CW=H:AS430_RNG_Dezoom,8,K:GPS_PAGE_KNOB_DEC,24,K:GPS_PAGE_KNOB_DEC,H:GTN650_KnobSmallDec
         S_UP=H:bksq_JpiButton_1_L_Short/H:bksq_JpiButton_1_L_Long S_VNV=H:adf_bfo S_VS=H:kas297b_VsButton TERR=K:GPS_OBS
         TEST=20,L:var_AutopilotStartupCounter,1,L:var_md41Test/0,L:var_md41Test
-        UP=100,K:AP_ALT_VAR_INC,K:AP_VS_VAR_INC,K:AP_PITCH_REF_INC_UP VNAV=H:AS530_VNAV_Push
+        UP=100,K:AP_ALT_VAR_INC,K:AP_VS_VAR_INC,K:AP_PITCH_REF_INC_UP
+        VFR=0x7000,K:XPNDR_SET,0,L:AvionicsPanel_Squawk_Kept,H:TRANSPONDER_Push_ALT,L:AvionicsPanel_Squawk,1,L:AvionicsPanel_Squawk_Kept,K:XPNDR_SET,H:TRANSPONDER_Push_ALT
+        VNAV=H:AS530_VNAV_Push
         VNV=0,0,-,0,300,0,0,30,60,0,100,100,100,300,1500,K:AP_VS_VAR_SET_ENGLISH,H:kas297b_VsButton
         VS=H:kas297b_VsButton XPDR_MODE=1,H:TRANSPONDER_Push_STBY,H:TRANSPONDER_Push_ALT YD=K:YAW_DAMPER_TOGGLE
     """,
@@ -804,20 +820,24 @@ SETS = {
 
 @FAMILY
 def test_what_every_function_sets(key):
+    # a family's own row replaces EVERY's: the Bonanza's VFR selects ALT with its GTX 327's key
     found = {f"{button}{'@2' * (device == 2)}={'/'.join(uses(code) for code in profile.actions(entry).values())}"
              for device, buttons in FAMILIES[key].DEVICE.items() for button, entry in buttons.items()}
-    assert found == set((EVERY + SETS[key]).split())
+    rows = dict(row.split("=", 1) for row in EVERY.split())
+    rows.update(row.split("=", 1) for row in SETS[key].split())
+    assert found == {f"{button}={uses_}" for button, uses_ in rows.items()}
 
 
 def test_the_vfr_key_sets_the_squawk_asked_for():
-    # XPNDR_SET takes the code as BCO16, its four digits as hex: the tables' 7000 unless another is asked for, and
+    # XPNDR_SET takes the code as BCD16, its four digits as hex: the tables' 7000 unless another is asked for, and
     # nothing else changes with it
     for key in FAMILIES:
         usual, other = items(build(key=key)), items(profile.build(FAMILIES[key], PANEL, "1200"))
         [(a, b)] = [(a, b) for a, b in zip(usual, other, strict=True) if a != b]
-        assert a["Name"] == b["Name"] == "VFR: XPNDR_SET"
-        assert run(a["button"]["onPress"]["Command"]) == [("K:XPNDR_SET", 0x7000)]
-        assert run(b["button"]["onPress"]["Command"]) == [("K:XPNDR_SET", 0x1200)]
+        assert a["Name"] == b["Name"] and a["Name"].startswith("VFR: XPNDR_SET, ")
+        for item, code in ((a, 0x7000), (b, 0x1200)):
+            assert ("K:XPNDR_SET", code) in run(item["button"]["onPress"]["Command"], {
+                "TRANSPONDER CODE:1": 0x4521, "L:AvionicsPanel_Squawk_Kept": 0})
         assert items(profile.build(FAMILIES[key], PANEL, 1200)) == other
         assert items(profile.build(FAMILIES[key], PANEL, "7000")) == usual
     for bad in ("7800", "120", "12000", "VFR", "", 120):
@@ -825,9 +845,28 @@ def test_the_vfr_key_sets_the_squawk_asked_for():
             profile.build(FAMILIES["g1000"], PANEL, bad)
 
 
+@FAMILY
+def test_vfr_toggles_the_vfr_code(key):
+    # from another code VFR keeps it, squawks 7000 and selects ALT (Black Square's GTX 327 by its ALT key); on 7000
+    # it squawks the code kept, once, and leaves the mode; with none kept it only selects ALT. 0000 is a code too.
+    code = FAMILIES[key].DEVICE[1]["VFR"]
+    alt = ("H:TRANSPONDER_Push_ALT", None) if key == BONANZA else ("A:TRANSPONDER STATE:1", 4)
+    kept, keeps = "L:AvionicsPanel_Squawk", "L:AvionicsPanel_Squawk_Kept"
+    for other in (0x4521, 0x0000):
+        assert run(code, {"TRANSPONDER CODE:1": other, keeps: 0}) == [
+            (kept, other), (keeps, 1), ("K:XPNDR_SET", 0x7000), alt]
+        assert run(code, {"TRANSPONDER CODE:1": 0x7000, keeps: 1, kept: other}) == [
+            ("K:XPNDR_SET", other), (keeps, 0)]
+    assert run(code, {"TRANSPONDER CODE:1": 0x7000, keeps: 0}) == [alt]
+    # a code entered with the squawk digits forgets the code kept
+    for d, step in ((1, 1000), (2, 100), (3, 10), (4, 1)):
+        for way, event in (("UP", "INC"), ("DN", "DEC")):
+            assert run(FAMILIES[key].DEVICE[1][f"SQK_D{d}_{way}"]) == [(f"K:XPNDR_{step}_{event}", None), (keeps, 0)]
+
+
 def test_a_vfr_code_replaces_the_squawk_of_the_table():
-    # a table with another squawk on its VFR key keeps it unless a code is asked for, 1200 included; one whose VFR
-    # key sets no squawk, or more than that, takes no code
+    # a table's VFR toggle keeps its code unless one is asked for, 1200 included, and its way to select ALT; a VFR
+    # key that sets no squawk, or a squawk without the toggle, takes no code
     def command(entry, vfr):
         class Family:
             NAME = "test"
@@ -835,12 +874,13 @@ def test_a_vfr_code_replaces_the_squawk_of_the_table():
         [item] = items(profile.build(Family, PANEL, vfr))
         return item["button"]["onPress"]["Command"]
 
-    ident = k("XPNDR_IDENT_ON")
-    assert command(k("XPNDR_SET", "0x7000"), None) == k("XPNDR_SET", "0x7000")
-    assert command(k("XPNDR_SET", "0x7000"), "1200") == k("XPNDR_SET", "0x1200")
+    ident, alt = k("XPNDR_IDENT_ON"), h("TRANSPONDER_Push_ALT")
+    assert command(parts.vfr(), None) == parts.vfr()
+    assert command(parts.vfr(), "1200") == parts.vfr("1200")
+    assert command(parts.vfr("1200", alt), "7000") == parts.vfr("7000", alt)
     assert command(ident, None) == ident
-    for entry in (ident, k("XPNDR_SET", "0x1200") + " " + ident):
-        with pytest.raises(ValueError, match="the VFR key of test sets no squawk"):
+    for entry in (ident, k("XPNDR_SET", "0x7000"), parts.vfr() + " " + ident):
+        with pytest.raises(ValueError, match="the VFR key of test has no VFR toggle"):
             command(entry, "1200")
     with pytest.raises(ValueError, match="not a squawk code"):
         command(ident, "7800")
@@ -985,10 +1025,34 @@ def test_the_garmin_up_and_dn_step_the_reference_of_the_vertical_mode(key):
             assert run(table[button], variables) == ([(f"K:{event}", None)] if event else [])
 
 
-@pytest.mark.parametrize("key", sorted(set(FAMILIES) - set(G1000)))
-def test_std_names_the_altimeter(key):
-    # BAROMETRIC_STD_PRESSURE takes the index of the altimeter (the SDK): the first one
-    assert run(FAMILIES[key].DEVICE[1]["BARO_STD"]) == [("K:BAROMETRIC_STD_PRESSURE", 1)]
+TOGGLED_STD = sorted(key for key in FAMILIES if FAMILIES[key].DEVICE[1]["BARO_STD"] == parts.STD_TOGGLE["BARO_STD"])
+
+
+def test_std_names_the_altimeter():
+    # BAROMETRIC_STD_PRESSURE takes the index of the altimeter (the SDK): the first one; the G3X Touch sends it
+    # alone, the Bendix/King cockpits as STD_TOGGLE does (below)
+    assert TOGGLED_STD == [BONANZA, "gns", "gtn"]
+    assert run(FAMILIES["g3x"].DEVICE[1]["BARO_STD"]) == [("K:BAROMETRIC_STD_PRESSURE", 1)]
+
+
+@pytest.mark.parametrize("key", TOGGLED_STD)
+def test_std_pressed_again_returns_to_the_setting_before(key):
+    # from another setting STD keeps it and sets STD; within half a hPa of 1013.2 it sets the setting kept
+    # (KOHLSMAN_SET: millibars * 16), once; with none kept it does nothing there
+    code = FAMILIES[key].DEVICE[1]["BARO_STD"]
+    assert run(code, {"KOHLSMAN SETTING MB:1": 1003.0, "L:AvionicsPanel_Baro": 0}) == [
+        ("L:AvionicsPanel_Baro", 1003.0), ("K:BAROMETRIC_STD_PRESSURE", 1)]
+    assert run(code, {"KOHLSMAN SETTING MB:1": 1013.25, "L:AvionicsPanel_Baro": 1003.0}) == [
+        ("K:KOHLSMAN_SET", 16048), ("L:AvionicsPanel_Baro", 0)]
+    assert run(code, {"KOHLSMAN SETTING MB:1": 1013.25, "L:AvionicsPanel_Baro": 0}) == []
+    # 29.92 inHg is STD too; a QNH of 1013 hPa, 29.91 or 29.93 inHg is not, so a press there sets STD
+    assert run(code, {"KOHLSMAN SETTING MB:1": 1013.21, "L:AvionicsPanel_Baro": 1003.0})[0][0] == "K:KOHLSMAN_SET"
+    for qnh in (1013.0, 1012.87, 1013.55, 1020.0):
+        assert run(code, {"KOHLSMAN SETTING MB:1": qnh, "L:AvionicsPanel_Baro": 1003.0}) == [
+            ("L:AvionicsPanel_Baro", qnh), ("K:BAROMETRIC_STD_PRESSURE", 1)]
+    # a turn of the BARO ring forgets the setting kept
+    for button, event in (("BARO_UP", "K:KOHLSMAN_INC"), ("BARO_DN", "K:KOHLSMAN_DEC")):
+        assert run(FAMILIES[key].DEVICE[1][button]) == [(event, None), ("L:AvionicsPanel_Baro", 0)]
 
 
 def test_the_kfc_150_rocker_steps_the_reference_of_the_mode():
@@ -1534,7 +1598,7 @@ def test_command_line_with_a_vfr_code(tmp_path):
     out = tmp_path / "out.mfproj"
     cli.main(["--family", "gns", "--vfr", "1200", "-o", str(out)])
     assert out.read_text(encoding="utf-8") == profile.dumps(profile.build(FAMILIES["gns"], profile.UNBOUND, "1200"))
-    assert '"0x1200 (>K:XPNDR_SET)"' in out.read_text(encoding="utf-8")
+    assert '"0x1200 sp0 (A:TRANSPONDER CODE:1, Bcd16) l0 == if{' in out.read_text(encoding="utf-8")
 
 
 def test_the_stamp_goes_in_the_name_alone(tmp_path):
@@ -1958,8 +2022,10 @@ def test_squawk_and_ident(key):
     sim.wait(3500)
     sim.tap("SHIFT")
     sim.tap("VFR")
-    assert sent(sim, key) == ([k("XPNDR_1000_INC")] * 6 + [k("XPNDR_100_DEC")] * 2 + [k("XPNDR_10_INC")]
-                              + [k("XPNDR_1_INC")] * 2 + [k("XPNDR_IDENT_ON")], [])
+    forget = " 0 (>L:AvionicsPanel_Squawk_Kept)"         # a code entered forgets the one VFR kept
+    assert sent(sim, key) == ([k("XPNDR_1000_INC") + forget] * 6 + [k("XPNDR_100_DEC") + forget] * 2
+                              + [k("XPNDR_10_INC") + forget] + [k("XPNDR_1_INC") + forget] * 2
+                              + [k("XPNDR_IDENT_ON")], [])
 
 
 @FAMILY
