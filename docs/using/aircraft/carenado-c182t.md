@@ -13,6 +13,8 @@ Good to know:
   ([how](../mapping.md#vnv-without-vnav)).
 - SHIFT with the outer FMS ring sets all panel lights; the push turns the two cabin lights on or off.
 
+The same sheet with the commit of the latest build in its title:
+[avionics-panel-carenado-c182t-sheet.svg](https://saschagrunert.de/avionics-panel/cards/avionics-panel-carenado-c182t-sheet.svg).
 The profile:
 [avionics-panel-carenado-c182t.mfproj](https://github.com/saschagrunert/avionics-panel/releases/download/rolling/avionics-panel-carenado-c182t.mfproj)
 ([how to use it](../mapping.md#generated-profiles)). Every detail, and what each control sends:

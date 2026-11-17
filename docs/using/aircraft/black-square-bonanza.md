@@ -18,6 +18,8 @@ Good to know:
   range.
 - FD and the UP/DN rocker send the simulator's events, which the aircraft may ignore.
 
+The same sheet with the commit of the latest build in its title:
+[avionics-panel-black-square-bonanza-sheet.svg](https://saschagrunert.de/avionics-panel/cards/avionics-panel-black-square-bonanza-sheet.svg).
 The profile:
 [avionics-panel-black-square-bonanza.mfproj](https://github.com/saschagrunert/avionics-panel/releases/download/rolling/avionics-panel-black-square-bonanza.mfproj)
 ([how to use it](../mapping.md#generated-profiles)). Every detail, and what each control sends:

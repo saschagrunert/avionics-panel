@@ -55,7 +55,10 @@ def test_the_sheets_in_the_docs_are_the_tables(key):
     with open(os.path.join(AIRCRAFT, f"{key}.svg"), encoding="utf-8") as f:
         assert f.read() == sheet.svg(key, sheet.TITLES[key]), "run python3 -m mobiflight --sheets"
     with open(os.path.join(AIRCRAFT, f"{key}.md"), encoding="utf-8") as f:
-        assert f"]({key}.svg)" in f.read()
+        text = f.read()
+    assert f"]({key}.svg)" in text
+    # and the stamped one the Pages workflow puts beside the view, from the cards zip
+    assert f"(https://saschagrunert.de/avionics-panel/cards/avionics-panel-{key}-sheet.svg)" in text
 
 
 def test_the_words_are_plain():

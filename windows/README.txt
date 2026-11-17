@@ -21,8 +21,8 @@ joysticks apart by an ID Windows gives each one.
 
 profile.bat writes a MobiFlight profile bound to your joysticks, the panel's or the vJoy devices, with the
 Python in this folder. Double-click it for the steps, or run profile.bat --family g1000 --from guids.mfproj
-from a command prompt in this folder. profile.bat --cards cards.zip writes a printable card of every
-profile, and profile.bat --joystick-definition avionics-panel.joystick.json the file that names the panel's
+from a command prompt in this folder. profile.bat --cards cards.zip writes a printable card and cheat
+sheet of every profile, and profile.bat --joystick-definition avionics-panel.joystick.json the file that names the panel's
 buttons in MobiFlight.
 
 This zip's build, the date and short hash of its commit, is in firmware\version.py. The page shows it in

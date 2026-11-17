@@ -470,11 +470,14 @@ and in unit 2. A control that does nothing in the profile says "nothing" with a 
 card gives the reason. What a control sets is named as MobiFlight lists it, by the events and variables of its
 code, so the card also tells which row of the project to open. Unpack the zip, open a card in a browser and
 print it on A4 in landscape; on Letter, scale it to fit the page. The cards are of the profiles to download,
-not of [avionics parts](#avionics-parts) or a profile changed in MobiFlight.
+not of [avionics parts](#avionics-parts) or a profile changed in MobiFlight. Beside each card the zip holds
+the profile's [cheat sheet](aircraft/README.md), `avionics-panel-g1000-sheet.svg` and the like, with the
+commit of the download in its title, as the card has it.
 
 The cards of main are also on the web, to open and print without the zip: [G1000 NXi][card-g1000], [GFC 500
 and G3X Touch][card-g3x], [GNS 530/430][card-gns], [GTN 750Xi/650Xi][card-gtn], [Black Square
 Bonanza][card-black-square-bonanza], [COWS DA40][card-cows-da40] and [Carenado C182T][card-carenado-c182t].
+The cheat sheets are beside them; each aircraft's page links its own.
 
 ## Two joysticks
 

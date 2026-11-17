@@ -9,15 +9,15 @@ py -m mobiflight --list
 
 Writes the MobiFlight project of a profile, or of the avionics parts given (one autopilot, one cockpit, and a
 navigator of both units or one per unit), for both joysticks; or a zip with a project of each part, to add to a
-project as its tabs; or a zip with the quick-reference card of each profile (card.py); or the cheat sheet of each
-profile as SVG (sheet.py); or MobiFlight's joystick definition, which labels the buttons (joystick.py). Without
---from or --serials, MobiFlight asks for the two joysticks once when it opens the project (docs/using/mapping.md).
-With them, the project is bound to your joysticks: read, names and all, from a project saved in MobiFlight with ENT
-bound in unit 1 and in unit 2, or given by their serials, JS- and the DirectInput instance GUID, which names both
-"Avionics Panel". For joysticks of another name, as the simulator's vJoy devices, use --from: MobiFlight asks again
-for two joysticks of one name in a project that it does not find by name and serial (ControllerAutoBinder.cs). The
-project's name ends in the commit of the files, in a release's files (profile.VERSION), or in what --stamp gives.
---list lists the profiles and the parts."""
+project as its tabs; or a zip with the quick-reference card and cheat sheet of each profile (card.py, sheet.py); or
+the cheat sheet of each profile as SVG (sheet.py); or MobiFlight's joystick definition, which labels the buttons
+(joystick.py). Without --from or --serials, MobiFlight asks for the two joysticks once when it opens the project
+(docs/using/mapping.md). With them, the project is bound to your joysticks: read, names and all, from a project
+saved in MobiFlight with ENT bound in unit 1 and in unit 2, or given by their serials, JS- and the DirectInput
+instance GUID, which names both "Avionics Panel". For joysticks of another name, as the simulator's vJoy devices,
+use --from: MobiFlight asks again for two joysticks of one name in a project that it does not find by name and
+serial (ControllerAutoBinder.cs). The project's name ends in the commit of the files, in a release's files
+(profile.VERSION), or in what --stamp gives. --list lists the profiles and the parts."""
 import argparse
 import contextlib
 import errno
@@ -126,7 +126,8 @@ def main(argv=None):
     what.add_argument("--family", choices=sorted(FAMILIES), help="a whole profile")
     what.add_argument("--autopilot", choices=sorted(AUTOPILOTS), help="the autopilot part")
     what.add_argument("--parts-zip", metavar="OUT.zip", help="a zip with a project of every part")
-    what.add_argument("--cards", metavar="OUT.zip", help="a zip with the quick-reference card of every profile")
+    what.add_argument("--cards", metavar="OUT.zip",
+                      help="a zip with the quick-reference card and the cheat sheet of every profile")
     what.add_argument("--sheets", metavar="DIR", help="the cheat sheet of every profile, as DIR/<profile>.svg")
     what.add_argument("--joystick-definition", metavar="OUT.joystick.json",
                       help="MobiFlight's joystick definition, with a label for every button")
@@ -147,8 +148,9 @@ def main(argv=None):
     parser.add_argument("-o", "--output", metavar="OUT.mfproj",
                         help="default: avionics-panel-FAMILY.mfproj, or avionics-panel.mfproj for parts")
     parser.add_argument("--stamp", metavar="TEXT", default=profile.VERSION,
-                        help="the text in brackets after the project's or the card's name, as the date and short "
-                             f"hash of the commit (default: {profile.VERSION or 'none'}, from firmware/version.py)")
+                        help="the text in brackets after the project's, the card's or the sheet's name, as the date "
+                             f"and short hash of the commit (default: {profile.VERSION or 'none'}, from "
+                             "firmware/version.py)")
     args = parser.parse_args(argv)
     def others(*own):                   # an option given (not its default) but these
         return any(value != parser.get_default(name) for name, value in vars(args).items() if name not in own)
@@ -170,10 +172,12 @@ def main(argv=None):
         parser.error("MobiFlight loads only files named *.joystick.json")
     try:
         if args.cards:
+            from mobiflight import sheet  # reads viewer/geometry.js and mech/stack.py, which a profile does without
             with replacing(args.cards, binary=True) as f, zipfile.ZipFile(f, "w", zipfile.ZIP_DEFLATED) as z:
                 for key, family in sorted(FAMILIES.items()):
                     z.writestr(entry(f"avionics-panel-{key}-card.html"), card.page(family, key, args.stamp))
-            print(f"wrote {args.cards}: {len(FAMILIES)} cards", file=sys.stderr)
+                    z.writestr(entry(f"avionics-panel-{key}-sheet.svg"), sheet.svg(key, sheet.TITLES[key], args.stamp))
+            print(f"wrote {args.cards}: {len(FAMILIES)} cards and cheat sheets", file=sys.stderr)
             return
         if args.sheets:
             from mobiflight import sheet  # reads mech/stack.py's legends, which a profile does without

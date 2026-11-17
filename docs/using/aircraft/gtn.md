@@ -13,6 +13,8 @@ Good to know:
 - VNV is the descent calculator, with TDS's distance to the next waypoint
   ([how](../mapping.md#vnv-without-vnav)).
 
+The same sheet with the commit of the latest build in its title:
+[avionics-panel-gtn-sheet.svg](https://saschagrunert.de/avionics-panel/cards/avionics-panel-gtn-sheet.svg).
 The profile:
 [avionics-panel-gtn.mfproj](https://github.com/saschagrunert/avionics-panel/releases/download/rolling/avionics-panel-gtn.mfproj)
 ([how to use it](../mapping.md#generated-profiles)). Every detail, and what each control sends:

@@ -326,12 +326,12 @@ class Sheet:
             self.box(x, top, SIDE_W, lines)
             self.lead([(x + SIDE_W if side == "left" else x, ty), (tx, ty)])
 
-    def svg(self, title):
+    def svg(self, title, version=None):
         self.out, self.boxes, self.leads = [], [], []
         self.panel()
         self.key_boxes()
         self.knob_boxes()
-        self.text(W / 2, 40, title, 26, INK, "bold", "middle")
+        self.text(W / 2, 40, f"{title} ({version})" if version else title, 26, INK, "bold", "middle")
         self.text(W / 2, 62, "⇧ = after a tap on SHIFT (amber light).  Unit 2: SHIFT, HOME (white light).  "
                              '"does nothing": this profile sends nothing for it.', 12, MUTED, anchor="middle")
         body = "\n".join(self.out)
@@ -340,9 +340,10 @@ class Sheet:
                 f'{body}\n</svg>\n')
 
 
-def svg(key, title):
-    """the cheat sheet of a profile (sheet_text.SHEETS[key]) as SVG"""
-    return Sheet(key).svg(title)
+def svg(key, title, version=None):
+    """the cheat sheet of a profile (sheet_text.SHEETS[key]) as SVG, with the commit of the files after its title as
+    the profile's name has it (version; None for none: the sheets in the docs go without, as they change with them)"""
+    return Sheet(key).svg(title, version)
 
 
 TITLES = {
