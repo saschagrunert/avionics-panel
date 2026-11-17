@@ -121,10 +121,13 @@ Using it:
 Every family tunes the radios directly, COM 1 / NAV 1 in unit 1 and COM 2 / NAV 2 in unit 2, whatever the
 avionics' own tuning box or cursor is on. The ADF mode's turns tune the active ADF frequency, and ADF ⇆ swaps
 it with the standby. 121.5 (SHIFT, COM ⇆) sets the active frequency of the unit's COM radio to 121.5. VFR
-squawks 7000, the VFR code of EASA; for another, 1200 in the US, change the `0x7000` in the code of the row
-"VFR: XPNDR_SET" in MobiFlight, or generate the profile with `--vfr 1200` (above). The XPDR mode push (SHIFT,
-FREQ push) switches the simulator's transponder between standby and ALT. MobiFlight shows the commands as
-custom code.
+squawks 7000, the VFR code of EASA, and selects ALT; pressed again on 7000 it squawks the code from before,
+once, as a GTX 327's VFR key does (the profile keeps it in `L:AvionicsPanel_Squawk`), and with none kept it
+only selects ALT. A code entered with the squawk digits forgets the one kept; one set in the cockpit with the
+mouse does not. For another VFR code,
+1200 in the US, change the `0x7000` at the start of the code of the row "VFR: XPNDR_SET, ..." in MobiFlight,
+or generate the profile with `--vfr 1200` (above). The XPDR mode push (SHIFT, FREQ push) switches the
+simulator's transponder between standby and ALT. MobiFlight shows the commands as custom code.
 
 Does nothing in every profile: the FREQ push (it only switches the FREQ knob between COM, NAV and ADF; it
 sends nothing to the sim). Each family below lists what else does nothing, mostly the keys its avionics lack
@@ -175,6 +178,8 @@ G3X gets nothing from this profile. Differences from the real units:
 - CRS sets the course of what the CDI shows. CRS CTR (SHIFT, HDG) centres a VOR or localizer course and does
   nothing on GPS.
 - UP and DN step the VS, IAS or pitch reference, as the GMC 507's wheel does, but not the altitude in ALT hold.
+- The BARO push only sets STD; leave it with the BARO ring. Working Title's G3X is taken to keep STD as a mode
+  of its own, as its G1000 NXi does, which a setting sent from outside would not leave.
 - Where the G3X manages the transponder's ground mode by itself, it turns the ALT of the XPDR mode push into
   that mode on the ground.
 
@@ -193,6 +198,9 @@ profile's events cannot tell the two apart. Differences from the real units:
 
 - The ALT/HDG knob sets the KAP 140's altitude and the heading bug, and its push syncs the bug to the heading,
   as on the G1000. With SHIFT it sets the course of NAV 1 and the altimeter, not the KAP 140's own BARO.
+- The BARO push (STD) sets standard pressure and, pressed again on STD (29.92 inHg or 1013.25 hPa), the
+  setting from before, once (the profile keeps it in `L:AvionicsPanel_Baro`). A turn of the BARO ring forgets
+  it, so at a QNH of 1013 hPa the push sets STD.
 - CRS CTR (SHIFT, HDG) sets the course of NAV 1 to its VOR or localizer; the KAP 140 cockpit's CDI has no
   such push.
 - RANGE is the GNS 530's RNG key, and SHIFT, RANGE the GNS 430's, in both units. Tilted up and down, the RANGE
@@ -244,7 +252,8 @@ real units:
 
 - The ALT/HDG knob sets the KAS 297B's altitude (or its rate while its knob is pulled in the cockpit) and the
   heading bug, and its push syncs the bug to the heading. With SHIFT it sets the course of NAV 1 and the
-  altimeter.
+  altimeter, and its push toggles STD as in the [GNS profile](#gns-530430).
+- VFR presses the GTX 327's ALT key as it squawks the VFR code.
 - VS and ALT ARM (SHIFT, ALT) are the KAS 297B's VS ENG and ALT ARM keys. TEST starts the KFC 150's self-test
   and holds the MD41's lamp test as long as it is held.
 - VNV works out and sets the vertical speed that reaches the selected altitude at the active waypoint, then

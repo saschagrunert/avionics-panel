@@ -49,7 +49,9 @@ AUTOPILOT = part("gfc500", "GFC 500", "autopilot", {1: parts.GARMIN_SHARED}, {1:
 
 # the cockpit: CRS CTR, the course to the VOR, or the localizer's, on the NAV the CDI shows, as the G3X's Course
 # knob push sets it; with SHIFT the course of what the CDI shows and the altimeter of index 1, the G3X's
-# (GduDefsConfig.ts), and STD; the G3X's GPS follows the sim's GPS OBS (use-sim-obs by default: FmsConfig.ts,
+# (GduDefsConfig.ts), and STD, which only sets STD: Working Title's G3X is taken to keep STD as a mode of its own,
+# as the G1000 NXi does (g1000.py), which KOHLSMAN_SET would not leave, so the push does not toggle it as
+# parts.STD_TOGGLE does; the G3X's GPS follows the sim's GPS OBS (use-sim-obs by default: FmsConfig.ts,
 # GarminObsLNavModule.ts). KOHLSMAN_INC and _DEC with the altimeter's index, as the G3X's own knob sends them
 # (Gdu460PfdInstrumentsView.tsx), though the SDK's Key Events list no parameter for them. The radios, ADF,
 # transponder and audio panel are the sim's own, on its data bar (parts.py).

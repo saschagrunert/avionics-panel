@@ -109,17 +109,18 @@ def serial(text):
 def build(family, controllers=UNBOUND, vfr=None, stamp=None):
     """The project of a profile or a part (families/) as a dict. controllers: {1: (name, serial), 2: (name,
     serial)}, the user's joysticks or UNBOUND. vfr: the squawk the VFR key sets, in place of the one in the
-    family's table (None: that one); ValueError for a code that is none, or for a family whose VFR key sets no
-    squawk. stamp: the text in brackets after the project's name, as the commit (None: none). A part's project
+    family's table (None: that one); ValueError for a code that is none, or for a family whose VFR key has no
+    VFR toggle. stamp: the text in brackets after the project's name, as the commit (None: none). A part's project
     names it in its label, which MobiFlight shows as the tab it adds."""
     part = hasattr(family, "KIND")             # a part, as a tab of its own beside others: named in its label
     title = family.TITLE if part else family.NAME
     tables = {1: dict(family.DEVICE[1]), 2: family.DEVICE[2]}
     if vfr is not None:
-        squawk = parts.vfr(vfr)
-        if not parts.is_squawk(tables[1].get("VFR")):
-            raise ValueError(f"the VFR key of {family.NAME} sets no squawk")
-        tables[1]["VFR"] = squawk
+        parts.vfr(vfr)                                        # a wrong code fails first
+        toggle = parts.vfr_toggle(tables[1].get("VFR"))
+        if not toggle:
+            raise ValueError(f"the VFR key of {family.NAME} has no VFR toggle")
+        tables[1]["VFR"] = parts.vfr(vfr, toggle["alt"])     # with the family's way to select ALT
     items = []
     for device in (1, 2):
         name, joystick = controllers[device]

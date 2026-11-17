@@ -28,16 +28,33 @@ def receive(com):
     return f"(A:COM RECEIVE EX1:{com}, bool) ! (>K:COM{com}_RECEIVE_SELECT)"
 
 
-def vfr(code=VFR):
-    """VFR: squawk this code, four digits of 0 to 7, in any aircraft (XPNDR_SET takes BCO16: the digits as hex)"""
+# VFR toggles the VFR code: from another code it keeps that code in L:AvionicsPanel_Squawk (TRANSPONDER CODE:1 in
+# BCD16, the digits as hex, as XPNDR_SET takes them), squawks the VFR code and selects ALT (alt: the code that
+# selects it); on the VFR code it squawks the code kept, once, as a GTX 327's VFR key does, and leaves the mode as
+# it is. The VFR code goes to register 0 at the start, so it stands in the code once (docs/using/mapping.md: change
+# it there). L:AvionicsPanel_Squawk_Kept says a code is kept (0000 is a code too).
+ALT = "4 (>A:TRANSPONDER STATE:1, Enum)"         # the simulator's mode ALT (XPDR_MODE below)
+_CODE = "(A:TRANSPONDER CODE:1, Bcd16)"
+_KEPT, _KEEPS = "AvionicsPanel_Squawk", "AvionicsPanel_Squawk_Kept"
+
+
+def vfr(code=VFR, alt=ALT):
+    """VFR: toggle this code, four digits of 0 to 7, in any aircraft (above); alt selects ALT"""
     if not re.fullmatch("[0-7]{4}", str(code)):
         raise ValueError(f"not a squawk code (four digits, each 0 to 7): {code!r}")
-    return k("XPNDR_SET", f"0x{code}")
+    return (f"0x{code} sp0 {_CODE} l0 == if{{ (L:{_KEEPS}, Bool) if{{ (L:{_KEPT}, Number) {k('XPNDR_SET')} "
+            f"0 (>L:{_KEEPS}) }} els{{ {alt} }} }} "
+            f"els{{ {_CODE} (>L:{_KEPT}) 1 (>L:{_KEEPS}) l0 {k('XPNDR_SET')} {alt} }}")
 
 
-def is_squawk(entry):
-    """Whether a table entry is a squawk code as vfr() makes one: the row --vfr replaces"""
-    return isinstance(entry, str) and re.fullmatch("0x[0-7]{4} " + re.escape(k("XPNDR_SET")), entry) is not None
+_SQUAWK_ENTRY = re.compile(re.escape(vfr("0000", "@ALT@")).replace("0x0000", "0x[0-7]{4}", 1)
+                           .replace("@ALT@", "(?P<alt>.+)", 1).replace("@ALT@", "(?P=alt)"))
+
+
+def vfr_toggle(entry):
+    """A table entry as the VFR toggle vfr() makes, the row --vfr replaces: its match, whose "alt" is the code that
+    selects ALT, or None"""
+    return _SQUAWK_ENTRY.fullmatch(entry) if isinstance(entry, str) else None
 
 
 # ---------------- the simulator's radios, tuned directly ----------------
@@ -88,16 +105,12 @@ ADF = {
 # the simulator's TRANSPONDER STATE:1 (the SDK: settable, 0 off, 1 standby, 2 test, 3 on, 4 ALT, 5 ground), which
 # holds the mode of Working Title's units (XPDR.ts) and of the KT 76, whose knob sets it and turns with it
 # (ASOBO_Transponder_Knob_Setting_Template in the SDK's Asobo\Transponder\Transponder.xml, with this statement):
-# standby or off goes to ALT, any other mode to standby
+# standby or off goes to ALT, any other mode to standby. A code entered with the squawk digits forgets the code VFR
+# kept, so VFR on the VFR code never returns to an old one
+_FORGET_SQUAWK = f"0 (>L:{_KEEPS})"
 SQUAWK = {
-    "SQK_D1_UP": k("XPNDR_1000_INC"),
-    "SQK_D1_DN": k("XPNDR_1000_DEC"),
-    "SQK_D2_UP": k("XPNDR_100_INC"),
-    "SQK_D2_DN": k("XPNDR_100_DEC"),
-    "SQK_D3_UP": k("XPNDR_10_INC"),
-    "SQK_D3_DN": k("XPNDR_10_DEC"),
-    "SQK_D4_UP": k("XPNDR_1_INC"),
-    "SQK_D4_DN": k("XPNDR_1_DEC"),
+    **{f"SQK_D{d}_{way}": f"{k(f'XPNDR_{step}_{event}')} {_FORGET_SQUAWK}"
+       for d, step in ((1, 1000), (2, 100), (3, 10), (4, 1)) for way, event in (("UP", "INC"), ("DN", "DEC"))},
     "IDENT": k("XPNDR_IDENT_ON"),
     "VFR": vfr(),
     "XPDR_MODE": "(A:TRANSPONDER STATE:1, Enum) 1 > if{ 1 } els{ 4 } (>A:TRANSPONDER STATE:1, Enum)",
@@ -229,19 +242,31 @@ GARMIN_SHARED = {
     **HEADING,
 }
 STD = {"BARO_STD": k("BAROMETRIC_STD_PRESSURE", 1)}         # the altimeter of index 1
+# STD toggled, for an altimeter that BAROMETRIC_STD_PRESSURE only ever sets to STD: from another setting it keeps
+# that setting in L:AvionicsPanel_Baro (millibars) and sets STD; on STD it sets the setting kept with KOHLSMAN_SET
+# (millibars * 16), once. STD is 1013.25 hPa, and 29.92 inHg reads 1013.21: within 0.1 hPa of 1013.23 takes both and
+# leaves out a QNH of 1013 hPa, 29.91 or 29.93 inHg, where a press sets STD. KOHLSMAN_SET goes without the
+# altimeter's index, as KOHLSMAN_INC and _DEC do: the SDK does not say in which order RPN gives an event two
+# parameters. A turn of the BARO ring forgets the setting kept (NAV1_KNOBS), so a press never returns to an old one
+_BARO, _KEPT_BARO = "(A:KOHLSMAN SETTING MB:1, millibars)", "AvionicsPanel_Baro"
+FORGET_BARO = f"0 (>L:{_KEPT_BARO})"
+STD_TOGGLE = {"BARO_STD": (
+    f"{_BARO} 1013.23 - abs 0.1 < if{{ (L:{_KEPT_BARO}, Number) 0 > if{{ (L:{_KEPT_BARO}, Number) 16 * near "
+    f"{k('KOHLSMAN_SET')} 0 (>L:{_KEPT_BARO}) }} }} els{{ {_BARO} (>L:{_KEPT_BARO}) {STD['BARO_STD']} }}")}
 
 # ---------------- the instruments round a Bendix/King autopilot (device 1) ----------------
 # with SHIFT, the course of NAV 1 and the altimeter (KOHLSMAN_INC and _DEC without an index, as the SDK's Key Events
-# list them; STD names the first altimeter), as the simulator's key events; CRS CTR centres the course of NAV 1
+# list them; STD names the first altimeter, and pressed again returns to the setting before: STD_TOGGLE), as the
+# simulator's key events; CRS CTR centres the course of NAV 1
 NAV1_KNOBS = {
     "CRS_CTR": CENTRE.replace("#", "1"),
     "CRS_1_UP": k("VOR1_OBI_INC"),
     "CRS_1_DN": k("VOR1_OBI_DEC"),
     "CRS_10_UP": turn(COURSE, "VOR1_SET", 10),
     "CRS_10_DN": turn(COURSE, "VOR1_SET", -10),
-    "BARO_UP": k("KOHLSMAN_INC"),
-    "BARO_DN": k("KOHLSMAN_DEC"),
-    **STD,
+    "BARO_UP": f"{k('KOHLSMAN_INC')} {FORGET_BARO}",
+    "BARO_DN": f"{k('KOHLSMAN_DEC')} {FORGET_BARO}",
+    **STD_TOGGLE,
 }
 
 # ---------------- VNV without VNAV: the descent calculator ----------------
