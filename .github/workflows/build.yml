@@ -123,8 +123,9 @@ jobs:
   # The profile of every avionics family and aircraft in mobiflight/families/ and a zip with a project of every
   # avionics part, bound to no joysticks: MobiFlight asks for both when it opens one
   # (docs/using/mapping.md#generated-profiles); a zip with the quick-reference card and cheat sheet of every
-  # profile, and MobiFlight's joystick definition of the panel. Each project's name ends in the commit's date and
-  # short hash: git archive fills in firmware/version.py, as in a release's source code and the zip.
+  # profile, MobiFlight's joystick definition of the panel, and profiles.tsv, the key and name of each profile for
+  # the latest build's notes. Each project's name ends in the commit's date and short hash: git archive fills in
+  # firmware/version.py, as in a release's source code and the zip.
   profiles:
     name: MobiFlight profiles
     runs-on: ubuntu-24.04
@@ -138,10 +139,11 @@ jobs:
           persist-credentials: false
       - run: |
           git -c core.abbrev=7 archive HEAD firmware/version.py | tar -x
-          families=$(python3 -c "from mobiflight.families import FAMILIES; print(*FAMILIES)")
-          for family in $families; do
-            python3 -m mobiflight --family "$family" -o "avionics-panel-$family.mfproj"
-          done
+          # each profile's key and name, for the latest build's notes
+          python3 -c "from mobiflight.families import FAMILIES as F; [print(k, F[k].NAME, sep='\t') for k in F]" >profiles.tsv
+          while IFS=$'\t' read -r family _; do
+            python3 -m mobiflight --family "$family" -o "avionics-panel-$family.mfproj" </dev/null
+          done <profiles.tsv
           python3 -m mobiflight --parts-zip avionics-panel-parts.zip
           python3 -m mobiflight --cards avionics-panel-cards.zip
           python3 -m mobiflight --joystick-definition avionics-panel.joystick.json
@@ -154,6 +156,7 @@ jobs:
             avionics-panel-parts.zip
             avionics-panel-cards.zip
             avionics-panel.joystick.json
+            profiles.tsv
           if-no-files-found: error
           retention-days: 7
   # The simulator's Windows code on Windows: the vJoy and keystroke outputs, against stand-ins for the DLLs, the
@@ -364,7 +367,40 @@ jobs:
           docs=$GITHUB_SERVER_URL/$GH_REPO/blob/main/docs/using
           notes="Built from main: each push to main replaces the files and moves the tag to its commit, so the tag"
           notes+=" and the source code here are the commit the files were built from."
-          notes+=" [Simulator]($docs/simulator.md) and [Mapping]($docs/mapping.md#generated-profiles) have the steps."
+          # what each file is and how to use it, on the page itself, with the docs for the details; the profiles
+          # come from profiles.tsv (the profiles job), so a new one needs no change here
+          notes+=$'\n\n'"## Which file you need"
+          notes+=$'\n\n'"- **A MobiFlight profile for your aircraft**, \`avionics-panel-<profile>.mfproj\`: a ready"
+          notes+=" project for MSFS 2024 and MobiFlight 11.2 or newer that maps both of the panel's joysticks, through"
+          notes+=" MobiFlight's WASM module (install it when MobiFlight offers it, with the sim closed). Open the project"
+          notes+=" (File, Open), close the \"Your input is needed!\" message, and in Extras, Controller Bindings bind"
+          notes+=" \`JS-device-1\` to either \"Avionics Panel\" joystick and \`JS-device-2\` to the other. Start a flight"
+          notes+=" with the avionics on and choose Run: with the SHIFT light off, one detent of the inner knob of"
+          notes+=" the ALT/HDG knob must move the heading bug by 1 degree. If it does not, open the downloaded project again"
+          notes+=" without saving and bind the joysticks the other way round. Save the project once it works"
+          notes+=" ([Generated profiles]($docs/mapping.md#generated-profiles))."
+          notes+=" The profiles, each with its cheat sheet:"
+          while IFS=$'\t' read -r key name; do
+            notes+=$'\n'"  - [$name]($docs/aircraft/$key.md): \`avionics-panel-$key.mfproj\`"
+          done <profiles.tsv
+          notes+=$'\n'"- **Avionics no profile covers**, \`avionics-panel-parts.zip\`: a MobiFlight project for each"
+          notes+=" avionics part. Join an autopilot, a cockpit and the navigators (one for both units, or one for"
+          notes+=" each) into a profile of your own"
+          notes+=" ([Avionics parts]($docs/mapping.md#avionics-parts))."
+          notes+=$'\n'"- **Something to print**, \`avionics-panel-cards.zip\`: for each profile, a quick-reference card"
+          notes+=" (\`avionics-panel-<profile>-card.html\`, what every control sends) and a cheat sheet"
+          notes+=" (\`avionics-panel-<profile>-sheet.svg\`, the panel with what every control does)"
+          notes+=" ([Quick-reference cards]($docs/mapping.md#quick-reference-cards))."
+          notes+=$'\n'"- **No panel yet**, \`avionics-panel-sim-windows.zip\`: the simulator for Windows. It runs the"
+          notes+=" panel's firmware on the PC, shows the panel in the browser and sends its buttons to two vJoy joysticks"
+          notes+=" that MobiFlight reads like the panel's. Install vJoy 2.2.2.0, unblock and extract the zip, run"
+          notes+=" \`vjoy-setup.bat\` as administrator once, then \`start.bat\`. A profile then binds to the two"
+          notes+=" \"vJoy Device\" joysticks instead of the \"Avionics Panel\" ones, the same way"
+          notes+=" ([Simulator]($docs/simulator.md#windows))."
+          notes+=$'\n'"- **Optional**, \`avionics-panel.joystick.json\`: a joystick definition that makes MobiFlight show"
+          notes+=" the panel's buttons by name instead of by number; it changes nothing else and is"
+          notes+=" not yet tried in MobiFlight"
+          notes+=" ([Button names in MobiFlight]($docs/mapping.md#button-names-in-mobiflight))."
           gh release view rolling >/dev/null 2>&1 ||
             gh release create rolling --latest --target "$GITHUB_SHA" --title "Latest build" --notes "$notes"
           # every file to download, built in this workflow, goes up in this one call, under its own name
