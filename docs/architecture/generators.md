@@ -86,6 +86,7 @@ not committed. The firmware prints it on its console, the page shows it, and the
 | Repository root | `python3 -m sim.page` | The [simulator](../using/simulator.md): the firmware on the PC, played in the browser |
 | Repository root | `python3 -m mobiflight --family g1000` | The MobiFlight profile of a family or aircraft, or of avionics parts, or the parts zip ([Mapping](../using/mapping.md#generated-profiles)); `--stamp` puts any text in place of the commit in its name |
 | Repository root | `python3 -m mobiflight --cards cards.zip` | The [quick-reference cards](../using/mapping.md#quick-reference-cards), one page of HTML per profile, named with the commit as the profiles (`--stamp` too) |
+| Repository root | `python3 -m mobiflight --sheets docs/using/aircraft` | The [aircraft cheat sheets](../using/aircraft/README.md), one SVG per profile from `mobiflight/sheet_text.py`; `tests/test_sheet.py` fails while they are out of date |
 | Repository root | `python3 -m mobiflight --joystick-definition avionics-panel.joystick.json` | MobiFlight's [joystick definition](../using/mapping.md#button-names-in-mobiflight), which names the buttons |
 | Repository root | `python3 windows/make_zip.py` | The simulator's zip for Windows ([Simulator](../using/simulator.md#windows)), with `profile.bat` for the profiles; it writes the commit into the zip's `firmware/version.py` |
 | Repository root | `python3 viewer/shots.py` | Renders 1 to 4 and 9, in the `shots` shell |

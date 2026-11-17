@@ -43,6 +43,8 @@ Using the panel:
 
 - [Mapping](docs/using/mapping.md): the ready MobiFlight profiles with a card to print for each, and mapping
   the two joysticks by hand
+- [Aircraft](docs/using/aircraft/README.md): a cheat sheet for each ready profile, the panel with what every
+  key and knob does in that aircraft
 - [Controls](docs/using/controls.md): what each key and knob does
 - [Compatibility](docs/using/compatibility.md): what each control maps to per avionics family and aircraft
 - [Keyboard mode](docs/using/keyboard.md): the panel as a keyboard, for MSFS on Xbox and PS5 and without

@@ -1,0 +1,18 @@
+# COWS DA40
+
+The cheat sheet of the COWS DA40 profile: the COWS DA40 (XLS and NG) with the G1000 NXi and its autopilot.
+Print it on A4 or Letter in landscape, or open the picture to zoom in.
+
+[![COWS DA40 cheat sheet](cows-da40.svg)](cows-da40.svg)
+
+Good to know:
+
+- The G1000 NXi profile under the DA40's name, so a project of its own can be linked to the aircraft ([G1000
+  NXi](g1000.md)).
+- SHIFT with the FMS knob sets the panel lights (outer) and the glareshield lights (inner); its push turns the
+  cabin lights on or off.
+
+The profile:
+[avionics-panel-cows-da40.mfproj](https://github.com/saschagrunert/avionics-panel/releases/download/rolling/avionics-panel-cows-da40.mfproj)
+([how to use it](../mapping.md#generated-profiles)). Every detail, and what each control sends:
+[Mapping](../mapping.md#cows-da40).
