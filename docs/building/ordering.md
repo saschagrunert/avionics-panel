@@ -231,27 +231,31 @@ JLCCNC's order form overrides the drawing, so set these on it (the labels may di
   `plate.pdf`, attached under the tolerance, does.
 - Tightest tolerance: ±0.05 mm, for the boss height. At the default, ISO 2768-m, the bosses come ±0.2 mm.
   Attach `plate.pdf` with "+ Upload Drawing" under it.
-- Marking: "+ Add finish", then "Laser marking", which asks for `plate.dxf` through "+ Drawing Required"; no
-  UV printing. The laser leaves one light grey on the black anodising, so there is no colour to choose.
+- Marking: "+ Add finish", then "Laser marking", which asks for `plate.dxf` through "+ Drawing Required";
+  then "+ Add finish" again for "UV printing", from the same `plate.dxf` (its layer UV_AMBER). The UV colour
+  is the amber the drawing gives (sRGB 217 / 164 / 65, CMYK 0 / 24 / 70 / 15): the shift legends under the
+  keys and the knobs' outer arcs. The remark asks JLCCNC to print that CMYK value and to confirm it or send a
+  photo, with orange as the fallback. Where the form only lists colour names, pick orange.
 - Appearance: Standard, which costs least. It allows up to four rack marks, where JLCCNC picks so that they do
   not affect assembly, and up to five scratches under 10 mm anywhere, the front face included. The remark
   asks for the rack marks off the front face and the boss end faces, which Standard does not promise. Strict,
-  the level above, keeps rack marks and scratches off the cosmetic surfaces, the laser-marked face among
-  them, for a price.
+  the level above, keeps rack marks and scratches off the cosmetic surfaces, the marked face among them, for
+  a price.
 - Build time: Economic, as the plate waits for the boards anyway. In November 2026 that was 11 days for
-  €51.70, against Standard (6 days, €58.05) and Expedited (3 days, €79.23).
+  €51.70, against Standard (6 days, €58.05) and Expedited (3 days, €79.23), all without the UV print.
 - Product Desc (the customs category, required): Aluminum Alloy Rectangular Plate.
 
 Files: `plate.step` (the model), `plate.pdf` (the drawing, with every tolerance, the threads, the finish, the
-edge breaks and a front view of the marking) and `plate.dxf` (the marking). Uploaded together, the drawings
-were not paired with the model: upload `plate.step` and attach the other two as above. Saved from the quote
-page, the plate goes into the cart it shares with JLCPCB and JLC3DP. Remark, 500 characters at most:
+edge breaks and a front view of the marking with the amber's colour values) and `plate.dxf` (the marking).
+Uploaded together, the drawings were not paired with the model: upload `plate.step` and attach the other two
+as above. Saved from the quote page, the plate goes into the cart it shares with JLCPCB and JLC3DP. Remark,
+500 characters at most:
 
 > Machined to drawing avionics-panel-rev1-plate.pdf; all its notes and tolerances apply, even where tighter
 > than your general tolerance. Threads M3-6H, plugged through blasting and anodising; must gauge afterwards.
-> Anodising rack contacts on the back face, in the pockets or in the encoder and RANGE hole bores; never on
-> boss end faces, front face, outline or key holes. Front face cosmetic. Marking per
-> avionics-panel-rev1-plate.dxf: layer LASER laser marked (no UV print), layer CUT reference only.
+> Rack contacts on the back face, in pockets or encoder and RANGE hole bores; never on boss end faces, front
+> face, outline or key holes. Front face cosmetic. Marking per avionics-panel-rev1-plate.dxf: LASER laser,
+> UV_AMBER UV CMYK 0/24/70/15 (confirm or photo; else orange), CUT reference.
 
 ## JLC3DP
 
@@ -340,8 +344,8 @@ answer of their own:
 | JLCPCB | The reverse-mount LEDs over their board cutouts: JLCPCB may question them, as reverse-mount parts over a cutout are rare. The BOM step already flags them: "The processing of this component is difficult", reviewed, with additional fees | As designed (PCB remark): the cutouts are 2.2 x 2.6 mm with R0.5 corners, and each LED sits on its pads over its cutout ([why](../architecture/electronics.md#lights)); check it in the [placement preview](#placement-preview). Accept the fee |
 | JLCPCB | J1 overhangs the y = 60 mm edge by 0.5 mm | By design, as the PCB remark says: the plug reaches it through the body wall. No rail on that edge ([Edge rails](#edge-rails)) |
 | JLCPCB | A single edge rail, on y = 0 | As in the PCB remark. If the line needs a second one, it goes on a short edge (x = 0 or x = 160 mm), with no bottom-side part within 12.8 mm of either (the nearest are D_ALTHDG and D_FMS); never on the J1 edge, which J1 overhangs and C_OUT0 and U3 sit 3.7 and 6.75 mm from |
-| JLCCNC | The laser marking's small legends: capitals 1.55 and 1.7 mm high (6.1 and 6.7 pt), strokes 0.19 mm at the thinnest. JLCCNC's marking guide gives no minimum for the laser (only lines thick enough to keep their detail); for its print it asks for 6 pt and 0.176 mm lines | Mark as drawn, which meets the print's figures too; accept a sample or a little blur |
-| JLCCNC | The laser marking near the holes: the shift legends start 0.7 mm from the key holes, and the line between the AUDIO and RADIO keys passes 0.575 mm from the key holes beside it, where JLCCNC usually keeps a 3 mm margin from an edge | Mark it as drawn. The shift legends keep 0.5 mm beyond the holes' edge breaks for the marking's register. Where the line meets a hole's edge break it is only cosmetic: accept it fading or ending short there |
+| JLCCNC | The small legends: capitals 1.55 and 1.7 mm high (6.1 and 6.7 pt), strokes 0.19 mm at the thinnest; for its print JLCCNC asks for 6 pt and 0.176 mm lines, and its marking guide gives no minimum for the laser | Mark and print as drawn; accept a sample or a little blur |
+| JLCCNC | The marking near the holes: the amber (UV) legends start 0.7 mm from the key holes, and the laser line between the AUDIO and RADIO keys passes 0.575 mm from the key holes beside it, where JLCCNC usually keeps a 3 mm margin from an edge | Mark and print it as drawn. The amber legends keep 0.5 mm beyond the holes' edge breaks for the print's register. If JLCCNC will not print that close to a hole: laser marking for those legends, in the laser's one tone. Where the line meets a hole's edge break it is only cosmetic: accept it fading or ending short there |
 | JLCCNC | The floor over the RANGE pocket: 0.95 mm (at least 0.85 mm, the drawing's note); JLCCNC recommends 0.8 mm, and over 1.5 mm where the part is bead blasted (the floors over the encoder pockets are 1.65 mm) | As drawn. Hold the pocket depths +0/-0.1 mm (a thicker floor takes the room over the parts) and the flatness after blasting. If they will not blast it as drawn: anodising without blasting (tool marks may then show); never a thicker floor, and no blasting of the front face alone, which can bow the plate |
 | JLCCNC | The boss height, 6.55 ±0.05 mm | ±0.1 mm is acceptable, with the flatness then held to 0.15 mm (see the next row) |
 | JLCCNC | Flatness 0.1 mm: milling most of a 12 mm plate off one side can bow it, and JLCCNC publishes no flatness figure | Up to 0.2 mm is acceptable with the boss height held at ±0.05 mm, or up to 0.15 mm with the bosses at ±0.1 mm; not 0.2 mm and ±0.1 mm together ([why](../architecture/mechanics.md#light-pipes)). Stress-relieved plate (T651) helps, if they offer it |
@@ -382,7 +386,7 @@ The quotes and the checkout on 2026-11-16, in EUR; prices move, so take them as 
 | --- | --- | --- |
 | PCB, 5 boards: engineering 22.65, ENIG 16.22, black mask 7.25, board 6.34, production file confirmation 0.95 | JLCPCB | 53.41 |
 | Standard assembly of 2 boards, both sides: setup 46.66, stencil 7.49, parts (29 lines) 72.09, feeders 36.52, SMT 1.65, placement confirmation 0.41, hand soldering 3.27, manual assembly 4.60, fixture 14.99, packaging 0.45 | JLCPCB | 188.14 |
-| Front plate, Economic build time | JLCCNC | 51.70 |
+| Front plate, Economic build time, quoted with laser marking only (the UV print adds to this) | JLCCNC | 51.70 |
 | Key caps, sets A to D (6.08 to 6.13 a set) | JLC3DP | 24.43 |
 | Knobs, 42 with General Sanding: outer rings 11.88, FMS rings 5.88, inner knobs 17.64, RANGE knobs 6.00 | JLC3DP | 41.40 |
 | Body, MJF PA12-HP, Dyed Black | JLC3DP | 13.43 |
@@ -395,8 +399,8 @@ The quotes and the checkout on 2026-11-16, in EUR; prices move, so take them as 
 The shops round each fee and line on its own, so sums can differ by a few cents. The checkout's merchandise
 came to €6.36 more than the cart's lines (€374.17), about the plate's step from Economic to Standard (€6.35):
 check its build time before paying. The cart showed a JLCPCB coupon of -€18.12. After the review JLCPCB adds
-the depanelling (€2.10) and whatever it quotes for the PCBA remark. The local items, the screws among them,
-come on top.
+the depanelling (€2.10) and whatever it quotes for the PCBA remark. The plate's UV print, which that quote
+did not have, the local items and the screws come on top.
 
 Build times: JLCPCB 3 days for the PCB and 5 to 6 days for the assembly (a day more with the advanced
 options), JLCCNC 11 days at Economic, JLC3DP 3 to 5 days at Standard; the parcel leaves once all are done.

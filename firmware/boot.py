@@ -5,7 +5,7 @@
 # can't ask to be ejected) and no serial console. To keep both for an update, hold SHIFT while plugging in
 # and until CIRCUITPY appears (about 2 s): CircuitPython waits up to 1 s (its safe-mode window) after
 # power-up before it runs this file, and SHIFT is read only then.
-# Holding the HOME key (shift legend UNIT) the same way switches between the joysticks and the keyboard mode
+# Holding the HOME key (amber legend UNIT) the same way switches between the joysticks and the keyboard mode
 # (keys.py), which the panel keeps from then on; in keyboard mode the lights take turns at each start. With
 # SHIFT held as well it switches too, and keeps the drive and console: an update holds SHIFT alone.
 import time

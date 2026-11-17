@@ -51,7 +51,7 @@ def test_shift_one_shot():
     s.key("SHIFT"); assert s.p.shift_active(s.t)
     s.key("AP"); assert s.take() == [(1, "TEST")] and not s.p.shift_active(s.t)
     s.key("AP"); assert s.take() == [(1, "AP")]
-    s.key("SHIFT"); s.key("VS"); assert s.take() == [(1, "S_VS")]      # no shift legend: own shifted button
+    s.key("SHIFT"); s.key("VS"); assert s.take() == [(1, "S_VS")]      # no amber legend: own shifted button
     s.key("SHIFT"); s.key("SHIFT"); s.key("AP"); assert s.take() == [(1, "AP")]   # second tap cancels
     s.key("SHIFT"); s.run(P.ARM_MS + 100); assert not s.p.shift_active(s.t); s.key("AP"); assert s.take() == [(1, "AP")]
     s.key("SHIFT"); s.turn("FREQ_INNER", 1); s.take()                   # squawk set, light still on

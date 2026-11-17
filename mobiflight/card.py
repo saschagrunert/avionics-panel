@@ -79,7 +79,7 @@ def knobs():
 
 
 def caps():
-    """[[(legend, shift legend, button, its button with SHIFT), ...] per row]: the keys as the panel has them; SHIFT
+    """[[(legend, amber legend, button, its button with SHIFT), ...] per row]: the keys as the panel has them; SHIFT
     sends no button, HOME with SHIFT is UNIT (firmware state)"""
     out = []
     for row in stack().KEY_LEGENDS:
@@ -156,7 +156,7 @@ def page(family, key, version=None):
     for keyrow in caps():
         for legend, amber, plain, shifted in keyrow:
             if plain is None:
-                body = ('<tbody><tr><th><b class="plain">SHIFT</b></th><td>tap, then a key or knob: its shift '
+                body = ('<tbody><tr><th><b class="plain">SHIFT</b></th><td>tap, then a key or knob: its amber '
                         'function (amber light); held alone 1 s: locked until a tap (the light blinks); SHIFT, HOME: '
                         'UNIT, unit 1 or 2 (white light)</td></tr></tbody>')
             elif shifted is None:

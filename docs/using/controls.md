@@ -17,9 +17,7 @@ shortcuts instead. To try them without a panel, the firmware runs on the PC and 
 - The left side does the autopilot work and the right side does radios and navigation. Two exceptions keep the
   knob columns symmetric: the map's RANGE knob sits under ALT/HDG, and BARO and CRS share the ALT/HDG knob
   behind SHIFT.
-- The legends on the caps and on the knobs' inner arcs are primary functions; the shift legends, on the
-  plate under each key and on each knob's outer arc, are SHIFT functions. The caps are black with white
-  legends (SHIFT's is amber), and the plate's legends are all laser marked in one light grey. Three lights:
+- White legends are primary functions, amber legends are SHIFT functions. All caps are black. Three lights:
   amber whenever SHIFT applies (pulsing in its last second), white while unit 2 is selected, green for the
   FREQ knob's mode (off COM, on NAV, slow blink ADF). All are dark while the PC is off, asleep, not connected
   or has suspended the panel. While the panel waits for the PC to take a report, up to 2.5 s, they stay as
@@ -55,7 +53,7 @@ FREQ and FMS, the same size one above the other, are told apart by feel without 
 Each knob legend names what the rings do, outer ring first, then what the push does. One word stands for
 both rings where it covers them (FREQ, SQUAWK, FMS).
 
-| Knob | Plain legend, inner arc | Shift legend, outer arc (with SHIFT) |
+| Knob | White legend | Amber legend (with SHIFT) |
 | --- | --- | --- |
 | ALT/HDG | ALT · HDG · PUSH SYNC | BARO · CRS · PUSH STD |
 | RANGE | RANGE · PUSH PTR, and four pan arrows | |
@@ -163,7 +161,7 @@ Charts instead, [Mapping](mapping.md#g1000-nxi)).
 
 28 keys. UNIT (SHIFT, HOME) switches between unit 1 and unit 2 for the FMS keys and knob (GTN or GNS 530 /
 second unit), for CDI and OBS, and for the radio the FREQ knob and flip-flops tune (COM 1 / NAV 1 or COM 2 /
-NAV 2). A white light beside the UNIT shift legend is on while unit 2 is selected. There is no automatic
+NAV 2). A white light beside the amber UNIT legend is on while unit 2 is selected. There is no automatic
 return to unit 1, because a timeout would interrupt long flight plan edits.
 
 On the G1000 unit 1 is the MFD with radio 1 and unit 2 the PFD with radio 2: UNIT switches the display and
@@ -185,8 +183,8 @@ SHIFT is tapped, or held alone 1 s to lock it. Its key sits in the centre of the
 travel to both sides, and its cap has a small raised bar near the front edge, so it can be found without
 looking.
 
-- Tap SHIFT: the amber light next to it comes on. The next key press sends the key's SHIFT function, then the
-  light goes off. A key without a shift legend (VS, UP, FLC, DN, VNV, ENT) sends a button of its own then,
+- Tap SHIFT: the amber light next to it comes on. The next key press sends the key's amber function, then the
+  light goes off. A key without an amber legend (VS, UP, FLC, DN, VNV, ENT) sends a button of its own then,
   mapped like the plain key ([Mapping](mapping.md#two-joysticks)).
 - A knob turned or pushed after the tap keeps SHIFT while you use it, on both rings and the push, until 5 s
   after its last detent, or after a held push or RANGE tilt is let go. Another knob ends it at once.
@@ -194,17 +192,17 @@ looking.
   function unannounced in the middle of a turn.
 - A second tap cancels SHIFT, and a tap's SHIFT cancels itself 3 s after the tap without input, plus any time
   the panel waited for the PC to take a report.
-- Hold SHIFT alone 1 s to lock it, for several SHIFT functions in a row: every key and knob then sends its
-  SHIFT function until you tap SHIFT again, and the light blinks between dim and bright, once a second. USB
+- Hold SHIFT alone 1 s to lock it, for several amber functions in a row: every key and knob then sends its
+  amber function until you tap SHIFT again, and the light blinks between dim and bright, once a second. USB
   going down unlocks it too. Use another control while still holding SHIFT and it was a plain SHIFT after all:
-  that control gets its SHIFT function, as after a tap, and nothing stays locked. A squawk entry has no time
+  that control gets its amber function, as after a tap, and nothing stays locked. A squawk entry has no time
   limit while locked: it ends at a key, a SHIFT tap or another knob, and the next one starts at the first
   digit. The FREQ knob tunes no radio until you unlock.
 - Dark means plain. Lit, steady or pulsing in its last second, means SHIFT is on: for the next key after a
   tap, or for the knob that keeps it. The light does not tell the two apart, and a key pressed while a knob
-  keeps SHIFT is sent plain and ends the knob's SHIFT. For a key's SHIFT function then, tap SHIFT first: that
-  tap arms SHIFT for the key for 3 s, and a second one cancels it. A slow blink, dim and bright once a second,
-  means locked.
+  keeps SHIFT is sent plain and ends the knob's SHIFT. For an amber key then, tap SHIFT first: that tap arms
+  SHIFT for the key for 3 s, and a second one cancels it. A slow blink, dim and bright once a second, means
+  locked.
 - A shifted push or RANGE tilt that is still held keeps SHIFT until it is let go, whatever key is pressed
   meanwhile, SHIFT included; only another knob or USB going down ends it. Held on after that, it keeps no
   later session.
@@ -247,8 +245,8 @@ and the KFC 150 both have CWS; it lets you hand-fly briefly without disengaging 
 - Keep the panel out of direct sun and away from heat: its printed parts soften from about 53 °C, the knobs
   and caps, held by friction, loosen when warm, and the light pipes yellow in UV. Clean it with a dry or damp
   cloth, no solvents.
-- The plate's legends are laser marked into the anodising, so fingertips do not rub them off as they would
-  ink.
+- The amber legends are UV ink on the anodising and wear where fingertips land; the light ones on the plate are
+  laser marked, and the cap legends are printed with the caps.
 - The encoders are rated for 15,000 rotations and 20,000 pushes, the RANGE control's encoder for 15,000
   rotations, the keys for 100,000 presses. The spare board replaces a worn one; with hand-soldering it comes
   without its keys, encoders and RANGE control, so it needs a second set of them

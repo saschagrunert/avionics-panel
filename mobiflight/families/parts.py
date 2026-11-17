@@ -263,7 +263,7 @@ NAV1_KNOBS = {
 # autopilot part's VNV, part.compose), the part alone every navigator's (families/__init__.py). A required rate
 # (required: an RPN read in ft/min, 0 for none, as the G1000 NXi gives one, g1000.py) goes first when it is a descent
 # of 300 ft/min or more; a smaller one, as for a constraint far ahead, gives way to the rate worked out. VNV and
-# SHIFT, VNV are the same: the key has no shift legend, so a stray SHIFT changes nothing.
+# SHIFT, VNV are the same: the key has no amber legend, so a stray SHIFT changes nothing.
 _SIZE = "100 / near 100 * 300 max 1500 min"          # a rate's size, rounded to 100 ft/min and clamped
 _SET_VS = k("AP_VS_VAR_SET_ENGLISH")
 _SELECTED = "(A:AUTOPILOT ALTITUDE LOCK VAR:1, feet)"
