@@ -8,8 +8,11 @@ Carenado C182T come first ([To check on the device](#to-check-on-the-device)).
 
 ## Downloads
 
-From the release [Latest build][rolling], one project per profile, each with a card (the events every
-control sends) and a cheat sheet (what every control does, in words) on the web:
+From the release [Latest build][rolling], one project per profile, each with a card (the events every control
+sends) and a cheat sheet on the web. The cheat sheet draws the IFR-1 with a box of plain words for each
+control round it and a line from each box to its control: a mode key's box says what the rings, the knob push
+and ⇆ do in that mode and in its shifted mode, and the boxes of the keys on the right and below say what each
+does in FMS1, FMS2 and the other modes.
 
 | Profile | Project | Card | Cheat sheet |
 | --- | --- | --- | --- |
@@ -49,28 +52,55 @@ another VFR code than 7000, as 1200 in the US: `python3 -m mobiflight --ifr1 cow
 
 | Mode | Outer / inner ring | ⇆ | Knob push, keys |
 | --- | --- | --- | --- |
-| COM1, COM2 | MHz / kHz of COM 1 / COM 2 | tap: flip-flop; hold: 121.5 | shift |
-| HDG (COM1 shifted) | heading bug 10° / 1° | heading bug to the heading | shift back |
-| BARO (COM2 shifted) | altimeter setting on both | STD; again: the setting before, where the panel does so | shift back |
-| NAV1, NAV2 | MHz / kHz of NAV 1 / NAV 2 | flip-flop | shift |
-| CRS1 (NAV1 shifted) | course 10° / 1°: on the G1000 NXi and G3X the CDI's course, else NAV 1's | the course to the VOR or LOC | shift back |
-| CRS2 (NAV2 shifted) | NAV 2 course 10° / 1° | NAV 2's course to the VOR or LOC | shift back |
-| FMS1, FMS2 | the unit's FMS knob; ⇆ held: its map range, where the profile has one (the G3X has none) | tap: the unit's HOME, where it has one | CRSR; D→, MENU, CLR, ENT and CDI, OBS, MSG, FPL, VNAV, PROC; held CLR, MENU, PROC: MAP, NRST, TERR; each where the profile has it |
+| COM1, COM2 | MHz / kHz of COM 1 / COM 2 | tap: flip-flop; hold: talk on COM 1 / COM 2 | shift |
+| HDG (COM1 shifted) | heading bug 10° / 1° | heading bug to the heading (in the Bonanza the HSI's course too) | shift back |
+| BARO (COM2 shifted) | altimeter setting on both | tap: STD; again: the setting before, where the panel does so; hold: pitot heat | shift back |
+| NAV1, NAV2 | MHz / kHz of NAV 1 / NAV 2 | tap: flip-flop; hold: NAV 1 / NAV 2 audio (ident) | shift |
+| CRS1 (NAV1 shifted) | course 10° / 1°: on the G1000 NXi and G3X the CDI's course, else NAV 1's | tap: the course to the VOR or LOC; hold: marker audio | shift back |
+| CRS2 (NAV2 shifted) | NAV 2 course 10° / 1° | tap: NAV 2's course to the VOR or LOC; hold: DME audio | shift back |
+| FMS1, FMS2 | the unit's FMS knob; ⇆ held: its map range, where the profile has one (the G3X has none), and on a GTN its volume on the outer ring | the unit's HOME, where it has one | CRSR; D→, MENU, CLR, ENT and CDI, OBS, MSG, FPL, VNAV, PROC; held CLR, MENU, PROC: MAP, NRST, TERR; each where the profile has it |
 | AP | selected altitude 100 ft, ⇆ held 1000 ft / the panel's UP and DN | tap and hold: by autopilot, below | VNV |
 | XPDR | first two / last two squawk digits | tap: IDENT; hold: VFR and back; held and a ring turned: standby or ALT | shift |
-| lights (XPDR shifted) | panel dimmer / flood dimmer, where the profile knows the aircraft's | cabin light | shift back |
+| lights (XPDR shifted) | panel dimmer / flood dimmer (the C182T's cabin lights), where the profile knows the aircraft's | cabin light | shift back |
 | Every mode but FMS1 and FMS2 | | | AP, HDG, NAV, APR (held: BC), ALT (held: ARM), VS, each where the profile has it |
 
 - ⇆ in FMS1, FMS2, AP and XPDR: held while turning a ring, the ring does what follows "⇆ held" and ⇆ sends
-  nothing when let go. Otherwise ⇆ sends its tap, or after more than 0.35 s its hold, as it is let go.
+  nothing when let go. Otherwise ⇆ sends its tap, or after more than 0.35 s its hold, as it is let go. Press ⇆
+  first, then turn: a detent that comes with the press, in the same report of the IFR-1, reaches the profile
+  before it (MobiFlight 11.3.1), so that detent does what it does without ⇆, and ⇆ let go then sends its tap
+  or hold, unless the ring turned again. No profile puts a hold on ⇆ in FMS1 or FMS2 for that reason; in AP
+  and XPDR, ⇆ keeps its tap and hold, so there a turn that comes with the press still lets ⇆ send them.
 - A key with an amber function on the panel sends that function when held and its own on a tap, both as it is
-  let go: APR (BC), ALT (ARM), CLR (MAP), MENU (NRST), PROC (TERR) and ⇆ in COM1 and COM2 (121.5), each where
-  the profile maps that function; the cheat sheet says what it is in the aircraft. AP, HDG, NAV and VS send at
-  once: disengaging the autopilot cannot wait for the release.
+  let go: APR (BC), ALT (ARM), CLR (MAP), MENU (NRST) and PROC (TERR), each where the profile maps that
+  function; the cheat sheet says what it is in the aircraft. ⇆ in COM1 and COM2 does the same with the panel's
+  MIC 1 and MIC 2 in place of 121.5: held, it picks the radio you talk on. ⇆ in NAV1, NAV2 and CRS2, held, is
+  the panel's NAV 1, NAV 2 or DME audio; in CRS1 and BARO the simulator's event for the marker audio or pitot
+  heat, which an aircraft may ignore. A tap there does what it did, on its release. AP, HDG, NAV and VS send
+  at once: disengaging the autopilot cannot wait for the release.
 - FMS1 and FMS2 are the panel's units 1 and 2, but on the G1000 NXi FMS1 is the PFD and FMS2 the MFD, as the
   G1000 numbers them (the panel's unit 1 is the MFD). In the Black Square Bonanza, FMS1 is the primary
-  selection of its tablet and FMS2 the secondary, every selection at once, as on the panel; with ⇆ held the
-  outer ring of FMS1 is the KLN 90B's left outer knob, which does nothing on a GNS or GTN.
+  selection of its tablet and FMS2 the secondary, every selection at once, as on the panel. With ⇆ held, the
+  outer ring is the GNS's map range and the GTN's volume (TDS's and PMS50's), and in FMS1 also the KLN 90B's
+  left outer knob; the inner ring is the map range. On TDS's GTN that range is its inner knob, which sets the
+  range on a map page and works the knob on any other page.
+- The Black Square Bonanza has more on the IFR-1 than on the panel's keys alone, as one profile for every
+  selection of its tablet. PMS50's GTN takes MENU, CLR, ENT and MSG as the keys its screen shows and PROC as
+  its Procedures page (premium version), as on the panel. TDS's GTN takes none of those, so MENU, CLR and ENT
+  also set TDS's volume up and down and push its volume knob (squelch with COM selected, ident with NAV);
+  FMS2's MENU does so held. ⇆ in HDG sets the HSI's course (the yellow arrow) to the heading with the heading
+  bug. The cockpit's functions go on keys: CDI held in FMS1 switches the HSI between NAV 1 and RNAV (GPSS,
+  which CRS1 needs on RNAV); in FMS2, VNAV steps the DME selector, and MENU and PROC are the EDM 800's STEP
+  and LEAN FIND on a tap, as they are pressed often, the GNS 430's MENU and PROC (and PMS50's) moving to the
+  hold. Held in FMS2, ENT runs the KFC 150's self-test with the autopilot off, MSG opens or shuts the oxygen
+  valve, FPL switches the tip tank transfer pumps (both off if either runs, else both on), OBS prop heat, CDI
+  steps the fuel boost pump one position from where it is (off, low, high, off) and VNAV switches the air
+  conditioner with its blower, as the guide's "Hardware Inputs & Outputs" and the project the Bonanza is flown
+  with set them. The fuel selector stays in the cockpit.
+- In the GTN profile, MENU, CLR and ENT of FMS1 and FMS2 set TDS's volume up and down and push its volume knob
+  (squelch with COM selected, ident with NAV), as TDS's GTN takes those keys only on its touchscreen.
+- The COWS DA40 and the Carenado C182T have their electric fuel pump on CDI held in FMS2, and the DA40 NG
+  its fuel transfer pump on FPL held in FMS2 (the XLS ignores it); those keys of the MFD then send on their
+  release. The C182T's inner ring in lights dims its two cabin lights, as on the panel.
 - ⇆ in AP: GFC 700 and GFC 500 tap FLC, hold LVL; KFC 150 tap FD, hold YD; KAP 140 nothing. The KAP 140's VS
   key leaves ALT hold for VS, which the panel leaves to its ALT key.
 - The squawk rings step two digits at a time as one octal number, from 77 round to 00 and back.
@@ -81,11 +111,14 @@ another VFR code than 7000, as 1200 in the US: `python3 -m mobiflight --ifr1 cow
   nothing when let go in the new mode. A key of TDS's GTN held in FMS1 or FMS2 while changing mode stays down
   in the GTN until pressed again; its key-up never reaches the other GTN.
 
-What the IFR-1 has no control for, of the panel's functions: in every profile the audio panel and the ADF; the
-maps' pan and pointer, or the COM and GTN volume and squelch the GNS, GTN and Bonanza profiles put there; the
-GFC 700's and GFC 500's FD and YD (the Bonanza has its own on ⇆ in AP); in the Bonanza its TEST, GPSS (the
-HSI's NAV 1 or RNAV switch), the KLN 90B's left CRSR, the KR 87's keys, the EDM 800, the DME selector and the
-weather radar. The cheat sheets mark every control that does nothing in a profile, with the reason.
+What the IFR-1 has no control for, of the panel's functions: in every profile 121.5, the ADF and the audio
+panel, except MIC 1 and MIC 2 (⇆ held in COM1 and COM2) and the NAV 1, NAV 2 and DME audio (⇆ held in NAV1,
+NAV2 and CRS2); the maps' pan and pointer, or the COM volume and the GTN's volume push the GNS, GTN and
+Bonanza profiles put there (the GTN's volume is on the outer ring with ⇆ held, TDS's volume and push in the
+GTN and Bonanza profiles also on MENU, CLR and ENT); the GFC 700's and GFC 500's FD and YD (the Bonanza has
+its own on ⇆ in AP); in the Bonanza the MD41's lamp test, the KLN 90B's left CRSR, the KR 87's keys, the EDM
+800's long presses and the weather radar. The cheat sheets mark every control that does nothing in a profile,
+with the reason.
 
 ## To check on the device
 
@@ -96,10 +129,22 @@ weather radar. The cheat sheets mark every control that does nothing in a profil
   the KAP 140's NAV and APR armed or captured; the KFC 150's modes on the sim's flags, or Black Square's own.
 - The lights go out when the sim closes or MobiFlight stops.
 - A bounce of the knob push (shift on and off at once, reported with MobiFlight) lets go of a ⇆ or key with a
-  hold held meanwhile in COM1, COM2 or XPDR: MobiFlight sends the same button for leaving shift as for a change
-  of mode.
-- Bonanza: CRS2 turns NAV 2's indicator; CRS1 with the HSI on RNAV (switched on the panel or in the cockpit:
-  the IFR-1 has no GPSS).
+  hold held meanwhile in COM1, COM2, NAV1, NAV2 or XPDR or their shifted modes: MobiFlight sends the same
+  button for leaving shift as for a change of mode.
+- ⇆ held in CRS1: the aircraft takes the simulator's marker audio event; in BARO, the pitot heat event in the
+  profiles of the sim's own avionics (the Bonanza, DA40 and C182T projects already send it).
+- ⇆ pressed with a ring turned at once, in FMS1, FMS2, AP and XPDR: how often the IFR-1 reports the press and
+  a detent together, which sends the detent without ⇆ and, with no further turn, ⇆'s tap or hold when let
+  go.
+- Bonanza: CRS2 turns NAV 2's indicator; CRS1 with the HSI on RNAV (CDI held in FMS1); ⇆ in HDG turns the
+  HSI's course to the heading.
+- Bonanza: MENU, CLR and ENT in FMS1 and FMS2 (FMS2's MENU held) set the volume of TDS's GTN and push it; the
+  outer ring with ⇆ held sets TDS's and PMS50's volume.
+- Bonanza with PMS50's GTN 650: which prefix it takes, `GTN650_` (Black Square's guide) or `GTN650_2_`
+  (PMS50's list for a GTN on COM 2); the profile sends both. MENU, CLR, ENT, MSG and PROC on PMS50's GTN.
+- Bonanza: the oxygen valve, prop heat by its input event, the air conditioner and the tip tank pumps from
+  FMS2's holds.
+- DA40 and C182T: the electric fuel pump by its input event; the DA40 NG's fuel transfer pump.
 - TDS's GTN takes the tap of ⇆ in FMS1 and FMS2, sent down and up at once, as HOME.
 - Flying the panel and the IFR-1 together, both profiles in one MobiFlight project.
 

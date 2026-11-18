@@ -6,11 +6,15 @@
 # the simulator's simulation variables (the SDK's lists)
 A:AUTOPILOT ALTITUDE LOCK
 A:AUTOPILOT ALTITUDE LOCK VAR:1
+A:AUTOPILOT APPROACH HOLD
+A:AUTOPILOT BACKCOURSE HOLD
 A:AUTOPILOT FLIGHT LEVEL CHANGE
 A:AUTOPILOT GLIDESLOPE ACTIVE
+A:AUTOPILOT HEADING LOCK
 A:AUTOPILOT HEADING LOCK DIR:1
 A:AUTOPILOT MASTER
 A:AUTOPILOT NAV SELECTED
+A:AUTOPILOT NAV1 LOCK
 A:AUTOPILOT PITCH HOLD
 A:AUTOPILOT VERTICAL HOLD
 A:COM RECEIVE EX1:1
@@ -36,6 +40,9 @@ A:TRANSPONDER CODE:1
 A:TRANSPONDER STATE:1
 
 # the simulator's input events, as projects the aircraft are flown with use them
+B:DEICE_Propeller_1_Toggle
+B:FUEL_PUMP_1
+B:FUEL_PUMP_1_Set
 B:LIGHTING_CABIN_1
 B:LIGHTING_CABIN_1_Set
 B:LIGHTING_CABIN_2_Set
@@ -173,25 +180,67 @@ H:KAP140_Push_NAV
 H:KAP140_Push_REV
 H:KAP140_Push_UP
 
-# pms50's GTN, as Black Square's guide lists it
+# pms50's GTN (PMS50's GTN750 events, which Black Square's guide follows)
+H:GTN650_2_BACK
+H:GTN650_2_DirectToPush
+H:GTN650_2_ENTER
+H:GTN650_2_GoToPage-HOME-PageProcs
+H:GTN650_2_HomePush
+H:GTN650_2_KnobLargeDec
+H:GTN650_2_KnobLargeInc
+H:GTN650_2_KnobPush
+H:GTN650_2_KnobSmallDec
+H:GTN650_2_KnobSmallInc
+H:GTN650_2_MENU
+H:GTN650_2_MSG
+H:GTN650_2_VolDec
+H:GTN650_2_VolInc
+H:GTN650_2_VolPush
+H:GTN650_BACK
 H:GTN650_DirectToPush
+H:GTN650_ENTER
+H:GTN650_GoToPage-HOME-PageProcs
 H:GTN650_HomePush
 H:GTN650_KnobLargeDec
 H:GTN650_KnobLargeInc
 H:GTN650_KnobPush
 H:GTN650_KnobSmallDec
 H:GTN650_KnobSmallInc
+H:GTN650_MENU
+H:GTN650_MSG
 H:GTN650_VolDec
 H:GTN650_VolInc
+H:GTN650_VolPush
+H:GTN750_2_BACK
+H:GTN750_2_DirectToPush
+H:GTN750_2_ENTER
+H:GTN750_2_GoToPage-HOME-PageProcs
+H:GTN750_2_HomePush
+H:GTN750_2_KnobLargeDec
+H:GTN750_2_KnobLargeInc
+H:GTN750_2_KnobPush
+H:GTN750_2_KnobSmallDec
+H:GTN750_2_KnobSmallInc
+H:GTN750_2_MENU
+H:GTN750_2_MSG
+H:GTN750_2_VolDec
+H:GTN750_2_VolInc
+H:GTN750_2_VolPush
+H:GTN750_BACK
 H:GTN750_DirectToPush
+H:GTN750_ENTER
+H:GTN750_GoToPage-HOME-PageProcs
 H:GTN750_HomePush
 H:GTN750_KnobLargeDec
 H:GTN750_KnobLargeInc
 H:GTN750_KnobPush
 H:GTN750_KnobSmallDec
 H:GTN750_KnobSmallInc
+H:GTN750_MENU
+H:GTN750_MSG
 H:GTN750_VolDec
 H:GTN750_VolInc
+H:GTN750_VolPush
 
 # the profiles' own
 L:AvionicsPanel_Baro
@@ -241,10 +290,14 @@ H:kas297b_ArmButton
 H:kas297b_VsButton
 L:OatMapCompassLightButton_1
 L:OatMapCompassLightButton_2
+L:TipTankTransferSwitch_L
+L:TipTankTransferSwitch_R
 L:bksq_MasterGlareshieldLights
 L:bksq_MasterPanelLights
+L:var_AirConditionerSwitch
 L:var_AutopilotStartupCounter
 L:var_EngineInstrumentsLightingKnob
+L:var_FUEL_Switch_Pump_1
 L:var_FlightInstrumentsLightingKnob
 L:var_GlareshieldLightingKnob
 L:var_LIGHTING_Push_Cockpit_1
@@ -259,6 +312,11 @@ L:var_PilotTransmitSelector
 L:var_RNAV_DME
 L:var_RadarTilt
 L:var_SubpanelLightingKnob
+L:var_airConditioningBlowerSwitch
 L:var_dmeMode
 L:var_md41Test
+L:var_oxygenOn
 L:var_rnavDrivesHsi
+
+# the project the COWS DA40 is flown with
+L:XFER_SWITCH

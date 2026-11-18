@@ -57,5 +57,5 @@ FAMILIES = {
     "black-square-bonanza": black_square_bonanza.PROFILE,
     "cows-da40": compose("COWS DA40", g1000.AUTOPILOT, g1000.COCKPIT, g1000.NAVIGATOR, rows={1: aircraft.DA40_LIGHTS}),
     "carenado-c182t": compose("Carenado C182T", parts.KAP140_AUTOPILOT, g1000.COCKPIT, g1000.NAVIGATOR,
-                              rows={1: aircraft.C182T_LIGHTS}, unmapped={1: aircraft.C182T_UNMAPPED}),
+                              rows={1: aircraft.C182T_LIGHTS}),
 }

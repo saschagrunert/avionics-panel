@@ -271,11 +271,11 @@ GTN_NAV = {
     "RANGE": "GTN 750 map zoom (clockwise out)",
     "PAN_UD": "GTN 750 volume",
     "PAN_LR": None,
-    "PTR": "GTN 750 squelch",
+    "PTR": "GTN 750 volume push: squelch, or ident with NAV",
     "S_RANGE": "GTN 650 map zoom",
     "S_PAN_UD": "GTN 650 volume",
     "S_PAN_LR": None,
-    "S_PTR": "GTN 650 squelch",
+    "S_PTR": "GTN 650 volume push: squelch, or ident with NAV",
 }
 GTN_UNIT2 = "unit 2 is the GTN 650Xi, with COM 2 / NAV 2"
 
@@ -289,7 +289,7 @@ BONANZA_NAV = {
     "MSG": "MSG",
     "MENU": "MENU (KLN 90B: ALT)",
     "NRST": "MD41 APR ARM (unit 1)",
-    "PROC": "PROC (GNS)",
+    "PROC": "PROC (GNS; PMS50 GTN: procedures)",
     "TERR": "MD41 OBS (unit 1)",
     "CLR": "CLR",
     "MAP": "CLR held: default map page",
@@ -301,11 +301,11 @@ BONANZA_NAV = {
     "RANGE": "map range; KLN 90B left inner knob",
     "PAN_UD": "COM 1 / GTN volume",
     "PAN_LR": "KLN 90B left outer knob",
-    "PTR": "TDS GTN squelch; KLN 90B left CRSR",
+    "PTR": "GTN volume push; KLN 90B left CRSR",
     "S_RANGE": "map range of the secondary",
     "S_PAN_UD": "COM 2 / GTN 650 volume",
     "S_PAN_LR": "weather radar range",
-    "S_PTR": "TDS GTN 650 squelch",
+    "S_PTR": "GTN 650 volume push",
 }
 BONANZA_UNIT2 = "unit 2 is the secondary (GNS 430, GTN 650 or KX 155B)"
 
@@ -342,6 +342,6 @@ SHEETS = {
     "carenado-c182t": ({**RADIOS, **ALT_HDG, **KAP140, **KAP140_KNOB, **G1000_COCKPIT, **G1000_NAV,
                         "VNV": "descent: NXi VSR or works it out",
                         "S_VNV": "descent: NXi VSR or works it out",
-                        "PANEL": "all panel lights, 5 % steps", "FLOOD": None,
+                        "PANEL": "all panel lights, 5 % steps", "FLOOD": "cabin lights, 5 % steps",
                         "CABIN": "the two cabin lights"}, G1000_UNIT2),
 }

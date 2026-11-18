@@ -235,8 +235,8 @@ The RANGE knob works the GTN 750Xi, and with SHIFT the GTN 650Xi. Turned, it tur
 other way round, as Garmin's touchscreen units zoom in clockwise (assumed for the GTN): so clockwise zooms the
 map out on the map page, as on the GNS and the G1000; on other pages it works as the FMS knob's inner ring
 does there, the other way round. Tilted up and down, it turns the GTN's volume knob; pushed, it is the volume
-knob's push, squelch. The panel sends the RANGE push as a tap, so holding it does not tune 121.5: SHIFT, COM ⇆
-(121.5) does.
+knob's push: squelch, or ident with NAV selected. The panel sends the RANGE push as a tap, so holding it does
+not tune 121.5: SHIFT, COM ⇆ (121.5) does.
 
 COM ⇆ and NAV ⇆ are the sim's flip-flops, as the GTN has no such keys. TDS says the GTNs control the sim's COM
 and NAV radios; if a frequency set with the FREQ knob does not show on the GTN, tune it there with the FMS
@@ -258,9 +258,10 @@ is the primary selection (KX 155B, KLN 90B, GNS 530 or GTN 750) with COM 1 / NAV
 155B, GNS 430 or GTN 650) with COM 2 / NAV 2, and either GTN is PMS50's or TDS's. A control sends the inputs
 of every navigator its unit may hold at once (the GNS's as in the GNS profile, TDS's GTN by TDS's own key
 events as in the GTN profile, the GTN 650 as either of TDS's units); each takes only its own, so the profile
-works with whatever the tablet selected, without a change. With a GTN, of the FMS keys only HOME, D→, the FMS
-knob and its push work, the rest is on its touchscreen; with a GNS, HOME does nothing. Differences from the
-real units:
+works with whatever the tablet selected, without a change. With TDS's GTN, of the FMS keys only HOME, D→, the
+FMS knob and its push work, the rest is on its touchscreen; PMS50's GTN also takes MENU, CLR, ENT and MSG
+while its screen shows them, and PROC as its Procedures page (premium version); with a GNS, HOME does nothing.
+Differences from the real units:
 
 - The ALT/HDG knob sets the KAS 297B's altitude (or its rate while its knob is pulled in the cockpit) and the
   heading bug, and its push syncs the bug to the heading. With SHIFT it sets the course of NAV 1 and the
@@ -286,9 +287,9 @@ real units:
   GTN's knob turned the other way as in the [GTN profile](#tds-gtn-750xi-and-650xi). On a GTN's other pages
   the turn works its inner knob there, as the FMS knob's inner ring does, the other way round. Tilted up and
   down, it sets the COM volume, of the radio (the GNS's and the KX 155B's volume knob) and of the GTN's volume
-  knob; that a GTN's volume does not step twice for it is assumed. Pushed, it is the volume push of TDS's
-  GTN, squelch; PMS50's GTN takes none from outside. With the KLN 90B as primary, RANGE works the KLN's left
-  side: turned, its left inner knob; tilted left and right, its left outer knob; pushed, its left CRSR.
+  knob; that a GTN's volume does not step twice for it is assumed. Pushed, it is the volume push of TDS's GTN
+  and PMS50's. With the KLN 90B as primary, RANGE works the KLN's left side: turned, its left inner knob;
+  tilted left and right, its left outer knob; pushed, its left CRSR.
 - The KLN 90B takes D→, CLR, ENT and MSG, MENU as its ALT key, the FMS knob as its right knob and the FMS push
   as its right CRSR; its power, brightness and scan stay in the cockpit. On the MD41 beside it, NRST (SHIFT,
   MENU) presses APR ARM and TERR (SHIFT, PROC) OBS, the simulator's OBS toggle, which with a GNS as primary
@@ -335,12 +336,12 @@ KAP 140's keys and altitude knob as in the [GNS profile](#gns-530430), the G1000
 the [G1000 NXi profile](#g1000-nxi), with the same differences from the real units. The ALT/HDG knob with
 SHIFT sets the PFD's CRS and BARO knobs, and the heading bug is the sim's. The C182T dims all its panel lights
 with one knob: the outer ring steps its four dimmers alike (two potentiometers, the panel and the pedestal),
-in steps of 5 %, and the cabin light push turns its two cabin lights fully on or off, as a project the C182T
-is flown with sets them. VNV and SHIFT, VNV are the descent calculator, as in the GNS profile; VNV takes the
-NXi's required vertical speed first ([VNV without VNAV](#vnv-without-vnav)).
+in steps of 5 %, the inner ring dims its two cabin lights together, and the cabin light push turns them
+fully on or off, as a project the C182T is flown with sets them. VNV and SHIFT, VNV are the descent
+calculator, as in the GNS profile; VNV takes the NXi's required vertical speed first
+([VNV without VNAV](#vnv-without-vnav)).
 
-Does nothing in this profile: TEST, FD, YD, VS, FLC, LVL, GPSS, ½ BANK and ARM (as in the GNS profile), the
-flood dimmer (the C182T has one dimmer for all its panel lights).
+Does nothing in this profile: TEST, FD, YD, VS, FLC, LVL, GPSS, ½ BANK and ARM (as in the GNS profile).
 
 ### VNV without VNAV
 
@@ -434,10 +435,10 @@ own, so one of each kind makes a whole profile:
   altimeter).
 - Navigators: `g1000` or `g3x` for both units, or one for each unit: `gns530`, `gns430`, TDS's GTN as TDS
   numbers it in the aircraft (`gtn750-tds1`, `gtn750-tds2`, `gtn650-tds1`, `gtn650-tds2`), pms50's GTN
-  (`gtn750-pms50`, `gtn650-pms50`, by the events Black Square's guide lists for it), or `none` for radios
-  alone. A navigator of one unit takes that unit's keys and FMS knob and its map on the RANGE knob, without
-  SHIFT in unit 1 and with SHIFT in unit 2: turned, the map's range; tilted up and down, the COM volume;
-  pushed, a TDS GTN's squelch, as in the [GTN profile](#tds-gtn-750xi-and-650xi).
+  (`gtn750-pms50`, `gtn650-pms50`, by PMS50's list of its events: in unit 2 as its COM 2 unit, `GTN750_2_` or
+  `GTN650_2_`), or `none` for radios alone. A navigator of one unit takes that unit's keys and FMS knob and
+  its map on the RANGE knob, without SHIFT in unit 1 and with SHIFT in unit 2: turned, the map's range; tilted
+  up and down, the COM volume; pushed, a GTN's volume push, as in the [GTN profile](#tds-gtn-750xi-and-650xi).
 
 Two ways to join them:
 
