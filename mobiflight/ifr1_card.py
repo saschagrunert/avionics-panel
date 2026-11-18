@@ -1,15 +1,16 @@
 """The IFR-1's quick-reference card and cheat sheet of a profile (ifr1.py, docs/using/ifr1.md): one page of HTML each,
-to print on A4 in landscape, as a grid of the IFR-1's modes and controls. The card lists what each control sets, as
+to print on A4 in landscape, the card as a grid of the IFR-1's modes and controls, the cheat sheet as the IFR-1 drawn
+with a box of words for each control (ifr1_sheet.py, from this module's Grid). The card lists what each control sets, as
 MobiFlight lists the item (profile.label(), as the panel's card.py); the cheat sheet says what it does in a few words,
 the panel's cheat sheet words (sheet_text.SHEETS) for the panel button it sends, words of its own for the rings the
 IFR-1 turns otherwise than the panel (words_of()), and an Own code's name for code no panel button sends. Both mark a
-control that sends nothing with "nothing" and the number of its reason, listed below the grid. Both pages are
-self-contained and depend on the profile alone, so the same tables make the same bytes.
+control that sends nothing with "nothing" and the number of its reason, listed below. Both pages are self-contained
+and depend on the profile alone, so the same tables make the same bytes.
 """
 import html
 
 from mobiflight import ifr1, profile, sheet
-from mobiflight.families import every_part
+from mobiflight.families import FAMILIES, every_part
 from mobiflight.sheet_text import SHEETS
 
 # the modes as rows: (MobiFlight's name, title), the shifted ones by the legend under their mode key
@@ -60,7 +61,6 @@ def words_of(key):
         out[2, button] = text
     own = {
         **{(d, b): w for d in (1, 2) for kind in ("COM", "NAV") for b, w in _radio(d, kind).items()},
-        (1, "COM_121_5"): "COM 1 to 121.5", (2, "COM_121_5"): "COM 2 to 121.5",
         (1, "HDG_10_UP"): "heading bug 10°", (1, "HDG_1_UP"): "heading bug 1°",
         (1, "CRS_10_UP"): f"{course} 10°", (1, "CRS_1_UP"): f"{course} 1°",
         (1, "ALT_100_UP"): "selected altitude 100 ft", (1, "ALT_1000_UP"): "1000 ft",
@@ -93,6 +93,11 @@ class Grid:
         if self.words is not None:
             if isinstance(use.source, ifr1.Own):
                 return html.escape(use.source.name)
+            if isinstance(use.source, ifr1.Plus):                 # the panel's words, then the IFR-1's own
+                device, button = use.source.panel
+                sent = button in FAMILIES[self.p.KEY].DEVICE[device]  # the panel's words only where it sends
+                panel = self.words[device, button] if sent else None
+                return html.escape("; ".join(filter(None, (panel, use.source.own.name))))
             text = self.words[use.source.device, use.source.button]
             assert text, (self.p.KEY, use.source)      # a mapped control has words (tests/test_ifr1.py)
             return html.escape(text)
@@ -197,44 +202,23 @@ i { color: var(--soft); }
 ol { columns: 2; column-gap: 4mm; margin: 1mm 0 0; padding-left: 3mm; color: var(--soft); }
 footer { margin-top: 1mm; }
 footer p { margin: 0.6mm 0 0; font-weight: bold; }
+figure { margin: 0; }
+figure svg { display: block; width: 100%; height: auto; max-height: 172mm; }
 """
 
 
 def page(ifr1_profile, version=None, words=False):
     """The IFR-1's card (words False) or cheat sheet (words True) of a profile, as a page of HTML, with the commit of
-    the files in its title (version: as card.page's)"""
-    grid = Grid(ifr1_profile, words)
-    modes, keys = grid.modes(), grid.keys()
-    notes = "\n".join(f'<li value="{n}">{html.escape(r)}</li>' for r, n in grid.reasons.items())
-    footer = (f"<footer>\n<p>Why a control does nothing in this profile:</p>\n<ol>\n{notes}\n</ol>\n</footer>\n"
-              if notes else "")
-    what = "cheat sheet" if words else "card"
-    name = html.escape(ifr1_profile.NAME)
-    version = html.escape(version) if version else ""
-    stamp = f' <span class="version">({version})</span>' if version else ""
-    title_stamp = f" ({version})" if version else ""
-    intro = ("What each control of the IFR-1 does with the MobiFlight profile "
-             if words else "What each control of the IFR-1 sets with the MobiFlight profile ")
-    intro += (f"{ifr1.filename(ifr1_profile.KEY)}{'' if words else ', as MobiFlight lists the events and variables'}"
-              ". A ring lists clockwise / counter-clockwise where they differ. ⇆ in FMS1, FMS2, AP and XPDR: held "
-              "while turning a ring, the ring does what follows \"⇆ held\", and ⇆ sends nothing on its release; "
-              f"otherwise a tap sends its tap, a hold of over {profile.LONG_MS / 1000:g} s its hold, on release. A "
-              "key with a hold sends its tap on release too.")
-    return f"""<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Avionics Panel for the IFR-1: {name}, {what}{title_stamp}</title>
-<style>
-{STYLE}</style>
-</head>
-<body>
-<header>
-<h1>IFR-1: {name}{stamp}</h1>
-<p>{html.escape(intro)}</p>
-</header>
-<h2>Modes</h2>
+    the files in its title (version: as card.page's). The card is a grid of the modes and keys; the cheat sheet the
+    IFR-1 drawn with a box of words for each control (ifr1_sheet.py). Both list why a control does nothing below."""
+    from mobiflight import ifr1_sheet  # imports this module's Grid
+    if words:
+        drawing, grid = ifr1_sheet.svg(ifr1_profile)
+        body = f'<figure>\n{drawing}</figure>\n'
+    else:
+        grid = Grid(ifr1_profile)
+        modes, keys = grid.modes(), grid.keys()
+        body = f"""<h2>Modes</h2>
 <table>
 <colgroup><col class="head"><col><col><col><col></colgroup>
 <thead><tr><th>Mode</th><th>Outer ring {TURN}</th><th>Inner ring {TURN}</th><th>Knob push</th><th>⇆</th></tr></thead>
@@ -250,6 +234,36 @@ def page(ifr1_profile, version=None, words=False):
 {keys}
 </tbody>
 </table>
-{footer}</body>
+"""
+    notes = "\n".join(f'<li value="{n}">{html.escape(r)}</li>' for r, n in grid.reasons.items())
+    footer = (f"<footer>\n<p>Why a control does nothing in this profile:</p>\n<ol>\n{notes}\n</ol>\n</footer>\n"
+              if notes else "")
+    what = "cheat sheet" if words else "card"
+    name = html.escape(ifr1_profile.NAME)
+    version = html.escape(version) if version else ""
+    stamp = f' <span class="version">({version})</span>' if version else ""
+    title_stamp = f" ({version})" if version else ""
+    intro = ("What each control of the IFR-1 does with the MobiFlight profile "
+             if words else "What each control of the IFR-1 sets with the MobiFlight profile ")
+    intro += (f"{ifr1.filename(ifr1_profile.KEY)}{'' if words else ', as MobiFlight lists the events and variables'}"
+              ". A ring lists clockwise / counter-clockwise where they differ. ⇆ in FMS1, FMS2, AP and XPDR: held "
+              "while turning a ring, the ring does what follows \"⇆ held\", and ⇆ sends nothing on its release "
+              "(press ⇆ first, then turn); otherwise a tap sends its tap, a hold of over "
+              f"{profile.LONG_MS / 1000:g} s its hold, on release. A key with a hold sends its tap on release too.")
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Avionics Panel for the IFR-1: {name}, {what}{title_stamp}</title>
+<style>
+{STYLE}</style>
+</head>
+<body>
+<header>
+<h1>IFR-1: {name}{stamp}</h1>
+<p>{html.escape(intro)}</p>
+</header>
+{body}{footer}</body>
 </html>
 """

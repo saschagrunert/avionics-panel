@@ -84,10 +84,11 @@ these controls do nothing with a GTN: FPL, PROC, MENU, CLR, ENT, MSG, NRST, TERR
 RANGE knob tilted left or right. Press HOME and touch the function on the screen; the map zooms with the inner
 FMS knob on the map page, which the GTN profile puts on RANGE too (turned the other way, so clockwise zooms
 out). The GTN and Bonanza profiles and the navigator parts put each GTN's volume knob on the RANGE tilt up and
-down and TDS's volume push on the RANGE push, the second unit's with SHIFT. The pms50 GTN takes other events:
-the [generated profile](mapping.md#generated-profiles) for TDS's GTNs does not work with it, the [Black Square
-Bonanza profile](mapping.md#black-square-bonanza) and the pms50 [navigator parts](mapping.md#avionics-parts)
-do.
+down and its volume push on the RANGE push, the second unit's with SHIFT. The pms50 GTN takes other events,
+its MENU, CLR (BACK), ENT (ENTER) and MSG keys while its screen shows them, and PROC as its Procedures page
+(premium version): the [generated profile](mapping.md#generated-profiles) for TDS's GTNs does not work with
+it, the [Black Square Bonanza profile](mapping.md#black-square-bonanza) and the pms50 [navigator
+parts](mapping.md#avionics-parts) do.
 
 The G3X Touch has its CDI, OBS, radios, transponder and audio panel on the touchscreen too, but those are the
 sim's own, which the sim's events work from outside. Its own functions stay on its screen, so these controls
@@ -113,13 +114,13 @@ The KLN 90B (Black Square Bonanza) takes D→, CLR, ENT, MSG, its ALT key on MEN
 on the FMS knob; its left knob and cursor go on the RANGE knob in the [Black Square Bonanza
 profile](mapping.md#black-square-bonanza).
 
-Cockpit lighting (SHIFT, FMS knob) maps to the aircraft's panel and flood light dimmers and the cabin or
-dome light, where the sim or the aircraft exposes them as events or variables; aircraft with one dimmer
-for everything use the outer ring only.
+Cockpit lighting (SHIFT, FMS knob) maps to the aircraft's panel and flood light dimmers and the cabin or dome
+light, where the sim or the aircraft exposes them as events or variables; the C182T, with one dimmer for all
+its panel lights, dims its cabin lights with the inner ring.
 
-Deliberately not on the panel: volume and squelch (except the COM volume and TDS's GTNs' squelch on the RANGE
-tilt and push, with the navigators of the GNS, GTN and Bonanza profiles and parts), the G1000 softkeys (except
-the ones the G1000 profile presses), the KR 87 timer, the KN 62 DME mode switch (the KDI 572R's selector is on
-LVL in the Bonanza profile) and the Collins IND-450 DME, marker audio (MKR), COM 3, KNS 81 RNAV waypoint
-entry, weather radar controls (except the RDR 1150XL's range and antenna tilt in the Bonanza profile), soft
-ride, autothrottle and the G3000 touch controllers.
+Deliberately not on the panel: volume and squelch (except the COM volume and the GTNs' volume push on the
+RANGE tilt and push, with the navigators of the GNS, GTN and Bonanza profiles and parts), the G1000 softkeys
+(except the ones the G1000 profile presses), the KR 87 timer, the KN 62 DME mode switch (the KDI 572R's
+selector is on LVL in the Bonanza profile) and the Collins IND-450 DME, marker audio (MKR), COM 3, KNS 81 RNAV
+waypoint entry, weather radar controls (except the RDR 1150XL's range and antenna tilt in the Bonanza
+profile), soft ride, autothrottle and the G3000 touch controllers.

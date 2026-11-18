@@ -5,7 +5,8 @@ as in the Cessna 172 Skyhawk Classic with TDS's GTNs, with the GTN 750Xi unit 1 
 650Xi unit 2 in unit 2 (COM 2, NAV 2). TDS numbers the units per model (TDS GTNXi manual, "Interfacing with Hardware");
 that its MSFS 2024 aircraft integrations load the 650Xi as unit 2 is assumed from the bezel names of the C172's
 (marcfsx-tdssim-gtnxi750u1 and marcfsx-tdssim-gtnxi650u2), and the parts cover the other ways. What the profile does
-differently from the real units is in docs/using/mapping.md#tds-gtn-750xi-and-650xi.
+differently from the real units is in docs/using/mapping.md#tds-gtn-750xi-and-650xi. pms50's GTN takes H: events of its
+own, its touchscreen's contextual keys and pages among them (pms50()).
 
 TDS takes only the GTNs' bezel from outside, as the simulator's GPS key events with a value that names the unit (the
 manual's "Interfacing with Hardware"): a knob detent sends the unit's value, a key that value plus 2 when it goes down
@@ -17,7 +18,7 @@ Simulator COM and NAV radio frequencies", and that they show frequencies set fro
 from functools import partial
 
 from mobiflight.families import part
-from mobiflight.families.rpn import bezel, k
+from mobiflight.families.rpn import h, k
 
 # TDS's value of each unit in its key events (the manual's "Interfacing with Hardware": the GTN 750Xi and the GTN
 # 650Xi, each as unit 1 and unit 2), and what a key adds to it: down, up; the volume knob adds the same to turn down
@@ -49,10 +50,10 @@ def _bezel(value):
 
 def _map(value):
     """The RANGE knob: turned, the inner knob (GPS_PAGE_KNOB), which zooms the map on the map page. Clockwise zooms
-    out, as the GNS's and the G1000's RANGE do, so it turns the inner knob the other way: on Garmin's touchscreen
-    units the inner knob zooms in clockwise (the AXIS pilot's guide, "Adjusting the MFW Map Range"), assumed for the
-    GTN too. Tilted up and down, the volume knob (GPS_BUTTON2, the manual's "Top Left Knob"); pushed, its push
-    (GPS_BUTTON1), which toggles squelch: the panel sends the RANGE push as a tap when it is let go
+    out, as the GNS's and the G1000's RANGE do, so it turns the inner knob the other way: on Garmin's touchscreen units
+    the inner knob zooms in clockwise (the AXIS pilot's guide, "Adjusting the MFW Map Range"), assumed for the GTN too.
+    Tilted up and down, the volume knob (GPS_BUTTON2, the manual's "Top Left Knob"); pushed, its push (GPS_BUTTON1),
+    which toggles squelch (ident with NAV selected): the panel sends the RANGE push as a tap when it is let go
     (firmware/panel.py), so a held push, 121.5 on the GTN, does not reach it, and the tap still goes down and up."""
     return {
         "RANGE_CW": k("GPS_PAGE_KNOB_DEC", value),
@@ -79,24 +80,41 @@ def tds(model, tds_unit, unit):
                           {**_bezel(value), **_map(value)}, _UNMAPPED, unit, (TDS_DISTANCE,))
 
 
-def pms50(model, unit):
-    """pms50's GTN 750 or 650 by the H: events Black Square's guide lists for it (GTN750_, GTN650_): HOME, D→, the
-    dual knob and its push, and the volume knob on the RANGE tilt; it takes no volume push from outside"""
-    rows = bezel(f"GTN{model}_", {
-        "HOME": "HomePush",
-        "DIRECT": "DirectToPush",
-        "FMS_OUTER_CW": "KnobLargeInc",
-        "FMS_OUTER_CCW": "KnobLargeDec",
-        "FMS_INNER_CW": "KnobSmallInc",
-        "FMS_INNER_CCW": "KnobSmallDec",
-        "FMS_CRSR": "KnobPush",
-        "RANGE_CW": "KnobSmallDec",
-        "RANGE_CCW": "KnobSmallInc",
-        "PAN_UP": "VolInc",
-        "PAN_DN": "VolDec",
-    })
-    return part.navigator(f"gtn{model}-pms50", f"pms50 GTN {model}", rows,
-                          {**_UNMAPPED, "PTR": "the pms50 GTN takes no volume push from outside"}, unit)
+# pms50's GTN: its bezel (PMS50's "GTN750 events", which Black Square's guide follows), its contextual keys, which it
+# takes while its screen shows them (MENU, BACK, ENTER, MSG), its Procedures page (premium version only) and its volume
+# knob and push
+_PMS50 = {
+    "HOME": "HomePush",
+    "DIRECT": "DirectToPush",
+    "FMS_OUTER_CW": "KnobLargeInc",
+    "FMS_OUTER_CCW": "KnobLargeDec",
+    "FMS_INNER_CW": "KnobSmallInc",
+    "FMS_INNER_CCW": "KnobSmallDec",
+    "FMS_CRSR": "KnobPush",
+    "MENU": "MENU",
+    "CLR": "BACK",
+    "ENT": "ENTER",
+    "S_ENT": "ENTER",
+    "MSG": "MSG",
+    "PROC": "GoToPage-HOME-PageProcs",
+    "RANGE_CW": "KnobSmallDec",
+    "RANGE_CCW": "KnobSmallInc",
+    "PAN_UP": "VolInc",
+    "PAN_DN": "VolDec",
+    "PTR": "VolPush",
+}
+_PMS50_TOUCH = "on the pms50 GTN's touchscreen: the profile sends none of its page or contextual events for it"
+
+
+def pms50(model, unit, also=()):
+    """pms50's GTN 750 or 650 by its H: events (_PMS50). PMS50 names the instrument on COM 1 / NAV 1 GTN750_ or
+    GTN650_ and the one on COM 2 / NAV 2 GTN750_2_ or GTN650_2_, by the panel's unit; also: more prefixes it sends
+    beside that one, for an aircraft whose own documentation names the instrument otherwise (the Bonanza's)."""
+    prefixes = (f"GTN{model}_" if unit == 1 else f"GTN{model}_2_", *also)
+    rows = {button: " ".join(h(prefix + name) for prefix in prefixes) for button, name in _PMS50.items()}
+    unmapped = {button: _PMS50_TOUCH if reason == _TOUCH else reason
+                for button, reason in _UNMAPPED.items() if button not in _PMS50}
+    return part.navigator(f"gtn{model}-pms50", f"pms50 GTN {model}", rows, unmapped, unit)
 
 
 NAVIGATORS = {

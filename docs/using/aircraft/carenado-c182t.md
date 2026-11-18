@@ -11,7 +11,8 @@ Good to know:
   autopilot and CRS CTR (the PFD's CRS push) work the G1000 as in the [G1000 NXi profile](g1000.md).
 - VNV takes the NXi's required vertical speed (VSR) first, else it works the rate out itself
   ([how](../mapping.md#vnv-without-vnav)).
-- SHIFT with the outer FMS ring sets all panel lights; the push turns the two cabin lights on or off.
+- SHIFT with the outer FMS ring sets all panel lights, the inner ring dims the two cabin lights; the push
+  turns them on or off.
 
 The same sheet with the commit of the latest build in its title:
 [avionics-panel-carenado-c182t-sheet.svg](https://saschagrunert.de/avionics-panel/cards/avionics-panel-carenado-c182t-sheet.svg).

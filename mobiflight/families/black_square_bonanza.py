@@ -12,21 +12,22 @@ switch, the DME's selector and the MD41's test L: variables. Black Square names 
 ("Avionics Variables & Events"): the GNS as AS530_1_ and AS430_1_, which the profile sends as the template's AS530_ and
 AS430_ as the GNS profile does (the GNS takes both: BaseInstrument.DecomposeEventFromPrefix strips the instrument's ID
 or its template's name, and the guide's own CDI row names AS530_CDI_Push), the KLN 90B as KLN90B_, TDS's GTNXi as L:
-variables (TDSGTNXI750U1_), and pms50's GTN as H: events (GTN750_, GTN650_). TDS's GTNXi takes its own key events too,
-in any aircraft (its manual's "Interfacing with Hardware", gtn.py), as a project the Bonanza is flown with drives it;
-the profile sends those, which also cover the volume push the guide does not list, with the GTN 650's values as TDS's
-unit 1 and unit 2, as the guide gives no unit for it. pms50's GTN takes no volume push from outside. TDS's are the
-simulator's legacy GPS key events, which other avionics may take as well: Working Title's GNS does not (none of them is
-in its source or the Garmin SDK's), and that Black Square's KLN 90B and pms50's GTN do not either is assumed. A control
-sends the inputs of every navigator its unit may hold, as each takes only its own and no two selections share a
-navigator's own input, so one profile drives whichever the tablet selected. Two controls send the simulator's events
-instead, which every selection follows: CDI (TOGGLE_GPS_DRIVES_NAV1) and TERR (GPS_OBS); the RANGE tilt sends the COM
-volume (the GNS part's, the radio's) beside the GTNs' volume. The guide lists no event for FD or for the KFC 150's UP/DN
-rocker: FD is the simulator's flight director key event, and the rocker steps the reference of the mode as the guide
-describes it (below); YD is the simulator's yaw damper event, for an aircraft that has one. The GNS's D→ is Working
-Title's DirectTo_Push, as the GNS profile sends it: the guide's DRCT_Push is not among the events the GNS takes
-(InteractionEvent.ts), and its RNG keys, which the guide does not list, are Working Title's too. The EDM 800's left
-button is taken to be STEP and its right LEAN FIND, as on the real unit; the guide does not say.
+variables (TDSGTNXI750U1_), and pms50's GTN as H: events (GTN750_, GTN650_; PMS50 names a GTN 650 on COM 2 GTN650_2_, so
+unit 2 sends both, UNIT2_NAVIGATORS). TDS's GTNXi takes its own key events too, in any aircraft (its manual's
+"Interfacing with Hardware", gtn.py), as a project the Bonanza is flown with drives it; the profile sends those, which
+also cover the volume push the guide does not list, with the GTN 650's values as TDS's unit 1 and unit 2, as the guide
+gives no unit for it. pms50's GTN takes its volume push and contextual keys by PMS50's own list of events (gtn.py).
+TDS's are the simulator's legacy GPS key events, which other avionics may take as well: Working Title's GNS does not
+(none of them is in its source or the Garmin SDK's), and that Black Square's KLN 90B and pms50's GTN do not either is
+assumed. A control sends the inputs of every navigator its unit may hold, as each takes only its own and no two
+selections share a navigator's own input, so one profile drives whichever the tablet selected. Two controls send the
+simulator's events instead, which every selection follows: CDI (TOGGLE_GPS_DRIVES_NAV1) and TERR (GPS_OBS); the RANGE
+tilt sends the COM volume (the GNS part's, the radio's) beside the GTNs' volume. The guide lists no event for FD or for
+the KFC 150's UP/DN rocker: FD is the simulator's flight director key event, and the rocker steps the reference of the
+mode as the guide describes it (below); YD is the simulator's yaw damper event, for an aircraft that has one. The GNS's
+D→ is Working Title's DirectTo_Push, as the GNS profile sends it: the guide's DRCT_Push is not among the events the GNS
+takes (InteractionEvent.ts), and its RNG keys, which the guide does not list, are Working Title's too. The EDM 800's
+left button is taken to be STEP and its right LEAN FIND, as on the real unit; the guide does not say.
 
 The profile (PROFILE) joins the KFC 150 part (AUTOPILOT, also offered alone), the Bendix/King cockpit (parts.py) and in
 each unit the navigator parts the tablet may put there (gns.py, gtn.py and the KLN 90B here, part.joined), with the
@@ -174,7 +175,8 @@ UNIT1 = joined("black-square-bonanza", "Black Square Bonanza's primary", *UNIT1_
     "TERR": k("GPS_OBS")})
 # Unit 2, the secondary selection: the GNS 430, TDS's GTN 650Xi (its unit 1 or 2, as the guide gives no unit for it
 # and only one GTN 650 is ever fitted) or pms50's GTN 650
-UNIT2_NAVIGATORS = (gns.navigator("430", 2), gtn.tds("650", 1, 2), gtn.tds("650", 2, 2), gtn.pms50("650", 2))
+UNIT2_NAVIGATORS = (gns.navigator("430", 2), gtn.tds("650", 1, 2), gtn.tds("650", 2, 2),
+                    gtn.pms50("650", 2, also=("GTN650_",)))
 UNIT2 = joined("black-square-bonanza", "Black Square Bonanza's secondary", *UNIT2_NAVIGATORS, reasons={
                    "NRST": "neither the GNS nor the GTN has a NRST key: the GNS's nearest pages are a page group, the "
                            "GTN's on its touchscreen",

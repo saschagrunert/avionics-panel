@@ -15,13 +15,15 @@ DA40_LIGHTS = {
 }
 
 # Carenado C182T: one dimmer for all its panel lights on the outer ring (its first potentiometer, the panel, the
-# pedestal and its second potentiometer, all alike), the cabin light push its two cabin lights, full on or off
+# pedestal and its second potentiometer, all alike), its two cabin lights dimmed together on the inner ring, and the
+# cabin light push those full on or off, as the project the C182T is flown with sets them
 _C182T_PANEL = ("B:LIGHTING_POTENTIOMETER_3_Set", "B:LIGHTING_PANEL_1_Set", "B:LIGHTING_PEDESTRAL_1_Set",
                 "B:LIGHTING_POTENTIOMETER_4_Set")
+_C182T_CABIN = ("B:LIGHTING_CABIN_1_Set", "B:LIGHTING_CABIN_2_Set")
 C182T_LIGHTS = {
     "PANEL_LT_UP": parts.dimmer("(B:LIGHTING_POTENTIOMETER_3)", _C182T_PANEL, 5),
     "PANEL_LT_DN": parts.dimmer("(B:LIGHTING_POTENTIOMETER_3)", _C182T_PANEL, -5),
-    "CABIN_LT": parts.toggle("(B:LIGHTING_CABIN_1)", ("B:LIGHTING_CABIN_1_Set", "B:LIGHTING_CABIN_2_Set"), 100),
+    "FLOOD_LT_UP": parts.dimmer("(B:LIGHTING_CABIN_1)", _C182T_CABIN, 5),
+    "FLOOD_LT_DN": parts.dimmer("(B:LIGHTING_CABIN_1)", _C182T_CABIN, -5),
+    "CABIN_LT": parts.toggle("(B:LIGHTING_CABIN_1)", _C182T_CABIN, 100),
 }
-C182T_UNMAPPED = dict.fromkeys(("FLOOD_LT_UP", "FLOOD_LT_DN"),
-                               "the C182T dims all its panel lights with one knob: the outer ring")
