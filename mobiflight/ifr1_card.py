@@ -9,7 +9,7 @@ and depend on the profile alone, so the same tables make the same bytes.
 """
 import html
 
-from mobiflight import ifr1, profile, sheet
+from mobiflight import card, ifr1, profile, sheet
 from mobiflight.families import FAMILIES, every_part
 from mobiflight.sheet_text import SHEETS
 
@@ -243,9 +243,7 @@ def page(ifr1_profile, version=None, words=False):
               if notes else "")
     what = "cheat sheet" if words else "card"
     name = html.escape(ifr1_profile.NAME)
-    version = html.escape(version) if version else ""
-    stamp = f' <span class="version">({version})</span>' if version else ""
-    title_stamp = f" ({version})" if version else ""
+    stamp, title_stamp = card.stamps(version)
     intro = ("What each control of the IFR-1 does with the MobiFlight profile "
              if words else "What each control of the IFR-1 sets with the MobiFlight profile ")
     intro += (f"{ifr1.filename(ifr1_profile.KEY)}{'' if words else ', as MobiFlight lists the events and variables'}"

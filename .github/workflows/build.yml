@@ -138,7 +138,10 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - run: |
+      # a release's cards zip links that release's projects and docs, every other run's the latest build's
+      - env:
+          TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || '' }}
+        run: |
           git -c core.abbrev=7 archive HEAD firmware/version.py | tar -x
           # each profile's key and name, for the latest build's notes
           python3 -c "from mobiflight.families import FAMILIES as F; [print(k, F[k].NAME, sep='\t') for k in F]" >profiles.tsv
@@ -147,7 +150,7 @@ jobs:
             python3 -m mobiflight --ifr1 "$family" -o "avionics-panel-ifr1-$family.mfproj" </dev/null
           done <profiles.tsv
           python3 -m mobiflight --parts-zip avionics-panel-parts.zip
-          python3 -m mobiflight --cards avionics-panel-cards.zip
+          python3 -m mobiflight --cards avionics-panel-cards.zip ${TAG:+--tag "$TAG"}
           python3 -m mobiflight --joystick-definition avionics-panel.joystick.json
           grep -q '"Name": "Avionics Panel: .* ([0-9-]*, [0-9a-f]\{7\})"' avionics-panel-g1000.mfproj
           grep -q '"Name": "Avionics Panel for the IFR-1: .* ([0-9-]*, [0-9a-f]\{7\})"' avionics-panel-ifr1-g1000.mfproj
@@ -245,10 +248,12 @@ jobs:
           $remote = ($rule | Get-NetFirewallAddressFilter).RemoteAddress
           if ($remote -ne "LocalSubnet") { throw "the rule lets in $remote, not the local subnet" }
   # Packs the viewer without write access; pages-deploy publishes the artifact. A push to main or a manual run
-  # on main publishes, once its build has passed; forks have no Pages of this repository to deploy to.
+  # on main publishes, once its checks have passed; forks have no Pages of this repository to deploy to.
   pages-pack:
     name: pack the viewer
-    needs: build
+    # after every check the latest build waits for (rolling), so the cards beside the view link the projects of
+    # their own commit
+    needs: [build, windows, zip, windows-zip, profiles]
     if: github.repository == 'saschagrunert/avionics-panel' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -268,6 +273,7 @@ jobs:
           test -f viewer/cards/avionics-panel-g1000-sheet.svg
           test -f viewer/cards/avionics-panel-ifr1-g1000-card.html
           test -f viewer/cards/avionics-panel-ifr1-g1000-sheet.html
+          test -f viewer/cards/index.html
       # the firmware files the panel plays with in the browser (viewer/play.js), at firmware/ beside the view,
       # version.py as filled in above
       - run: |
@@ -399,7 +405,8 @@ jobs:
           notes+=$'\n'"- **Something to print**, \`avionics-panel-cards.zip\`: for each profile, a quick-reference card"
           notes+=" (\`avionics-panel-<profile>-card.html\`, what every control sends) and a cheat sheet"
           notes+=" (\`avionics-panel-<profile>-sheet.svg\`, the panel with what every control does), and the IFR-1's"
-          notes+=" card and cheat sheet (\`avionics-panel-ifr1-<profile>-card.html\`, \`-sheet.html\`)"
+          notes+=" card and cheat sheet (\`avionics-panel-ifr1-<profile>-card.html\`, \`-sheet.html\`); \`index.html\`"
+          notes+=" lists them all, as does [the cards' page](https://saschagrunert.de/avionics-panel/cards/) online"
           notes+=" ([Quick-reference cards]($docs/mapping.md#quick-reference-cards), [IFR-1]($docs/ifr1.md#downloads))."
           notes+=$'\n'"- **No panel yet**, \`avionics-panel-sim-windows.zip\`: the simulator for Windows. It runs the"
           notes+=" panel's firmware on the PC, shows the panel in the browser and sends its buttons to two vJoy joysticks"

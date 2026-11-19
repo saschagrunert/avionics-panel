@@ -148,6 +148,15 @@ def row(card, title, buttons, shifted):
     return "<tbody>" + "".join(out) + "</tbody>"
 
 
+def stamps(version):
+    """A page's commit, escaped, (in its heading, in its title: the printout's header and the PDF's name), as the
+    command line passes it (--stamp, profile.VERSION unless given; None for none)"""
+    if not version:
+        return "", ""
+    version = html.escape(version)
+    return f' <span class="version">({version})</span>', f" ({version})"
+
+
 def page(family, key, version=None):
     """The card of a profile (families.FAMILIES[key]) as a page of HTML, with the commit of the files in its title as
     the profile's name has it (version: the command line passes --stamp, profile.VERSION unless given; None for
@@ -174,9 +183,7 @@ def page(family, key, version=None):
         blocks.append(f'<div class="knob"><h3>{head} knob</h3><table>\n{body}\n</table></div>')
     notes = "\n".join(f'<li value="{n}">{html.escape(r)}</li>' for r, n in card.reasons.items())
     name = html.escape(family.NAME)
-    version = html.escape(version) if version else ""
-    stamp = f' <span class="version">({version})</span>' if version else ""
-    title_stamp = f" ({version})" if version else ""                                # the printout's header, the PDF
+    stamp, title_stamp = stamps(version)
     return f"""<!doctype html>
 <html lang="en">
 <head>

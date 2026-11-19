@@ -477,7 +477,9 @@ print it on A4 in landscape; on Letter, scale it to fit the page. The cards are 
 not of [avionics parts](#avionics-parts) or a profile changed in MobiFlight. Beside each card the zip holds
 the profile's [cheat sheet](aircraft/README.md), `avionics-panel-g1000-sheet.svg` and the like, with the
 commit of the download in its title, as the card has it, and the IFR-1's card and cheat sheet of the profile,
-`avionics-panel-ifr1-g1000-card.html` and `-sheet.html` ([Octavi IFR-1](ifr1.md#downloads)).
+`avionics-panel-ifr1-g1000-card.html` and `-sheet.html` ([Octavi IFR-1](ifr1.md#downloads)). `index.html` lists
+them all with each profile's projects, as does the [page of the cards][cards-index] beside the 3D view, linked
+from its header.
 
 The cards of main are also on the web, to open and print without the zip: [G1000 NXi][card-g1000], [GFC 500
 and G3X Touch][card-g3x], [GNS 530/430][card-gns], [GTN 750Xi/650Xi][card-gtn], [Black Square
@@ -615,6 +617,7 @@ tap as that input is lost; [why](../architecture/firmware.md#usb)). Set its `pow
 [c182t]: https://github.com/saschagrunert/avionics-panel/releases/download/rolling/avionics-panel-carenado-c182t.mfproj
 [parts]: https://github.com/saschagrunert/avionics-panel/releases/download/rolling/avionics-panel-parts.zip
 [cards]: https://github.com/saschagrunert/avionics-panel/releases/download/rolling/avionics-panel-cards.zip
+[cards-index]: https://saschagrunert.de/avionics-panel/cards/
 [joystick]: https://github.com/saschagrunert/avionics-panel/releases/download/rolling/avionics-panel.joystick.json
 [rolling]: https://github.com/saschagrunert/avionics-panel/releases/tag/rolling
 [sim-zip]: https://github.com/saschagrunert/avionics-panel/releases/download/rolling/avionics-panel-sim-windows.zip

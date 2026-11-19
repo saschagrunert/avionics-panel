@@ -238,12 +238,14 @@ def test_the_focus_ring_stands_out_and_the_view_has_a_name():
     assert '<canvas id="c" role="img" aria-label="3D model of the Avionics Panel">' in page
 
 
-def test_the_view_links_to_the_repository_and_to_the_zip_the_docs_give():
+def test_the_view_links_to_the_repository_the_cards_and_the_zip_the_docs_give():
     with open(os.path.join(os.path.dirname(VIEWER), "docs", "using", "simulator.md"), encoding="utf-8") as f:
         [zip_link] = re.findall(r"^\[sim-zip\]: (\S+)$", f.read(), re.M)
-    # and to the panel that plays in the browser alone (viewer/play.js)
-    assert re.findall(r'<a href="([^"]+)"', viewer("index.html")) == ["?play", zip_link.split("/releases/")[0],
-                                                                       zip_link]
+    # and to the panel that plays in the browser alone (viewer/play.js), and to the index of the cards the Pages
+    # workflow puts at cards/ beside the view (mobiflight/card.py's index()), on Pages: the simulator serves the view
+    # without them
+    assert re.findall(r'<a href="([^"]+)"', viewer("index.html")) == [
+        "?play", "https://saschagrunert.de/avionics-panel/cards/", zip_link.split("/releases/")[0], zip_link]
 
 
 def test_the_page_and_its_files_are_served(page):
