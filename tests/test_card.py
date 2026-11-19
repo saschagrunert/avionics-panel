@@ -325,6 +325,11 @@ def test_a_releases_index_links_its_own_projects_and_docs(tmp_path):
     assert "the MobiFlight project of\nthe release v1.0." in page
     with pytest.raises(SystemExit):
         cli.main(["--family", "g1000", "--tag", "v1.0"])         # for the cards alone
+    # a tag with characters a URL or HTML takes otherwise, as git allows them, reaches the links quoted and the page
+    # escaped
+    page = cards.index(FAMILIES, tag='v1#&"')
+    assert f"{cards.REPO}/releases/download/v1%23%26%22/" in page and f"{cards.REPO}/blob/v1%23%26%22/docs/" in page
+    assert 'v1#&"' not in page and "the release v1#&amp;&quot;." in page
 
 
 def test_the_cards_take_the_stamp_as_the_profiles(tmp_path):

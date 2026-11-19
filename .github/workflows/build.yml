@@ -1,9 +1,9 @@
 name: build
 # Runs ./build.sh, which regenerates every output and runs every check, and fails when a committed output is
 # not current. Builds the simulator for Windows and the MobiFlight profiles, runs the simulator's Windows
-# tests and runs the zip on Windows. A push to main publishes the 3D view once build.sh and its checks pass.
-# Once the Windows jobs and both files' jobs pass too, it replaces the files of the latest build (the release
-# on the tag rolling), at the links the docs give; a release that is published gets the same files attached.
+# tests and runs the zip on Windows. Once every check passes, a push to main, or a manual run on main, replaces
+# the files of the latest build (the release on the tag rolling), at the links the docs give, then publishes the
+# 3D view with the cards; a release that is published gets the same files attached.
 # build.sh takes its tools from the nixpkgs locked in flake.lock; the zip and the profiles are made with the
 # runner's python3.
 on:
@@ -251,10 +251,9 @@ jobs:
   # on main publishes, once its checks have passed; forks have no Pages of this repository to deploy to.
   pages-pack:
     name: pack the viewer
-    # after every check the latest build waits for (rolling), so the cards beside the view link the projects of
-    # their own commit
-    needs: [build, windows, zip, windows-zip, profiles]
-    if: github.repository == 'saschagrunert/avionics-panel' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    # only once the latest build (rolling) holds this commit's files, which the cards beside the view link; it runs
+    # where rolling runs, on a push or a manual run on main in this repository, and is skipped with it
+    needs: rolling
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -350,7 +349,10 @@ jobs:
   rolling:
     name: update the latest build
     needs: [build, windows, zip, windows-zip, profiles]
-    if: github.repository == 'saschagrunert/avionics-panel' && github.event_name == 'push'
+    # a push to main, or a manual run on main, which then updates the view too (pages-pack)
+    if: >-
+      github.repository == 'saschagrunert/avionics-panel' && github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     concurrency:
@@ -376,8 +378,8 @@ jobs:
             exit 0
           fi
           docs=$GITHUB_SERVER_URL/$GH_REPO/blob/main/docs/using
-          notes="Built from main: each push to main replaces the files and moves the tag to its commit, so the tag"
-          notes+=" and the source code here are the commit the files were built from."
+          notes="Built from main: each push to main, and each manual run on main, replaces the files and moves the"
+          notes+=" tag to its commit, so the tag and the source code here are the commit the files were built from."
           # what each file is and how to use it, on the page itself, with the docs for the details; the profiles
           # come from profiles.tsv (the profiles job), so a new one needs no change here
           notes+=$'\n\n'"## Which file you need"
