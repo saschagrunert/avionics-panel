@@ -38,11 +38,18 @@ def index(families, version=None, tag=None):
     files_at, docs_at, rows = html.escape(release(tag)), html.escape(docs(tag)), []
     for key, family in families.items():
         panel_card, panel_sheet, ifr1_card, ifr1_sheet = files(key)
-        rows.append(f'<tr><th>{html.escape(family.NAME)}</th>'
-                    f'<td data-head="Panel"><a href="{panel_sheet}">cheat sheet</a> · '
-                    f'<a href="{panel_card}">card</a> · <a href="{files_at}{profile.filename(key)}">project</a></td>'
-                    f'<td data-head="Octavi IFR-1"><a href="{ifr1_sheet}">cheat sheet</a> · '
-                    f'<a href="{ifr1_card}">card</a> · <a href="{files_at}{ifr1.filename(key)}">project</a></td></tr>')
+        name = html.escape(family.NAME)
+
+        def link(href, text, device, name=name):            # read out alone, as a screen reader's list of links
+            what = "project, download" if text == "project" else text
+            return f'<a href="{href}" aria-label="{name}, {device} {what}">{text}</a>'
+        cells = [" · ".join((link(sheet_name, "cheat sheet", device), link(card_name, "card", device),
+                             link(files_at + project, "project", device)))
+                 for device, sheet_name, card_name, project in (
+                     ("panel", panel_sheet, panel_card, profile.filename(key)),
+                     ("IFR-1", ifr1_sheet, ifr1_card, ifr1.filename(key)))]
+        rows.append(f'<tr><th>{name}</th><td data-head="Panel">{cells[0]}</td>'
+                    f'<td data-head="Octavi IFR-1">{cells[1]}</td></tr>')
     stamp, title_stamp = card.stamps(version)
     body = "\n".join(rows)
     of = f"the release {html.escape(tag)}" if tag else "the latest build"
@@ -77,8 +84,8 @@ thead th {{ border-bottom: 2px solid var(--ink); }}
 <h1>Avionics Panel: cards and cheat sheets{stamp}</h1>
 <p>For each profile, for the panel and for the Octavi IFR-1: the cheat sheet (what each control does, in plain
 words), the card (every event and variable a control sends, as MobiFlight lists them) and the MobiFlight project of
-{of}. Open a cheat sheet or card and print it on A4 in landscape. From the zip, extract it first: this page links
-the pages beside it, and a page opened inside the zip comes alone.</p>
+{of}. Open a cheat sheet or card and print it on A4 in landscape (on Letter, scaled to fit). From the zip, extract
+it first: this page links the pages beside it, and a page opened inside the zip comes alone.</p>
 <table>
 <thead><tr><th>Profile</th><th>Panel</th><th>Octavi IFR-1</th></tr></thead>
 <tbody>

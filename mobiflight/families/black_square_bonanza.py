@@ -76,14 +76,17 @@ _NO_FLC = "the KFC 150 has no FLC mode"
 # modes and the KAS 297B's VS ENG and ALT ARM, the ALT/HDG knob, SHIFT, UP and SHIFT, DN as the rocker (a stray
 # SHIFT does no harm), TEST the self-test's counter, as the guide sets it, and VNV and SHIFT, VNV the descent
 # calculator without the Bonanza's KNS 81, which another aircraft lacks (of the distances the part reads alone,
-# part.alone, or in a profile, part.compose)
+# part.alone, or in a profile, part.compose). FD and the self-test only with the autopilot off, as Garmin's FD
+# (parts.GARMIN_SHARED): a press in flight must not take the flight director away from it or test it.
+_OFF = "(A:AUTOPILOT MASTER, Bool) !"
+SELF_TEST = f"{_OFF} if{{ {lset('var_AutopilotStartupCounter', 20)} }}"
 AUTOPILOT = part("kfc150", "KFC 150 (Black Square)", "autopilot", {1: {
     "AP": k("AP_MASTER"),
-    "TEST": lset("var_AutopilotStartupCounter", 20),
+    "TEST": SELF_TEST,
     "ALT": k("AP_ALT_HOLD"),
     "ARM": h("kas297b_ArmButton"),
     "HDG": k("AP_PANEL_HEADING_HOLD"),
-    "FD": k("TOGGLE_FLIGHT_DIRECTOR"),
+    "FD": f"{_OFF} if{{ {k('TOGGLE_FLIGHT_DIRECTOR')} }}",
     "YD": k("YAW_DAMPER_TOGGLE"),
     "NAV": k("AP_NAV1_HOLD"),
     "APR": k("AP_APR_HOLD"),
@@ -116,12 +119,13 @@ def _edm(button):
     return {"release": h(f"bksq_JpiButton_1_{button}_Short"), "long": h(f"bksq_JpiButton_1_{button}_Long")}
 
 
-# the Bonanza's own keys round the autopilot: TEST also holds the MD41's test as long as the key, SHIFT, UP and
-# SHIFT, DN are the EDM 800's left (STEP) and right (LEAN FIND) buttons, GPSS the HSI's source switch below it (NAV 1
-# or RNAV, the KNS 81), LVL the KDI 572R's selector (one position on, and from the last round to the first), SHIFT,
-# FLC and SHIFT, VNV the KR 87's ADF (antenna) and BFO keys (VNV, which reads the KNS 81 first: _VNV, below the units)
+# the Bonanza's own keys round the autopilot: TEST also holds the MD41's lamp test as long as the key (with the
+# autopilot engaged too, as it tests lamps alone), SHIFT, UP and SHIFT, DN are the EDM 800's left (STEP) and right
+# (LEAN FIND) buttons, GPSS the HSI's source switch below it (NAV 1 or RNAV, the KNS 81), LVL the KDI 572R's selector
+# (one position on, and from the last round to the first), SHIFT, FLC and SHIFT, VNV the KR 87's ADF (antenna) and BFO
+# keys (VNV, which reads the KNS 81 first: _VNV, below the units)
 _AROUND_AUTOPILOT = {
-    "TEST": {"press": f"{lset('var_AutopilotStartupCounter', 20)} {lset('var_md41Test', 1)}",
+    "TEST": {"press": f"{SELF_TEST} {lset('var_md41Test', 1)}",
              "release": lset("var_md41Test", 0)},
     "S_UP": _edm("L"),
     "S_DN": _edm("R"),
@@ -231,9 +235,32 @@ _SQUAWK = {
     "VFR": parts.vfr(alt=h("TRANSPONDER_Push_ALT")),
 }
 
+# the two altimeters, set together from the setting of the left-hand one (the BARO knob with SHIFT, its push STD):
+# KOHLSMAN_SET (millibars * 16) without an index for the left-hand one, as the other profiles set theirs, and with
+# index 2 for the right-hand one, as (>K:2:KOHLSMAN_SET) takes it below the setting, as FlyByWire's, Salty's and
+# Working Title's MobiFlight presets send it (the order and the index still to check in the aircraft:
+# docs/using/mapping.md), so a wrong order costs the right-hand one alone. A turn steps the left-hand one's setting
+# by 0.01 inHg, the US Bonanza's unit (KOHLSMAN_INC and _DEC step in the sim's: in hPa a whole hPa every third
+# detent or so), and forgets the setting STD kept; STD and the setting before as parts.STD_TOGGLE, on both.
+_SET_BOTH_BARO = "16 * near sp0 l0 (>K:KOHLSMAN_SET) 2 l0 (>K:2:KOHLSMAN_SET)"
+_STD_BOTH_BARO = "1 (>K:BAROMETRIC_STD_PRESSURE) 2 (>K:BAROMETRIC_STD_PRESSURE)"
+_KEPT = f"(L:{parts.KEPT_BARO}, Number)"
+
+
+def _baro_step(operator):
+    return f"{parts.BARO} 0.3386389 / near 1 {operator} 0.3386389 * {_SET_BOTH_BARO} {parts.FORGET_BARO}"
+
+
+_BOTH_ALTIMETERS = {
+    "BARO_UP": _baro_step("+"),
+    "BARO_DN": _baro_step("-"),
+    "BARO_STD": (f"{parts.BARO} {parts.AT_STD} if{{ {_KEPT} 0 > if{{ {_KEPT} {_SET_BOTH_BARO} {parts.FORGET_BARO} }} "
+                 f"els{{ {_STD_BOTH_BARO} }} }} els{{ {lset(parts.KEPT_BARO, parts.BARO)} {_STD_BOTH_BARO} }}"),
+}
+
 # the profile: the KFC 150, the Bendix/King cockpit (its radios, ADF tuning, transponder codes and the knobs round
 # the autopilot) and the navigators of both units, with the Bonanza's own rows over them
 PROFILE = compose(NAME, AUTOPILOT, parts.BENDIX_KING, UNIT1, UNIT2, rows={
-    1: {**_AROUND_AUTOPILOT, "VNV": _VNV, **_LIGHTS, **_RADAR, **_AUDIO, **_SQUAWK, **_ADF},
+    1: {**_AROUND_AUTOPILOT, "VNV": _VNV, **_LIGHTS, **_RADAR, **_AUDIO, **_SQUAWK, **_ADF, **_BOTH_ALTIMETERS},
     2: _ADF,
 })

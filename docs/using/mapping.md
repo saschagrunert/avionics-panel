@@ -47,12 +47,21 @@ build][rolling]. To use one:
    Apply changes, and check the choice in step 4.
 4. Start a flight in an aircraft of your family with the avionics on and choose Run in MobiFlight. With the
    amber light by SHIFT off (wait for it to go out; tap SHIFT if it blinks), turn the inner knob of the
-   ALT/HDG knob one detent: the heading bug must move by 1 degree. If it does not, the joysticks are the wrong
-   way round: open the downloaded profile again (File, Open, and do not save the changes), bind them the other
-   way and repeat this step. If the bug moves neither way, check that MobiFlight is connected to the sim and
-   its WASM module is installed, that you chose Run, and that the panel was plugged in without SHIFT held and
-   shows up as two joysticks (in keyboard mode it is a keyboard: [Keyboard mode](keyboard.md)).
+   ALT/HDG knob one detent: the heading bug must move by 1 degree.
 5. Save the project (File, Save). From then on it opens without asking.
+
+If the heading bug does not move:
+
+- Something else moves, or nothing at all on that knob while other controls work: the joysticks are the wrong
+  way round. Open the downloaded profile again (File, Open, and do not save the changes), bind them the other
+  way and repeat step 4.
+- Nothing moves anywhere: check that MobiFlight is connected to the sim and its WASM module is installed (step
+  1), and that you chose Run.
+- The panel is not two joysticks: it was plugged in with SHIFT held ([Update mode and
+  GUIDs](#update-mode-and-guids)), or it is in keyboard mode ([Keyboard mode](keyboard.md)).
+- Step 3 lists the panel as "CircuitPython HID" or another old name ([Device name](#device-name)), or shows
+  more "Avionics Panel" joysticks than two, from an update-mode plug-in ([Update mode and
+  GUIDs](#update-mode-and-guids)): bind the two of a plain plug-in.
 
 Each project names the commit it was built from at the end of its name, its first `"Name"` in the file (a text
 file), as "Avionics Panel: G1000 NXi (2026-11-14, 5d1c305)": the date and the short hash. A download with a
@@ -70,11 +79,12 @@ it takes Python 3.10 or newer and nothing else. MobiFlight knows a joystick by i
    [Simulator](simulator.md#windows), and open its `avionics-panel-sim` folder. On Linux and macOS, download
    this repository (on GitHub: Code, Download ZIP), unpack it and open the folder that holds `mobiflight`
    (`avionics-panel-main`).
-4. Right-click an empty spot in that folder and choose Open in Terminal. There, generate the project of your
-   profile (`--family g1000`, `g3x`, `gns`, `gtn`, `black-square-bonanza`, `cows-da40` or `carenado-c182t`),
-   here the G1000 (into `avionics-panel-g1000.mfproj`, the download's name), or of your [avionics
-   parts](#avionics-parts). On Windows, with the zip's `profile.bat` (double-clicked, it shows these steps and
-   lists the profiles and the parts):
+4. Right-click an empty spot in that folder and choose Open in Terminal (PowerShell or cmd: both take
+   `.\profile.bat`). There, generate the project of your profile (`--family g1000`, `g3x`, `gns`, `gtn`,
+   `black-square-bonanza`, `cows-da40` or `carenado-c182t`), here the G1000 (into
+   `avionics-panel-g1000.mfproj`, the download's name), or of your [avionics parts](#avionics-parts). On
+   Windows, with the zip's `profile.bat` (double-clicked, it shows these steps and lists the profiles and the
+   parts):
 
    ```bat
    .\profile.bat --family g1000 --from "C:\path\to\guids.mfproj"
@@ -126,10 +136,14 @@ it with the standby. 121.5 (SHIFT, COM ⇆) sets the active frequency of the uni
 squawks 7000, the VFR code of EASA, and selects ALT; pressed again on 7000 it squawks the code from before,
 once, as a GTX 327's VFR key does (the profile keeps it in `L:AvionicsPanel_Squawk`), and with none kept it
 only selects ALT. A code entered with the squawk digits forgets the one kept; one set in the cockpit with the
-mouse does not. For another VFR code,
-1200 in the US, change the `0x7000` at the start of the code of the row "VFR: XPNDR_SET, ..." in MobiFlight,
-or generate the profile with `--vfr 1200` (above). The XPDR mode push (SHIFT, FREQ push) switches the
-simulator's transponder between standby and ALT. MobiFlight shows the commands as custom code.
+mouse does not. For another VFR code, 1200 in the US, change the `0x7000` at the start of the code of the row
+"VFR: XPNDR_SET, ..." in MobiFlight, or generate the profile with `--vfr 1200` (above). The XPDR mode push
+(SHIFT, FREQ push) switches the simulator's transponder between standby and ALT. MIC 1 and MIC 2 choose the
+radio both pilots talk on and turn its audio on; COM 1 and COM 2 turn listening to their radio on or off, but
+never off for the radio talked on, which an audio panel always plays. What the profiles keep (the setting
+before STD, the code before VFR, the G1000 NXi's engine page) stays in L: variables until the sim restarts;
+whether MSFS keeps them from one flight to the next is still to check, as then STD pressed on 29.92 in a new
+flight would set the last flight's setting. MobiFlight shows the commands as custom code.
 
 Does nothing in every profile: the FREQ push (it only switches the FREQ knob between COM, NAV and ADF; it
 sends nothing to the sim). Each family below lists what else does nothing, mostly the keys its avionics lack
@@ -216,11 +230,13 @@ profile's events cannot tell the two apart. Differences from the real units:
 - The XPDR mode push turns the KT 76's mode knob: to ALT from OFF or SBY, to SBY from any other position.
 - VNV, with or without SHIFT, works out and sets the vertical speed that reaches the selected altitude at the
   active waypoint ([VNV without VNAV](#vnv-without-vnav)).
+- VS, which the KAP 140 has no key for, leaves ALT hold for VS, as its ALT key does; UP and DN then set the
+  rate.
 
-Does nothing in this profile: TEST, FD, YD, VS, FLC, LVL, GPSS and ½ BANK (the KAP 140 has none of these
-keys; it engages in VS, and UP and DN set the rate), ARM (the sim's KAP 140 does nothing on it), HOME (the GNS
-has none), NRST and TERR (the GNS has pages for them, not keys), the RANGE knob tilted left or right and PTR
-(the GNS has no joystick), VNAV in unit 2 (the GNS 430 has none), the dimmers.
+Does nothing in this profile: TEST, FD, YD, FLC, LVL, GPSS and ½ BANK (the KAP 140 has none of these keys),
+ARM (the sim's KAP 140 does nothing on it), HOME (the GNS has none), NRST and TERR (the GNS has pages for
+them, not keys), the RANGE knob tilted left or right and PTR (the GNS has no joystick), VNAV in unit 2 (the
+GNS 430 has none), the dimmers.
 
 ### TDS GTN 750Xi and 650Xi
 
@@ -246,7 +262,7 @@ knob, whose push toggles between COM and NAV. The XPDR mode push works the cockp
 simulator's variable; a transponder that the GTN runs itself may not follow it. VNV and SHIFT, VNV are the
 descent calculator, as in the GNS profile, with TDS's distance to the next waypoint.
 
-Does nothing in this profile: TEST, FD, YD, VS, FLC, LVL, GPSS, ½ BANK and ARM (as in the GNS profile),
+Does nothing in this profile: TEST, FD, YD, FLC, LVL, GPSS, ½ BANK and ARM (as in the GNS profile),
 FPL, PROC, MENU, CLR, ENT, MSG, NRST, TERR, VNAV, MAP, CDI, OBS, the RANGE knob tilted left or right (on the
 touchscreen), the dimmers.
 
@@ -266,11 +282,15 @@ while its screen shows them, and PROC as its Procedures page (these with PMS50's
 HOME does nothing. Differences from the real units:
 
 - The ALT/HDG knob sets the KAS 297B's altitude (or its rate while its knob is pulled in the cockpit) and the
-  heading bug, and its push syncs the bug to the heading. With SHIFT it sets the course of NAV 1 and the
-  altimeter, and its push toggles STD as in the [GNS profile](#gns-530430).
+  heading bug, and its push syncs the bug to the heading. With SHIFT it sets the course of NAV 1 and both
+  altimeters, the right-hand one to the left-hand one's setting, 0.01 inHg a detent, and its push toggles STD
+  on both as in the [GNS profile](#gns-530430). The right-hand altimeter is taken to be the sim's altimeter 2,
+  set by index (`(>K:2:KOHLSMAN_SET)`), which is still to check in the aircraft.
 - VFR presses the GTX 327's ALT key as it squawks the VFR code.
 - VS and ALT ARM (SHIFT, ALT) are the KAS 297B's VS ENG and ALT ARM keys. TEST starts the KFC 150's self-test
-  and holds the MD41's lamp test as long as it is held.
+  with the autopilot off only, and holds the MD41's lamp test as long as it is held. FD works with the
+  autopilot off only, as Garmin's FD: a press in flight does not take the flight director away from the
+  autopilot. ALT on the KFC 150 sets the KAS 297B's selection to the present altitude.
 - VNV works out and sets the vertical speed that reaches the selected altitude at the active waypoint, then
   presses VS ENG when the autopilot is engaged, VS is off and no glideslope is captured ([VNV without
   VNAV](#vnv-without-vnav)). SHIFT, VNV is the KR 87's BFO key (below).
@@ -343,7 +363,7 @@ fully on or off, as a project the C182T is flown with sets them. VNV and SHIFT, 
 calculator, as in the GNS profile; VNV takes the NXi's required vertical speed first
 ([VNV without VNAV](#vnv-without-vnav)).
 
-Does nothing in this profile: TEST, FD, YD, VS, FLC, LVL, GPSS, ½ BANK and ARM (as in the GNS profile).
+Does nothing in this profile: TEST, FD, YD, FLC, LVL, GPSS, ½ BANK and ARM (as in the GNS profile).
 
 ### VNV without VNAV
 
@@ -359,9 +379,11 @@ for you to set, with an eye on the airspeed and the power.
 2. Press VNV. It works out the rate that reaches the selected altitude at that waypoint: the altitude to lose
    over the time to the waypoint at the present ground speed. It rounds the rate to 100 ft/min and keeps it
    between 300 and 1500 ft/min down. In the KAP 140 it leaves ALT hold for VS as the ALT key does and then
-   sets the rate; in the KAS 297B it sets the rate and then presses VS ENG, when the autopilot is engaged, not
-   in VS and not on a glideslope. With the autopilot off, VNV only sets the rate; an autopilot may take the
-   present vertical speed when it engages, so press VNV again after engaging it.
+   sets the rate, and sets it again as the key is let go, as the G1000 NXi's and GNS's autopilot code may
+   enter VS a moment later at the present rate; in the KAS 297B it sets the rate and then presses VS ENG, when
+   the autopilot is engaged, not in VS and not on a glideslope. With the autopilot off, VNV only sets the
+   rate; an autopilot may take the present vertical speed when it engages, so press VNV again after engaging
+   it.
 3. Press VNV again now and then, after a turn or a change of speed or wind: it works the rate out anew from
    where you are.
 
@@ -408,8 +430,17 @@ None of this has been flown in the sim yet. To check there:
   aircraft goes on through the selected altitude.
 - That the KAS 297B keeps its VS mode in the sim's `AUTOPILOT VERTICAL HOLD`: VNV presses VS ENG only while
   that is off, so if the KAS 297B keeps VS to itself, a second press of VNV in a VS descent turns VS off.
-- That the first press in ALT hold keeps its rate. If the autopilot still takes the present rate as it enters
-  VS, press VNV again.
+- That the first press in ALT hold keeps its rate. Behind the G1000 NXi or a GNS (the C182T, the GNS profile),
+  Working Title's autopilot code takes `AP_PANEL_VS_ON` and enters VS a frame later at the present rate; VNV
+  sets its rate again as the key is let go. If the autopilot still holds the present rate, press VNV again.
+  Also a quick tap at a low frame rate: press and release may then come in one frame, before VS, and the rate
+  be lost; if so, hold VNV a moment.
+- That `AP_VS_VAR_SET_ENGLISH` sets the rate without an index: the presets of autopilots in MobiFlight's HubHop
+  give it index 1 (`1 <rate> (>K:2:AP_VS_VAR_SET_ENGLISH)`). With the autopilot off, press VNV and watch the
+  sim's `AUTOPILOT VERTICAL HOLD VAR:1`; if it does not change, the event needs the index.
+- In the Bonanza, that VS ENG keeps the rate VNV set: Black Square's guide says VS ENG pressed while the KAS
+  297B shows the selected altitude takes the present vertical speed. If it does, VNV sets the rate after VS
+  ENG instead.
 - Which of two GTNs TDS's distance is for. With a TDS GTN that has no active waypoint, a flight plan in the
   sim's own GPS may give the GPS distance. TDS's variable may also keep its last value after a flight with a
   TDS GTN: in the Bonanza with its tablet set to a GNS, the KLN 90B or PMS50's GTN, and with the parts alone,
@@ -482,9 +513,9 @@ them all with each profile's projects, as does the [page of the cards][cards-ind
 from its header.
 
 The cards of main are also on the web, to open and print without the zip: [G1000 NXi][card-g1000], [GFC 500
-and G3X Touch][card-g3x], [GNS 530/430][card-gns], [GTN 750Xi/650Xi][card-gtn], [Black Square
+and G3X Touch][card-g3x], [GNS 530/430][card-gns], [TDS GTN 750Xi/650Xi][card-gtn], [Black Square
 Bonanza][card-black-square-bonanza], [COWS DA40][card-cows-da40] and [Carenado C182T][card-carenado-c182t].
-The cheat sheets are beside them; each aircraft's page links its own.
+The cheat sheets are beside them; each aircraft's page links its own sheet and card.
 
 ## Two joysticks
 

@@ -87,7 +87,7 @@ for _side, _axis in (("left", 1), ("right", 1), ("top", 0), ("bottom", 0)):
 W = 1600
 S = 5.2                              # px per mm on the device
 FONT = "Arial, 'Liberation Sans', Helvetica, sans-serif"
-INK, MUTED, BLUE, LINE = "#16181b", "#7a7f87", "#2f7fc1", "#5b6b85"
+INK, MUTED, BLUE, LINE = "#16181b", "#5f646b", "#1d64a0", "#5b6b85"   # small text 4.5:1 or more (WCAG), as sheet.py
 TEXT_PX, TITLE_PX, LINE_H, PAD = 12.5, 13.5, 15, 6
 MARGIN, GAP, STUB = 16, 8, 14        # the page's margin, between boxes, a line's first piece outside the device
 TOP_BOX = 186                        # a box's width above the device

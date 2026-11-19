@@ -18,7 +18,8 @@ The same sheet with the commit of the latest build in its title:
 [avionics-panel-carenado-c182t-sheet.svg](https://saschagrunert.de/avionics-panel/cards/avionics-panel-carenado-c182t-sheet.svg).
 The profile:
 [avionics-panel-carenado-c182t.mfproj](https://github.com/saschagrunert/avionics-panel/releases/download/rolling/avionics-panel-carenado-c182t.mfproj)
-([how to use it](../mapping.md#generated-profiles)). Every detail, and what each control sends:
-[Mapping](../mapping.md#carenado-c182t).
+([how to use it](../mapping.md#generated-profiles)). Every detail: [Mapping](../mapping.md#carenado-c182t).
+What each control sends, as MobiFlight lists it: the
+[card](https://saschagrunert.de/avionics-panel/cards/avionics-panel-carenado-c182t-card.html).
 
 The same profile for the Octavi IFR-1, with its card and cheat sheet: [Octavi IFR-1](../ifr1.md#downloads).

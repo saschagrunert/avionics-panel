@@ -21,12 +21,8 @@ another name, as the simulator's vJoy devices, use --from: MobiFlight asks again
 project that it does not find by name and serial (ControllerAutoBinder.cs). The project's name ends in the commit of
 the files, in a release's files (profile.VERSION), or in what --stamp gives. --list lists the profiles and the parts."""
 import argparse
-import contextlib
-import errno
 import os
-import shutil
 import sys
-import tempfile
 import zipfile
 
 from mobiflight import card, cards, ifr1, joystick, profile
@@ -54,37 +50,13 @@ def entry(name):
     return info
 
 
-@contextlib.contextmanager
-def replacing(path, binary=False):
-    """A file to write path through: a new file in its folder, which takes path's place once the block ends without
-    an error and is removed after any other end, so nothing half written stays and a file already there is left as
-    it was. A file there that may not be written is refused before, as opening it would be. A symbolic link is
-    followed, so the file it points to is replaced, and a file there keeps its mode. (The new file needs the right
-    to make files in the folder, which writing over a file there alone did not.)"""
-    path = os.path.realpath(path)
-    if os.path.exists(path) and not os.access(path, os.W_OK):
-        raise PermissionError(errno.EACCES, os.strerror(errno.EACCES), path)
-    fd, new = tempfile.mkstemp(dir=os.path.dirname(path), prefix=f".{os.path.basename(path)}.")
-    try:
-        with os.fdopen(fd, "wb") if binary else os.fdopen(fd, "w", encoding="utf-8", newline="\n") as f:
-            yield f
-        if os.path.exists(path):
-            shutil.copymode(path, new)
-        else:                                        # as open() makes it, not mkstemp()'s rw-------
-            mask = os.umask(0o22)
-            os.umask(mask)
-            os.chmod(new, 0o666 & ~mask)
-        os.replace(new, path)
-    except BaseException:
-        with contextlib.suppress(OSError):
-            os.remove(new)
-        raise
+replacing = profile.replacing         # the CLI's every file goes through it (and sheet.write())
 
 
-def unmapped(family, device):
-    """reason -> the buttons of the device that send nothing for it, in the table's order"""
+def unmapped(reasons):
+    """reason -> the buttons that send nothing for it, in their order, of {button: reason}"""
     out = {}
-    for button, reason in family.UNMAPPED[device].items():
+    for button, reason in reasons.items():
         out.setdefault(reason, []).append(button)
     return out
 
@@ -99,6 +71,12 @@ def listing():
         ("--navigator", NAVIGATORS), ("--unit1, --unit2", UNITS)))
 
 
+def codes(part):
+    """Every code a part sends, on every event of every button"""
+    return {code for table in part.DEVICE.values() for entry in table.values()
+            for code in profile.actions(entry).values()}
+
+
 def chosen(parser, args):
     """The profile of --family, or of the parts given, and its key (None for parts: profile.filename)"""
     if args.family:
@@ -109,9 +87,11 @@ def chosen(parser, args):
             or args.navigator and (args.unit1 or args.unit2):
         parser.error("give --family, or --autopilot, --cockpit and --navigator, or --autopilot, --cockpit, --unit1 "
                      "and --unit2")
-    if args.unit1 and args.unit1 == args.unit2 != "none":
-        parser.error(f"{args.unit1} in both units: the two would work one navigator (none: radios alone)")
     units = (NAVIGATORS[args.navigator],) if args.navigator else navigators(args.unit1, args.unit2)
+    if len(units) == 2 and codes(units[0]) & codes(units[1]):
+        # the same navigator in both units, but one its maker names by unit (PMS50's GTN 750 in each, GTN750_ and
+        # GTN750_2_): the two would work one navigator
+        parser.error(f"{args.unit1} in both units: the two would work one navigator (none: radios alone)")
     picked = (AUTOPILOTS[args.autopilot], COCKPITS[args.cockpit], *units)
     return compose(", ".join(p.TITLE for p in picked), *picked), None
 
@@ -215,10 +195,7 @@ def main(argv=None):
             with replacing(output) as f:
                 f.write(profile.dumps(ifr1.project(one, args.stamp)))
             print(f"IFR-1 ({ifr1.NAME}, {ifr1.SERIAL}): {len(one.DEVICE)} buttons mapped", file=sys.stderr)
-            reasons = {}
-            for button, reason in one.UNMAPPED.items():
-                reasons.setdefault(reason, []).append(button.removeprefix("Button_"))
-            for reason, buttons in reasons.items():
+            for reason, buttons in unmapped({b.removeprefix("Button_"): r for b, r in one.UNMAPPED.items()}).items():
                 print(f"  unmapped {', '.join(buttons)}: {reason}", file=sys.stderr)
             print(f"wrote {output}", file=sys.stderr)
             return
@@ -256,7 +233,7 @@ def main(argv=None):
     for device in (1, 2):
         name, serial = controllers[device]
         print(f"device {device} ({name}, {serial}): {len(family.DEVICE[device])} buttons mapped", file=sys.stderr)
-        for reason, buttons in unmapped(family, device).items():
+        for reason, buttons in unmapped(family.UNMAPPED[device]).items():
             print(f"  unmapped {', '.join(buttons)}: {reason}", file=sys.stderr)
     print(f"wrote {output}", file=sys.stderr)
 

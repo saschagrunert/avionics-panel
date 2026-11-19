@@ -129,8 +129,11 @@ stateDiagram-v2
   held since plug-in (update mode) does not lock: the keypad reports no press for a key held when it starts.
 - The light never goes dark while SHIFT still applies: dark means plain, and lit, even dim, means SHIFT is on,
   for the next key after a tap or for the knob that keeps it, or, blinking, for every key and knob while
-  locked. A key pressed while a knob keeps SHIFT is sent plain. During SHIFT's last second the light pulses
-  between bright and dim.
+  locked. A key pressed while a knob keeps SHIFT is sent plain, except VFR in a squawk entry (the FREQ knob's
+  session with a squawk ring turned in it, also while a shifted FREQ push held after it keeps it): it goes out
+  shifted, IDENT, as the light shows, so it never squawks the VFR code over the one just set; it ends the
+  session as any key does. After a shifted FREQ push alone (the transponder's mode) VFR stays plain. During
+  SHIFT's last second the light pulses between bright and dim.
 - While a knob still keeps SHIFT (light on after a squawk entry, or a shifted push or tilt still held), a tap
   arms SHIFT for the next key instead, so SHIFT, VFR gives IDENT with one tap. The arm runs out 3 s after
   the tap, as any tap's does; the held control's session goes on. A second tap cancels SHIFT, except for a shifted

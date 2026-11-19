@@ -68,7 +68,7 @@ _TOUCH = "a touchscreen function of the GTN: it takes only its bezel (HOME, D→
 _TOUCH_KEYS = ("CDI", "OBS", "FPL", "MENU", "PROC", "CLR", "ENT", "S_ENT", "VNAV", "MSG", "NRST", "TERR", "MAP")
 _PAN = ("PAN_LEFT", "PAN_RIGHT")
 # what the GTN has on its touchscreen only (docs/using/compatibility.md), for unit 1 (unit 2's map with SHIFT)
-TOUCHSCREEN = (*_TOUCH_KEYS, *_PAN)
+TOUCHSCREEN = (*_TOUCH_KEYS, *_PAN, *(f"S_{b}" for b in _PAN))     # unit 2's tilt with SHIFT too
 _UNMAPPED = {**dict.fromkeys(_TOUCH_KEYS, _TOUCH), **dict.fromkeys(_PAN, "the GTN pans its map on the touchscreen")}
 
 

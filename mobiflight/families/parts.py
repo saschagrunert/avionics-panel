@@ -9,7 +9,6 @@ ones its instrument (KAP140.js) handles. Garmin's autopilot, as Working Title's 
 takes the simulator's autopilot key events (GARMIN_SHARED).
 """
 import re
-from functools import partial
 
 from mobiflight.families.part import GPS_DISTANCE, part
 from mobiflight.families.rpn import h, k, turn
@@ -19,13 +18,16 @@ VFR = "7000"                     # the squawk the VFR key sets (EASA), unless a 
 
 def transmit(com):
     """MIC: the pilot and copilot transmit on COM 1 or 2 (the SDK's PILOT_TRANSMITTER_SET and
-    COPILOT_TRANSMITTER_SET take 0 for COM 1, 1 for COM 2)"""
-    return f"{com - 1} (>K:PILOT_TRANSMITTER_SET) {com - 1} (>K:COPILOT_TRANSMITTER_SET)"
+    COPILOT_TRANSMITTER_SET take 0 for COM 1, 1 for COM 2), and listen to it, as an audio panel's MIC key selects
+    that radio's audio too (Garmin's GMA 1347)"""
+    return (f"{com - 1} (>K:PILOT_TRANSMITTER_SET) {com - 1} (>K:COPILOT_TRANSMITTER_SET) "
+            f"1 (>K:COM{com}_RECEIVE_SELECT)")
 
 
 def receive(com):
-    """COM: listen to COM 1 or 2, or stop (the SDK's COMn_RECEIVE_SELECT, set to the opposite of COM RECEIVE EX1)"""
-    return f"(A:COM RECEIVE EX1:{com}, bool) ! (>K:COM{com}_RECEIVE_SELECT)"
+    """COM: listen to COM 1 or 2, or stop (the SDK's COMn_RECEIVE_SELECT, set to the opposite of COM RECEIVE EX1),
+    but never stop listening to the radio transmitted on (COM TRANSMIT), whose audio an audio panel always plays"""
+    return f"(A:COM RECEIVE EX1:{com}, bool) ! (A:COM TRANSMIT:{com}, bool) or (>K:COM{com}_RECEIVE_SELECT)"
 
 
 # VFR toggles the VFR code: from another code it keeps that code in L:AvionicsPanel_Squawk (TRANSPONDER CODE:1 in
@@ -317,11 +319,17 @@ def descent(before="", after="", distances=(GPS_DISTANCE,), required=None):
 # the KAP 140 flies VS whenever it is engaged without ALT: VNV leaves ALT hold as its ALT key does, which the sim's
 # KAP140.js turns into AP_PANEL_VS_ON with the autopilot engaged. VNV sends that event itself, ahead of the rate: an
 # H: event runs in the gauge after the code's K: events, so its VS would take the present vertical speed after the
-# rate. The rate it holds is assumed to be the simulator's, which AP_VS_VAR_SET_ENGLISH sets.
+# rate. The rate it holds is assumed to be the simulator's, which AP_VS_VAR_SET_ENGLISH sets. Behind Working Title's
+# G1000 NXi or GNS, their autopilot state manager takes AP_PANEL_VS_ON and enters VS a frame later, its VS director
+# then writing the present vertical speed over the rate (GarminAPStateManager.ts, APVSDirector.ts in
+# microsoft/msfs-avionics-mirror): VNV sets the rate again as the key is let go (to check in the sim:
+# docs/using/mapping.md).
 KAP140_VS = "(A:AUTOPILOT MASTER, Bool) (A:AUTOPILOT ALTITUDE LOCK, Bool) and if{ 0 (>K:AP_PANEL_VS_ON) }"
 
 
-KAP140_VNV = partial(descent, before=KAP140_VS)   # VNV's code, of the distances and required rate (part.compose)
+def KAP140_VNV(**kwargs):    # noqa: N802 (named as the other autopilots' VNV)
+    """VNV's entry, of the distances and required rate (part.compose): VS and the rate pressed, the rate again let go"""
+    return {"press": descent(before=KAP140_VS, **kwargs), "release": descent(**kwargs)}
 
 
 KAP140 = {
@@ -333,6 +341,9 @@ KAP140 = {
     "UP": h("KAP140_Push_UP"),
     "APR": h("KAP140_Push_APR"),
     "DN": h("KAP140_Push_DN"),
+    # VS, which the KAP 140 has no key for: leaves ALT hold for VS, as its ALT key does (KAP140_VS); SHIFT does the same
+    "VS": KAP140_VS,
+    "S_VS": KAP140_VS,
     # shifted keys
     "S_UP": h("KAP140_Push_UP"),
     "BC": h("KAP140_Push_REV"),
@@ -344,15 +355,12 @@ KAP140 = {
     "ALT_1000_DN": h("KAP140_Knob_Outer_DEC"),
     **HEADING,
 }
-_VS = "the KAP 140 has no VS key: it engages in VS, and UP and DN set the rate"
 _FLC = "the KAP 140 has no FLC mode"
 KAP140_UNMAPPED = {
     "TEST": "the KAP 140 tests itself at power-up: it has no TEST key",
     "ARM": "the sim's KAP 140 does nothing on ARM: its KAP140.js handles KAP140_Push_ARM with an empty case",
     "FD": "the KAP 140 has no flight director",
     "YD": "the KAP 140 has no yaw damper",
-    "VS": _VS,
-    "S_VS": _VS,
     "FLC": _FLC,
     "S_FLC": _FLC,
     "LVL": "the KAP 140 has no level mode",

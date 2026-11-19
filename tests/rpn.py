@@ -62,6 +62,10 @@ def run(code, variables=(), branches=None, default=None):
                     registers[n] = stack.pop() if op == "sp" else stack[-1]
             elif sets(token):
                 name = sets(token)
+                # an event (an input event's _Toggle too) may go without a value; a variable takes one, which an
+                # empty stack would leave unset
+                assert stack or name.startswith(("K:", "H:")) or (name.startswith("B:") and name.endswith("_Toggle")), (
+                    f"{name} set from an empty stack", code)
                 value = stack.pop() if stack else None
                 if name.startswith("K:2:"):
                     name, value = f"K:{name[4:]}", (value, stack.pop())
@@ -103,12 +107,14 @@ def well_formed(code):
 
 def every_path(code):
     """Runs a code down each way its if{ blocks can go, every variable it reads 1 where a path needs no other, and
-    asserts each leaves the stack empty and takes nothing off an empty one: a branch no other test runs is checked
-    too. A path that divides by 0 there, or loads a register no store on it set, cannot be told apart from one a
-    real value never takes, and is passed over."""
+    asserts each leaves the stack empty, takes nothing off an empty one, sets no variable from an empty stack and loads
+    no register that no store on it set: a branch no other test runs is checked too. A path that divides by 0 there
+    cannot be told apart from one a real value never takes, and is passed over. Each if{ goes either way on its own,
+    so a code that tests one condition twice fails on a path no value takes (a register stored under the first test
+    and loaded under the second, say): write it so each path that loads a register stores it."""
     ifs = TOKEN.findall(code).count("if{")
     for way in itertools.product((True, False), repeat=ifs):
         try:
             run(code, branches=iter(way), default=1)
-        except (ZeroDivisionError, KeyError):
+        except ZeroDivisionError:
             continue

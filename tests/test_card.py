@@ -12,7 +12,7 @@ import panel as P
 import pytest
 
 from mobiflight import __main__ as cli
-from mobiflight import card, cards, ifr1, ifr1_card, profile, sheet
+from mobiflight import card, cards, ifr1, ifr1_card, profile, sheet, sheet_text
 from mobiflight.families import FAMILIES
 
 FAMILY = pytest.mark.parametrize("key", sorted(FAMILIES))
@@ -156,9 +156,13 @@ def test_each_row_shows_its_own_buttons(key):
 
 
 def test_the_freq_push_row_says_a_hold_returns_to_com():
-    # the push sends FREQ_PUSH, which no profile maps: the panel's own hold to COM is all it does but cycle
-    assert f"{P.FREQ_HOLD_MS // 1000} s" == card.FREQ_HOLD
-    assert f"held {card.FREQ_HOLD}: back to COM" in card.page(FAMILIES["g1000"], "g1000")
+    # the push sends FREQ_PUSH, which no profile maps: the panel's own hold to COM is all it does but cycle; the
+    # times the card and the cheat sheets name are the firmware's
+    assert f"{P.FREQ_HOLD_MS // 1000} s" == card.FREQ_HOLD and f"{P.LOCK_MS // 1000} s" == card.LOCK
+    assert f"held alone {card.LOCK}: locked" in card.page(FAMILIES["g1000"], "g1000")
+    assert f"held {card.LOCK}: locked" in sheet_text.SHIFT
+    assert sheet_text.RADIOS["FREQ_PUSH"].endswith(f"held {card.FREQ_HOLD}: COM")
+    assert f"held {card.FREQ_HOLD}: COM" in card.page(FAMILIES["g1000"], "g1000")
 
 
 def test_a_row_of_two_buttons_is_a_turn_or_a_tilt_both_ways():
@@ -216,7 +220,7 @@ def test_the_card_says_what_each_button_sets(key):
     assert notes == [str(n) for n in range(1, len(notes) + 1)]
     used = {int(n) for n in re.findall(r"nothing<sup>([0-9]+)</sup>", text)}
     assert used == set(range(1, len(notes) + 1))
-    assert f"<title>Avionics Panel: {html.escape(family.NAME)}</title>" in text
+    assert f"<title>Avionics Panel: {html.escape(family.NAME)}, card</title>" in text
     assert f"avionics-panel-{key}.mfproj" in text
 
 
@@ -255,9 +259,9 @@ def test_the_title_names_the_commit():
     # as the profile's name does: none in a git checkout
     family = FAMILIES["g1000"]
     plain, stamped = card.page(family, "g1000", None), card.page(family, "g1000", "2026-11-14, abc1234")
-    assert "<h1>Avionics Panel: G1000 NXi</h1>" in plain and "<title>Avionics Panel: G1000 NXi</title>" in plain
+    assert "<h1>Avionics Panel: G1000 NXi</h1>" in plain and "<title>Avionics Panel: G1000 NXi, card</title>" in plain
     assert '<h1>Avionics Panel: G1000 NXi <span class="version">(2026-11-14, abc1234)</span></h1>' in stamped
-    assert "<title>Avionics Panel: G1000 NXi (2026-11-14, abc1234)</title>" in stamped     # the printout's header
+    assert "<title>Avionics Panel: G1000 NXi, card (2026-11-14, abc1234)</title>" in stamped     # the printout's header
 
 
 @FAMILY
@@ -390,3 +394,55 @@ def test_command_line_errors_with_cards(tmp_path, monkeypatch, args):
     with pytest.raises(SystemExit):
         cli.main(args)
     assert not os.listdir(tmp_path)
+
+
+# ---------------- printed ----------------
+CALL_MS = 60_000                 # a browser call that takes longer fails
+
+
+@pytest.fixture(scope="module")
+def pdf_pages(tmp_path_factory):
+    """The pages a card prints on, A4 landscape by its own @page, in headless Chromium (Playwright, as
+    tests/test_simjs.py), as found and with Arial for its condensed fonts, as on a PC that has none"""
+    try:
+        from playwright.sync_api import Error, sync_playwright
+    except ImportError:
+        missing("no Playwright for Python")
+    playwright = sync_playwright().start()
+    try:
+        browser = playwright.chromium.launch(timeout=CALL_MS)
+    except Error as e:
+        playwright.stop()
+        missing(f"Playwright for Python has no Chromium: {str(e).splitlines()[0]}")
+    page, folder = browser.new_page(), tmp_path_factory.mktemp("cards")
+    page.set_default_timeout(CALL_MS)                    # a hung Chromium fails the test, not the suite
+
+    def pages(name, text, font=None):
+        path = folder / name
+        path.write_text(text, encoding="utf-8")
+        page.goto(path.as_uri())
+        if font:
+            page.add_style_tag(content=f"body {{ font-family: {font} !important; }}")
+        return len(re.findall(rb"/Type\s*/Page[^s]", page.pdf(prefer_css_page_size=True)))
+    yield pages
+    browser.close()
+    playwright.stop()
+
+
+def missing(why):
+    """as tests/test_simjs.py's: a skip without a browser, a failure where the shell must have one"""
+    if os.environ.get("REQUIRE_BROWSER"):
+        pytest.fail(f"{why}, and REQUIRE_BROWSER is set")
+    pytest.skip(why)
+
+
+@pytest.mark.parametrize("key", sorted(FAMILIES))
+def test_every_card_prints_on_one_page(pdf_pages, key):
+    # the panel's card and the IFR-1's card and cheat sheet, in their condensed fonts and in Arial: a long label or
+    # a profile of much text (the Bonanza's) must not spill onto a second page
+    panel_card, _, ifr1_card_name, ifr1_sheet = cards.files(key)
+    one = ifr1.build(key)
+    for name, text in ((panel_card, card.page(FAMILIES[key], key, "v")), (ifr1_card_name, ifr1_card.page(one, "v")),
+                       (ifr1_sheet, ifr1_card.page(one, "v", words=True))):
+        for font in (None, "Arial"):
+            assert pdf_pages(name, text, font) == 1, (name, font)

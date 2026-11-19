@@ -134,9 +134,9 @@ To add:
   line in [Compatibility](../using/compatibility.md) and its name in that page's opening list of profiles; and
   its name in the `start.bat --family` lists of [Simulator](../using/simulator.md#legend) and of
   `windows/README.txt`.
-- An aircraft: the same, with `rows=` for what the aircraft does its own way (its lighting, say) and
-  `unmapped=` for what it lacks, as the DA40's and the C182T's lines in `FAMILIES` do with the tables in
-  [aircraft.py](../../mobiflight/families/aircraft.py). An aircraft that puts any of several navigators in a
+- An aircraft: the same, with `rows=` for what the aircraft does its own way (its lighting, say), as the DA40's
+  and the C182T's lines in `FAMILIES` do with the tables in [aircraft.py](../../mobiflight/families/aircraft.py);
+  what it lacks is its parts' to say, as their reasons. An aircraft that puts any of several navigators in a
   unit, as Black Square's Bonanza by its tablet, joins them there with `part.joined()`: each button sends the
   codes of every one that maps it, in their order; its own rows replace theirs, and its reasons replace those
   of buttons none of them maps. Rows and reasons are written as for unit 1, as for `part.navigator()`

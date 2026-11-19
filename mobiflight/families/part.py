@@ -58,8 +58,7 @@ def part(key, name, kind, device, unmapped, units=(1, 2), **extra):
     VNV, compose()). An autopilot's VNV fills its VNV and SHIFT, VNV rows, alike, with the code of its defaults:
     alone() and compose() give it the distances it reads."""
     if kind == "autopilot" and extra.get("VNV"):
-        vnv = extra["VNV"]()
-        device = {**device, 1: {**device.get(1, {}), "VNV": vnv, "S_VNV": vnv}}
+        device = with_vnv(device, extra["VNV"]())
     want = scope(kind, units)
     for d in (1, 2):
         rows, rest = set(device.get(d, {})), set(unmapped.get(d, {}))
@@ -69,7 +68,13 @@ def part(key, name, kind, device, unmapped, units=(1, 2), **extra):
     title = f"{name} in unit {units[0]}" if kind == "navigator" and len(units) == 1 else f"{name} {kind}"
     return SimpleNamespace(KEY=key, NAME=name, TITLE=title, KIND=kind, UNITS=tuple(units),
                            DEVICE={d: dict(device.get(d, {})) for d in (1, 2)},
-                           UNMAPPED={d: dict(unmapped.get(d, {})) for d in (1, 2)}, **extra)
+                           UNMAPPED={d: dict(unmapped.get(d, {})) for d in (1, 2)},
+                           **{"VNV": None, "DISTANCES": (), "REQUIRED_VS": None, **extra})
+
+
+def with_vnv(device, vnv):
+    """device ({device: {button: entry}}) with VNV and SHIFT, VNV sending vnv alike: VNV has no amber legend"""
+    return {**device, 1: {**device.get(1, {}), "VNV": vnv, "S_VNV": vnv}}
 
 
 def place(rows, unit):
@@ -125,7 +130,7 @@ def joined(key, name, *navigators, rows=None, reasons=None):
     found = {p.UNITS for p in navigators}
     if len(found) != 1 or any(p.KIND != "navigator" or len(p.UNITS) != 1 for p in navigators):
         raise ValueError(f"{key}: joins navigators of one unit, not {', '.join(p.KEY for p in navigators)}")
-    if any(getattr(p, "REQUIRED_VS", None) for p in navigators):
+    if any(p.REQUIRED_VS for p in navigators):
         raise ValueError(f"{key}: a joined navigator's REQUIRED_VS would go unread")
     (units,) = found
     (unit,) = units
@@ -153,7 +158,7 @@ def joined(key, name, *navigators, rows=None, reasons=None):
             if button in device[d]:
                 raise ValueError(f"{key}: {button} is a navigator's, not for a reason")
             rest[d][button] = reason
-    distances = gps_last(r for p in navigators for r in getattr(p, "DISTANCES", ()))
+    distances = gps_last(r for p in navigators for r in p.DISTANCES)
     return part(f"{key}-unit{unit}", name, "navigator", device, rest, units, DISTANCES=distances)
 
 
@@ -176,7 +181,7 @@ def distances(*navigators):
     """The distances VNV reads with these navigators (compose()): their own, unit 1's first, each once, then the
     sim's GPS WP DISTANCE if none of them gave it; unit 1's GPS WP DISTANCE stays ahead of unit 2's own, unlike
     gps_last()"""
-    reads = [d for p in sorted(navigators, key=lambda p: p.UNITS) for d in getattr(p, "DISTANCES", ())]
+    reads = [d for p in sorted(navigators, key=lambda p: p.UNITS) for d in p.DISTANCES]
     return tuple(dict.fromkeys((*reads, GPS_DISTANCE)))
 
 
@@ -184,23 +189,23 @@ def alone(autopilot, distances):
     """An autopilot part as offered alone (the parts zip, families/__init__.py), not knowing its navigator: its VNV,
     if it has one, reads these distances, and VNV and SHIFT, VNV send it alike; compose() gives a profile the
     distances of its navigators instead"""
-    if not getattr(autopilot, "VNV", None):
+    if not autopilot.VNV:
         return autopilot
-    vnv = autopilot.VNV(distances=distances)
-    device = {1: {**autopilot.DEVICE[1], "VNV": vnv, "S_VNV": vnv}, 2: dict(autopilot.DEVICE[2])}
+    device = with_vnv(autopilot.DEVICE, autopilot.VNV(distances=distances))
     return SimpleNamespace(**{**vars(autopilot), "DEVICE": device})
 
 
-def compose(name, *parts, rows=None, unmapped=None, **extra):
+def compose(name, *parts, rows=None, **extra):
     """The profile of these parts, one of each kind and navigators for both units: NAME, DEVICE and UNMAPPED
-    (families/__init__.py), PARTS (their kinds and keys, as "cockpit-g1000") and extra's attributes. No two parts
-    cover a button: part() holds each part to its kind's scope, and the scopes do not overlap. An aircraft's own rows
-    ({device: {button: entry}}) and unmapped buttons ({device: {button: reason}}) replace the parts' for those
-    buttons, as its own lights. An autopilot whose VNV reads the navigator's distance (its VNV: the code of
-    distances= and required=, for VNV and SHIFT, VNV alike) gets the distances the navigators give (DISTANCES), unit
-    1's first, then the sim's GPS WP DISTANCE if none gave it, and the REQUIRED_VS of the first navigator with one,
-    unit 1's first: no profile reads a variable of a navigator it lacks, which another aircraft of the session may
-    have left."""
+    (families/__init__.py), PARTS (their kinds and keys, as "cockpit-g1000"), PIECES (the parts themselves) and
+    extra's attributes. No two parts cover a button: part() holds each part to its kind's scope, and the scopes do not
+    overlap. An aircraft's own rows ({device: {button: entry}}) replace the parts' for those buttons, as its own
+    lights. An autopilot whose VNV reads the navigator's distance (its VNV: the code of distances= and required=, for
+    VNV and SHIFT, VNV alike) gets the distances the navigators give (DISTANCES), unit 1's first, then the sim's GPS
+    WP DISTANCE if none gave it, and the REQUIRED_VS of the first navigator with one, unit 1's first: no profile reads
+    a variable of a navigator it lacks, which another aircraft of the session may have left."""
+    if unknown := sorted(k for k in extra if not k.isupper()):     # an attribute is upper case; a keyword is not
+        raise TypeError(f"compose() takes no keyword {', '.join(unknown)}: an attribute's name is upper case")
     kinds = [p.KIND for p in parts]
     units = sorted(u for p in parts if p.KIND == "navigator" for u in p.UNITS)
     if sorted(kinds) != sorted(["autopilot", "cockpit", *["navigator"] * (len(kinds) - 2)]) or units != [1, 2]:
@@ -211,20 +216,13 @@ def compose(name, *parts, rows=None, unmapped=None, **extra):
         for d in (1, 2):
             device[d].update(p.DEVICE[d])
             rest[d].update(p.UNMAPPED[d])
-    vnv = [p.VNV for p in parts if getattr(p, "VNV", None)]
-    if vnv:
+    if vnv := next((p.VNV for p in parts if p.VNV), None):
         navigators = sorted((p for p in parts if p.KIND == "navigator"), key=lambda p: p.UNITS)
-        required = next((p.REQUIRED_VS for p in navigators if getattr(p, "REQUIRED_VS", None)), None)
-        device[1]["VNV"] = device[1]["S_VNV"] = vnv[0](distances=distances(*navigators), required=required)
+        required = next((p.REQUIRED_VS for p in navigators if p.REQUIRED_VS), None)
+        device = with_vnv(device, vnv(distances=distances(*navigators), required=required))
     for d in (1, 2):
-        both = set((rows or {}).get(d, {})) & set((unmapped or {}).get(d, {}))
-        if both:
-            raise ValueError(f"{name}: {sorted(both)} both mapped and unmapped on device {d}")
         for button, entry in (rows or {}).get(d, {}).items():
             rest[d].pop(button, None)
             device[d][button] = entry
-        for button, reason in (unmapped or {}).get(d, {}).items():
-            device[d].pop(button, None)
-            rest[d][button] = reason
     return SimpleNamespace(NAME=name, DEVICE=device, UNMAPPED=rest, PARTS=tuple(f"{p.KIND}-{p.KEY}" for p in parts),
-                           **extra)
+                           PIECES=parts, **extra)

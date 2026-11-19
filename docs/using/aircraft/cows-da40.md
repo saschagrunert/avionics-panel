@@ -16,7 +16,8 @@ The same sheet with the commit of the latest build in its title:
 [avionics-panel-cows-da40-sheet.svg](https://saschagrunert.de/avionics-panel/cards/avionics-panel-cows-da40-sheet.svg).
 The profile:
 [avionics-panel-cows-da40.mfproj](https://github.com/saschagrunert/avionics-panel/releases/download/rolling/avionics-panel-cows-da40.mfproj)
-([how to use it](../mapping.md#generated-profiles)). Every detail, and what each control sends:
-[Mapping](../mapping.md#cows-da40).
+([how to use it](../mapping.md#generated-profiles)). Every detail: [Mapping](../mapping.md#cows-da40). What
+each control sends, as MobiFlight lists it: the
+[card](https://saschagrunert.de/avionics-panel/cards/avionics-panel-cows-da40-card.html).
 
 The same profile for the Octavi IFR-1, with its card and cheat sheet: [Octavi IFR-1](../ifr1.md#downloads).

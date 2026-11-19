@@ -237,12 +237,16 @@ def test_xpdr_mode():
 
 
 def test_ident_after_a_squawk_entry():
-    # SHIFT, VFR (IDENT) with one tap while the knob still keeps SHIFT; VFR alone stays VFR
+    # VFR alone sends IDENT while the squawk entry keeps SHIFT, as the light shows, and ends it: the next VFR is
+    # VFR. SHIFT, VFR gives IDENT there too, with one tap
     sim = Sim()
     sim.tap("SHIFT")
     sim.turn("FREQ_INNER", 1)
+    taps(sim, "VFR", "VFR")
+    sim.tap("SHIFT")
+    sim.turn("FREQ_INNER", 1)
     taps(sim, "SHIFT", "VFR", "VFR")
-    assert seen(sim) == (["SQK_D1_UP", "IDENT", "VFR"], [])
+    assert seen(sim) == (["SQK_D1_UP", "IDENT", "VFR", "SQK_D1_UP", "IDENT", "VFR"], [])
 
 
 # ---------------- SHIFT ----------------
@@ -331,7 +335,10 @@ def test_shifted_keys():
               "DME": "DME_AUDIO", "121.5": "COM_121_5", "ADF ⇆": "ADF_SWAP"}
     with open(CONTROLS) as f:
         text = f.read().split("\n## Keys")[1].split("\n## ")[0]
-    cells = [c.strip() for line in text.splitlines() if line.startswith("| ") and "---" not in line
+    rows = [line for line in text.splitlines() if line.startswith("| ")]
+    keys = [line for i, line in enumerate(rows)                   # not the tables' headers, above their "| ---"
+            if "---" not in line and not (i + 1 < len(rows) and "---" in rows[i + 1])]
+    cells = [c.strip() for line in keys
              for c in line.strip("|").split("|") if c.strip() and not c.strip().startswith("SHIFT")]
     sim, expected = Sim(), []
     for cell in cells:

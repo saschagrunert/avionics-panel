@@ -58,14 +58,81 @@ def test_shift_one_shot():
     s.key("SHIFT"); s.key("VFR"); assert s.take() == [(1, "IDENT")]       # one tap arms SHIFT for the key
 
 
-def test_vfr_key_after_a_squawk_entry():
-    # VFR is the plain function: right after a squawk entry (the knob still holds SHIFT) the key sends VFR;
-    # to ident, tap SHIFT first
+def test_vfr_key_in_a_squawk_entry_sends_ident():
+    # right after a squawk entry (the knob still keeps SHIFT, the light on) VFR alone sends IDENT, not VFR over
+    # the code just set, and ends the entry as any key does: the next VFR and the FREQ knob are plain. A tap
+    # first still gives IDENT, and outside the entry VFR is plain
     s = Sim()
-    s.key("SHIFT"); s.turn("FREQ_OUTER", 1); s.take()
     s.key("VFR"); assert s.take() == [(1, "VFR")]
     s.key("SHIFT"); s.turn("FREQ_INNER", 1); s.take()
+    s.key("VFR"); assert s.take() == [(1, "IDENT")]
+    assert not s.p.shift_active(s.t) and s.p.shift_level(s.t) == P.LIGHT_OFF
+    s.key("VFR"); s.turn("FREQ_INNER", 1); assert s.take() == [(1, "VFR"), (1, "COM_KHZ_UP")]
+    s.key("SHIFT"); s.turn("FREQ_OUTER", 1); s.take()                   # the outer ring alone: an entry too
+    s.key("VFR"); assert s.take() == [(1, "IDENT")]
+    s.key("SHIFT"); s.turn("FREQ_INNER", 1); s.take()
     s.key("SHIFT"); s.key("VFR"); assert s.take() == [(1, "IDENT")]
+    s.key("VFR"); assert s.take() == [(1, "VFR")]
+
+
+def test_only_vfr_and_only_the_freq_knob_s_session_go_out_shifted():
+    # other keys in a squawk entry stay plain, and VFR in another knob's session too
+    s = Sim()
+    s.key("SHIFT"); s.turn("FREQ_INNER", 1); s.take()
+    s.key("AP"); assert s.take() == [(1, "AP")]
+    for ring in ("ALTHDG_OUTER", "FMS_INNER", "RANGE"):
+        s.key("SHIFT"); s.turn(ring, 1); s.take()
+        s.key("VFR"); assert s.take() == [(1, "VFR")], ring
+    s.key("SHIFT"); s.turn("FREQ_INNER", 1); s.turn("ALTHDG_OUTER", 1); s.take()   # another knob ends the entry
+    s.key("VFR"); assert s.take() == [(1, "VFR")]
+
+
+def test_vfr_key_sends_ident_until_the_squawk_entry_runs_out():
+    # IDENT while the light is on, also in its last second's pulse; VFR once it is off, SESSION_MS after the
+    # last detent
+    for wait, sent in ((P.SESSION_MS - 500, "IDENT"), (P.SESSION_MS - 1, "IDENT"), (P.SESSION_MS, "VFR")):
+        s = Sim()
+        s.key("SHIFT"); s.p.turn("FREQ_INNER", 1, s.t); s.run(wait)
+        assert (s.p.shift_level(s.t) != P.LIGHT_OFF) == (sent == "IDENT"), wait
+        s.take(); s.key("VFR"); assert s.take() == [(1, sent)], wait
+    # a stalled loop pass moves the entry's end, and IDENT with it
+    s = Sim()
+    s.key("SHIFT"); s.p.turn("FREQ_INNER", 1, s.t); s.run(P.SESSION_MS - 500)
+    s.p.stalled(5000); s.t += 5000; s.run(400)
+    s.take(); s.key("VFR"); assert s.take() == [(1, "IDENT")]
+
+
+def test_vfr_key_in_a_squawk_entry_under_shift_lock():
+    # locked, VFR is IDENT anyway and the lock stays; the tap that unlocks ends the entry, to plain: VFR
+    s = Sim()
+    s.p.key("SHIFT", True, s.t); s.run(P.LOCK_MS + 100); s.p.key("SHIFT", False, s.t); s.run(100)
+    s.turn("FREQ_INNER", 1); s.key("VFR"); s.key("VFR")
+    assert [n for _, n in s.take()] == ["SQK_D1_UP", "IDENT", "IDENT"] and s.p.locked
+    s.turn("FREQ_INNER", 1); s.key("SHIFT"); s.key("VFR")
+    assert [n for _, n in s.take()] == ["SQK_D1_UP", "VFR"] and not s.p.locked
+
+
+def test_vfr_key_after_a_mode_push_alone_stays_vfr():
+    # the shifted push (XPDR mode) keeps the FREQ knob's session, held and for SESSION_MS after, but without a
+    # squawk ring turned in it that is no entry: VFR squawks the VFR code, during the push and after it
+    s = Sim()
+    s.key("SHIFT"); s.p.key("FREQ_PUSH", True, s.t); s.run(200)
+    s.key("VFR")
+    assert [n for _, n in s.take()] == ["XPDR_MODE", "VFR"] and s.p.shift == "FREQ"
+    s.p.key("FREQ_PUSH", False, s.t); s.run(1000)
+    s.key("SHIFT"); s.p.key("FREQ_PUSH", True, s.t); s.run(100); s.p.key("FREQ_PUSH", False, s.t); s.run(1000)
+    s.take(); s.key("VFR"); assert s.take() == [(1, "VFR")]
+
+
+def test_vfr_key_under_a_held_shifted_freq_push_after_a_digit_sends_ident():
+    # a squawk entry, then the mode push held: still the entry's session, so VFR is IDENT, every time, as no key
+    # ends a session a held push keeps
+    s = Sim()
+    s.key("SHIFT"); s.turn("FREQ_INNER", 1); s.p.key("FREQ_PUSH", True, s.t); s.run(200)
+    s.key("VFR"); s.key("VFR")
+    assert [n for _, n in s.take()] == ["SQK_D1_UP", "XPDR_MODE", "IDENT", "IDENT"] and s.p.shift == "FREQ"
+    s.p.key("FREQ_PUSH", False, s.t); s.run(P.SESSION_MS + 100)
+    s.key("VFR"); assert s.take() == [(1, "VFR")]
 
 
 def test_knob_keeps_shift():

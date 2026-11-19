@@ -6,8 +6,8 @@ and the number of its reason for a control that sends nothing; and the rules of 
 """
 import html
 
-from mobiflight import ifr1, profile, sheet
-from mobiflight.families import FAMILIES, every_part
+from mobiflight import card, ifr1, profile, sheet
+from mobiflight.families import FAMILIES
 from mobiflight.sheet_text import SHEETS
 
 
@@ -20,8 +20,8 @@ def hold_rules():
     """⇆ and a key with a hold, as both pages say it, from ifr1's modes and delays"""
     hold, talk = f"{ifr1.HOLD_MS / 1000:g} s", f"{ifr1.TALK_MS / 1000:g} s"
     return (f"⇆ in {listed(ifr1.MODIFIED)}, held while turning a ring (press ⇆ first, then turn): the ring does what "
-            "follows \"⇆ held\", and ⇆ sends nothing; otherwise ⇆ sends its tap when let go, and nothing after "
-            f"{hold}. A key with a hold sends its tap when let go, and its hold at once when held {hold}; ⇆ in COM1 "
+            "follows \"⇆ held\", and ⇆ sends nothing; otherwise ⇆ sends its tap when let go, however long it was "
+            f"held. A key with a hold sends its tap when let go, and its hold at once when held {hold}; ⇆ in COM1 "
             f"and COM2 its hold when let go after {hold}, and its {talk} hold at once.")
 
 
@@ -33,7 +33,6 @@ MODES = (("COM1", "COM1"), ("COM2", "COM2"), ("NAV1", "NAV1"), ("NAV2", "NAV2"),
 KEYS = (("DCT", "DCT", None), ("MENU", "MENU", None), ("CLR", "CLR", None), ("ENT", "ENT", None),
         ("AP / CDI", "CDI", "AP"), ("HDG / OBS", "OBS", "HDG"), ("NAV / MSG", "MSG", "NAV"),
         ("APR / FPL", "FPL", "APR"), ("ALT / VNAV", "VNAV", "ALT"), ("VS / PROC", "PROC", "VS"))
-TURN = "↻ / ↺"
 # the units of the navigators of both units, and of the Bonanza's tablet selections, by name (the navigators of one
 # unit by their part's NAME)
 UNIT_NAMES = {"navigator-g1000": {1: "MFD", 2: "PFD"}, "navigator-g3x": {1: "PFD", 2: "MFD"},
@@ -50,7 +49,7 @@ def unit_name(family, unit):
     for part in family.PARTS:
         if part in UNIT_NAMES and unit in UNIT_NAMES[part]:
             return UNIT_NAMES[part][unit]
-    return next(every_part()[p].NAME for p in family.PARTS if p.startswith("navigator-") and p.endswith(f"-unit{unit}"))
+    return next(p.NAME for p in family.PIECES if p.KIND == "navigator" and (unit,) == p.UNITS)
 
 
 def _radio(device, kind):
@@ -63,7 +62,7 @@ def words_of(key):
     control the button belongs to (sheet.CONTROLS), the rings the IFR-1 turns otherwise than the panel by its own
     words; a ring's own words under its _UP name stand for its _DN too"""
     texts, _ = SHEETS[key]
-    family = ifr1.FAMILIES[key]
+    family = FAMILIES[key]
     course = COURSE[ifr1._part(family, "cockpit")]
     out = {}
     for control, buttons in sheet.CONTROLS.items():
@@ -85,17 +84,14 @@ def words_of(key):
     return out
 
 
-class Grid:
+class Grid(card.Reasons):
     """The grid of a profile's IFR-1 controls; knob(), key() and push() give a cell's text as HTML from the Uses of
     its buttons (a ring's one per way: ↻ then ↺), the reasons of what sends nothing numbered as they come"""
 
     def __init__(self, ifr1_profile, words=False):
-        self.p, self.reasons = ifr1_profile, {}
+        super().__init__()
+        self.p = ifr1_profile
         self.words = words_of(ifr1_profile.KEY) if words else None
-
-    def nothing(self, reason):
-        number = self.reasons.setdefault(reason, len(self.reasons) + 1)
-        return f'<span class="off">nothing<sup>{number}</sup></span>'
 
     def say(self, use, at_once=False):
         """What one Use sends, as HTML: its words or its label, or nothing with its reason; at_once: as the IFR-1
@@ -115,12 +111,7 @@ class Grid:
             return html.escape(text)
         if at_once:
             return html.escape(profile.label(ifr1.tapped(use.entry)))
-        acts = profile.actions(use.entry)
-        if set(acts) == {"onPress", "onRelease"}:
-            press, release = (profile.label(acts[a]) for a in ("onPress", "onRelease"))
-            if press != release:
-                return html.escape(f"{press}; release: {release}")
-        return html.escape(profile.label(" ".join(acts.values())))
+        return html.escape(card.describe(use.entry))
 
     def ways(self, used, use, mapped=False):
         """The texts of one use of a pair of buttons (↻, ↺) joined, one text where both say the same; None where
@@ -147,7 +138,7 @@ class Grid:
         if button in self.p.UNMAPPED:
             return self.nothing(self.p.UNMAPPED[button])
         used = self.p.USES[button]
-        if "tap" in used:                                    # ⇆ as a modifier: a tap alone (ifr1.AP_TOG)
+        if "tap" in used:                                    # ⇆ as a modifier: a tap alone (ifr1.AP_VS_HOLD)
             tap = self.say(used["tap"], at_once=True)
             return f"<i>tap:</i> {tap}" if tap else '<span class="off">only held while turning a ring</span>'
         key, hold, longer = used.get("key"), used.get("hold"), used.get("long_hold")
@@ -176,7 +167,7 @@ class Grid:
         for mode, title in MODES:
             if mode in ("FMS1", "FMS2"):
                 unit = self.p.UNITS[int(mode[-1]) - 1]
-                title = f"{title}: {unit_name(ifr1.FAMILIES[self.p.KEY], unit)}"
+                title = f"{title}: {unit_name(FAMILIES[self.p.KEY], unit)}"
             cells = [self.knob([f"Button_{mode}_OI", f"Button_{mode}_OD"]),
                      self.knob([f"Button_{mode}_II", f"Button_{mode}_ID"]),
                      self.push(mode), self.key(f"Button_{mode}_TOG")]

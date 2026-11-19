@@ -110,7 +110,7 @@ it stops at once.
 
 Autopilot. The columns are engage, vertical and lateral:
 
-| | | |
+| AP, FD, UP, DN | Vertical modes | Lateral modes |
 | --- | --- | --- |
 | AP (TEST) | ALT (ARM) | HDG (CRS CTR) |
 | FD (YD) | VNV | NAV (GPSS) |
@@ -134,13 +134,14 @@ Audio and radio: AUDIO (left half) selects what you talk on (MIC) and listen to 
 ADF, DME for station identifiers). It does not tune anything. RADIO (right half) holds the CDI key, the
 transponder key and the flip-flops next to the FREQ knob:
 
-| | | | |
+| MIC keys | COM keys | CDI and VFR | Flip-flops |
 | --- | --- | --- | --- |
 | MIC 1 (ADF) | COM 1 (NAV 1) | CDI (OBS) | COM ⇆ (121.5) |
 | MIC 2 (DME) | COM 2 (NAV 2) | VFR (IDENT) | NAV ⇆ (ADF ⇆) |
 
 - VFR squawks the VFR code and selects ALT; pressed again, it squawks the code from before. It is the plain
-  function because squawking VFR is the common case in VFR flying; IDENT is SHIFT, VFR. The [generated
+  function because squawking VFR is the common case in VFR flying; IDENT is SHIFT, VFR, or VFR alone right
+  after a squawk entry (a squawk ring turned), while the amber light is still on. The [generated
   profiles](mapping.md#generated-profiles) set 7000 (EASA), or the code a profile is made for (1200 in the
   US).
 - 121.5 tunes the emergency frequency, like holding the COM flip-flop for two seconds on the G1000 and GNS, or
@@ -152,7 +153,7 @@ transponder key and the flip-flops next to the FREQ knob:
 
 FMS, D→ / MENU / CLR / ENT next to the FMS knob as on the G1000:
 
-| | | | |
+| HOME and SHIFT | FPL and PROC | D→ and CLR | MENU and ENT |
 | --- | --- | --- | --- |
 | HOME (UNIT) | FPL (VNAV) | D→ (MSG) | MENU (NRST) |
 | SHIFT, light below | PROC (TERR) | CLR (MAP) | ENT |
@@ -186,7 +187,9 @@ looking.
 
 - Tap SHIFT: the amber light next to it comes on. The next key press sends the key's amber function, then the
   light goes off. A key without an amber legend (VS, UP, FLC, DN, VNV, ENT) sends a button of its own then,
-  mapped like the plain key ([Mapping](mapping.md#two-joysticks)).
+  mapped like the plain key ([Mapping](mapping.md#two-joysticks)), but in the Black Square Bonanza, where
+  SHIFT, UP and SHIFT, DN are the EDM 800's buttons and SHIFT, FLC and SHIFT, VNV the KR 87's
+  ([Black Square Bonanza](mapping.md#black-square-bonanza)).
 - A knob turned or pushed after the tap keeps SHIFT while you use it, on both rings and the push, until 5 s
   after its last detent, or after a held push or RANGE tilt is let go. Another knob ends it at once.
 - In the last second the light pulses between bright and dim, so a knob never drops back to its plain
@@ -201,9 +204,9 @@ looking.
   digit. The FREQ knob tunes no radio until you unlock.
 - Dark means plain. Lit, steady or pulsing in its last second, means SHIFT is on: for the next key after a
   tap, or for the knob that keeps it. The light does not tell the two apart, and a key pressed while a knob
-  keeps SHIFT is sent plain and ends the knob's SHIFT. For an amber key then, tap SHIFT first: that tap arms
-  SHIFT for the key for 3 s, and a second one cancels it. A slow blink, dim and bright once a second, means
-  locked.
+  keeps SHIFT is sent plain and ends the knob's SHIFT, except VFR after a squawk entry, which sends IDENT (not
+  after the XPDR mode push alone). For an amber key then, tap SHIFT first: that tap arms SHIFT for the key for
+  3 s, and a second one cancels it. A slow blink, dim and bright once a second, means locked.
 - A shifted push or RANGE tilt that is still held keeps SHIFT until it is let go, whatever key is pressed
   meanwhile, SHIFT included; only another knob or USB going down ends it. Held on after that, it keeps no
   later session.
@@ -227,9 +230,9 @@ The full rules and the state diagram are in [Firmware](../architecture/firmware.
 - Squawk: tap SHIFT, set the first digit with the inner ring of the FREQ knob, move to the next digit with one
   detent of the outer ring, and so on. Pause less than 5 s between digits: the entry ends 5 s after the last
   detent. To start over, turn the outer ring counter-clockwise to its stop, the first digit.
-- Ident: SHIFT, VFR (IDENT). Right after a squawk entry the amber light is still on, but VFR alone sends VFR
-  there and squawks the VFR code over the one just set: tap SHIFT again first, or press VFR again to get the
-  code back.
+- Ident: SHIFT, VFR (IDENT). Right after a squawk entry, while the amber light is still on, VFR alone sends
+  IDENT, so the code just set stays; SHIFT, VFR does too. Once the light is out VFR sends VFR again, as it
+  does after the XPDR mode push (SHIFT, FREQ push) without a digit turned.
 
 ## HOTAS
 

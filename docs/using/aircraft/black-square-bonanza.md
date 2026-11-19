@@ -16,13 +16,15 @@ Good to know:
   s a long one.
 - FLC and ½ BANK tilt the weather radar's antenna; SHIFT with the RANGE knob tilted left and right sets its
   range.
-- FD and the UP/DN rocker send the simulator's events, which the aircraft may ignore.
+- FD and the UP/DN rocker send the simulator's events, which the aircraft may ignore; FD and the self-test
+  (TEST) only with the autopilot off.
 
 The same sheet with the commit of the latest build in its title:
 [avionics-panel-black-square-bonanza-sheet.svg](https://saschagrunert.de/avionics-panel/cards/avionics-panel-black-square-bonanza-sheet.svg).
 The profile:
 [avionics-panel-black-square-bonanza.mfproj](https://github.com/saschagrunert/avionics-panel/releases/download/rolling/avionics-panel-black-square-bonanza.mfproj)
-([how to use it](../mapping.md#generated-profiles)). Every detail, and what each control sends:
-[Mapping](../mapping.md#black-square-bonanza).
+([how to use it](../mapping.md#generated-profiles)). Every detail:
+[Mapping](../mapping.md#black-square-bonanza). What each control sends, as MobiFlight lists it: the
+[card](https://saschagrunert.de/avionics-panel/cards/avionics-panel-black-square-bonanza-card.html).
 
 The same profile for the Octavi IFR-1, with its card and cheat sheet: [Octavi IFR-1](../ifr1.md#downloads).

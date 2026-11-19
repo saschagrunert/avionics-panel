@@ -14,15 +14,15 @@ SHIFT = "next key or knob: its ⇧ function; held 1 s: locked"
 
 # ---------------- every profile: audio, radios, transponder, the FREQ knob ----------------
 RADIOS = {
-    "MIC1": "talk on COM 1",
+    "MIC1": "talk on, hear COM 1",
     "ADF_AUDIO": "listen to the ADF ident",
-    "COM1": "listen to COM 1, on or off",
+    "COM1": "listen, on or off; kept if talked on",
     "NAV1_AUDIO": "listen to the NAV 1 ident",
     "COM_SWAP": "COM flip-flop",
     "COM_121_5": "tune COM to 121.5",
-    "MIC2": "talk on COM 2",
+    "MIC2": "talk on, hear COM 2",
     "DME_AUDIO": "listen to the DME ident",
-    "COM2": "listen to COM 2, on or off",
+    "COM2": "listen, on or off; kept if talked on",
     "NAV2_AUDIO": "listen to the NAV 2 ident",
     "VFR": f"squawk {VFR} and ALT; again: the code before",
     "IDENT": "IDENT",
@@ -31,7 +31,7 @@ RADIOS = {
     "FREQ_OUTER": "MHz (COM, NAV); ADF 100 kHz",
     "FREQ_INNER": "kHz (COM, NAV); ADF 1 kHz, quick turn 10 kHz",
     "FREQ_PUSH": "COM, NAV, ADF (green light: off, on, blinks); held 1 s: COM",
-    "SQUAWK": "outer picks the digit, inner sets it",
+    "SQUAWK": "outer picks a digit, inner sets it; then VFR: IDENT",
     "XPDR": "transponder standby or ALT",
 }
 
@@ -92,8 +92,8 @@ KAP140 = {
     "GPSS": None,
     "UP": "VS rate up",
     "S_UP": "UP, no repeat",
-    "VS": None,
-    "S_VS": None,
+    "VS": "VS: leaves ALT hold for VS",
+    "S_VS": "VS: leaves ALT hold for VS",
     "APR": "APR mode",
     "BC": "REV (back course)",
     "DN": "VS rate down",
@@ -107,11 +107,11 @@ KAP140_KNOB = {"ALT_KNOB": "KAP 140 altitude: 100 ft, quick turn 1000 ft"}
 
 KFC150 = {
     "AP": "KFC 150 AP ENG",
-    "TEST": "self-test; held: MD41 lamp test",
+    "TEST": "self-test, AP off only; held: MD41 lamp test",
     "ALT": "ALT hold",
     "ARM": "KAS 297B ALT ARM",
     "HDG": "HDG mode",
-    "FD": "flight director",
+    "FD": "flight director (only with AP off)",
     "YD": "yaw damper, if fitted",
     "VNV": "descent: sets VS, VS ENG",
     "NAV": "NAV mode",
@@ -310,10 +310,12 @@ BONANZA_NAV = {
 BONANZA_UNIT2 = "unit 2 is the secondary (GNS 430, GTN 650 or KX 155B)"
 
 BONANZA = {
+    "BARO": "both altimeters' setting, 0.01 inHg",
+    "STD": "STD on both; again: the setting before",
     "XPDR": "GTX 327: ALT or STBY",
     "VFR": f"squawk {VFR} and GTX ALT; again: the code before",
-    "MIC1": "talk on COM 1 (and the selector)",
-    "MIC2": "talk on COM 2 (and the selector)",
+    "MIC1": "talk on, hear COM 1 (and the selector)",
+    "MIC2": "talk on, hear COM 2 (and the selector)",
     "GPSS": "HSI source: NAV 1 or RNAV",
     "FLC": "radar antenna down 5 %",
     "S_FLC": "KR 87 ADF (antenna) key",
