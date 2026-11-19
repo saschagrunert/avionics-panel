@@ -4,6 +4,7 @@ projects, which the zip holds and the Pages workflow puts at cards/ beside the 3
 (docs/using/mapping.md#quick-reference-cards).
 """
 import html
+from urllib.parse import quote
 
 from mobiflight import card, ifr1, profile
 
@@ -14,12 +15,12 @@ VIEW = "https://saschagrunert.de/avionics-panel/"
 
 def release(tag=None):
     """Where a release's files are: the release tag's, or the latest build's (rolling)"""
-    return f"{REPO}/releases/download/{tag or 'rolling'}/"
+    return f"{REPO}/releases/download/{quote(tag or 'rolling', safe='')}/"
 
 
 def docs(tag=None):
     """Where the docs on using the panel are: as of the release tag, or on main"""
-    return f"{REPO}/blob/{tag or 'main'}/docs/using/"
+    return f"{REPO}/blob/{quote(tag or 'main', safe='')}/docs/using/"
 
 
 def files(key):
@@ -33,7 +34,8 @@ def index(families, version=None, tag=None):
     """The index of the cards zip and of cards/ beside the 3D view, as a page of HTML: for each profile of families
     ({key: family}, in their order) its cheat sheets and cards, for the panel and for the IFR-1, and its projects of
     the release tag, or of the latest build (version: as card.page()'s)"""
-    files_at, docs_at, rows = release(tag), docs(tag), []
+    # escaped as every attribute value is, though release() and docs() quote the tag already
+    files_at, docs_at, rows = html.escape(release(tag)), html.escape(docs(tag)), []
     for key, family in families.items():
         panel_card, panel_sheet, ifr1_card, ifr1_sheet = files(key)
         rows.append(f'<tr><th>{html.escape(family.NAME)}</th>'
@@ -75,8 +77,8 @@ thead th {{ border-bottom: 2px solid var(--ink); }}
 <h1>Avionics Panel: cards and cheat sheets{stamp}</h1>
 <p>For each profile, for the panel and for the Octavi IFR-1: the cheat sheet (what each control does, in plain
 words), the card (every event and variable a control sends, as MobiFlight lists them) and the MobiFlight project of
-{of}. Open a cheat sheet or card and print it on A4 in landscape. From the zip, extract it first: the pages link each
-other, and a page opened inside the zip comes alone.</p>
+{of}. Open a cheat sheet or card and print it on A4 in landscape. From the zip, extract it first: this page links
+the pages beside it, and a page opened inside the zip comes alone.</p>
 <table>
 <thead><tr><th>Profile</th><th>Panel</th><th>Octavi IFR-1</th></tr></thead>
 <tbody>
