@@ -24,3 +24,5 @@ The profile:
 [avionics-panel-black-square-bonanza.mfproj](https://github.com/saschagrunert/avionics-panel/releases/download/rolling/avionics-panel-black-square-bonanza.mfproj)
 ([how to use it](../mapping.md#generated-profiles)). Every detail, and what each control sends:
 [Mapping](../mapping.md#black-square-bonanza).
+
+The same profile for the Octavi IFR-1, with its card and cheat sheet: [Octavi IFR-1](../ifr1.md#downloads).

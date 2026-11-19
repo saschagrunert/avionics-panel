@@ -1,12 +1,12 @@
 """TDS's GTN 750Xi and 650Xi as navigator parts (part.py), in MSFS 2024: what each button does with them
 (docs/using/controls.md, docs/using/compatibility.md), each as TDS's unit 1 or unit 2 in the panel's unit 1 or 2, and
-pms50's GTN 750 and 650. The GTN profile (families/__init__.py) joins the KAP 140 autopilot and the Bendix/King cockpit,
+PMS50's GTN 750 and 650. The GTN profile (families/__init__.py) joins the KAP 140 autopilot and the Bendix/King cockpit,
 as in the Cessna 172 Skyhawk Classic with TDS's GTNs, with the GTN 750Xi unit 1 in unit 1 (COM 1, NAV 1) and the GTN
 650Xi unit 2 in unit 2 (COM 2, NAV 2). TDS numbers the units per model (TDS GTNXi manual, "Interfacing with Hardware");
 that its MSFS 2024 aircraft integrations load the 650Xi as unit 2 is assumed from the bezel names of the C172's
 (marcfsx-tdssim-gtnxi750u1 and marcfsx-tdssim-gtnxi650u2), and the parts cover the other ways. What the profile does
-differently from the real units is in docs/using/mapping.md#tds-gtn-750xi-and-650xi. pms50's GTN takes H: events of its
-own, its touchscreen's contextual keys and pages among them (pms50()).
+differently from the real units is in docs/using/mapping.md#tds-gtn-750xi-and-650xi. PMS50's GTN takes H: events of its
+own, its touchscreen's contextual keys and pages among them, those two in PMS50's Premium version only (pms50()).
 
 TDS takes only the GTNs' bezel from outside, as the simulator's GPS key events with a value that names the unit (the
 manual's "Interfacing with Hardware"): a knob detent sends the unit's value, a key that value plus 2 when it goes down
@@ -80,9 +80,10 @@ def tds(model, tds_unit, unit):
                           {**_bezel(value), **_map(value)}, _UNMAPPED, unit, (TDS_DISTANCE,))
 
 
-# pms50's GTN: its bezel (PMS50's "GTN750 events", which Black Square's guide follows), its contextual keys, which it
-# takes while its screen shows them (MENU, BACK, ENTER, MSG), its Procedures page (premium version only) and its volume
-# knob and push
+# PMS50's GTN: its bezel (PMS50's "GTN750 events", which Black Square's guide follows), its contextual keys, which it
+# takes while its screen shows them (MENU, BACK, ENTER, MSG), its Procedures page and its volume knob and push. The
+# contextual keys and the page are PMS50's Premium version only (PMS50's GTN750 documentation, changelog: Premium only
+# since v2.2.51 for the GoToPage events, since v2.2.52 for the contextual button events)
 _PMS50 = {
     "HOME": "HomePush",
     "DIRECT": "DirectToPush",
@@ -103,18 +104,18 @@ _PMS50 = {
     "PAN_DN": "VolDec",
     "PTR": "VolPush",
 }
-_PMS50_TOUCH = "on the pms50 GTN's touchscreen: the profile sends none of its page or contextual events for it"
+_PMS50_TOUCH = "on the PMS50 GTN's touchscreen: the profile sends none of its page or contextual events for it"
 
 
 def pms50(model, unit, also=()):
-    """pms50's GTN 750 or 650 by its H: events (_PMS50). PMS50 names the instrument on COM 1 / NAV 1 GTN750_ or
+    """PMS50's GTN 750 or 650 by its H: events (_PMS50). PMS50 names the instrument on COM 1 / NAV 1 GTN750_ or
     GTN650_ and the one on COM 2 / NAV 2 GTN750_2_ or GTN650_2_, by the panel's unit; also: more prefixes it sends
     beside that one, for an aircraft whose own documentation names the instrument otherwise (the Bonanza's)."""
     prefixes = (f"GTN{model}_" if unit == 1 else f"GTN{model}_2_", *also)
     rows = {button: " ".join(h(prefix + name) for prefix in prefixes) for button, name in _PMS50.items()}
     unmapped = {button: _PMS50_TOUCH if reason == _TOUCH else reason
                 for button, reason in _UNMAPPED.items() if button not in _PMS50}
-    return part.navigator(f"gtn{model}-pms50", f"pms50 GTN {model}", rows, unmapped, unit)
+    return part.navigator(f"gtn{model}-pms50", f"PMS50 GTN {model}", rows, unmapped, unit)
 
 
 NAVIGATORS = {
