@@ -122,12 +122,12 @@ def tables(family, vfr=None):
     return out
 
 
-def button_config(acts, hold_delay=HOLD_MS):
+def button_config(acts, long_delay=LONG_MS, hold_delay=HOLD_MS):
     """An item's "button": its actions ({"onPress": code, ...}, actions()) as custom code, the others null, and the
-    delays (hold_delay: of onHold, for the item that has one)"""
+    delays (long_delay: of onLongRelease, hold_delay: of onHold)"""
     config = dict.fromkeys(("onPress", "onRelease", "onLongRelease", "onHold"))
     config.update({event: {"Type": "MSFS2020CustomInputAction", "Command": code} for event, code in acts.items()})
-    config.update(LongReleaseDelay=LONG_MS, HoldDelay=hold_delay, RepeatDelay=0)
+    config.update(LongReleaseDelay=long_delay, HoldDelay=hold_delay, RepeatDelay=0)
     return config
 
 

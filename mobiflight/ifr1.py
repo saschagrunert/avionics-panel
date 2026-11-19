@@ -6,42 +6,46 @@ OctaviHandler.cs, Octavi.cs, and Joysticks/octavi/octavi.joystick.json). The dev
 mode keys select, and reports it with every input; MobiFlight turns each input into one of 96 named buttons (BUTTONS)
 by that mode and a shift of its own, which the knob push toggles in COM1, COM2, NAV1, NAV2 and XPDR and every change of
 mode ends (sending Button_UNSHIFT_SW). Its keys send a press and a release, and from MobiFlight 11.3 a release after a
-hold (onLongRelease, profile.LONG_MS); a knob sends one press per detent and nothing else. Its six AP lights each take 0
-or 1 (LEDS): MobiFlight shifts the value into the lights' byte as it is, so a 2 would light the next light too.
+hold (onLongRelease) and a hold while still down (onHold), each after a delay of the item's; a knob sends one press per
+detent and nothing else. Its six AP lights each take 0 or 1 (LEDS): MobiFlight shifts the value into the lights' byte
+as it is, so a 2 would light the next light too.
 
 Every IFR-1 button sends what a panel button sends in the profile (uses(): Panel sources, by the table TABLE), with
 these rules over it:
 
 - ⇆ in FMS1, FMS2, AP and XPDR is a modifier of its mode's knob (MODIFIED): pressed, it sets the mode's L: variable;
-  a detent while it is held sends the knob's held code; let go without a detent between, it sends its tap, or its
-  hold after a hold (profile.LONG_MS), on its release; then it clears the variable. The state lives in L: variables
-  of the IFR-1's own (L:AvionicsPanel_IFR1_*), as the panel keeps its own, so the two devices can fly together.
-- A key with a hold (an amber function of AMBER of its panel key, the COM audio, HOLDS or the profile's EXTRA) sends
-  that when held and its plain function on a tap, on its release; every other key sends on press as the panel's does,
-  a key of TDS's GTN its key-up on release. ⇆ in COM1 and COM2 has a second, longer hold (TALK), which MobiFlight
-  sends at TALK_MS while it is still down (onHold); its release then sends nothing.
+  a detent while it is held sends the knob's held code; let go without a detent between, it sends its tap, and after
+  HOLD_MS nothing; then it clears the variable. It has no hold: a detent that comes with its press goes out without
+  it, and ⇆ let go would send the hold (AP_TOG). The state lives in L: variables of the IFR-1's own (STATE), as the
+  panel keeps its own, so the two devices can fly together.
+- A key with a hold (an amber function of AMBER of its panel key, HOLDS, MODE's cabin light, the profile's EXTRA, or VNV
+  on the AP knob's push) sends its hold at once when held HOLD_MS, while still down, and its plain function on a tap, on
+  its release; every other key sends on press as the panel's does, a key of TDS's GTN its key-up on release. ⇆ in COM1
+  and COM2 sends its hold, the panel's COM 1 or COM 2 audio, when let go after HOLD_MS, and a longer one, its MIC 1 or
+  MIC 2 (TALK), at once after TALK_MS.
 - MobiFlight sends a release to the button of the mode the IFR-1 is in by then, and Button_UNSHIFT_SW on every change
-  of mode and on leaving shift. That button lets go of every ⇆ and every key with a hold (clear()), so one let go
-  after a change of mode sends nothing, and a GTN key sends its key-up only from the button that sent its key-down.
-  Button_SHIFT_SW, on entering shift, lets go of ⇆ in the modes with a shift (clear(shifting=True)), whose release
-  reaches the shifted button, so the longer hold of COM1 or COM2 sends nothing in HDG or BARO.
+  of mode and on leaving shift. That button lets go of every ⇆ and every key with a hold (clear()), so one let go,
+  or still held, after a change of mode sends nothing, and a GTN key sends its key-up only from the button that sent
+  its key-down. Button_SHIFT_SW, on entering shift, lets go of ⇆ in the modes with a shift (clear(shifting=True)),
+  whose release reaches the shifted button, so a hold of COM1 or COM2 sends nothing in HDG or BARO.
 - A panel button the profile leaves unmapped leaves the IFR-1's unmapped too, with the profile's reason.
 
-In every profile ⇆ held in COM1 and COM2 is the panel's COM 1 and COM 2 audio, and held for TALK_MS its MIC 1 and
-MIC 2 (TALK), and where it sent nothing, the panel's NAV 1 and NAV 2 audio in NAV1 and NAV2, the simulator's marker
-audio event in CRS1, the panel's DME audio in CRS2 and the simulator's pitot heat event in BARO (HOLDS); with ⇆ held in
-FMS1 and FMS2, a GTN's outer ring is its volume (HELD_OUTER). Per profile, EXTRA puts IFR-1 uses of their own over the
-panel's (Plus and Own sources): in the Black Square Bonanza TDS's GTN volume beside the GNS's, KLN 90B's and pms50's
-keys, each navigator's range or volume on the outer ring with ⇆ held, the HSI's course with the heading bug, both
-altimeters in BARO, and the cockpit's GPSS, self-test, EDM 800, DME selector, oxygen, tip tanks, prop heat, fuel pump
-and air conditioner on keys of FMS1 and FMS2 (bonanza_extra()); in the COWS DA40 and the C182T their fuel pump, and
-the NG DA40's fuel transfer pump, on keys of FMS2 held (da40_extra(), c182t_extra()); in the GTN profile TDS's volume
-and its push on MENU, CLR and ENT (gtn_extra()).
+The layers: the AP rings set the selected altitude 1000 ft (outer) and 100 ft (inner), with ⇆ held the inner ring the
+panel's UP and DN; XPDR's rings the squawk two digits each, with ⇆ held the panel and flood dimmers; MODE (XPDR shifted)
+the transponder's mode, ALT one way and standby the other (transponder_mode()), its ⇆ the VFR code. In every profile ⇆
+held in NAV1 and NAV2 is the panel's NAV 1 and NAV 2 audio, in CRS1 the simulator's marker audio event, in CRS2 the
+panel's DME audio and in BARO the simulator's pitot heat event (HOLDS); with ⇆ held in FMS1 and FMS2, TDS's GTN's outer
+ring is its volume, and its MENU, CLR and ENT, without ⇆, the volume up, down and push (tds_gtn()). Per profile, EXTRA
+puts IFR-1 uses of their own over the panel's (Plus and Own sources): in the Black Square Bonanza TDS's GTN volume
+beside the GNS's, KLN 90B's and PMS50's keys, each navigator's range or volume on the outer ring with ⇆ held, the HSI's
+course with the heading bug, both altimeters in BARO, and the cockpit's GPSS, self-test, EDM 800, DME selector, oxygen,
+tip tanks, prop heat, fuel pump and air conditioner on keys of FMS1 and FMS2 (bonanza_extra()); in the COWS DA40 and the
+C182T their fuel pump, and the NG DA40's fuel transfer pump, on keys of FMS2 held (da40_extra(), c182t_extra()).
 
 New code, which no panel button sends (Own sources): the squawk's digits in pairs (squawk_pair), NAV 2's course
-(NAV2_COURSE), the modifier (held(), knob()), the KAP 140's VS key (parts.KAP140_VS, the statement VNV starts with), the
-marker audio and pitot heat (HOLDS), the button that lets go of the held keys (clear()) and the aircraft's own codes of
-EXTRA. project() writes the project.
+(NAV2_COURSE), the transponder's mode one way (transponder_mode()), the modifier (held(), knob()), the KAP 140's VS
+key (parts.KAP140_VS, the statement VNV starts with), the marker audio and pitot heat (HOLDS), the buttons that let go
+of the held keys (clear()) and the aircraft's own codes of EXTRA. project() writes the project.
 """
 import re
 import uuid
@@ -74,13 +78,13 @@ def buttons():
     each mode and each shifted mode (COM1^ and so on): its knob and ⇆ (TOG), its push (CRSR) where it has no shift,
     FMS1's and FMS2's keys, AP's bottom row; the bottom row, already made, for every other mode"""
     out = ["Button_SHIFT_SW", "Button_UNSHIFT_SW"]
-    for mode in (*MODES, *(f"{m}^" for m in SHIFTED)):
-        out += [f"Button_{mode}_{ring}" for ring in (*KNOB, "TOG")]
-        if mode.rstrip("^") not in SHIFTED:
-            out.append(f"Button_{mode}_CRSR")
-        if mode in ("FMS1", "FMS2"):
-            out += [f"Button_{mode}_{key}" for key in FMS_KEYS]
-        if mode == "AP":
+    for name in (*MODES, *(f"{m}^" for m in SHIFTED)):
+        out += [f"Button_{name}_{ring}" for ring in (*KNOB, "TOG")]
+        if name.rstrip("^") not in SHIFTED:
+            out.append(f"Button_{name}_CRSR")
+        if name in ("FMS1", "FMS2"):
+            out += [f"Button_{name}_{key}" for key in FMS_KEYS]
+        if name == "AP":
             out += [f"Button_AP_{key}" for key in AP_ROW]
     return tuple(out)
 
@@ -93,8 +97,13 @@ Own = namedtuple("Own", "name code")           # code no panel button sends, and
 Plus = namedtuple("Plus", "panel own")         # a panel button and an Own after it, on one event (at once)
 
 
-def _var(mode, turned=False):
-    return f"AvionicsPanel_IFR1_{mode}{'_Turned' if turned else ''}"
+# the prefix of the IFR-1's own L: variables, short as Button_UNSHIFT_SW names one per key with a hold in a message of
+# 1024 bytes (clear())
+STATE = "AvPanelIFR1_"
+
+
+def _var(name, turned=False):
+    return f"{STATE}{name}{'_Turned' if turned else ''}"
 
 
 MODIFIED = ("FMS1", "FMS2", "AP", "XPDR")      # the modes whose ⇆ is a modifier of their knob
@@ -105,7 +114,7 @@ def _down(key):
     name in one message, "^" of a shifted mode spelt out (an L: variable's name takes letters, digits and _): a release
     that MobiFlight delivers to another mode, the one the user changed to with the key held, sends nothing there. A
     key with a hold keeps it so, and a key of TDS's GTN, so its key-up goes only where its key-down went."""
-    return f"AvionicsPanel_IFR1_{key.replace('^', '_Shifted')}"
+    return f"{STATE}{key.replace('^', '_Shifted')}"
 
 
 def clear(keys, shifting=False):
@@ -118,9 +127,9 @@ def clear(keys, shifting=False):
     if shifting:
         return Own("lets go of ⇆ in the modes with a shift",
                    " ".join([*(lset(_var(m), 0) for m in MODIFIED if m in SHIFTED),
-                             *(lset(_down(k), 0) for k in keys if mode(f"Button_{k}") in SHIFTED)]))
+                             *(lset(_down(key), 0) for key in keys if mode(f"Button_{key}") in SHIFTED)]))
     return Own("lets go of ⇆ and the held keys of every mode",
-               " ".join([*(lset(_var(m), 0) for m in MODIFIED), *(lset(_down(k), 0) for k in keys)]))
+               " ".join([*(lset(_var(m), 0) for m in MODIFIED), *(lset(_down(key), 0) for key in keys)]))
 
 
 # the squawk two digits at a time: the code is TRANSPONDER CODE:1 in BCD16 (its digits as hex, as parts.vfr reads it),
@@ -133,8 +142,6 @@ def squawk_pair(first, step):
     up or down (step 1 or -1) and round from 77 to 00 and back, as the panel's digits go round; the other two kept.
     Register 0 holds the pair as BCD (0x00 to 0x77), 1 the pair stepped as a number 0 to 63. A code set this way
     forgets the one VFR kept, as the panel's digits do (parts.SQUAWK)."""
-    if step not in (1, -1):
-        raise ValueError(f"a squawk pair steps by 1 or -1, not {step!r}")
     up = 1 if step > 0 else 63                     # -1 modulo 64
     if first:
         pair, rest, place = f"{_CODE} 256 / flr", f"{_CODE} 256 %", " 256 *"
@@ -147,17 +154,17 @@ def squawk_pair(first, step):
 # NAV 2's course (CRS2), from the statements the panel sets NAV 1's with (parts.NAV1_KNOBS, parts.CENTRE), NAV 2 for
 # NAV 1: the sim's own events, which the G1000 NXi and the Bonanza's NAV 2 indicator are taken to follow
 NAV2_COURSE = {
-    "OI": Own("NAV 2 course +10°", turn("NAV OBS:2", "VOR2_SET", 10)),
-    "OD": Own("NAV 2 course -10°", turn("NAV OBS:2", "VOR2_SET", -10)),
-    "II": Own("NAV 2 course +1°", k("VOR2_OBI_INC")),
-    "ID": Own("NAV 2 course -1°", k("VOR2_OBI_DEC")),
+    "OI": Own("NAV 2 course 10°", turn("NAV OBS:2", "VOR2_SET", 10)),
+    "OD": Own("NAV 2 course 10°", turn("NAV OBS:2", "VOR2_SET", -10)),
+    "II": Own("NAV 2 course 1°", k("VOR2_OBI_INC")),
+    "ID": Own("NAV 2 course 1°", k("VOR2_OBI_DEC")),
     "TOG": Own("NAV 2 course to the VOR or LOC", parts.CENTRE.replace("#", "2")),
 }
 SQUAWK_PAIRS = {
-    "OI": Own("first two squawk digits up", squawk_pair(True, 1)),
-    "OD": Own("first two squawk digits down", squawk_pair(True, -1)),
-    "II": Own("last two squawk digits up", squawk_pair(False, 1)),
-    "ID": Own("last two squawk digits down", squawk_pair(False, -1)),
+    "OI": Own("first two squawk digits", squawk_pair(True, 1)),
+    "OD": Own("first two squawk digits", squawk_pair(True, -1)),
+    "II": Own("last two squawk digits", squawk_pair(False, 1)),
+    "ID": Own("last two squawk digits", squawk_pair(False, -1)),
 }
 KAP140_VS = Own("VS: leaves ALT hold for VS", parts.KAP140_VS)
 # ⇆ held where it sends nothing else in every profile: the panel's audio of the station tuned in NAV1 and NAV2, to hear
@@ -179,7 +186,12 @@ HOLDS = {
 # as choosing the radios to listen to and talk on matters more in flight and the IFR-1 has no audio panel.
 AMBER = ("BC", "ARM", "MAP", "NRST", "TERR")
 TALK = {1: "MIC1", 2: "MIC2"}                  # ⇆ held TALK_MS in COM1 and COM2: talk on that radio
-TALK_MS = 2000                                 # MobiFlight's onHold delay for it, well above profile.LONG_MS
+# a hold: a key held HOLD_MS sends its hold at once, while still down (onHold), and nothing when let go; ⇆ of COM1 and
+# COM2, whose onHold is TALK, and a modifier ⇆ tell a hold from a tap when let go (onLongRelease) after as long. Twice
+# the 0.35 s of the panel's keys: a hold that switches something off unseen (a radio's audio, pitot heat, a pump) must
+# not come from a press a little slow.
+HOLD_MS = 700
+TALK_MS = 2000
 
 
 def _knob(device, *names):
@@ -199,27 +211,48 @@ TABLE = {
     # CRS1: the panel's course, which follows the CDI where the cockpit's does (the G1000 NXi's CRS knob); ⇆ CRS CTR
     "NAV1^": {**_knob(1, "CRS_10_UP", "CRS_10_DN", "CRS_1_UP", "CRS_1_DN"), "TOG": {"key": Panel(1, "CRS_CTR")}},
     "NAV2^": {ring: {"turn" if ring in KNOB else "key": own} for ring, own in NAV2_COURSE.items()},
-    # the lighting: panel dimmer outer, flood dimmer inner, ⇆ the cabin light
-    "XPDR^": {**_knob(1, "PANEL_LT_UP", "PANEL_LT_DN", "FLOOD_LT_UP", "FLOOD_LT_DN"),
-              "TOG": {"key": Panel(1, "CABIN_LT")}},
+    # MODE, the transponder's, as the IFR-1's legend has it: either ring clockwise ALT, counter-clockwise standby
+    # (transponder_mode()); ⇆ the VFR code, held the cabin light
+    "XPDR^": {"TOG": {"key": Panel(1, "VFR"), "hold": Panel(1, "CABIN_LT")}},
 }
 FMS = {"DCT": "DIRECT", "MENU": "MENU", "CLR": "CLR", "ENT": "ENT", "CDI": "CDI", "OBS": "OBS", "MSG": "MSG",
        "FPL": "FPL", "VNAV": "VNAV", "PROC": "PROC", "CRSR": "FMS_CRSR"}
 FMS_KNOB = dict(zip(KNOB, ("FMS_OUTER_CW", "FMS_OUTER_CCW", "FMS_INNER_CW", "FMS_INNER_CCW"), strict=True))
 MAP = dict(zip(KNOB, ("RANGE_CW", "RANGE_CCW", "RANGE_CW", "RANGE_CCW"), strict=True))   # clockwise zooms out
 
-# per autopilot part (a profile's PARTS): ⇆ in AP, (tap, hold) of panel buttons, None for nothing
-AP_TOG = {"gfc700": ("FLC", "LVL"), "gfc500": ("FLC", "LVL"), "kfc150": ("FD", "YD"), "kap140": (None, None)}
+# per autopilot part (a profile's PARTS): ⇆ tapped in AP, a panel button, None for nothing. ⇆ there has no hold, as in
+# every mode where it is a modifier: a detent that comes with its press goes out without it (docs/using/ifr1.md), and ⇆
+# let go would then send its hold, as LVL, which leaves NAV or APR
+AP_TOG = {"gfc700": "FLC", "gfc500": "FLC", "kfc150": "FD", "kap140": None}
 # per autopilot part: an IFR-1 key for which a panel key the autopilot leaves unmapped has a use
 AP_OWN = {"kap140": {"VS": KAP140_VS}}
 # per navigator part: the panel's units of FMS1 and FMS2 where they are not 1 and 2. The G1000 NXi's unit 1 is its MFD
 # (with the panel's COM 1, the radios sharing a knob); the IFR-1 has modes for its radios, so FMS1 is the PFD, as the
 # G1000 numbers its displays.
 FMS_UNITS = {"navigator-g1000": (2, 1)}
-# per profile: the outer ring with ⇆ held in a unit where it does more than repeat the inner ring's range, (↻, ↺) of
-# the unit's map buttons: on a GTN its volume knob (the panel's tilt up and down), as the GTN's inner knob is its
-# range; the Bonanza's in bonanza_extra()
-HELD_OUTER = {"gtn": dict.fromkeys((1, 2), ("PAN_UP", "PAN_DN"))}
+# TDS's GTN in a unit of its own (a navigator part gtn750-tds1 and the like): the outer ring with ⇆ held is its volume
+# knob (the panel's tilt up and down, (↻, ↺)), as the GTN's inner knob is its range; and MENU, CLR and ENT, which it
+# takes only on its touchscreen, its volume up and down and its push (the panel's RANGE tilt and push: squelch with COM
+# selected, ident with NAV). The Bonanza's tablet selections do the same in bonanza_extra().
+TDS_HELD_OUTER = ("PAN_UP", "PAN_DN")
+TDS_KEYS = {"MENU": ("PAN_UP", "up"), "CLR": ("PAN_DN", "down"), "ENT": ("PTR", None)}
+
+
+def tds_gtn(family, unit):
+    """The name of TDS's GTN in a unit of the profile ("GTN 750"), None for another navigator"""
+    part = next((p for p in family.PARTS if p.startswith("navigator-gtn") and "-tds" in p and
+                 p.endswith(f"-unit{unit}")), None)
+    return part and f"GTN {part.split('-')[1].removeprefix('gtn')}"
+
+
+def transponder_mode(family, alt):
+    """A detent of a MODE ring: the panel's XPDR MODE, which switches between standby and ALT, only from standby or
+    off (alt) or only from ALT or on (not alt), so each way takes the transponder one way however far it turns"""
+    code = family.DEVICE[1].get("XPDR_MODE")
+    if code is None:
+        return Panel(1, "XPDR_MODE")                  # its reason
+    test = "(A:TRANSPONDER STATE:1, Enum) 1 >" + (" !" if alt else "")
+    return Own("transponder ALT" if alt else "transponder standby", f"{test} if{{ {tapped(code)} }}")
 
 
 def _part(family, kind):
@@ -240,52 +273,61 @@ def amber(device, button):
 
 def uses(key):
     """{IFR-1 button: {use: source}} for the profile of this key. A use is "turn" (a detent), "held" (a detent with
-    ⇆ held), "once" (the first detent with ⇆ held, once a hold), "key" (a key's press, or its tap where it has a
-    hold), "hold" (a key held), "long_hold" (a key held TALK_MS, sent while still down), "tap" (⇆ as a modifier, let
-    go at once); a source is a Panel button, an Own code, a Plus of both, or None for nothing."""
+    ⇆ held), "key" (a key's press, or its tap where it has a hold), "hold" (a key held HOLD_MS, sent while still
+    down; for ⇆ of COM1 and COM2 sent when let go after HOLD_MS), "long_hold" (⇆ of COM1 and COM2 held TALK_MS, sent
+    at once, its release then sending nothing), "tap" (⇆ as a modifier, let go at once); a source is a Panel button,
+    an Own code, a Plus of both, or None for nothing."""
     family = FAMILIES[key]
     autopilot = _part(family, "autopilot")
-    out = {f"Button_{mode}_{ring}": dict(use) for mode, rings in TABLE.items() for ring, use in rings.items()}
+    out = {f"Button_{name}_{ring}": dict(use) for name, rings in TABLE.items() for ring, use in rings.items()}
     for button, source in HOLDS.items():
         out[button]["hold"] = source
     for com, talk in TALK.items():
         out[f"Button_COM{com}_TOG"] = {"key": Panel(com, "COM_SWAP"), "hold": Panel(1, f"COM{com}"),
                                        "long_hold": Panel(1, talk)}
-    # AP: the selected altitude 100 ft, with ⇆ held 1000 ft; the inner ring the panel's UP and DN; the push VNV
-    for ring, (fine, coarse) in zip(KNOB[:2], (("ALT_100_UP", "ALT_1000_UP"), ("ALT_100_DN", "ALT_1000_DN")),
-                                    strict=True):
-        out[f"Button_AP_{ring}"] = {"turn": Panel(1, fine), "held": Panel(1, coarse)}
-    out["Button_AP_II"] = {"turn": Panel(1, "UP")}
-    out["Button_AP_ID"] = {"turn": Panel(1, "DN")}
-    out["Button_AP_CRSR"] = {"key": Panel(1, "VNV")}
-    tap, hold = AP_TOG[autopilot]
-    out["Button_AP_TOG"] = {"tap": tap and Panel(1, tap), "hold": hold and Panel(1, hold)}
+    for ring, alt in zip(KNOB, (True, False, True, False), strict=True):
+        out[f"Button_XPDR^_{ring}"] = {"turn": transponder_mode(family, alt)}
+    # AP: the selected altitude 1000 ft on the outer ring and 100 ft on the inner, as the selectors the profiles drive
+    # have them; with ⇆ held the inner ring is the panel's UP and DN (the rate or speed); the push VNV, held, as a push
+    # comes easily with a turn of the rings
+    for ring, button in zip(KNOB, ("ALT_1000_UP", "ALT_1000_DN", "ALT_100_UP", "ALT_100_DN"), strict=True):
+        out[f"Button_AP_{ring}"] = {"turn": Panel(1, button)}
+    out["Button_AP_II"]["held"] = Panel(1, "UP")
+    out["Button_AP_ID"]["held"] = Panel(1, "DN")
+    out["Button_AP_CRSR"] = {"key": None, "hold": Panel(1, "VNV")}
+    tap = AP_TOG[autopilot]
+    out["Button_AP_TOG"] = {"tap": tap and Panel(1, tap), "hold": None}
     for name in AP_ROW:
         out[f"Button_AP_{name}"] = amber(1, name) if name in ("APR", "ALT") else {"key": Panel(1, name)}
     for name, own in AP_OWN.get(autopilot, {}).items():
         out[f"Button_AP_{name}"] = {"key": own}
     # FMS1 and FMS2: the unit's keys and knob, with ⇆ held its map's range; ⇆ tapped the unit's HOME
-    for mode, unit in zip(("FMS1", "FMS2"), fms_units(family), strict=True):
+    for name, unit in zip(("FMS1", "FMS2"), fms_units(family), strict=True):
         shift = "S_" if unit == 2 else ""          # a unit's map: unit 2's is on device 1 with SHIFT (part.place)
-        held = dict(MAP)
-        for ring, button in zip(KNOB[:2], HELD_OUTER.get(key, {}).get(unit, ()), strict=False):
-            held[ring] = button
+        gtn = tds_gtn(family, unit)
+        held = {**MAP, **(dict(zip(KNOB[:2], TDS_HELD_OUTER, strict=True)) if gtn else {})}
         for ring, button in FMS_KNOB.items():
-            out[f"Button_{mode}_{ring}"] = {"turn": Panel(unit, button), "held": Panel(1, shift + held[ring])}
+            out[f"Button_{name}_{ring}"] = {"turn": Panel(unit, button), "held": Panel(1, shift + held[ring])}
         for ifr1_key, button in FMS.items():
-            out[f"Button_{mode}_{ifr1_key}"] = amber(unit, button)
-        out[f"Button_{mode}_TOG"] = {"tap": Panel(unit, "HOME"), "hold": None}
-    # XPDR: two digits a ring; ⇆ tapped IDENT, held VFR, held and turned the mode (standby or ALT), once a hold
+            out[f"Button_{name}_{ifr1_key}"] = amber(unit, button)
+        for ifr1_key, (button, way) in TDS_KEYS.items() if gtn else ():
+            code = family.DEVICE[1].get(shift + button)
+            out[f"Button_{name}_{ifr1_key}"]["key"] = (Own(f"{gtn} volume {way}", code) if way and code else
+                                                       Panel(1, shift + button))
+        out[f"Button_{name}_TOG"] = {"tap": Panel(unit, "HOME"), "hold": None}
+    # XPDR: two digits a ring, with ⇆ held the panel dimmer on the outer ring and the flood dimmer on the inner; ⇆
+    # tapped IDENT
     for ring, own in SQUAWK_PAIRS.items():
-        out[f"Button_XPDR_{ring}"] = {"turn": own, "once": Panel(1, "XPDR_MODE")}
-    out["Button_XPDR_TOG"] = {"tap": Panel(1, "IDENT"), "hold": Panel(1, "VFR")}
+        out[f"Button_XPDR_{ring}"] = {"turn": own}
+    for ring, button in zip(KNOB, ("PANEL_LT_UP", "PANEL_LT_DN", "FLOOD_LT_UP", "FLOOD_LT_DN"), strict=True):
+        out[f"Button_XPDR_{ring}"]["held"] = Panel(1, button)
+    out["Button_XPDR_TOG"] = {"tap": Panel(1, "IDENT"), "hold": None}
     out["Button_UNSHIFT_SW"] = {"key": None}      # clear(), of the keys with a hold the profile has (build())
     out["Button_SHIFT_SW"] = {"key": None}        # clear(shifting=True), likewise
     for (button, use), source in EXTRA.get(key, dict)().items():
         out[button][use] = source
     assert set(out) == set(BUTTONS), sorted(set(out) ^ set(BUTTONS))
     return {button: out[button] for button in BUTTONS}
-
 
 
 def tapped(entry):
@@ -300,7 +342,7 @@ def tapped(entry):
 
 # ---------------- the Black Square Bonanza's own uses ----------------
 def _codes(navigators, button, kind):
-    """What the navigators of a kind (a part of their key: "gtn" TDS's and pms50's GTN, "-tds" TDS's alone, "gns" the
+    """What the navigators of a kind (a part of their key: "gtn" TDS's and PMS50's GTN, "-tds" TDS's alone, "gns" the
     GNS) among a unit's send for a panel button of their map, joined, each at once (tapped()): "" where none takes it"""
     return " ".join(tapped(n.DEVICE[1][button]) for n in navigators if kind in n.KEY and button in n.DEVICE[1])
 
@@ -353,23 +395,23 @@ def bonanza_baro_step(operator):
 
 def bonanza_extra():
     """{(IFR-1 button, use): source} over the panel's, for the Black Square Bonanza (EXTRA). TDS's GTN takes none of the
-    keys MENU, CLR and ENT of FMS1 or FMS2 (pms50's takes them as its MENU, BACK and ENTER, gtn.py), so each also sends
-    TDS's volume up, down and its push (squelch with COM selected, ident with NAV); only TDS's GTN takes those
-    (families/black_square_bonanza.py). The outer ring with ⇆ held is the GNS's map range, as the inner ring is, and
-    the GTN's volume knob (TDS's and pms50's, as HELD_OUTER has it in the GTN profile), and in FMS1 the KLN 90B's left
-    outer knob: the panel's RANGE knob sends the COM volume beside each GTN's, which the GNS takes, so the outer ring
-    sends each navigator's own. ⇆ in HDG also sets the HSI's course (NAV 1's, its yellow arrow) to the heading, as it
-    sets the heading bug. BARO sets both altimeters, its rings and ⇆ alike, as the panel's sets only the left-hand one.
+    keys MENU, CLR and ENT of FMS1 or FMS2 (PMS50's takes them as its MENU, BACK and ENTER with its Premium version,
+    gtn.py), so each also sends TDS's volume up, down and its push (squelch with COM selected, ident with NAV); only
+    TDS's GTN takes those (families/black_square_bonanza.py). The outer ring with ⇆ held is the GNS's map range, as the
+    inner ring is, and the GTN's volume knob (TDS's and PMS50's, as TDS_HELD_OUTER has it for TDS's GTN), and in FMS1
+    the KLN 90B's left outer knob: the panel's RANGE knob sends the COM volume beside each GTN's, which the GNS takes,
+    so the outer ring sends each navigator's own. ⇆ in HDG also sets the HSI's course (NAV 1's, its yellow arrow) to the
+    heading, as it sets the heading bug. BARO sets both altimeters, its rings and ⇆ alike, as the panel's sets only the
+    left-hand one.
 
-    The cockpit's functions go on keys of FMS1 and FMS2, none on a ⇆ that also modifies its ring: a detent of the report
-    ⇆ is pressed in comes first and leaves ⇆ to send its hold (docs/using/ifr1.md). CDI held in FMS1 is the HSI's NAV 1
-    / RNAV switch (GPSS); in FMS2, VNAV is the DME selector (the GNS 430 has no VNAV key), MENU and PROC the EDM 800's
-    STEP and LEAN FIND, its short presses on a tap, as they are pressed often (the GNS 430's MENU, with TDS's GTN 650
-    volume up, and PROC, each with pms50's, held instead), and held, ENT the KFC 150's self-test with the autopilot off,
-    MSG the oxygen flow valve, FPL both tip tank transfer pumps, OBS prop heat, CDI the fuel boost pump and VNAV the air
-    conditioner, from the guide's "Hardware Inputs & Outputs" and the project the Bonanza is flown with. Those keys then
-    send their tap on release. The fuel selector stays the cockpit's: a tank is chosen seldom, and a held key should not
-    choose one by mistake."""
+    The cockpit's functions go on keys of FMS1 and FMS2, none on a ⇆ that also modifies its ring, which has no hold
+    (AP_TOG). CDI held in FMS1 is the HSI's NAV 1 / RNAV switch (GPSS); in FMS2, VNAV is the DME selector (the GNS 430
+    has no VNAV key), MENU and PROC the EDM 800's STEP and LEAN FIND, its short presses on a tap, as they are pressed
+    often (the GNS 430's MENU, with TDS's GTN 650 volume up, and PROC, each with PMS50's, held instead), and held, ENT
+    the KFC 150's self-test with the autopilot off, MSG the oxygen flow valve, FPL both tip tank transfer pumps, OBS
+    prop heat, CDI the fuel boost pump and VNAV the air conditioner, from the guide's "Hardware Inputs & Outputs" and
+    the project the Bonanza is flown with. Those keys then send their tap on release, their hold at once (HOLD_MS). The
+    fuel selector stays the cockpit's: a tank is chosen seldom, and a held key should not choose one by mistake."""
     units = {1: ("GTN 750", "", black_square_bonanza.UNIT1_NAVIGATORS),
              2: ("GTN 650", "S_", black_square_bonanza.UNIT2_NAVIGATORS)}
     out = {}
@@ -391,13 +433,14 @@ def bonanza_extra():
            for side, way in (("L", "UP"), ("R", "DN"))}                # the EDM 800's buttons, a short press
     for ring, operator in zip(KNOB, ("+", "-", "+", "-"), strict=True):
         out[f"Button_COM2^_{ring}", "turn"] = Own("both altimeters' setting", bonanza_baro_step(operator))
+    gns430_menu = out["Button_FMS2_MENU", "key"]                  # the GNS 430's MENU, with TDS's volume up: held
     out.update({
         ("Button_COM2^_TOG", "key"): Own("both altimeters to STD, again to the setting before", _BONANZA_STD),
         ("Button_COM1^_TOG", "key"): Plus(Panel(1, "HDG_SYNC"), Own("HSI course to the heading", _COURSE_SYNC)),
         ("Button_FMS1_CDI", "hold"): Panel(1, "GPSS"),
         ("Button_FMS2_VNAV", "key"): Panel(1, "LVL"),
         ("Button_FMS2_VNAV", "hold"): Own("air conditioner and blower on or off", _AIR_CONDITIONER),
-        ("Button_FMS2_MENU", "hold"): out["Button_FMS2_MENU", "key"],
+        ("Button_FMS2_MENU", "hold"): gns430_menu,
         ("Button_FMS2_MENU", "key"): Own("EDM 800 STEP", edm["L"]),
         ("Button_FMS2_PROC", "hold"): Panel(2, "PROC"),
         ("Button_FMS2_PROC", "key"): Own("EDM 800 LEAN FIND", edm["R"]),
@@ -434,55 +477,45 @@ def c182t_extra():
     return {("Button_FMS2_CDI", "hold"): _ELECTRIC_PUMP}
 
 
-def gtn_extra():
-    """{(IFR-1 button, use): source} over the panel's, for TDS's GTNs (EXTRA): MENU, CLR and ENT, which TDS's GTN
-    takes only on its touchscreen, its volume knob up and down and its push (squelch with COM selected, ident with
-    NAV), the panel's RANGE tilt and push, as in the Bonanza (bonanza_extra())"""
-    table = FAMILIES["gtn"].DEVICE[1]
-    out = {}
-    for mode, shift, gtn in (("FMS1", "", "GTN 750"), ("FMS2", "S_", "GTN 650")):
-        for ifr1_key, button, way in (("MENU", "PAN_UP", "up"), ("CLR", "PAN_DN", "down")):   # named by its way
-            out[f"Button_{mode}_{ifr1_key}", "key"] = Own(f"{gtn} volume {way}", table[shift + button])
-        out[f"Button_{mode}_ENT", "key"] = Panel(1, shift + "PTR")
-    return out
-
-
 # per profile: the IFR-1's uses over the panel's, as a function of no arguments (uses())
-EXTRA = {"black-square-bonanza": bonanza_extra, "cows-da40": da40_extra, "carenado-c182t": c182t_extra,
-         "gtn": gtn_extra}
+EXTRA = {"black-square-bonanza": bonanza_extra, "cows-da40": da40_extra, "carenado-c182t": c182t_extra}
+
+
+_OF_A_MODE = re.compile(rf"Button_([A-Z0-9]+\^?)_({'|'.join((*KNOB, 'TOG', 'CRSR', *FMS_KEYS))})")
 
 
 def mode(button):
     """The mode an IFR-1 button belongs to, shifted ones with ^ ("Button_COM1^_OI" -> "COM1^"), None for the bottom
     row and SHIFT_SW and UNSHIFT_SW, which every mode shares"""
-    match = re.fullmatch(r"Button_([A-Z0-9]+\^?)_(OI|OD|II|ID|TOG|CRSR|DCT|MENU|CLR|ENT|CDI|OBS|MSG|FPL|VNAV|PROC)",
-                         button)
+    match = _OF_A_MODE.fullmatch(button)
     return match[1] if match else None
 
 
-def held(name, tap, hold):
-    """⇆ of the mode name as a modifier: pressed, it sets L:AvionicsPanel_IFR1_<name> and clears its _Turned; let go,
-    it sends tap after a tap or hold after a hold (either may be None: nothing), unless a detent came between or the
-    mode changed since the press (clear() let go of it), then clears the modifier. With neither, every release only
-    clears it."""
+def is_modifier(button):
+    """Whether a button is ⇆ of a mode whose knob it modifies (MODIFIED)"""
+    return button.endswith("_TOG") and mode(button) in MODIFIED
+
+
+def is_ring(button):
+    """Whether a button is a detent of a ring"""
+    return button.rsplit("_", 1)[1] in KNOB
+
+
+def held(name, tap):
+    """⇆ of the mode name as a modifier: pressed, it sets its L: variable (_var()) and clears its _Turned; let go, it
+    sends tap (None: nothing) unless a detent came between, the mode changed since the press (clear() let go of it)
+    or it was held HOLD_MS, then clears the modifier. It has no hold (AP_TOG). Its long release clears it too, with or
+    without a tap, so the ring leaves its held layer whatever MobiFlight sends on a release after a hold."""
     on, turned = _var(name), _var(name, True)
-
-    def end(code):
-        return f"(L:{on}, Bool) (L:{turned}, Bool) ! and if{{ {code} }} {lset(on, 0)}" if code else lset(on, 0)
-    entry = {"press": f"{lset(on, 1)} {lset(turned, 0)}", "release": end(tap)}
-    if tap or hold:
-        entry["long"] = end(hold)
-    return entry
+    release = f"(L:{on}, Bool) (L:{turned}, Bool) ! and if{{ {tap} }} {lset(on, 0)}" if tap else lset(on, 0)
+    return {"press": f"{lset(on, 1)} {lset(turned, 0)}", "release": release, "long": lset(on, 0)}
 
 
-def knob(name, turn_code, held_code=None, once=False):
-    """A detent of the knob of the mode name, whose ⇆ is a modifier: turn_code, or held_code while ⇆ is held (once:
-    only on the first detent of a hold). Without held_code (no use with ⇆ held, or one the profile leaves unmapped)
-    it sends turn_code whether ⇆ is held or not. Every detent marks the knob turned, so ⇆ let go sends nothing; a
-    detent that sends nothing at all is None."""
+def knob(name, turn_code, held_code=None):
+    """A detent of the knob of the mode name, whose ⇆ is a modifier: turn_code, or held_code while ⇆ is held. Without
+    held_code (no use with ⇆ held, or one the profile leaves unmapped) it sends turn_code whether ⇆ is held or not.
+    Every detent marks the knob turned, so ⇆ let go sends nothing; a detent that sends nothing at all is None."""
     on, turned = f"(L:{_var(name)}, Bool)", _var(name, True)
-    if held_code and once:
-        held_code = f"(L:{turned}, Bool) ! if{{ {held_code} }}"
     if held_code and turn_code:
         code = f"{on} if{{ {held_code} }} els{{ {turn_code} }}"
     elif held_code:
@@ -536,31 +569,37 @@ def resolve(table, family, source):
     return Use(source, None, family.UNMAPPED[source.device][source.button])
 
 
+def holds(used):
+    """A key's (tap, hold, longer hold) codes, each sent at once (tapped()), from its Uses; a longer hold takes the
+    place of a hold that sends nothing or only the tap (TALK where a profile leaves the radio's audio unmapped)"""
+    plain, hold, longer = (tapped(used[use].entry) if use in used else None for use in ("key", "hold", "long_hold"))
+    if longer is not None and (hold is None or hold == plain):
+        hold, longer = longer, None
+    return plain, (hold if hold != plain else None), longer
+
+
 def entry(button, used):
     """The table entry of an IFR-1 button from its Uses ({use: Use}), or None where it sends nothing"""
     sent = {use: u.entry for use, u in used.items()}
     name = mode(button)
-    if button.endswith("_TOG") and name in MODIFIED:
-        return held(name, tapped(sent.get("tap")), tapped(sent.get("hold")))
-    if button.rsplit("_", 1)[1] in KNOB:
+    if is_modifier(button):
+        if sent.get("hold") is not None:
+            raise ValueError(f"{button}: a modifier has no hold, as a detent that comes with its press would send it")
+        return held(name, tapped(sent.get("tap")))
+    if is_ring(button):
         turn_code = tapped(sent.get("turn"))
-        if name in MODIFIED:
-            once = "once" in used
-            return knob(name, turn_code, tapped(sent.get("once" if once else "held")), once)
-        return turn_code
-    plain, hold = sent.get("key"), sent.get("hold")
-    if sent.get("long_hold") is not None and (hold is None or hold == plain):
-        raise ValueError(f"{button}: a longer hold needs a hold of its own")
-    if hold is not None and hold != plain:                # a tap and a hold, on the release, if the key went down here
+        return knob(name, turn_code, tapped(sent.get("held"))) if name in MODIFIED else turn_code
+    plain, hold, longer = holds(used)
+    if hold is not None:          # a tap on its release, a hold at once, each only if the key went down here
         down = _down(button.removeprefix("Button_"))
 
         def end(code):
             return f"(L:{down}, Bool) if{{ {code} }} {lset(down, 0)}" if code else lset(down, 0)
-        actions = {"press": lset(down, 1), "release": end(tapped(plain)), "long": end(tapped(hold))}
-        if mic := sent.get("long_hold"):
-            # the longer hold lets go of the key: its release then sends nothing
-            actions["hold"] = end(tapped(mic))
-        return actions
+        if longer is None:
+            return {"press": lset(down, 1), "release": end(plain), "hold": end(hold)}
+        # ⇆ of COM1 and COM2: the hold when let go after HOLD_MS, the longer hold at once after TALK_MS
+        return {"press": lset(down, 1), "release": end(plain), "long": end(hold), "hold": end(longer)}
+    plain = sent.get("key")
     if isinstance(plain, dict) and "release" in plain and "long" not in plain:
         # a key held as long as the panel's (TDS's GTN): its key-up only from the button that sent its key-down, so a
         # release MobiFlight delivers to another mode reaches no other unit. clear() leaves the flag alone: the button's
@@ -575,7 +614,7 @@ def build(key, vfr=None):
     """The IFR-1 profile of a panel profile (FAMILIES[key]): KEY, NAME (the panel's), USES ({button: {use: Use}}),
     DEVICE ({button: entry}), UNMAPPED ({button: reason}, every other button, with the reason of its first use the
     profile leaves unmapped), LEDS ({light: read}) and UNITS (FMS1's and FMS2's panel units). vfr: the VFR code ⇆
-    held in XPDR squawks (profile.tables())."""
+    in MODE squawks (profile.tables())."""
     family = FAMILIES[key]
     table = profile.tables(family, vfr)
     device, unmapped, used_by, held_keys = {}, {}, {}, []
@@ -583,8 +622,9 @@ def build(key, vfr=None):
         used = {use: resolve(table, family, source) for use, source in sources.items()}
         used_by[button] = used
         sent = entry(button, used)
-        if isinstance(sent, dict) and "long" in sent and not (button.endswith("_TOG") and mode(button) in MODIFIED):
-            held_keys.append(button.removeprefix("Button_"))
+        key_name = button.removeprefix("Button_")
+        if isinstance(sent, dict) and sent.get("press") == lset(_down(key_name), 1):     # a key with a hold
+            held_keys.append(key_name)
         if sent is not None:
             device[button] = sent
         elif button not in ("Button_SHIFT_SW", "Button_UNSHIFT_SW"):
@@ -603,6 +643,15 @@ def filename(key):
     return f"avionics-panel-ifr1-{key}.mfproj"
 
 
+def item_label(ifr1_profile, button, acts):
+    """What an item is named by in MobiFlight's list: as the panel's (profile.label()), without the IFR-1's own state
+    variables, which every key with a hold and every modifier sets; the buttons that let go of them by what they do"""
+    if button.endswith("SHIFT_SW"):
+        return ifr1_profile.USES[button]["key"].source.name
+    return ", ".join(name for name in profile.label(" ".join(acts.values())).split(", ")
+                     if not name.startswith(STATE)) or "modifier of the rings"       # ⇆ with no tap of its own
+
+
 def project(ifr1_profile, stamp=None):
     """The project of an IFR-1 profile (ifr1.build()) as a dict: an InputConfigItem for each of its buttons, by the
     name MobiFlight gives it (Device {"Type": "Button", "Name": "Button_COM1_OI"}), and an OutputConfigItem for each AP
@@ -617,17 +666,16 @@ def project(ifr1_profile, stamp=None):
         if button not in ifr1_profile.DEVICE:
             continue
         acts = profile.actions(ifr1_profile.DEVICE[button])
-        # only ⇆ of COM1 and COM2 has an onHold, its longer hold (entry()), so it alone takes TALK_MS
-        if "onHold" in acts and button not in {f"Button_COM{com}_TOG" for com in TALK}:
-            raise ValueError(f"{button}: an onHold other than the COM toggles' needs a delay of its own")
         items.append({
             "GUID": str(uuid.uuid5(profile.ITEMS, f"ifr1/{ifr1_profile.NAME}/{button}")),
             "Active": True,
-            "Name": f"{button.removeprefix('Button_')}: {profile.label(' '.join(acts.values()))}",
+            "Name": f"{button.removeprefix('Button_')}: {item_label(ifr1_profile, button, acts)}",
             "Type": "InputConfigItem",
             "Controller": controller,
             "Device": {"Type": "Button", "Name": button},
-            "button": profile.button_config(acts, hold_delay=TALK_MS if "onHold" in acts else profile.HOLD_MS),
+            # a key with a hold when let go and one at once (⇆ of COM1 and COM2) holds longer for the second (entry())
+            "button": profile.button_config(
+                acts, long_delay=HOLD_MS, hold_delay=TALK_MS if {"onLongRelease", "onHold"} <= set(acts) else HOLD_MS),
         })
     for light in LIGHTS:
         read = ifr1_profile.LEDS[light]

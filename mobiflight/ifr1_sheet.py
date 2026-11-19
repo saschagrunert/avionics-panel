@@ -1,7 +1,7 @@
 """The IFR-1's cheat sheet of a profile as a drawing (ifr1_card.page(words=True)): the IFR-1 in the middle, to scale
 from a photo of the device, and round it a box of plain words for each mode key, each key, the knob and ⇆, with a
-leader line from the box to its control. The words are the cheat sheet's (ifr1_card.Grid); this module lays them
-out.
+leader line from the box to its control. The words are the cheat sheet's (ifr1_grid.Grid with words); this module
+lays them out.
 
 Where the boxes go: the knob, ⇆ and the left column of mode keys but COM1 (NAV1, FMS1, AP) on the left; COM1, COM2 and
 NAV2 above; the four keys on the right (D→, MENU, CLR, ENT) with FMS2 and XPDR on the right; the six keys of the bottom
@@ -12,7 +12,7 @@ lines leave the device, so no two lines cross. Sheet.boxes and Sheet.leads keep 
 import html
 from html.parser import HTMLParser
 
-from mobiflight import ifr1, ifr1_card
+from mobiflight import ifr1, ifr1_grid
 from mobiflight.sheet import width
 
 # ---------------- the device, in mm from its top left corner (y down), measured on Octavi's top-down photo ----------
@@ -31,7 +31,8 @@ DIVIDER = (84.4, 6.6, 48.7)                       # the groove left of the keys 
 GLOSS = ((0, 46.6), (37.5, 46.6), (45.5, 54.0), (110, 54.0))   # the glossy band's upper edge, left to right
 MODE_GRID = (("COM1", "COM2"), ("NAV1", "NAV2"), ("FMS1", "FMS2"), ("AP", "XPDR"))
 RIGHT_KEYS = ("DCT", "MENU", "CLR", "ENT")
-LEGENDS = {"DCT": "-D→", "MENU": "MENU", "CLR": "CLR", "ENT": "ENT"}
+LEGENDS = {"DCT": "-D→", "MENU": "MENU", "CLR": "CLR", "ENT": "ENT"}   # as the device prints them
+TITLES = {**LEGENDS, "DCT": "D→"}                                         # their boxes, as the guide names them
 BLUE_OVER = {"COM1": "HDG", "COM2": "BARO", "NAV1": "CRS1", "NAV2": "CRS2", "XPDR": "MODE"}
 BOTTOM = (("AP", "CDI"), ("HDG", "OBS"), ("NAV", "MSG"), ("APR", "FPL"), ("ALT", "VNAV"), ("VS", "PROC"))
 
@@ -87,7 +88,7 @@ W = 1600
 S = 5.2                              # px per mm on the device
 FONT = "Arial, 'Liberation Sans', Helvetica, sans-serif"
 INK, MUTED, BLUE, LINE = "#16181b", "#7a7f87", "#2f7fc1", "#5b6b85"
-TEXT_PX, TITLE_PX, LINE_H, PAD = 11.5, 12.5, 14, 6
+TEXT_PX, TITLE_PX, LINE_H, PAD = 12.5, 13.5, 15, 6
 MARGIN, GAP, STUB = 16, 8, 14        # the page's margin, between boxes, a line's first piece outside the device
 TOP_BOX = 186                        # a box's width above the device
 TITLE_BOTTOM = 30                    # the legend line ends here (the page's header has the title)
@@ -96,7 +97,7 @@ SUPER = str.maketrans("0123456789", "⁰¹²³⁴⁵⁶⁷⁸⁹")
 
 
 class _Cell(HTMLParser):
-    """A cell of ifr1_card.Grid (a little HTML) as runs of (text, style): "ink", "muted" (<i>), "off" (nothing)"""
+    """A cell of ifr1_grid.Grid (a little HTML) as runs of (text, style): "ink", "muted" (<i>), "off" (nothing)"""
 
     def __init__(self):
         super().__init__(convert_charrefs=True)
@@ -151,18 +152,15 @@ def wrap(row_runs, room):
 
 def boxes_of(ifr1_profile):
     """{callout: (title, [(label, cell HTML, label colour)])}, and the Grid that numbered the reasons: what each
-    box says, from the cheat sheet's cells (ifr1_card.Grid with words)"""
-    grid = ifr1_card.Grid(ifr1_profile, words=True)
+    box says, from the cheat sheet's cells (ifr1_grid.Grid with words)"""
+    grid = ifr1_grid.Grid(ifr1_profile, words=True)
     family = ifr1.FAMILIES[ifr1_profile.KEY]
-    shifted_titles = dict(ifr1_card.MODES)
+    shifted_titles = dict(ifr1_grid.MODES)
+    shifts = ifr1_grid.listed([f"{m} to {BLUE_OVER[m]}" for m in ifr1.SHIFTED])
     out = {"KNOB": ("Knob", [
-        ("rings, push", "by the mode: each mode key's box. The push shifts COM1, COM2, NAV1, NAV2 and XPDR to the "
-                        "blue legend over their key, and back", INK)]),
-        "SWAP": ("⇆", [
-            ("", "by the mode: each mode key's box. In FMS1, FMS2, AP and XPDR, held while turning a ring (press ⇆ "
-                 "first, then turn): the ring does what follows <i>⇆ held</i>, and ⇆ sends nothing; otherwise a tap "
-                 f"sends its tap, a hold of over {ifr1.profile.LONG_MS / 1000:g} s its hold, on its release; in COM1 "
-                 f"and COM2 a hold of {ifr1.TALK_MS / 1000:g} s sends at once, with nothing on the release", INK)])}
+        ("rings, push", f"by the mode: each mode key's box. The push shifts {shifts}, the blue legends over their "
+                        "keys, and back", INK)]),
+        "SWAP": ("⇆", [("", f"by the mode: each mode key's box. {html.escape(ifr1_grid.hold_rules())}", INK)])}
 
     def mode_rows(mode, colour):
         outer = grid.knob([f"Button_{mode}_OI", f"Button_{mode}_OD"])
@@ -175,14 +173,14 @@ def boxes_of(ifr1_profile):
             title = mode
             if mode in ("FMS1", "FMS2"):
                 unit = ifr1_profile.UNITS[int(mode[-1]) - 1]
-                title = f"{mode}: {ifr1_card.unit_name(family, unit)}"
+                title = f"{mode}: {ifr1_grid.unit_name(family, unit)}"
             rows = mode_rows(mode, INK)
             if mode in ifr1.SHIFTED:
                 rows.append((shifted_titles[f"{mode}^"], None, BLUE))
                 rows += mode_rows(f"{mode}^", BLUE)
             out[mode] = (title, rows)
     for key in RIGHT_KEYS:
-        out[key] = (LEGENDS[key], [("FMS1", grid.key(f"Button_FMS1_{key}"), INK),
+        out[key] = (TITLES[key], [("FMS1", grid.key(f"Button_FMS1_{key}"), INK),
                                    ("FMS2", grid.key(f"Button_FMS2_{key}"), INK)])
     for white, blue in BOTTOM:
         out[f"B_{white}"] = (f"{white} / {blue}", [
