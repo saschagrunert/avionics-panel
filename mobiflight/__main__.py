@@ -29,7 +29,7 @@ import sys
 import tempfile
 import zipfile
 
-from mobiflight import card, ifr1, joystick, profile
+from mobiflight import card, cards, ifr1, joystick, profile
 from mobiflight.families import (
     AUTOPILOTS,
     COCKPITS,
@@ -156,6 +156,9 @@ def main(argv=None):
                         help="the text in brackets after the project's, the card's or the sheet's name, as the date "
                              f"and short hash of the commit (default: {profile.VERSION or 'none'}, from "
                              "firmware/version.py)")
+    parser.add_argument("--tag", metavar="TAG",
+                        help="with --cards: the release whose projects and docs the index links (default: the latest "
+                             "build's and main's)")
     args = parser.parse_args(argv)
     def others(*own):                   # an option given (not its default) but these
         return any(value != parser.get_default(name) for name, value in vars(args).items() if name not in own)
@@ -167,8 +170,10 @@ def main(argv=None):
         return
     if args.parts_zip and (args.cockpit or args.navigator or args.unit1 or args.unit2 or args.output):
         parser.error("--parts-zip writes every part: it takes no parts and no --output")
-    if args.cards and others("cards", "stamp"):
-        parser.error("--cards takes no other option but --stamp")
+    if args.cards and others("cards", "stamp", "tag"):
+        parser.error("--cards takes no other option but --stamp and --tag")
+    if args.tag and not args.cards:
+        parser.error("--tag is for --cards alone")
     if args.sheets and others("sheets"):
         parser.error("--sheets takes no other option")
     if args.ifr1 and others("ifr1", "vfr", "output", "stamp"):
@@ -183,13 +188,15 @@ def main(argv=None):
             from mobiflight import ifr1_card, sheet
             with replacing(args.cards, binary=True) as f, zipfile.ZipFile(f, "w", zipfile.ZIP_DEFLATED) as z:
                 for key, family in sorted(FAMILIES.items()):
-                    z.writestr(entry(f"avionics-panel-{key}-card.html"), card.page(family, key, args.stamp))
-                    z.writestr(entry(f"avionics-panel-{key}-sheet.svg"), sheet.svg(key, sheet.TITLES[key], args.stamp))
+                    panel_card, panel_sheet, one_card, one_sheet = cards.files(key)
+                    z.writestr(entry(panel_card), card.page(family, key, args.stamp))
+                    z.writestr(entry(panel_sheet), sheet.svg(key, sheet.TITLES[key], args.stamp))
                     one = ifr1.build(key)
-                    z.writestr(entry(f"avionics-panel-ifr1-{key}-card.html"), ifr1_card.page(one, args.stamp))
-                    z.writestr(entry(f"avionics-panel-ifr1-{key}-sheet.html"),
-                               ifr1_card.page(one, args.stamp, words=True))
-            print(f"wrote {args.cards}: {len(FAMILIES)} cards and cheat sheets, and as many for the IFR-1",
+                    z.writestr(entry(one_card), ifr1_card.page(one, args.stamp))
+                    z.writestr(entry(one_sheet), ifr1_card.page(one, args.stamp, words=True))
+                z.writestr(entry("index.html"),                       # and at cards/ beside the 3D view
+                           cards.index(dict(sorted(FAMILIES.items())), args.stamp, args.tag))
+            print(f"wrote {args.cards}: {len(FAMILIES)} cards and cheat sheets, as many for the IFR-1, and their index",
                   file=sys.stderr)
             return
         if args.sheets:

@@ -12,7 +12,7 @@ import panel as P
 import pytest
 
 from mobiflight import __main__ as cli
-from mobiflight import card, ifr1, ifr1_card, profile, sheet
+from mobiflight import card, cards, ifr1, ifr1_card, profile, sheet
 from mobiflight.families import FAMILIES
 
 FAMILY = pytest.mark.parametrize("key", sorted(FAMILIES))
@@ -280,18 +280,51 @@ def test_the_command_writes_the_cards_of_every_profile(tmp_path):
     cli.main(["--cards", str(again)])
     assert out.read_bytes() == again.read_bytes()                 # the same profiles make the same zip
     with zipfile.ZipFile(out) as z:
-        # each profile's card, then its cheat sheet (mobiflight/sheet.py), then the IFR-1's (mobiflight/ifr1_card.py)
-        assert z.namelist() == [name for key in sorted(FAMILIES) for name in (
-            f"avionics-panel-{key}-card.html", f"avionics-panel-{key}-sheet.svg",
-            f"avionics-panel-ifr1-{key}-card.html", f"avionics-panel-ifr1-{key}-sheet.html")]
+        # each profile's card, then its cheat sheet (mobiflight/sheet.py), then the IFR-1's (mobiflight/ifr1_card.py),
+        # then the index of them all, the profiles in one order
+        assert z.namelist() == [name for key in sorted(FAMILIES) for name in cards.files(key)] + ["index.html"]
+        assert z.read("index.html").decode() == cards.index(dict(sorted(FAMILIES.items())))
         for key, family in FAMILIES.items():
-            assert z.read(f"avionics-panel-{key}-card.html").decode() == card.page(family, key), key
-            assert z.read(f"avionics-panel-{key}-sheet.svg").decode() == sheet.svg(key, sheet.TITLES[key]), key
+            panel_card, panel_sheet, one_card, one_sheet = cards.files(key)
+            assert z.read(panel_card).decode() == card.page(family, key), key
+            assert z.read(panel_sheet).decode() == sheet.svg(key, sheet.TITLES[key]), key
             one = ifr1.build(key)
-            assert z.read(f"avionics-panel-ifr1-{key}-card.html").decode() == ifr1_card.page(one), key
-            assert z.read(f"avionics-panel-ifr1-{key}-sheet.html").decode() == ifr1_card.page(one, words=True), key
+            assert z.read(one_card).decode() == ifr1_card.page(one), key
+            assert z.read(one_sheet).decode() == ifr1_card.page(one, words=True), key
         assert {info.date_time for info in z.infolist()} == {cli.STAMP}
         assert {info.external_attr >> 16 for info in z.infolist()} == {0o644}
+
+
+def test_the_index_links_every_page_and_project_of_every_profile():
+    page = cards.index(FAMILIES, "v1")
+    for key, family in FAMILIES.items():
+        assert html.escape(family.NAME) in page, key
+        for name in cards.files(key):
+            assert f'href="{name}"' in page, name
+        for project in (profile.filename(key), ifr1.filename(key)):     # the latest build's
+            assert f'href="{cards.REPO}/releases/download/rolling/{project}"' in page, project
+    assert "<title>Avionics Panel: cards and cheat sheets (v1)</title>" in page and "(v1)" not in cards.index(FAMILIES)
+    parse(page)                                                 # every tag closed in order
+    assert "\u2014" not in page and "\u2013" not in page
+    # the way back to the view and the docs it names, which exist, and link the page on Pages
+    assert f'<a href="{cards.VIEW}">3D view</a>' in page
+    for doc in ("mapping.md", "ifr1.md"):
+        assert f'href="{cards.REPO}/blob/main/docs/using/{doc}"' in page
+        with open(os.path.join(profile.HERE, "..", "docs", "using", doc), encoding="utf-8") as f:
+            assert f"]: {cards.VIEW}cards/\n" in f.read(), doc
+
+
+def test_a_releases_index_links_its_own_projects_and_docs(tmp_path):
+    # the zip a tagged release carries: its projects and its docs, not the latest build's
+    out = tmp_path / "cards.zip"
+    cli.main(["--cards", str(out), "--tag", "v1.0"])
+    with zipfile.ZipFile(out) as z:
+        page = z.read("index.html").decode()
+    assert f"{cards.REPO}/releases/download/v1.0/{ifr1.filename('g1000')}" in page and "/rolling/" not in page
+    assert f"{cards.REPO}/blob/v1.0/docs/using/ifr1.md" in page and "/blob/main/" not in page
+    assert "the MobiFlight project of\nthe release v1.0." in page
+    with pytest.raises(SystemExit):
+        cli.main(["--family", "g1000", "--tag", "v1.0"])         # for the cards alone
 
 
 def test_the_cards_take_the_stamp_as_the_profiles(tmp_path):

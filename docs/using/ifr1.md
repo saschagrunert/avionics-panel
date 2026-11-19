@@ -16,16 +16,17 @@ does in FMS1, FMS2 and the other modes.
 
 | Profile | Project | Card | Cheat sheet |
 | --- | --- | --- | --- |
-| Black Square Bonanza | [avionics-panel-ifr1-black-square-bonanza.mfproj][p-bonanza] | [card][c-bonanza] | [cheat sheet][s-bonanza] |
-| COWS DA40 | [avionics-panel-ifr1-cows-da40.mfproj][p-da40] | [card][c-da40] | [cheat sheet][s-da40] |
-| Carenado C182T | [avionics-panel-ifr1-carenado-c182t.mfproj][p-c182t] | [card][c-c182t] | [cheat sheet][s-c182t] |
-| G1000 NXi | [avionics-panel-ifr1-g1000.mfproj][p-g1000] | [card][c-g1000] | [cheat sheet][s-g1000] |
-| GFC 500 and G3X Touch | [avionics-panel-ifr1-g3x.mfproj][p-g3x] | [card][c-g3x] | [cheat sheet][s-g3x] |
-| GNS 530/430 | [avionics-panel-ifr1-gns.mfproj][p-gns] | [card][c-gns] | [cheat sheet][s-gns] |
-| TDS GTN 750Xi/650Xi | [avionics-panel-ifr1-gtn.mfproj][p-gtn] | [card][c-gtn] | [cheat sheet][s-gtn] |
+| Black Square Bonanza | [avionics-panel-ifr1-black-square-bonanza.mfproj][p-bonanza] | [open][c-bonanza] | [open][s-bonanza] |
+| Carenado C182T | [avionics-panel-ifr1-carenado-c182t.mfproj][p-c182t] | [open][c-c182t] | [open][s-c182t] |
+| COWS DA40 | [avionics-panel-ifr1-cows-da40.mfproj][p-da40] | [open][c-da40] | [open][s-da40] |
+| G1000 NXi | [avionics-panel-ifr1-g1000.mfproj][p-g1000] | [open][c-g1000] | [open][s-g1000] |
+| GFC 500 and G3X Touch | [avionics-panel-ifr1-g3x.mfproj][p-g3x] | [open][c-g3x] | [open][s-g3x] |
+| GNS 530/430 | [avionics-panel-ifr1-gns.mfproj][p-gns] | [open][c-gns] | [open][s-gns] |
+| TDS GTN 750Xi/650Xi | [avionics-panel-ifr1-gtn.mfproj][p-gtn] | [open][c-gtn] | [open][s-gtn] |
 
-The cards and cheat sheets are also in [avionics-panel-cards.zip][cards], with the commit of the download in
-their titles. Open one in a browser and print it on A4 in landscape.
+Every profile's cards and cheat sheets, the panel's and the IFR-1's, are also listed on [one page][index] beside
+the 3D view, and are in [avionics-panel-cards.zip][cards] with the commit of the download in their titles. Open
+one in a browser and print it on A4 in landscape.
 
 ## Setting up
 
@@ -160,6 +161,7 @@ with the reason.
 
 [rolling]: https://github.com/saschagrunert/avionics-panel/releases/tag/rolling
 [cards]: https://github.com/saschagrunert/avionics-panel/releases/download/rolling/avionics-panel-cards.zip
+[index]: https://saschagrunert.de/avionics-panel/cards/
 [p-bonanza]: https://github.com/saschagrunert/avionics-panel/releases/download/rolling/avionics-panel-ifr1-black-square-bonanza.mfproj
 [p-da40]: https://github.com/saschagrunert/avionics-panel/releases/download/rolling/avionics-panel-ifr1-cows-da40.mfproj
 [p-c182t]: https://github.com/saschagrunert/avionics-panel/releases/download/rolling/avionics-panel-ifr1-carenado-c182t.mfproj
@@ -167,17 +169,17 @@ with the reason.
 [p-g3x]: https://github.com/saschagrunert/avionics-panel/releases/download/rolling/avionics-panel-ifr1-g3x.mfproj
 [p-gns]: https://github.com/saschagrunert/avionics-panel/releases/download/rolling/avionics-panel-ifr1-gns.mfproj
 [p-gtn]: https://github.com/saschagrunert/avionics-panel/releases/download/rolling/avionics-panel-ifr1-gtn.mfproj
-[c-bonanza]: https://saschagrunert.de/avionics-panel/cards/avionics-panel-ifr1-black-square-bonanza-card.html
-[c-da40]: https://saschagrunert.de/avionics-panel/cards/avionics-panel-ifr1-cows-da40-card.html
-[c-c182t]: https://saschagrunert.de/avionics-panel/cards/avionics-panel-ifr1-carenado-c182t-card.html
-[c-g1000]: https://saschagrunert.de/avionics-panel/cards/avionics-panel-ifr1-g1000-card.html
-[c-g3x]: https://saschagrunert.de/avionics-panel/cards/avionics-panel-ifr1-g3x-card.html
-[c-gns]: https://saschagrunert.de/avionics-panel/cards/avionics-panel-ifr1-gns-card.html
-[c-gtn]: https://saschagrunert.de/avionics-panel/cards/avionics-panel-ifr1-gtn-card.html
-[s-bonanza]: https://saschagrunert.de/avionics-panel/cards/avionics-panel-ifr1-black-square-bonanza-sheet.html
-[s-da40]: https://saschagrunert.de/avionics-panel/cards/avionics-panel-ifr1-cows-da40-sheet.html
-[s-c182t]: https://saschagrunert.de/avionics-panel/cards/avionics-panel-ifr1-carenado-c182t-sheet.html
-[s-g1000]: https://saschagrunert.de/avionics-panel/cards/avionics-panel-ifr1-g1000-sheet.html
-[s-g3x]: https://saschagrunert.de/avionics-panel/cards/avionics-panel-ifr1-g3x-sheet.html
-[s-gns]: https://saschagrunert.de/avionics-panel/cards/avionics-panel-ifr1-gns-sheet.html
-[s-gtn]: https://saschagrunert.de/avionics-panel/cards/avionics-panel-ifr1-gtn-sheet.html
+[c-bonanza]: https://saschagrunert.de/avionics-panel/cards/avionics-panel-ifr1-black-square-bonanza-card.html "Black Square Bonanza IFR-1 card"
+[c-da40]: https://saschagrunert.de/avionics-panel/cards/avionics-panel-ifr1-cows-da40-card.html "COWS DA40 IFR-1 card"
+[c-c182t]: https://saschagrunert.de/avionics-panel/cards/avionics-panel-ifr1-carenado-c182t-card.html "Carenado C182T IFR-1 card"
+[c-g1000]: https://saschagrunert.de/avionics-panel/cards/avionics-panel-ifr1-g1000-card.html "G1000 NXi IFR-1 card"
+[c-g3x]: https://saschagrunert.de/avionics-panel/cards/avionics-panel-ifr1-g3x-card.html "GFC 500 and G3X Touch IFR-1 card"
+[c-gns]: https://saschagrunert.de/avionics-panel/cards/avionics-panel-ifr1-gns-card.html "GNS 530/430 IFR-1 card"
+[c-gtn]: https://saschagrunert.de/avionics-panel/cards/avionics-panel-ifr1-gtn-card.html "TDS GTN 750Xi/650Xi IFR-1 card"
+[s-bonanza]: https://saschagrunert.de/avionics-panel/cards/avionics-panel-ifr1-black-square-bonanza-sheet.html "Black Square Bonanza IFR-1 cheat sheet"
+[s-da40]: https://saschagrunert.de/avionics-panel/cards/avionics-panel-ifr1-cows-da40-sheet.html "COWS DA40 IFR-1 cheat sheet"
+[s-c182t]: https://saschagrunert.de/avionics-panel/cards/avionics-panel-ifr1-carenado-c182t-sheet.html "Carenado C182T IFR-1 cheat sheet"
+[s-g1000]: https://saschagrunert.de/avionics-panel/cards/avionics-panel-ifr1-g1000-sheet.html "G1000 NXi IFR-1 cheat sheet"
+[s-g3x]: https://saschagrunert.de/avionics-panel/cards/avionics-panel-ifr1-g3x-sheet.html "GFC 500 and G3X Touch IFR-1 cheat sheet"
+[s-gns]: https://saschagrunert.de/avionics-panel/cards/avionics-panel-ifr1-gns-sheet.html "GNS 530/430 IFR-1 cheat sheet"
+[s-gtn]: https://saschagrunert.de/avionics-panel/cards/avionics-panel-ifr1-gtn-sheet.html "TDS GTN 750Xi/650Xi IFR-1 cheat sheet"

@@ -11,7 +11,7 @@ import zipfile
 import pytest
 
 from mobiflight import __main__ as cli
-from mobiflight import ifr1, ifr1_card, ifr1_sheet, profile
+from mobiflight import cards, ifr1, ifr1_card, ifr1_sheet, profile
 from mobiflight.families import FAMILIES, parts
 from tests.test_mobiflight import READ, TOKEN, VALUE, run, sets
 from tests.test_mobiflight import unit as unit_of
@@ -593,7 +593,7 @@ def test_the_cards_zip_holds_the_ifr1s_cards_and_cheat_sheets(tmp_path):
     with zipfile.ZipFile(out) as z:
         names = set(z.namelist())
     for key in FAMILIES:
-        assert {f"avionics-panel-ifr1-{key}-card.html", f"avionics-panel-ifr1-{key}-sheet.html"} <= names
+        assert set(cards.files(key)[2:]) <= names
 
 
 # ---------------- the card and the cheat sheet ----------------
