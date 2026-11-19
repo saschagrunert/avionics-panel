@@ -50,7 +50,7 @@ def test_every_button_is_mapped_or_unmapped_with_a_reason(key):
     assert not set(p.DEVICE) & set(p.UNMAPPED)
     assert set(p.DEVICE) | set(p.UNMAPPED) == set(ifr1.BUTTONS)
     assert all(isinstance(r, str) and r for r in p.UNMAPPED.values())
-    assert "Button_SHIFT_SW" in p.UNMAPPED and "Button_UNSHIFT_SW" in p.DEVICE
+    assert "Button_SHIFT_SW" in p.DEVICE and "Button_UNSHIFT_SW" in p.DEVICE
 
 
 @FAMILY
@@ -87,7 +87,7 @@ def test_every_use_sends_its_panel_sources_code(key):
     # is one of the module's own codes; and the button's codes hold every code its uses send
     family, p = FAMILIES[key], PROFILES[key]
     own = {o.code for o in (*ifr1.NAV2_COURSE.values(), *ifr1.SQUAWK_PAIRS.values(), ifr1.KAP140_VS,
-                            p.USES["Button_UNSHIFT_SW"]["key"].source,
+                            p.USES["Button_SHIFT_SW"]["key"].source, p.USES["Button_UNSHIFT_SW"]["key"].source,
                             *(s for s in ifr1.HOLDS.values() if isinstance(s, ifr1.Own)),
                             *(s for s in EXTRA[key].values() if isinstance(s, ifr1.Own)))}
     for button, used in p.USES.items():
@@ -116,8 +116,10 @@ ROWS = {
     **{(f"Button_{m}_{r}", "turn"): (d, f"{kind}_{step}_{way}") for m, d, kind in (
         ("COM1", 1, "COM"), ("COM2", 2, "COM"), ("NAV1", 1, "NAV"), ("NAV2", 2, "NAV"))
        for r, step, way in (("OI", "MHZ", "UP"), ("OD", "MHZ", "DN"), ("II", "KHZ", "UP"), ("ID", "KHZ", "DN"))},
-    ("Button_COM1_TOG", "key"): (1, "COM_SWAP"), ("Button_COM1_TOG", "hold"): (1, "MIC1"),
-    ("Button_COM2_TOG", "key"): (2, "COM_SWAP"), ("Button_COM2_TOG", "hold"): (1, "MIC2"),
+    ("Button_COM1_TOG", "key"): (1, "COM_SWAP"), ("Button_COM1_TOG", "hold"): (1, "COM1"),
+    ("Button_COM1_TOG", "long_hold"): (1, "MIC1"),
+    ("Button_COM2_TOG", "key"): (2, "COM_SWAP"), ("Button_COM2_TOG", "hold"): (1, "COM2"),
+    ("Button_COM2_TOG", "long_hold"): (1, "MIC2"),
     ("Button_NAV1_TOG", "key"): (1, "NAV_SWAP"), ("Button_NAV2_TOG", "key"): (2, "NAV_SWAP"),
     ("Button_COM1^_OI", "turn"): (1, "HDG_10_UP"), ("Button_COM1^_OD", "turn"): (1, "HDG_10_DN"),
     ("Button_COM1^_II", "turn"): (1, "HDG_1_UP"), ("Button_COM1^_ID", "turn"): (1, "HDG_1_DN"),
@@ -147,6 +149,8 @@ def test_each_row_takes_its_panel_button(key):
     used = PROFILES[key].USES
     for (button, use), (device, name) in ROWS.items():
         source = used[button][use].source
+        if isinstance(source, ifr1.Own) and (button, use) in EXTRA[key]:     # the profile's own in place of it
+            continue
         if isinstance(source, ifr1.Plus) and (button, use) in EXTRA[key]:     # the panel's, and the profile's own
             source = source.panel
         assert source == ifr1.Panel(device, name), (button, use)
@@ -190,7 +194,7 @@ def test_every_key_event_is_one_checked_against_the_sdk(key):
     # tests/key_events.txt holds the key events checked against the SDK; the IFR-1 sends no others
     with open("tests/key_events.txt", encoding="utf-8") as f:
         checked = {line.strip() for line in f if line.strip() and not line.startswith("#")}
-    sent = {name for *_, code in codes(key) for name in re.findall(r"\(>K:([^)]*)\)", code)}
+    sent = {name for *_, code in codes(key) for name in re.findall(r"\(>K:(?:2:)?([^)]*)\)", code)}
     assert sent <= checked
 
 
@@ -245,7 +249,7 @@ def test_crs2_turns_and_centres_nav_2():
 
 
 def press(state, entry, event="press"):
-    """Runs an entry's code of this event ("press", "release", "long"; a code alone is a press) with the L:
+    """Runs an entry's code of this event ("press", "release", "long", "hold"; a code alone is a press) with the L:
     variables of state, which it updates: what it sent besides them"""
     code = entry if isinstance(entry, str) else entry.get(event)
     if code is None:
@@ -309,12 +313,77 @@ def test_a_modifier_let_go_after_a_change_of_mode_sends_nothing(pressed, release
 @pytest.mark.parametrize("button", ["AP_APR", "AP_ALT", "COM1_TOG", "COM2_TOG", "FMS1_CLR", "FMS2_PROC"])
 @pytest.mark.parametrize("event", ["release", "long"])
 def test_a_key_with_a_hold_let_go_after_a_change_of_mode_sends_nothing(button, event):
-    state = {}
+    state = {"COM RECEIVE EX1:1": 0, "COM RECEIVE EX1:2": 0}
     press(state, DA40[f"Button_{button}"])
     press(state, DA40["Button_UNSHIFT_SW"])
     assert press(state, DA40[f"Button_{button}"], event) == []
     press(state, DA40[f"Button_{button}"])                               # pressed and let go in one mode: it sends
     assert press(state, DA40[f"Button_{button}"], event) != []
+
+
+@pytest.mark.parametrize("com", (1, 2))
+def test_com_tap_and_two_holds_send_only_one_action(com):
+    device = PROFILES["black-square-bonanza"].DEVICE
+    entry = device[f"Button_COM{com}_TOG"]
+    state = {f"COM RECEIVE EX1:{com}": 1}
+    assert press(state, entry) == []
+    assert press(state, entry, "release") == [(f"K:COM{com}_RADIO_SWAP", None)]
+    assert press(state, entry) == []
+    assert press(state, entry, "long") == [(f"K:COM{com}_RECEIVE_SELECT", 0)]
+    assert press(state, entry) == []
+    assert press(state, entry, "hold") == [
+        ("K:PILOT_TRANSMITTER_SET", com - 1),
+        ("K:COPILOT_TRANSMITTER_SET", com - 1),
+        ("L:var_PilotTransmitSelector", com - 1),
+    ]
+    assert press(state, entry, "long") == []
+    press(state, entry)
+    press(state, device["Button_UNSHIFT_SW"])
+    assert press(state, entry, "hold") == []
+    assert press(state, entry, "long") == []
+
+
+@pytest.mark.parametrize("com", (1, 2))
+def test_the_longer_com_hold_sends_nothing_once_shifted(com):
+    # the knob push into HDG or BARO with ⇆ still down: MobiFlight sends Button_SHIFT_SW, and its hold to the COM
+    # button all the same; the release reaches the shifted ⇆
+    device = PROFILES["cows-da40"].DEVICE
+    state = {}
+    press(state, device[f"Button_COM{com}_TOG"])
+    press(state, device["Button_SHIFT_SW"])
+    assert press(state, device[f"Button_COM{com}_TOG"], "hold") == []
+
+
+@FAMILY
+def test_entering_shift_lets_go_of_the_toggle_of_the_modes_with_a_shift_only(key):
+    p = PROFILES[key]
+    shift, unshift = p.DEVICE["Button_SHIFT_SW"], p.DEVICE["Button_UNSHIFT_SW"]
+    flags = re.findall(r"\(>L:(\w+)\)", shift)
+    assert set(flags) < set(re.findall(r"\(>L:(\w+)\)", unshift))   # each also let go of on a change of mode
+    assert "AvionicsPanel_IFR1_COM1_TOG" in flags and "AvionicsPanel_IFR1_COM2_TOG" in flags
+    for flag in flags:
+        assert flag.removeprefix("AvionicsPanel_IFR1_").split("_")[0] in ifr1.SHIFTED, flag
+
+
+def test_bonanza_baro_steps_and_restores_both_altimeters():
+    device = PROFILES["black-square-bonanza"].DEVICE
+    state = {"KOHLSMAN SETTING MB:1": 1000, "L:AvionicsPanel_Baro": 0}
+    for ring, expected in (("OI", 16005), ("II", 16005), ("OD", 15995), ("ID", 15995)):
+        assert press(state, device[f"Button_COM2^_{ring}"]) == [
+            ("K:KOHLSMAN_SET", expected), ("K:KOHLSMAN_SET", (expected, 2)), ("L:AvionicsPanel_Baro", 0),
+        ]
+    std = device["Button_COM2^_TOG"]               # STD keeps the setting where the panel's STD does
+    press(state, std)
+    assert press(state, std, "release") == [
+        ("L:AvionicsPanel_Baro", 1000), ("K:BAROMETRIC_STD_PRESSURE", 1), ("K:BAROMETRIC_STD_PRESSURE", 2),
+    ]
+    state["KOHLSMAN SETTING MB:1"] = 1013.21       # 29.92 inHg
+    press(state, std)
+    assert press(state, std, "release") == [
+        ("K:KOHLSMAN_SET", 16000), ("K:KOHLSMAN_SET", (16000, 2)), ("L:AvionicsPanel_Baro", 0),
+    ]
+    press(state, std)                              # on STD with nothing kept: both to STD, as one may not be
+    assert press(state, std, "release") == [("K:BAROMETRIC_STD_PRESSURE", 1), ("K:BAROMETRIC_STD_PRESSURE", 2)]
 
 
 def test_the_fms_ring_with_the_modifier_held_sets_the_units_map_range():
@@ -352,8 +421,8 @@ def test_a_vfr_code_replaces_the_one_xpdr_holds():
 @FAMILY
 def test_a_held_key_sends_its_amber_function_and_ap_and_nav_send_on_press(key):
     family, p = FAMILIES[key], PROFILES[key]
-    held = {"Button_AP_APR": (1, "BC"), "Button_AP_ALT": (1, "ARM"), "Button_COM1_TOG": (1, "MIC1"),
-            "Button_COM2_TOG": (1, "MIC2")}
+    held = {"Button_AP_APR": (1, "BC"), "Button_AP_ALT": (1, "ARM"), "Button_COM1_TOG": (1, "COM1"),
+            "Button_COM2_TOG": (1, "COM2")}
     for mode, unit in zip(("FMS1", "FMS2"), p.UNITS, strict=True):
         held.update({f"Button_{mode}_CLR": (unit, "MAP"), f"Button_{mode}_MENU": (unit, "NRST"),
                      f"Button_{mode}_PROC": (unit, "TERR")})
@@ -483,7 +552,11 @@ def test_the_project_has_the_structure_mobiflight_reads(key):
     assert all(i["Controller"] == controller and i["Active"] is True for i in items)
     assert [i["Device"]["Name"] for i in inputs] == [b for b in ifr1.BUTTONS if b in PROFILES[key].DEVICE]
     for item in inputs:
-        assert item["Device"]["Type"] == "Button" and item["button"]["onHold"] is None
+        assert item["Device"]["Type"] == "Button"
+        if item["Device"]["Name"] in ("Button_COM1_TOG", "Button_COM2_TOG"):
+            assert item["button"]["HoldDelay"] == ifr1.TALK_MS and item["button"]["onHold"]
+        else:
+            assert item["button"]["onHold"] is None
         if item["Device"]["Name"].rsplit("_", 1)[1] in ifr1.KNOB:     # a knob sends presses alone
             assert item["button"]["onRelease"] is None and item["button"]["onLongRelease"] is None
     # the labels of octavi.joystick.json's outputs, which MobiFlight finds a light by
@@ -501,7 +574,7 @@ def test_the_command_line_writes_an_ifr1_project(tmp_path, capsys):
     assert project["Name"] == "Avionics Panel for the IFR-1: Carenado C182T (s)"
     assert "0x1200" in out.read_text(encoding="utf-8")
     err = capsys.readouterr().err
-    assert "95 buttons mapped" in err and "unmapped XPDR" not in err
+    assert "96 buttons mapped" in err and "unmapped XPDR" not in err
 
 
 @pytest.mark.parametrize("extra", [["--from", "x.mfproj"], ["--serials", "JS-a", "JS-b"], ["--unit1", "gns530"],
@@ -530,9 +603,9 @@ def test_a_page_lists_every_reason_and_names_the_profile(key, words):
     page = ifr1_card.page(PROFILES[key], "v", words)
     assert f"IFR-1: {FAMILIES[key].NAME}" in page and ifr1.filename(key) in page
     p = PROFILES[key]
-    shown = {r for b, r in p.UNMAPPED.items() if b != "Button_SHIFT_SW"}
+    shown = set(p.UNMAPPED.values())
     # and the reasons of uses that send nothing on a mapped button: a tap or ⇆'s tap the profile leaves unmapped
-    shown |= {u.reason for b, used in p.USES.items() if b in p.DEVICE and b != "Button_UNSHIFT_SW"
+    shown |= {u.reason for b, used in p.USES.items() if b in p.DEVICE and not b.endswith("SHIFT_SW")
               for use, u in used.items() if u.reason and use in ("key", "tap", "turn")}
     for reason in shown:
         assert html.escape(reason) in page, reason
@@ -572,11 +645,11 @@ def said(key):
 
 def test_the_cells_say_what_the_controls_do():
     da40 = said("cows-da40")
-    assert "⇆: tap: COM 1 flip-flop; hold: talk on COM 1" in da40["COM1"]
+    assert "⇆: tap: COM 1 flip-flop; hold: listen to COM 1, on or off; hold 2 s: talk on COM 1" in da40["COM1"]
     assert "outer: selected altitude 100 ft; ⇆ held: 1000 ft" in da40["AP"]
     assert "⇆: tap: FLC mode; hold: wings and pitch level, engages AP" in da40["AP"]
-    assert {"outer: COM 2 MHz", "inner: COM 2 kHz", "⇆: tap: COM 2 flip-flop; hold: talk on COM 2"} <= set(
-        da40["COM2"])
+    assert {"outer: COM 2 MHz", "inner: COM 2 kHz",
+            "⇆: tap: COM 2 flip-flop; hold: listen to COM 2, on or off; hold 2 s: talk on COM 2"} <= set(da40["COM2"])
     assert da40["NAV1"][da40["NAV1"].index("CRS1 (NAV1 shifted)") + 1] == \
         "outer: course of the CDI (PFD CRS knob) 10°"
     assert "outer: NAV 2 course +10° / NAV 2 course -10°" in da40["NAV2"]
@@ -584,7 +657,8 @@ def test_the_cells_say_what_the_controls_do():
     assert {"outer: heading bug 10°", "inner: heading bug 1°"} <= set(da40["COM1"])
     assert "a hold of over 0.35 s" in ifr1_card.page(PROFILES["cows-da40"], words=True)
     card = ifr1_card.page(PROFILES["cows-da40"])
-    assert "<td><i>tap:</i> COM1_RADIO_SWAP; <i>hold:</i> PILOT_TRANSMITTER_SET, COPILOT_TRANSMITTER_SET</td>" in card
+    assert ("<td><i>tap:</i> COM1_RADIO_SWAP; <i>hold:</i> COM1_RECEIVE_SELECT; "
+            "<i>hold 2 s:</i> PILOT_TRANSMITTER_SET, COPILOT_TRANSMITTER_SET</td>") in card
     assert "<td><i>tap:</i> AP_APR_HOLD; <i>hold:</i> AP_BC_HOLD</td>" in card
     assert "FMS1: PFD" in ifr1_card.page(PROFILES["g3x"]) and "FMS2: MFD" in ifr1_card.page(PROFILES["g3x"])
     bonanza = said("black-square-bonanza")
@@ -669,7 +743,7 @@ def test_the_bonanzas_cockpit_functions_take_the_slots_that_send_nothing_in_ever
     # profile, as a detent that comes with its press would leave it to send that hold
     assert {"VNAV", "NRST", "TERR"} <= set(family.UNMAPPED[2])
     assert all(PROFILES[k].USES[f"Button_{m}_TOG"]["hold"].source is None for k in FAMILIES for m in ("FMS1", "FMS2"))
-    assert set(BONANZA.UNMAPPED) == {"Button_SHIFT_SW"}
+    assert not BONANZA.UNMAPPED
     assert used["Button_FMS2_MSG"]["hold"].entry == "(L:var_oxygenOn, Number) 0 > ! 100 * (>L:var_oxygenOn)"
 
 
@@ -813,7 +887,8 @@ def test_holding_nav_crs_and_baro_toggles_their_audio_and_pitot_heat_and_a_tap_d
              "COM2^_TOG": "K:PITOT_HEAT_TOGGLE"}
     taps = {"NAV1_TOG": family.DEVICE[1]["NAV_SWAP"], "NAV2_TOG": family.DEVICE[2]["NAV_SWAP"],
             "NAV1^_TOG": family.DEVICE[1]["CRS_CTR"], "NAV2^_TOG": ifr1.NAV2_COURSE["TOG"].code,
-            "COM2^_TOG": family.DEVICE[1]["BARO_STD"]}
+            "COM2^_TOG": EXTRA[key]["Button_COM2^_TOG", "key"].code if ("Button_COM2^_TOG", "key") in EXTRA[key]
+            else family.DEVICE[1]["BARO_STD"]}
     for button, event in holds.items():
         entry = device[f"Button_{button}"]
         down = f"L:AvionicsPanel_IFR1_{button.replace('^', '_Shifted')}"

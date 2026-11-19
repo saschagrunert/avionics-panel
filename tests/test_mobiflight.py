@@ -92,7 +92,7 @@ def test_every_button_is_mapped_or_listed_as_unmapped(key):
 # (>A:NAME:INDEX, unit), a number or an operator
 TOKEN = re.compile(r"\([^()]*\)|[^\s()]+")
 READ = re.compile(r"\((?:(?:A:([A-Z0-9 ]+(?::[1-9])?)|(L:[A-Za-z0-9_]+)), [A-Za-z][A-Za-z0-9 ]*|(B:[A-Z0-9_]+))\)")
-WRITE = re.compile(r"\(>(?:(K:[A-Z0-9_]+|H:[A-Za-z0-9_-]+|L:[A-Za-z0-9_]+|B:[A-Za-z0-9_]+_(?:Set|Toggle))|"
+WRITE = re.compile(r"\(>(?:(K:(?:2:)?[A-Z0-9_]+|H:[A-Za-z0-9_-]+|L:[A-Za-z0-9_]+|B:[A-Za-z0-9_]+_(?:Set|Toggle))|"
                    r"(A:[A-Z ]+:[1-9]), Enum)\)")
 REGISTER = re.compile(r"(sp|s|l)([0-9])")         # a register: store and pop, store, load
 NUMBER = re.compile(r"[0-9]+(?:\.[0-9]+)?|0x[0-9A-F]+")
@@ -153,7 +153,11 @@ def run(code, variables=()):
                 else:
                     registers[n] = stack.pop() if op == "sp" else stack[-1]
             elif sets(token):
-                out.append((sets(token), stack.pop() if stack else None))
+                name = sets(token)
+                value = stack.pop() if stack else None
+                if name.startswith("K:2:"):
+                    name, value = f"K:{name[4:]}", (value, stack.pop())
+                out.append((name, value))
                 name = out[-1][0]
                 if name.startswith("L:"):                # an L: variable reads as set from then on
                     variables[name] = out[-1][1]
@@ -384,9 +388,9 @@ def test_every_key_event_is_one_the_sdk_lists():
     # send those and only those, so a misspelt event, which the simulator would drop without a word, fails here
     with open(os.path.join(ROOT, "tests", "key_events.txt"), encoding="utf-8") as f:
         checked = {line.strip() for line in f if line.strip() and not line.startswith("#")}
-    sent = {name for key in TABLES for *_, code in codes(key) for name in re.findall(r"\(>K:([^)]*)\)", code)}
+    sent = {name for key in TABLES for *_, code in codes(key) for name in re.findall(r"\(>K:(?:2:)?([^)]*)\)", code)}
     sent |= {name for key in FAMILIES for entry in ifr1.build(key).DEVICE.values()
-             for code in profile.actions(entry).values() for name in re.findall(r"\(>K:([^)]*)\)", code)}
+             for code in profile.actions(entry).values() for name in re.findall(r"\(>K:(?:2:)?([^)]*)\)", code)}
     assert sent - checked == set(), "not checked against the SDK: add them to tests/key_events.txt once found there"
     assert checked - sent == set(), "sent no more: take them out of tests/key_events.txt"
 
@@ -1323,7 +1327,8 @@ def test_actions_take_a_press_a_release_or_both():
     assert profile.actions({"press": "a", "release": "b"}) == {"onPress": "a", "onRelease": "b"}
     assert profile.actions({"release": "b"}) == {"onRelease": "b"}
     assert profile.actions({"release": "b", "long": "c"}) == {"onRelease": "b", "onLongRelease": "c"}
-    for bad in ({}, {"hold": "a"}):
+    assert profile.actions({"hold": "a"}) == {"onHold": "a"}
+    for bad in ({}, {"repeat": "a"}):
         with pytest.raises(ValueError):
             profile.actions(bad)
 

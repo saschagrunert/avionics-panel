@@ -248,11 +248,13 @@ STD = {"BARO_STD": k("BAROMETRIC_STD_PRESSURE", 1)}         # the altimeter of i
 # leaves out a QNH of 1013 hPa, 29.91 or 29.93 inHg, where a press sets STD. KOHLSMAN_SET goes without the
 # altimeter's index, as KOHLSMAN_INC and _DEC do: the SDK does not say in which order RPN gives an event two
 # parameters. A turn of the BARO ring forgets the setting kept (NAV1_KNOBS), so a press never returns to an old one
-_BARO, _KEPT_BARO = "(A:KOHLSMAN SETTING MB:1, millibars)", "AvionicsPanel_Baro"
-FORGET_BARO = f"0 (>L:{_KEPT_BARO})"
+# (the IFR-1's Bonanza profile keeps the setting the same way, but sets its second altimeter by index: ifr1.py)
+BARO, KEPT_BARO = "(A:KOHLSMAN SETTING MB:1, millibars)", "AvionicsPanel_Baro"
+AT_STD = "1013.23 - abs 0.1 <"                 # of a setting in millibars: 1 on STD
+FORGET_BARO = f"0 (>L:{KEPT_BARO})"
 STD_TOGGLE = {"BARO_STD": (
-    f"{_BARO} 1013.23 - abs 0.1 < if{{ (L:{_KEPT_BARO}, Number) 0 > if{{ (L:{_KEPT_BARO}, Number) 16 * near "
-    f"{k('KOHLSMAN_SET')} 0 (>L:{_KEPT_BARO}) }} }} els{{ {_BARO} (>L:{_KEPT_BARO}) {STD['BARO_STD']} }}")}
+    f"{BARO} {AT_STD} if{{ (L:{KEPT_BARO}, Number) 0 > if{{ (L:{KEPT_BARO}, Number) 16 * near "
+    f"{k('KOHLSMAN_SET')} {FORGET_BARO} }} }} els{{ {BARO} (>L:{KEPT_BARO}) {STD['BARO_STD']} }}")}
 
 # ---------------- the instruments round a Bendix/King autopilot (device 1) ----------------
 # with SHIFT, the course of NAV 1 and the altimeter (KOHLSMAN_INC and _DEC without an index, as the SDK's Key Events

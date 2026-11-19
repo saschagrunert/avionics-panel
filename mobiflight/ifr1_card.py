@@ -142,6 +142,9 @@ class Grid:
             parts = [f"<i>tap:</i> {tap}" if tap else None, f"<i>hold:</i> {hold}" if hold else None]
             return "; ".join(p for p in parts if p) or '<span class="off">only held while turning a ring</span>'
         key, hold = used["key"], used.get("hold")
+        if mic := used.get("long_hold"):
+            return (f"<i>tap:</i> {self.say(key, at_once=True)}; <i>hold:</i> {self.say(hold, at_once=True)}; "
+                    f"<i>hold {ifr1.TALK_MS / 1000:g} s:</i> {self.say(mic, at_once=True)}")
         if hold is not None and hold.entry is not None and hold.entry != key.entry:
             tap = self.say(key, at_once=True) if key.entry is not None else None
             return "; ".join(p for p in (f"<i>tap:</i> {tap}" if tap else None,
