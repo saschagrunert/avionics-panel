@@ -146,9 +146,10 @@ The reasons: [edge rails](#edge-rails), [solder mask](../architecture/electronic
   the long edge opposite J1 does not work: asked for that, JLCPCB's review of rev 1 put them on the short
   edges instead.
 - A 60 mm wide board carried by its short edges can jam in the line, so JLCPCB's review then asks for one of
-  two: fixtures that carry it (two fixtures, US$16.30 an order in November 2026, which the review called an
-  additional cost), or rails on the long edges. Take the fixtures, which the PCBA remark already accepts:
-  rails on the long edges put one on the J1 edge.
+  two: fixtures that carry it (two fixtures, US$16.30, about €15, an order in November 2026, which the review
+  called an additional cost), or rails on the long edges. Take the fixtures, which the PCBA remark already
+  accepts: rails on the long edges put one on the J1 edge. Should JLCPCB refuse the fixtures, accept the long
+  edges only with the J1 edge's rail joined by mouse bites behind a routed gap, as in the first point.
 - JLCPCB removes the rails before delivery. The body takes a board up to the routed size (0.2 mm long), so a
   V-cut short edge (scored and snapped, ±0.4 mm) or a mouse-bite stub may need sanding or filing
   ([On arrival](bring-up.md#on-arrival)).
@@ -408,9 +409,10 @@ The quotes and the checkout on 2026-11-16, in EUR; prices move, so take them as 
 The shops round each fee and line on its own, so sums can differ by a few cents. The checkout's merchandise
 came to €6.36 more than the cart's lines (€374.17), about the plate's step from Economic to Standard (€6.35):
 check its build time before paying. The cart showed a JLCPCB coupon of -€18.12. After the review JLCPCB adds
-the depanelling (€2.10), the fixtures for the rails on the short edges (US$16.30, [Edge rails](#edge-rails))
-and whatever it quotes for the PCBA remark. The plate's UV print, which that quote did not have, the local
-items and the screws come on top.
+the depanelling (€2.10), the fixtures for the rails on the short edges (US$16.30, about €15, [Edge
+rails](#edge-rails)) and whatever it quotes for the PCBA remark. The quote's assembly line already has a
+fixture at €14.99, which may be that fee: check on the order page whether the review adds it again. The
+plate's UV print, which that quote did not have, the local items and the screws come on top.
 
 Build times: JLCPCB 3 days for the PCB and 5 to 6 days for the assembly (a day more with the advanced
 options), JLCCNC 11 days at Economic, JLC3DP 3 to 5 days at Standard; the parcel leaves once all are done.

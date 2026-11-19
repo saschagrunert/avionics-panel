@@ -58,8 +58,6 @@ KNOBS = {
         ("FLOOD", "inner", True, BM.turn("FLOOD_LT")),
         ("CABIN", "push", True, ["CABIN_LT"])]),
 }
-# the panel's own: no button, or one whose meaning the firmware gives (the FREQ knob's mode)
-PANEL_ONLY = {"FREQ_PUSH"}
 
 
 def controls():
@@ -89,7 +87,7 @@ PAGE_MM = 297
 S = 5.6                          # px per mm on the panel
 OVH = 2.5                        # the plate's overhang round the board, mm
 FONT = "Arial, 'Liberation Sans', Helvetica, sans-serif"
-INK, MUTED, AMBER, LINE = "#16181b", "#7a7f87", "#a86f00", "#5b6b85"
+INK, MUTED, AMBER, LINE = "#16181b", "#5f646b", "#a35f00", "#5b6b85"   # small text 4.5:1 or more on the page (WCAG)
 TEXT_PX, LABEL_PX, LINE_H = 11.5, 12, 14
 BOX_W, BOX_GAP, PAD = 128, 4, 6
 SLACK = 8                        # px a line keeps free in its box, for a font wider than Arial
@@ -292,18 +290,10 @@ class Sheet:
                 lines = self.entries(entries, BOX_W - 2 * PAD)
                 top, bottom = self.box(bx - BOX_W / 2, limit, BOX_W, lines, grow_up=band == "top")
                 anchor_y[c] = bottom if band == "top" else top
-            # a column's two lines swap lanes where they would cross (an inner line coming in from the left)
-            for _ in range(2 * n):
-                leads = self.key_lines(band, starts, depth, anchor_y, step)
-                pair = next(((a, b) for a in leads for b in leads if a < b and crosses(leads[a], leads[b])), None)
-                if pair is None:
-                    break
-                (ca, _), (cb, _) = pair
-                if ca != cb:
-                    raise ValueError(f"{band}: the lines of columns {ca} and {cb} cross")
-                depth[(ca, "outer")], depth[(ca, "inner")] = depth[(ca, "inner")], depth[(ca, "outer")]
-            else:
-                raise ValueError(f"{band}: no order of the lanes keeps the lines apart")
+            # the lanes keep every line apart (tests/test_sheet.py); a layout where two would cross is an error
+            leads = self.key_lines(band, starts, depth, anchor_y, step)
+            if pair := next(((a, b) for a in leads for b in leads if a < b and crosses(leads[a], leads[b])), None):
+                raise ValueError(f"{band}: the lines of {pair[0]} and {pair[1]} cross")
             for points in leads.values():
                 self.lead(points)
 
@@ -335,9 +325,10 @@ class Sheet:
         self.text(W / 2, 62, "⇧ = after a tap on SHIFT (amber light).  Unit 2: SHIFT, HOME (white light).  "
                              '"does nothing": this profile sends nothing for it.', 12, MUTED, anchor="middle")
         body = "\n".join(self.out)
+        name = html.escape(f"Avionics Panel: {title}, cheat sheet" + (f" ({version})" if version else ""))
         return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{PAGE_MM}mm" height="{PAGE_MM * H / W:g}mm" '
-                f'viewBox="0 0 {W} {H}" font-family="{FONT}">\n<rect width="{W}" height="{H}" fill="#f6f7f9"/>\n'
-                f'{body}\n</svg>\n')
+                f'viewBox="0 0 {W} {H}" font-family="{FONT}">\n<title>{name}</title>\n'
+                f'<rect width="{W}" height="{H}" fill="#f6f7f9"/>\n{body}\n</svg>\n')
 
 
 def svg(key, title, version=None):
@@ -363,7 +354,7 @@ def write(out_dir=OUT):
     paths = []
     for key in sorted(SHEETS):
         path = os.path.join(out_dir, f"{key}.svg")
-        with open(path, "w", encoding="utf-8", newline="\n") as f:
+        with profile.replacing(path) as f:
             f.write(svg(key, TITLES[key]))
         paths.append(path)
     return paths

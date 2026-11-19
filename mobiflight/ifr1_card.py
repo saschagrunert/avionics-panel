@@ -7,33 +7,18 @@ same bytes.
 import html
 
 from mobiflight import card, ifr1, ifr1_sheet
-from mobiflight.ifr1_grid import TURN, Grid, hold_rules
+from mobiflight.card import TURN
+from mobiflight.ifr1_grid import Grid, hold_rules
 
-STYLE = """@page { size: A4 landscape; margin: 7mm; }
-:root { --ink: #1b1b1b; --soft: #6b6b6b; --line: #c9c9c9; --paper: #ffffff; }
-* { box-sizing: border-box; }
-html { background: var(--paper); color: var(--ink); color-scheme: light; }
-body { margin: 0 auto; width: 283mm; padding: 0; font: 6pt/1.2 "Barlow Semi Condensed", "Roboto Condensed",
-  "Arial Narrow", "Liberation Sans Narrow", Arial, sans-serif; -webkit-print-color-adjust: exact;
-  print-color-adjust: exact; }
-header { display: flex; justify-content: space-between; align-items: baseline; gap: 4mm;
-  border-bottom: 0.4mm solid var(--ink); margin-bottom: 1.5mm; }
-h1 { font-size: 11pt; margin: 0; white-space: nowrap; }
-h2 { font-size: 7.5pt; margin: 1.5mm 0 0.5mm; }
-.version { font-size: 7pt; font-weight: normal; color: var(--soft); }
-header p { margin: 0; color: var(--soft); text-align: right; }
-table { border-collapse: collapse; width: 100%; }
+STYLE = card.PAGE_STYLE + """h2 { font-size: 7.5pt; margin: 1.5mm 0 0.5mm; }
 th, td { text-align: left; vertical-align: top; padding: 0.4mm 1mm; border-bottom: 0.25mm solid var(--line);
   overflow-wrap: anywhere; }
 thead th { font-weight: bold; border-bottom: 0.4mm solid var(--ink); }
 tbody th { font-weight: bold; }
 col.head { width: 20mm; }
 tr { break-inside: avoid; }
-.off { color: var(--soft); font-style: italic; }
 i { color: var(--soft); }
 ol { columns: 2; column-gap: 4mm; margin: 1mm 0 0; padding-left: 3mm; color: var(--soft); }
-footer { margin-top: 1mm; }
-footer p { margin: 0.6mm 0 0; font-weight: bold; }
 figure { margin: 0; }
 figure svg { display: block; width: 100%; height: auto; max-height: 172mm; }
 """
@@ -66,9 +51,7 @@ def page(ifr1_profile, version=None, words=False):
 </tbody>
 </table>
 """
-    notes = "\n".join(f'<li value="{n}">{html.escape(r)}</li>' for r, n in grid.reasons.items())
-    footer = (f"<footer>\n<p>Why a control does nothing in this profile:</p>\n<ol>\n{notes}\n</ol>\n</footer>\n"
-              if notes else "")
+    footer = grid.footer()
     what = "cheat sheet" if words else "card"
     name = html.escape(ifr1_profile.NAME)
     stamp, title_stamp = card.stamps(version)

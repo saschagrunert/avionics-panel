@@ -161,6 +161,6 @@ def test_the_profiles_are_made_from_the_unpacked_zip(built, tmp_path):
     mobiflight("--joystick-definition", "x.joystick.json")
     assert sorted(os.listdir(out)) == ["cards.zip", "x.joystick.json", "x.mfproj"]
     with zipfile.ZipFile(out / "cards.zip") as z:                     # named with the commit, as the profiles
-        assert f"<title>Avionics Panel: G1000 NXi ({make_zip.stamp('%cs, %h')})</title>" in z.read(
+        assert f"<title>Avionics Panel: G1000 NXi, card ({make_zip.stamp('%cs, %h')})</title>" in z.read(
             "avionics-panel-g1000-card.html").decode()
         assert f">G1000 NXi ({make_zip.stamp('%cs, %h')})</text>" in z.read("avionics-panel-g1000-sheet.svg").decode()

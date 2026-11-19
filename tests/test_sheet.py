@@ -28,7 +28,7 @@ def test_a_control_has_words_where_the_profile_maps_it(key):
     assert set(sheet.CONTROLS) <= set(texts), sorted(set(sheet.CONTROLS) - set(texts))
     assert not set(texts) - set(sheet.CONTROLS), sorted(set(texts) - set(sheet.CONTROLS))
     for control, buttons in sheet.CONTROLS.items():
-        if control in sheet.PANEL_ONLY:
+        if control == "FREQ_PUSH":                  # the panel's own: the firmware gives it its meaning (the mode)
             assert texts[control], control
             continue
         mapped = any(b in family.DEVICE[device] for device in (1, 2) for b in buttons)
@@ -149,3 +149,12 @@ def test_the_same_is_the_same(key):
             if plain and shifted and texts[plain] is not None and texts[shifted] == texts[plain]:
                 for device in (1, 2):
                     assert family.DEVICE[device].get(plain) == family.DEVICE[device].get(shifted), (plain, device)
+
+
+def test_crosses_tells_a_crossing_from_lines_that_only_touch_or_pass():
+    # a vertical segment through a horizontal one, either polyline first; touching at an end or running beside does not
+    across, down = [(0, 5), (10, 5)], [(5, 0), (5, 10)]
+    assert sheet.crosses(across, down) and sheet.crosses(down, across)
+    assert not sheet.crosses(across, [(5, 5), (5, 10)])                      # starts on it
+    assert not sheet.crosses(across, [(0, 6), (10, 6)])                      # beside it
+    assert not sheet.crosses([(0, 0), (4, 0), (4, 4)], [(5, 0), (5, 10)])   # ends before it

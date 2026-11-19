@@ -23,10 +23,14 @@ A stamp in the project's name, as "Avionics Panel: G1000 NXi (2026-11-14, 5d1c30
 the one firmware/version.py names in a release's files (VERSION), or any other text. The item GUIDs leave it out,
 as they leave out the joysticks.
 """
+import contextlib
+import errno
 import importlib.util
 import json
 import os
 import re
+import shutil
+import tempfile
 import uuid
 
 from mobiflight.families import parts
@@ -214,3 +218,30 @@ def controllers_from(path):
         raise ValueError(f"{path}: need ENT bound on both joysticks of the panel, in unit 1 (Button 83) and in "
                          f"unit 2 (Button 10); found {len(pairs)} such pairs of joysticks")
     return next(iter(pairs.values()))
+
+
+@contextlib.contextmanager
+def replacing(path, binary=False):
+    """A file to write path through: a new file in its folder, which takes path's place once the block ends without
+    an error and is removed after any other end, so nothing half written stays and a file already there is left as
+    it was. A file there that may not be written is refused before, as opening it would be. A symbolic link is
+    followed, so the file it points to is replaced, and a file there keeps its mode. (The new file needs the right
+    to make files in the folder, which writing over a file there alone did not.)"""
+    path = os.path.realpath(path)
+    if os.path.exists(path) and not os.access(path, os.W_OK):
+        raise PermissionError(errno.EACCES, os.strerror(errno.EACCES), path)
+    fd, new = tempfile.mkstemp(dir=os.path.dirname(path), prefix=f".{os.path.basename(path)}.")
+    try:
+        with os.fdopen(fd, "wb") if binary else os.fdopen(fd, "w", encoding="utf-8", newline="\n") as f:
+            yield f
+        if os.path.exists(path):
+            shutil.copymode(path, new)
+        else:                                        # as open() makes it, not mkstemp()'s rw-------
+            mask = os.umask(0o22)
+            os.umask(mask)
+            os.chmod(new, 0o666 & ~mask)
+        os.replace(new, path)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.remove(new)
+        raise

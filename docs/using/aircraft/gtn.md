@@ -21,7 +21,8 @@ The same sheet with the commit of the latest build in its title:
 [avionics-panel-gtn-sheet.svg](https://saschagrunert.de/avionics-panel/cards/avionics-panel-gtn-sheet.svg).
 The profile:
 [avionics-panel-gtn.mfproj](https://github.com/saschagrunert/avionics-panel/releases/download/rolling/avionics-panel-gtn.mfproj)
-([how to use it](../mapping.md#generated-profiles)). Every detail, and what each control sends:
-[Mapping](../mapping.md#tds-gtn-750xi-and-650xi).
+([how to use it](../mapping.md#generated-profiles)). Every detail:
+[Mapping](../mapping.md#tds-gtn-750xi-and-650xi). What each control sends, as MobiFlight lists it: the
+[card](https://saschagrunert.de/avionics-panel/cards/avionics-panel-gtn-card.html).
 
 The same profile for the Octavi IFR-1, with its card and cheat sheet: [Octavi IFR-1](../ifr1.md#downloads).

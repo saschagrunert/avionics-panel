@@ -110,6 +110,7 @@ class Panel:
         self.freq_mode = 0           # index into FREQ_MODES: kept until the FREQ push changes it
         self.freq_since = None       # ms of the press of a plain FREQ push held, until FREQ_HOLD_MS set COM
         self.digit = 1               # squawk digit (1 to 4) the shifted FREQ inner ring steps
+        self.squawked = None         # the shifted session a squawk ring turned in: VFR is IDENT there
         self.flash = (0, 0)          # the FREQ light's count: (ms of its first flash, flashes)
         self.flash_squawk = False    # it is a squawk digit's: dropped while still to come if the entry ends
         self.flash_free = 0          # no count starts before: FLASH_PAUSE_MS after the last flash shown
@@ -441,7 +442,10 @@ class Panel:
                 self.shift, self.under, self.shift_until = "any", held, t + ARM_MS
                 self.arm_until = self.shift_until
             return
-        shifted = self.locked or self.shift == "any"
+        # VFR in a squawk entry (the FREQ knob's session, a squawk ring turned in it) is IDENT: VFR would squawk over
+        # the code just set; after a mode push alone it stays VFR
+        shifted = (self.locked or self.shift == "any"
+                   or (name == "VFR" and self.shift == "FREQ" and self.squawked == self.session))
         self.shift, self.under = held, None              # a key ends a knob's session, unless a control holds it
         if name == "HOME" and shifted:                    # UNIT: firmware state, white light
             self.unit = 2 if self.unit == 1 else 1
@@ -509,6 +513,7 @@ class Panel:
         elif ring == "ALTHDG_INNER":
             slow, quick = ("CRS_1", "CRS_10") if shifted else ("HDG_1", "HDG_10")
         elif knob == "FREQ" and shifted:                    # squawk: one digit, one step per detent
+            self.squawked = self.session
             if ring == "FREQ_OUTER":                        # selects the digit, stops at 1 and 4, sends nothing
                 digit = min(max(self.digit + steps, 1), 4)
                 if digit != self.digit:

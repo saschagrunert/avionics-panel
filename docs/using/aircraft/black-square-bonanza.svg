@@ -1,4 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="297mm" height="185.625mm" viewBox="0 0 1600 1000" font-family="Arial, 'Liberation Sans', Helvetica, sans-serif">
+<title>Avionics Panel: Black Square Bonanza, cheat sheet</title>
 <rect width="1600" height="1000" fill="#f6f7f9"/>
 <rect x="338.0" y="328.0" width="924.0" height="364.0" rx="30.8" fill="#2d2f33"/>
 <rect x="549.1" y="394.1" width="53.8" height="35.8" rx="4" fill="#111214" stroke="#000"/>
@@ -97,84 +98,86 @@
 <polygon points="365.8,594.0 373.8,589.5 373.8,598.5" fill="#d8dadd"/>
 <polygon points="506.2,594.0 498.2,598.5 498.2,589.5" fill="#d8dadd"/>
 <text x="436.0" y="598.0" font-size="11" font-weight="bold" fill="#ffffff" text-anchor="middle">RANGE</text>
-<rect x="340.0" y="106.0" width="128" height="150" rx="6" fill="#ffffff" stroke="#c3c8cf"/>
-<text x="346.0" y="122.0" font-size="12" font-weight="bold" fill="#16181b" text-anchor="start">AP</text>
-<text x="346.0" y="136.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">KFC 150 AP ENG</text>
-<text x="346.0" y="150.0" font-size="12" font-weight="bold" fill="#a86f00" text-anchor="start">⇧ TEST</text>
-<text x="346.0" y="164.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">self-test; held:</text>
-<text x="346.0" y="178.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">MD41 lamp test</text>
-<text x="346.0" y="192.0" font-size="12" font-weight="bold" fill="#16181b" text-anchor="start">FD</text>
-<text x="346.0" y="206.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">flight director</text>
-<text x="346.0" y="220.0" font-size="12" font-weight="bold" fill="#a86f00" text-anchor="start">⇧ YD</text>
+<rect x="340.0" y="78.0" width="128" height="178" rx="6" fill="#ffffff" stroke="#c3c8cf"/>
+<text x="346.0" y="94.0" font-size="12" font-weight="bold" fill="#16181b" text-anchor="start">AP</text>
+<text x="346.0" y="108.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">KFC 150 AP ENG</text>
+<text x="346.0" y="122.0" font-size="12" font-weight="bold" fill="#a35f00" text-anchor="start">⇧ TEST</text>
+<text x="346.0" y="136.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">self-test, AP off</text>
+<text x="346.0" y="150.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">only; held: MD41</text>
+<text x="346.0" y="164.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">lamp test</text>
+<text x="346.0" y="178.0" font-size="12" font-weight="bold" fill="#16181b" text-anchor="start">FD</text>
+<text x="346.0" y="192.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">flight director</text>
+<text x="346.0" y="206.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">(only with AP off)</text>
+<text x="346.0" y="220.0" font-size="12" font-weight="bold" fill="#a35f00" text-anchor="start">⇧ YD</text>
 <text x="346.0" y="234.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">yaw damper, if</text>
 <text x="346.0" y="248.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">fitted</text>
 <rect x="472.0" y="120.0" width="128" height="136" rx="6" fill="#ffffff" stroke="#c3c8cf"/>
 <text x="478.0" y="136.0" font-size="12" font-weight="bold" fill="#16181b" text-anchor="start">ALT</text>
 <text x="478.0" y="150.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">ALT hold</text>
-<text x="478.0" y="164.0" font-size="12" font-weight="bold" fill="#a86f00" text-anchor="start">⇧ ARM</text>
+<text x="478.0" y="164.0" font-size="12" font-weight="bold" fill="#a35f00" text-anchor="start">⇧ ARM</text>
 <text x="478.0" y="178.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">KAS 297B ALT ARM</text>
 <text x="478.0" y="192.0" font-size="12" font-weight="bold" fill="#16181b" text-anchor="start">VNV</text>
 <text x="478.0" y="206.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">descent: sets VS,</text>
 <text x="478.0" y="220.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">VS ENG</text>
-<text x="478.0" y="234.0" font-size="12" font-weight="bold" fill="#a86f00" text-anchor="start">⇧ VNV</text>
+<text x="478.0" y="234.0" font-size="12" font-weight="bold" fill="#a35f00" text-anchor="start">⇧ VNV</text>
 <text x="478.0" y="248.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">KR 87 BFO key</text>
 <rect x="604.0" y="106.0" width="128" height="150" rx="6" fill="#ffffff" stroke="#c3c8cf"/>
 <text x="610.0" y="122.0" font-size="12" font-weight="bold" fill="#16181b" text-anchor="start">HDG</text>
 <text x="610.0" y="136.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">HDG mode</text>
-<text x="610.0" y="150.0" font-size="12" font-weight="bold" fill="#a86f00" text-anchor="start">⇧ CRS CTR</text>
+<text x="610.0" y="150.0" font-size="12" font-weight="bold" fill="#a35f00" text-anchor="start">⇧ CRS CTR</text>
 <text x="610.0" y="164.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">NAV 1 course to the</text>
 <text x="610.0" y="178.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">VOR or LOC</text>
 <text x="610.0" y="192.0" font-size="12" font-weight="bold" fill="#16181b" text-anchor="start">NAV</text>
 <text x="610.0" y="206.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">NAV mode</text>
-<text x="610.0" y="220.0" font-size="12" font-weight="bold" fill="#a86f00" text-anchor="start">⇧ GPSS</text>
+<text x="610.0" y="220.0" font-size="12" font-weight="bold" fill="#a35f00" text-anchor="start">⇧ GPSS</text>
 <text x="610.0" y="234.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">HSI source: NAV 1</text>
 <text x="610.0" y="248.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">or RNAV</text>
 <rect x="736.0" y="78.0" width="128" height="178" rx="6" fill="#ffffff" stroke="#c3c8cf"/>
 <text x="742.0" y="94.0" font-size="12" font-weight="bold" fill="#16181b" text-anchor="start">MIC 1</text>
-<text x="742.0" y="108.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">talk on COM 1 (and</text>
-<text x="742.0" y="122.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">the selector)</text>
-<text x="742.0" y="136.0" font-size="12" font-weight="bold" fill="#a86f00" text-anchor="start">⇧ ADF</text>
+<text x="742.0" y="108.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">talk on, hear COM 1</text>
+<text x="742.0" y="122.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">(and the selector)</text>
+<text x="742.0" y="136.0" font-size="12" font-weight="bold" fill="#a35f00" text-anchor="start">⇧ ADF</text>
 <text x="742.0" y="150.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">listen to the ADF</text>
 <text x="742.0" y="164.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">ident</text>
 <text x="742.0" y="178.0" font-size="12" font-weight="bold" fill="#16181b" text-anchor="start">MIC 2</text>
-<text x="742.0" y="192.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">talk on COM 2 (and</text>
-<text x="742.0" y="206.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">the selector)</text>
-<text x="742.0" y="220.0" font-size="12" font-weight="bold" fill="#a86f00" text-anchor="start">⇧ DME</text>
+<text x="742.0" y="192.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">talk on, hear COM 2</text>
+<text x="742.0" y="206.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">(and the selector)</text>
+<text x="742.0" y="220.0" font-size="12" font-weight="bold" fill="#a35f00" text-anchor="start">⇧ DME</text>
 <text x="742.0" y="234.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">listen to the DME</text>
 <text x="742.0" y="248.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">ident</text>
 <rect x="868.0" y="78.0" width="128" height="178" rx="6" fill="#ffffff" stroke="#c3c8cf"/>
 <text x="874.0" y="94.0" font-size="12" font-weight="bold" fill="#16181b" text-anchor="start">COM 1</text>
-<text x="874.0" y="108.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">listen to COM 1, on</text>
-<text x="874.0" y="122.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">or off</text>
-<text x="874.0" y="136.0" font-size="12" font-weight="bold" fill="#a86f00" text-anchor="start">⇧ NAV 1</text>
+<text x="874.0" y="108.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">listen, on or off;</text>
+<text x="874.0" y="122.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">kept if talked on</text>
+<text x="874.0" y="136.0" font-size="12" font-weight="bold" fill="#a35f00" text-anchor="start">⇧ NAV 1</text>
 <text x="874.0" y="150.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">listen to the NAV 1</text>
 <text x="874.0" y="164.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">ident</text>
 <text x="874.0" y="178.0" font-size="12" font-weight="bold" fill="#16181b" text-anchor="start">COM 2</text>
-<text x="874.0" y="192.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">listen to COM 2, on</text>
-<text x="874.0" y="206.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">or off</text>
-<text x="874.0" y="220.0" font-size="12" font-weight="bold" fill="#a86f00" text-anchor="start">⇧ NAV 2</text>
+<text x="874.0" y="192.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">listen, on or off;</text>
+<text x="874.0" y="206.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">kept if talked on</text>
+<text x="874.0" y="220.0" font-size="12" font-weight="bold" fill="#a35f00" text-anchor="start">⇧ NAV 2</text>
 <text x="874.0" y="234.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">listen to the NAV 2</text>
 <text x="874.0" y="248.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">ident</text>
 <rect x="1000.0" y="92.0" width="128" height="164" rx="6" fill="#ffffff" stroke="#c3c8cf"/>
 <text x="1006.0" y="108.0" font-size="12" font-weight="bold" fill="#16181b" text-anchor="start">CDI</text>
 <text x="1006.0" y="122.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">GPS or VLOC (GNS,</text>
 <text x="1006.0" y="136.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">HSI, MD41)</text>
-<text x="1006.0" y="150.0" font-size="12" font-weight="bold" fill="#a86f00" text-anchor="start">⇧ OBS</text>
+<text x="1006.0" y="150.0" font-size="12" font-weight="bold" fill="#a35f00" text-anchor="start">⇧ OBS</text>
 <text x="1006.0" y="164.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">GNS OBS</text>
 <text x="1006.0" y="178.0" font-size="12" font-weight="bold" fill="#16181b" text-anchor="start">VFR</text>
 <text x="1006.0" y="192.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">squawk 7000 and</text>
 <text x="1006.0" y="206.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">GTX ALT; again:</text>
 <text x="1006.0" y="220.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">the code before</text>
-<text x="1006.0" y="234.0" font-size="12" font-weight="bold" fill="#a86f00" text-anchor="start">⇧ IDENT</text>
+<text x="1006.0" y="234.0" font-size="12" font-weight="bold" fill="#a35f00" text-anchor="start">⇧ IDENT</text>
 <text x="1006.0" y="248.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">IDENT</text>
 <rect x="1132.0" y="134.0" width="128" height="122" rx="6" fill="#ffffff" stroke="#c3c8cf"/>
 <text x="1138.0" y="150.0" font-size="12" font-weight="bold" fill="#16181b" text-anchor="start">COM ⇆</text>
 <text x="1138.0" y="164.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">COM flip-flop</text>
-<text x="1138.0" y="178.0" font-size="12" font-weight="bold" fill="#a86f00" text-anchor="start">⇧ 121.5</text>
+<text x="1138.0" y="178.0" font-size="12" font-weight="bold" fill="#a35f00" text-anchor="start">⇧ 121.5</text>
 <text x="1138.0" y="192.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">tune COM to 121.5</text>
 <text x="1138.0" y="206.0" font-size="12" font-weight="bold" fill="#16181b" text-anchor="start">NAV ⇆</text>
 <text x="1138.0" y="220.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">NAV flip-flop</text>
-<text x="1138.0" y="234.0" font-size="12" font-weight="bold" fill="#a86f00" text-anchor="start">⇧ ADF ⇆</text>
+<text x="1138.0" y="234.0" font-size="12" font-weight="bold" fill="#a35f00" text-anchor="start">⇧ ADF ⇆</text>
 <text x="1138.0" y="248.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">KR 87 FRQ</text>
 <polyline points="394.0,256.0 394.0,320.0 576.0,320.0 576.0,394.1" fill="none" stroke="#5b6b85" stroke-width="1.3"/>
 <circle cx="576.0" cy="394.1" r="3" fill="#5b6b85"/>
@@ -208,41 +211,41 @@
 <text x="346.0" y="766.0" font-size="12" font-weight="bold" fill="#16181b" text-anchor="start">UP</text>
 <text x="346.0" y="780.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">rocker: ALT, VS or</text>
 <text x="346.0" y="794.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">pitch up</text>
-<text x="346.0" y="808.0" font-size="12" font-weight="bold" fill="#a86f00" text-anchor="start">⇧ UP</text>
+<text x="346.0" y="808.0" font-size="12" font-weight="bold" fill="#a35f00" text-anchor="start">⇧ UP</text>
 <text x="346.0" y="822.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">EDM 800 STEP;</text>
 <text x="346.0" y="836.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">held: long press</text>
 <text x="346.0" y="850.0" font-size="12" font-weight="bold" fill="#16181b" text-anchor="start">DN</text>
 <text x="346.0" y="864.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">rocker: ALT, VS or</text>
 <text x="346.0" y="878.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">pitch down</text>
-<text x="346.0" y="892.0" font-size="12" font-weight="bold" fill="#a86f00" text-anchor="start">⇧ DN</text>
+<text x="346.0" y="892.0" font-size="12" font-weight="bold" fill="#a35f00" text-anchor="start">⇧ DN</text>
 <text x="346.0" y="906.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">EDM 800 LEAN</text>
 <text x="346.0" y="920.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">FIND; held: long</text>
 <text x="346.0" y="934.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">press</text>
 <rect x="472.0" y="750.0" width="128" height="150" rx="6" fill="#ffffff" stroke="#c3c8cf"/>
 <text x="478.0" y="766.0" font-size="12" font-weight="bold" fill="#16181b" text-anchor="start">VS</text>
 <text x="478.0" y="780.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">KAS 297B VS ENG</text>
-<text x="478.0" y="794.0" font-size="12" font-weight="bold" fill="#a86f00" text-anchor="start">⇧ VS</text>
+<text x="478.0" y="794.0" font-size="12" font-weight="bold" fill="#a35f00" text-anchor="start">⇧ VS</text>
 <text x="478.0" y="808.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">the same</text>
 <text x="478.0" y="822.0" font-size="12" font-weight="bold" fill="#16181b" text-anchor="start">FLC</text>
 <text x="478.0" y="836.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">radar antenna down</text>
 <text x="478.0" y="850.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">5 %</text>
-<text x="478.0" y="864.0" font-size="12" font-weight="bold" fill="#a86f00" text-anchor="start">⇧ FLC</text>
+<text x="478.0" y="864.0" font-size="12" font-weight="bold" fill="#a35f00" text-anchor="start">⇧ FLC</text>
 <text x="478.0" y="878.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">KR 87 ADF</text>
 <text x="478.0" y="892.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">(antenna) key</text>
 <rect x="604.0" y="750.0" width="128" height="136" rx="6" fill="#ffffff" stroke="#c3c8cf"/>
 <text x="610.0" y="766.0" font-size="12" font-weight="bold" fill="#16181b" text-anchor="start">APR</text>
 <text x="610.0" y="780.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">APR mode</text>
-<text x="610.0" y="794.0" font-size="12" font-weight="bold" fill="#a86f00" text-anchor="start">⇧ BC</text>
+<text x="610.0" y="794.0" font-size="12" font-weight="bold" fill="#a35f00" text-anchor="start">⇧ BC</text>
 <text x="610.0" y="808.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">BC mode</text>
 <text x="610.0" y="822.0" font-size="12" font-weight="bold" fill="#16181b" text-anchor="start">LVL</text>
 <text x="610.0" y="836.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">KDI 572R DME</text>
 <text x="610.0" y="850.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">selector, next</text>
-<text x="610.0" y="864.0" font-size="12" font-weight="bold" fill="#a86f00" text-anchor="start">⇧ ½ BANK</text>
+<text x="610.0" y="864.0" font-size="12" font-weight="bold" fill="#a35f00" text-anchor="start">⇧ ½ BANK</text>
 <text x="610.0" y="878.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">radar antenna up 5 %</text>
 <rect x="736.0" y="750.0" width="128" height="178" rx="6" fill="#ffffff" stroke="#c3c8cf"/>
 <text x="742.0" y="766.0" font-size="12" font-weight="bold" fill="#16181b" text-anchor="start">HOME</text>
 <text x="742.0" y="780.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">GTN HOME</text>
-<text x="742.0" y="794.0" font-size="12" font-weight="bold" fill="#a86f00" text-anchor="start">⇧ UNIT</text>
+<text x="742.0" y="794.0" font-size="12" font-weight="bold" fill="#a35f00" text-anchor="start">⇧ UNIT</text>
 <text x="742.0" y="808.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">unit 1 or 2 (white</text>
 <text x="742.0" y="822.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">light); unit 2 is the</text>
 <text x="742.0" y="836.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">secondary (GNS 430,</text>
@@ -255,34 +258,34 @@
 <rect x="868.0" y="750.0" width="128" height="150" rx="6" fill="#ffffff" stroke="#c3c8cf"/>
 <text x="874.0" y="766.0" font-size="12" font-weight="bold" fill="#16181b" text-anchor="start">FPL</text>
 <text x="874.0" y="780.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">FPL (GNS)</text>
-<text x="874.0" y="794.0" font-size="12" font-weight="bold" fill="#a86f00" text-anchor="start">⇧ VNAV</text>
+<text x="874.0" y="794.0" font-size="12" font-weight="bold" fill="#a35f00" text-anchor="start">⇧ VNAV</text>
 <text x="874.0" y="808.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">VNAV (GNS 530,</text>
 <text x="874.0" y="822.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">unit 1)</text>
 <text x="874.0" y="836.0" font-size="12" font-weight="bold" fill="#16181b" text-anchor="start">PROC</text>
 <text x="874.0" y="850.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">PROC (GNS; PMS50</text>
 <text x="874.0" y="864.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">GTN: procedures)</text>
-<text x="874.0" y="878.0" font-size="12" font-weight="bold" fill="#a86f00" text-anchor="start">⇧ TERR</text>
+<text x="874.0" y="878.0" font-size="12" font-weight="bold" fill="#a35f00" text-anchor="start">⇧ TERR</text>
 <text x="874.0" y="892.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">MD41 OBS (unit 1)</text>
 <rect x="1000.0" y="750.0" width="128" height="136" rx="6" fill="#ffffff" stroke="#c3c8cf"/>
 <text x="1006.0" y="766.0" font-size="12" font-weight="bold" fill="#16181b" text-anchor="start">D→</text>
 <text x="1006.0" y="780.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">D→</text>
-<text x="1006.0" y="794.0" font-size="12" font-weight="bold" fill="#a86f00" text-anchor="start">⇧ MSG</text>
+<text x="1006.0" y="794.0" font-size="12" font-weight="bold" fill="#a35f00" text-anchor="start">⇧ MSG</text>
 <text x="1006.0" y="808.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">MSG</text>
 <text x="1006.0" y="822.0" font-size="12" font-weight="bold" fill="#16181b" text-anchor="start">CLR</text>
 <text x="1006.0" y="836.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">CLR</text>
-<text x="1006.0" y="850.0" font-size="12" font-weight="bold" fill="#a86f00" text-anchor="start">⇧ MAP</text>
+<text x="1006.0" y="850.0" font-size="12" font-weight="bold" fill="#a35f00" text-anchor="start">⇧ MAP</text>
 <text x="1006.0" y="864.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">CLR held: default</text>
 <text x="1006.0" y="878.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">map page</text>
 <rect x="1132.0" y="750.0" width="128" height="150" rx="6" fill="#ffffff" stroke="#c3c8cf"/>
 <text x="1138.0" y="766.0" font-size="12" font-weight="bold" fill="#16181b" text-anchor="start">MENU</text>
 <text x="1138.0" y="780.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">MENU (KLN 90B:</text>
 <text x="1138.0" y="794.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">ALT)</text>
-<text x="1138.0" y="808.0" font-size="12" font-weight="bold" fill="#a86f00" text-anchor="start">⇧ NRST</text>
+<text x="1138.0" y="808.0" font-size="12" font-weight="bold" fill="#a35f00" text-anchor="start">⇧ NRST</text>
 <text x="1138.0" y="822.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">MD41 APR ARM</text>
 <text x="1138.0" y="836.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">(unit 1)</text>
 <text x="1138.0" y="850.0" font-size="12" font-weight="bold" fill="#16181b" text-anchor="start">ENT</text>
 <text x="1138.0" y="864.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">ENT</text>
-<text x="1138.0" y="878.0" font-size="12" font-weight="bold" fill="#a86f00" text-anchor="start">⇧ ENT</text>
+<text x="1138.0" y="878.0" font-size="12" font-weight="bold" fill="#a35f00" text-anchor="start">⇧ ENT</text>
 <text x="1138.0" y="892.0" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">the same</text>
 <polyline points="394.0,750.0 394.0,700.0 553.1,700.0 553.1,634.3" fill="none" stroke="#5b6b85" stroke-width="1.3"/>
 <circle cx="553.1" cy="634.3" r="3" fill="#5b6b85"/>
@@ -319,12 +322,12 @@
 <text x="20.0" y="318.7" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">heading bug: 1°, quick turn 10°</text>
 <text x="20.0" y="332.7" font-size="12" font-weight="bold" fill="#16181b" text-anchor="start">ALT / HDG, push</text>
 <text x="20.0" y="346.7" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">heading bug to the heading</text>
-<text x="20.0" y="360.7" font-size="12" font-weight="bold" fill="#a86f00" text-anchor="start">⇧ outer</text>
-<text x="20.0" y="374.7" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">altimeter setting</text>
-<text x="20.0" y="388.7" font-size="12" font-weight="bold" fill="#a86f00" text-anchor="start">⇧ inner</text>
+<text x="20.0" y="360.7" font-size="12" font-weight="bold" fill="#a35f00" text-anchor="start">⇧ outer</text>
+<text x="20.0" y="374.7" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">both altimeters&#x27; setting, 0.01 inHg</text>
+<text x="20.0" y="388.7" font-size="12" font-weight="bold" fill="#a35f00" text-anchor="start">⇧ inner</text>
 <text x="20.0" y="402.7" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">NAV 1 course: 1°, quick turn 10°</text>
-<text x="20.0" y="416.7" font-size="12" font-weight="bold" fill="#a86f00" text-anchor="start">⇧ push</text>
-<text x="20.0" y="430.7" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">STD; again: the setting before</text>
+<text x="20.0" y="416.7" font-size="12" font-weight="bold" fill="#a35f00" text-anchor="start">⇧ push</text>
+<text x="20.0" y="430.7" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">STD on both; again: the setting before</text>
 <polyline points="314.0,398.7 397.0,398.7" fill="none" stroke="#5b6b85" stroke-width="1.3"/>
 <circle cx="397.0" cy="398.7" r="3" fill="#5b6b85"/>
 <rect x="14.0" y="526.2" width="300" height="234" rx="6" fill="#ffffff" stroke="#c3c8cf"/>
@@ -336,13 +339,13 @@
 <text x="20.0" y="612.2" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">KLN 90B left outer knob</text>
 <text x="20.0" y="626.2" font-size="12" font-weight="bold" fill="#16181b" text-anchor="start">RANGE, push</text>
 <text x="20.0" y="640.2" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">GTN volume push; KLN 90B left CRSR</text>
-<text x="20.0" y="654.2" font-size="12" font-weight="bold" fill="#a86f00" text-anchor="start">⇧ turn</text>
+<text x="20.0" y="654.2" font-size="12" font-weight="bold" fill="#a35f00" text-anchor="start">⇧ turn</text>
 <text x="20.0" y="668.2" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">map range of the secondary</text>
-<text x="20.0" y="682.2" font-size="12" font-weight="bold" fill="#a86f00" text-anchor="start">⇧ tilt up/down</text>
+<text x="20.0" y="682.2" font-size="12" font-weight="bold" fill="#a35f00" text-anchor="start">⇧ tilt up/down</text>
 <text x="20.0" y="696.2" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">COM 2 / GTN 650 volume</text>
-<text x="20.0" y="710.2" font-size="12" font-weight="bold" fill="#a86f00" text-anchor="start">⇧ tilt left/right</text>
+<text x="20.0" y="710.2" font-size="12" font-weight="bold" fill="#a35f00" text-anchor="start">⇧ tilt left/right</text>
 <text x="20.0" y="724.2" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">weather radar range</text>
-<text x="20.0" y="738.2" font-size="12" font-weight="bold" fill="#a86f00" text-anchor="start">⇧ push</text>
+<text x="20.0" y="738.2" font-size="12" font-weight="bold" fill="#a35f00" text-anchor="start">⇧ push</text>
 <text x="20.0" y="752.2" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">GTN 650 volume push</text>
 <polyline points="314.0,566.2 396.3,566.2" fill="none" stroke="#5b6b85" stroke-width="1.3"/>
 <circle cx="396.3" cy="566.2" r="3" fill="#5b6b85"/>
@@ -354,9 +357,9 @@
 <text x="1292.0" y="346.7" font-size="12" font-weight="bold" fill="#16181b" text-anchor="start">FREQ, push</text>
 <text x="1292.0" y="360.7" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">COM, NAV, ADF (green light: off, on, blinks); held</text>
 <text x="1292.0" y="374.7" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">1 s: COM</text>
-<text x="1292.0" y="388.7" font-size="12" font-weight="bold" fill="#a86f00" text-anchor="start">⇧ rings</text>
-<text x="1292.0" y="402.7" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">outer picks the digit, inner sets it</text>
-<text x="1292.0" y="416.7" font-size="12" font-weight="bold" fill="#a86f00" text-anchor="start">⇧ push</text>
+<text x="1292.0" y="388.7" font-size="12" font-weight="bold" fill="#a35f00" text-anchor="start">⇧ rings</text>
+<text x="1292.0" y="402.7" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">outer picks a digit, inner sets it; then VFR: IDENT</text>
+<text x="1292.0" y="416.7" font-size="12" font-weight="bold" fill="#a35f00" text-anchor="start">⇧ push</text>
 <text x="1292.0" y="430.7" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">GTX 327: ALT or STBY</text>
 <polyline points="1286.0,398.7 1203.0,398.7" fill="none" stroke="#5b6b85" stroke-width="1.3"/>
 <circle cx="1203.0" cy="398.7" r="3" fill="#5b6b85"/>
@@ -367,14 +370,14 @@
 <text x="1292.0" y="584.7" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">navigator&#x27;s inner right knob</text>
 <text x="1292.0" y="598.7" font-size="12" font-weight="bold" fill="#16181b" text-anchor="start">FMS, push</text>
 <text x="1292.0" y="612.7" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">CRSR (GTN: COM or NAV)</text>
-<text x="1292.0" y="626.7" font-size="12" font-weight="bold" fill="#a86f00" text-anchor="start">⇧ outer</text>
+<text x="1292.0" y="626.7" font-size="12" font-weight="bold" fill="#a35f00" text-anchor="start">⇧ outer</text>
 <text x="1292.0" y="640.7" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">instrument lights, 5 % steps</text>
-<text x="1292.0" y="654.7" font-size="12" font-weight="bold" fill="#a86f00" text-anchor="start">⇧ inner</text>
+<text x="1292.0" y="654.7" font-size="12" font-weight="bold" fill="#a35f00" text-anchor="start">⇧ inner</text>
 <text x="1292.0" y="668.7" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">glareshield flood and yoke light</text>
-<text x="1292.0" y="682.7" font-size="12" font-weight="bold" fill="#a86f00" text-anchor="start">⇧ push</text>
+<text x="1292.0" y="682.7" font-size="12" font-weight="bold" fill="#a35f00" text-anchor="start">⇧ push</text>
 <text x="1292.0" y="696.7" font-size="11.5" font-weight="normal" fill="#16181b" text-anchor="start">reading lights</text>
 <polyline points="1286.0,566.7 1203.0,566.7" fill="none" stroke="#5b6b85" stroke-width="1.3"/>
 <circle cx="1203.0" cy="566.7" r="3" fill="#5b6b85"/>
 <text x="800.0" y="40.0" font-size="26" font-weight="bold" fill="#16181b" text-anchor="middle">Black Square Bonanza</text>
-<text x="800.0" y="62.0" font-size="12" font-weight="normal" fill="#7a7f87" text-anchor="middle">⇧ = after a tap on SHIFT (amber light).  Unit 2: SHIFT, HOME (white light).  &quot;does nothing&quot;: this profile sends nothing for it.</text>
+<text x="800.0" y="62.0" font-size="12" font-weight="normal" fill="#5f646b" text-anchor="middle">⇧ = after a tap on SHIFT (amber light).  Unit 2: SHIFT, HOME (white light).  &quot;does nothing&quot;: this profile sends nothing for it.</text>
 </svg>

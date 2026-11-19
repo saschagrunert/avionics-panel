@@ -27,7 +27,7 @@ UNIT_NAVIGATORS = {**gns.NAVIGATORS, **gtn.NAVIGATORS}               # key -> fu
 # the sim's GPS WP DISTANCE last; a profile joined from parts reads only its navigators' (part.compose)
 ALONE_DISTANCES = gps_last((
     *(d for p in (*NAVIGATORS.values(), *(make(unit) for make in UNIT_NAVIGATORS.values() for unit in (1, 2)))
-      for d in getattr(p, "DISTANCES", ())), GPS_DISTANCE))
+      for d in p.DISTANCES), GPS_DISTANCE))
 AUTOPILOTS = {p.KEY: alone(p, ALONE_DISTANCES) for p in (g1000.AUTOPILOT, g3x.AUTOPILOT, parts.KAP140_AUTOPILOT,
                                                          black_square_bonanza.AUTOPILOT)}
 
@@ -51,9 +51,9 @@ FAMILIES = {
     "g1000": compose("G1000 NXi", g1000.AUTOPILOT, g1000.COCKPIT, g1000.NAVIGATOR),
     "g3x": compose("GFC 500 and G3X Touch", g3x.AUTOPILOT, g3x.COCKPIT, g3x.NAVIGATOR, TOUCHSCREEN=g3x.TOUCHSCREEN),
     "gns": compose("GNS 530/430", parts.KAP140_AUTOPILOT, parts.BENDIX_KING, *navigators("gns530", "gns430")),
-    "gtn": compose("GTN 750Xi/650Xi", parts.KAP140_AUTOPILOT, parts.BENDIX_KING,
+    "gtn": compose("TDS GTN 750Xi/650Xi", parts.KAP140_AUTOPILOT, parts.BENDIX_KING,
                    *navigators("gtn750-tds1", "gtn650-tds2"),
-                   TOUCHSCREEN=(*gtn.TOUCHSCREEN, *(f"S_{b}" for b in gtn.TOUCHSCREEN if b.startswith("PAN_")))),
+                   TOUCHSCREEN=gtn.TOUCHSCREEN),
     "black-square-bonanza": black_square_bonanza.PROFILE,
     "cows-da40": compose("COWS DA40", g1000.AUTOPILOT, g1000.COCKPIT, g1000.NAVIGATOR, rows={1: aircraft.DA40_LIGHTS}),
     "carenado-c182t": compose("Carenado C182T", parts.KAP140_AUTOPILOT, g1000.COCKPIT, g1000.NAVIGATOR,

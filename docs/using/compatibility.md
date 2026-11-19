@@ -35,7 +35,7 @@ Autopilots:
 | TEST (SHIFT, AP) | None (self-test at power-up) | None | None (self-test at power-up) | TEST, preflight check | Depends on the aircraft |
 | BC (SHIFT, APR) | BC | None (back course is automatic) | REV | BC | REV |
 | VNV | Yes | Yes | None; in the profiles a [descent calculator](mapping.md#vnv-without-vnav) | None; in the profiles a [descent calculator](mapping.md#vnv-without-vnav) | None |
-| VS | Yes | Yes | None (VS via UP / DN) | VS on the KAS 297B | Yes |
+| VS | Yes | Yes | None; in the profiles it leaves ALT hold for VS (the rate via UP / DN) | VS on the KAS 297B | Yes |
 | FLC | Yes | IAS | None | None | None |
 | LVL | Some NXi installs | Yes | None | None | None |
 | GPSS (SHIFT, NAV) | None (NAV flies GPS steering) | None (NAV flies GPS steering) | None (NAV follows the CDI) | None | None |
