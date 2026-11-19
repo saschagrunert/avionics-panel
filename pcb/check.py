@@ -25,7 +25,7 @@
    in JLC's symbol
 9. no copper on F or B within the keep-out of each mounting hole (where the plate boss presses; the body boss,
    larger, presses on solder mask past it: mech/check_fit.py), only the plane inside, and copper on every
-   layer clear of the LED cutouts; the inner layers' copper clear of the board outline and the V-cut edge
+   layer clear of the LED cutouts; the inner layers' copper clear of the board outline and the edges that may be V-cut
 10. no exposed SMD pad of another net near a through-hole pad, and no two through-hole pads of different nets
     close together but the known pair (solder bridges where a pad is soldered by hand: J1's shell tabs after full
     assembly, every through-hole pad with the hand-soldering option)
@@ -34,8 +34,8 @@
    plus TH_SLOT_EXTRA) and in its datasheet's band
 12. no copper on B under J1's shell but J1's own pads
 13. the legend clear of mask openings and holes, inside the board outline and outside the LED cutouts by
-   SILK_EDGE_MIN, SILK_VCUT_MIN inside the V-cut edge, none of its strokes under JLCPCB's narrowest line, and the
-   bottom legend's text mirrored to read from below
+   SILK_EDGE_MIN, SILK_VCUT_MIN inside the edges that may be V-cut, none of its strokes under JLCPCB's narrowest
+   line, and the bottom legend's text mirrored to read from below
 14. USB protection: the ESD array in line on D+ and D- right behind J1, the damping resistor and the fuse in
     VBUS ahead of every load, each net of that chain with its own pads only
 15. the drill files against the model: every pad hole, slot and via plated, the mounting holes and the parts'
@@ -618,7 +618,7 @@ def drill_model(pads, vias):
 
 # JLCPCB's limits for copper on a four-layer board (its capabilities page), which the design values in board.py
 # may not go under: the narrowest trace and the least spacing (0.09 mm each, taken as 0.1); copper to the board
-# outline (0.4 mm from a V-cut line, which the edge with the rail is; 0.2 mm from a routed edge), to a routed
+# outline (0.4 mm from a V-cut line, which an edge with a rail may be; 0.2 mm from a routed edge), to a routed
 # cutout and to an unplated hole; inner-layer copper to a hole of another net and to an unplated hole (0.3 mm to a
 # plated pad hole, 0.2 mm to a via, taken as 0.3 for all); copper of another net to a mask opening.
 TRACK_MIN, CLEAR_MIN = 0.1, 0.1
@@ -1416,10 +1416,10 @@ def edge_cuts():
 
 # The legend against the edges, this check's own limits (make.py places the legend by geom.SILK_EDGE and
 # geom.SILK_VCUT, which may not be under these). JLCPCB mills the outline and the cutouts to +-0.2 mm: legend
-# within SILK_EDGE_MIN of them may be clipped. The rail edge (y = board.H) is V-cut to +-0.4 mm, from both faces
-# with a 25 degree blade a third of the board deep, so the groove reaches 0.12 mm in from its line on each face:
-# legend within SILK_VCUT_MIN of that edge may be nicked. Read as a half angle, 25 degrees would make it 0.25 mm
-# and the limit 0.65 mm.
+# within SILK_EDGE_MIN of them may be clipped. An edge with a rail (the short edges, or the long one away from J1
+# at y = board.H) may be V-cut to +-0.4 mm, from both faces with a 25 degree blade a third of the board deep, so
+# the groove reaches 0.12 mm in from its line on each face: legend within SILK_VCUT_MIN of such an edge may be
+# nicked. Read as a half angle, 25 degrees would make it 0.25 mm and the limit 0.65 mm.
 SILK_EDGE_MIN = 0.3
 SILK_VCUT_MIN = 0.55
 if geom.SILK_EDGE < SILK_EDGE_MIN or geom.SILK_VCUT < SILK_VCUT_MIN:   # a plain raise: asserts vanish under -O
@@ -1429,11 +1429,11 @@ if geom.SILK_EDGE < SILK_EDGE_MIN or geom.SILK_VCUT < SILK_VCUT_MIN:   # a plain
 
 def silk_edge():
     """Every legend shape inside the board outline (the Edge_Cuts Gerber) and outside each LED cutout by
-    SILK_EDGE_MIN, and SILK_VCUT_MIN inside the edge with the rail (y = board.H). The outline is convex and the legend
-    inside it, so a shape's closest point to it is a vertex of a region, or an end of a line or a dot less its
-    radius: measured on the Gerber vertices, not on the raster, which ends at the board edge and would not see
-    legend beyond it. Round a cutout the closest point can lie anywhere on a shape: the legend as exact geometry
-    (vector_copper) against each cutout's polygon."""
+    SILK_EDGE_MIN, and SILK_VCUT_MIN inside the three edges that may be V-cut (x = 0, x = board.W, y = board.H).
+    The outline is convex and the legend inside it, so a shape's closest point to it is a vertex of a region, or
+    an end of a line or a dot less its radius: measured on the Gerber vertices, not on the raster, which ends at
+    the board edge and would not see legend beyond it. Round a cutout the closest point can lie anywhere on a
+    shape: the legend as exact geometry (vector_copper) against each cutout's polygon."""
     def width(c):
         return max(a[0] for a, _b in c) - min(a[0] for a, _b in c)
     cs = sorted(contours("avionics-Edge_Cuts.gko"), key=width, reverse=True)   # the outline, the widest, first
@@ -1462,12 +1462,12 @@ def silk_edge():
         for pts, r in shapes:
             q = np.array(pts)
             px, py = q[:, :1], q[:, 1:]
-            off = B.H - float(py.max()) - r
-            rail[side] = min(rail[side], off)
-            if off < SILK_VCUT_MIN - 1e-6:
+            v = np.minimum(np.minimum(px, B.W - px), B.H - py)[:, 0] - r      # to the nearest V-cut edge
+            i = int(v.argmin())
+            rail[side] = min(rail[side], float(v[i]))
+            if v[i] < SILK_VCUT_MIN - 1e-6:
                 bad += 1
-                i = int(py.argmax())
-                print(f"LEGEND AT THE V-CUT EDGE on {side} at ({q[i, 0]:.2f}, {q[i, 1]:.2f}), {off:.2f} mm from it")
+                print(f"LEGEND AT A V-CUT EDGE on {side} at ({q[i, 0]:.2f}, {q[i, 1]:.2f}), {v[i]:.2f} mm from it")
             u = np.clip(((px - ax) * ux + (py - ay) * uy) / (ux * ux + uy * uy), 0, 1)
             d = np.hypot(px - (ax + u * ux), py - (ay + u * uy)).min(axis=1)
             d = np.where(inside.contains_points(q), d, -d) - r          # negative: off the board
@@ -1485,7 +1485,7 @@ def silk_edge():
                 c = cut.centroid
                 print(f"LEGEND AT AN LED CUTOUT on {side} at ({c.x:.2f}, {c.y:.2f}), {d:.2f} mm from it")
     print(f"legend to board outline and LED cutouts: closest F {worst['F']:.2f} mm, B {worst['B']:.2f} mm (min "
-          f"{SILK_EDGE_MIN}), to the V-cut edge F {rail['F']:.2f} mm, B {rail['B']:.2f} mm (min {SILK_VCUT_MIN}); "
+          f"{SILK_EDGE_MIN}), to the V-cut edges F {rail['F']:.2f} mm, B {rail['B']:.2f} mm (min {SILK_VCUT_MIN}); "
           f"{bad} problems")
     return bad
 
@@ -1685,8 +1685,8 @@ def electrical(copper, probes, joins):
 def inner_edge(copper):
     """The inner layers' copper inside the board outline (the widest contour of the Edge_Cuts Gerber) by the outer
     layers' edge clearance: make.py pulls the planes back further (board.EDGE_CLEAR + 0.2), measured here on the
-    copper as exact geometry. The V-cut edge (y = board.H) is part of that outline, so the one limit covers it; its
-    own distance is printed for the record."""
+    copper as exact geometry. The edges that may be V-cut (x = 0, x = board.W, y = board.H) are part of that
+    outline, so the one limit covers them; their least distance is printed for the record."""
     edge = max(B.EDGE_CLEAR, EDGE_MIN)
     outline = Polygon([a for a, _b in max(contours("avionics-Edge_Cuts.gko"),
                                           key=lambda c: max(a[0] for a, _b in c) - min(a[0] for a, _b in c))])
@@ -1694,11 +1694,11 @@ def inner_edge(copper):
     for ly in B.PLANES:
         g = copper[ly]
         near[ly] = outline.exterior.distance(g) if g.within(outline) else -g.difference(outline).area
-        vcut[ly] = B.H - g.bounds[3]
+        vcut[ly] = min(g.bounds[0], B.W - g.bounds[2], B.H - g.bounds[3])
         if near[ly] < edge - 1e-6:
             bad += 1; print(f"INNER COPPER {ly} at the board edge: {near[ly]:.3f} mm (min {edge})")
     print("inner layers to the board outline: " + ", ".join(f"{ly} {near[ly]:.2f} mm" for ly in B.PLANES)
-          + ", to the V-cut edge: " + ", ".join(f"{ly} {vcut[ly]:.2f} mm" for ly in B.PLANES)
+          + ", to the V-cut edges: " + ", ".join(f"{ly} {vcut[ly]:.2f} mm" for ly in B.PLANES)
           + f" (min {edge}); {bad} violations")
     return bad
 

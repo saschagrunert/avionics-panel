@@ -74,10 +74,10 @@ def legend_size(s):
     return math.ceil(max(need) * 20 - 1e-9) / 20
 # JLCPCB clips the legend off pads and holes (check.py: SILK_CLEAR, 0.15 mm on the Gerbers). Each text keeps
 # LEGEND_GAP between its bounding box and the mask openings on its side, every hole and the legend placed before
-# it, geom.SILK_EDGE inside the board outline and geom.SILK_VCUT inside its V-cut edge; where its spot is taken
-# (a via the router put there), it moves to the nearest free one, at most 3 mm sideways and 1 mm up or down. A
-# line (a diode's cathode bar) is left out for HOLE_GAP round a via instead. The checks are plain raises:
-# asserts vanish under -O.
+# it, geom.SILK_EDGE inside the board outline and geom.SILK_VCUT inside the three edges that may be V-cut
+# (geom.py); where its spot is taken (a via the router put there), it moves to the nearest free one, at most 3 mm
+# sideways and 1 mm up or down. A line (a diode's cathode bar) is left out for HOLE_GAP round a via instead. The
+# checks are plain raises: asserts vanish under -O.
 LEGEND_GAP, HOLE_GAP = 0.25, 0.2
 NUDGE = sorted(((0.25 * i, 0.25 * j) for i in range(-12, 13) for j in range(-4, 5)),
                key=lambda d: (math.hypot(d[0], 2 * d[1]), d))
@@ -114,7 +114,8 @@ def T(layer, s, x, y):
     for dx, dy in NUDGE:
         box = ("rect", x + dx + x0, y + dy + y0, x + dx + x1, y + dy + y1, 0.0)
         # the outline is convex: a box with its corners SILK_EDGE inside it is inside it by SILK_EDGE
-        if min(edge_dist(bx, by) for bx in box[1:4:2] for by in box[2:5:2]) < SILK_EDGE or B.H - box[4] < SILK_VCUT:
+        if (min(edge_dist(bx, by) for bx in box[1:4:2] for by in box[2:5:2]) < SILK_EDGE
+                or min(box[1], B.W - box[3], B.H - box[4]) < SILK_VCUT):
             continue
         if all(item_dist(box, g) >= LEGEND_GAP for g in CLEAR[layer] if boxes_near(bbox(g), box[1:5], LEGEND_GAP)):
             CLEAR[layer].append(box)
@@ -216,8 +217,8 @@ for ref, spots in NAME_SPOTS.items():
             if i == len(spots) - 1:
                 raise
 T("B", *B.TITLE)
-# two lines between the BOOT pads and the board's V-cut edge, the second without descenders, so it keeps
-# geom.SILK_VCUT from that edge
+# two lines between the BOOT pads and the long edge away from J1 (one that may be V-cut), the second without
+# descenders, so it keeps geom.SILK_VCUT from that edge
 T("B", "BOOT: hold bridged,", B.BOOT[0], B.BOOT[1] + 2.2)
 T("B", "then connect USB", B.BOOT[0], B.BOOT[1] + 4.35)
 

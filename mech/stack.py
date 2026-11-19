@@ -202,9 +202,9 @@ WJP_TOL = dict(size=0.2, hole=0.2)
 CAP_PRINT = (-WJP_TOL["hole"], WJP_TOL["hole"])
 # JLC3DP MJF PA12 (body), +-: MJF_TOL on a length up to 100 mm, MJF_SCALE of it above.
 MJF_TOL, MJF_SCALE = 0.3, 0.004
-# JLCPCB, +-: the routed board outline, a V-cut edge (the rail edge), a routed cutout per side
-# (assumed: the outline's +-0.2 on its size). Should JLCPCB add rails on the short edges too, those V-cut edges
-# can be too long for the body's cavity: they are then sanded down to the routed outline's largest size
+# JLCPCB, +-: the routed board outline, a V-cut edge (a rail edge), a routed cutout per side
+# (assumed: the outline's +-0.2 on its size). JLCPCB puts the rails on the short edges: V-cut, those can be too
+# long for the body's cavity, and they are then sanded down to the routed outline's largest size
 # (docs/building/bring-up.md, On arrival).
 PCB_OUTLINE_TOL, PCB_VCUT_TOL, PCB_CUTOUT_TOL = 0.2, 0.4, 0.1
 
@@ -299,7 +299,8 @@ USB_OPEN_IN = 1.0
 # The body's column under the middle mount (make_mech.py) is a bar along board y, MID_BAR["w"] wide, with the
 # corners' round boss on top and their counterbore and screw hole through it: the leads of the four keys round it
 # stand 5.3 mm off its axis in x, where a round column would touch them. Leads, solder fillets and bottom-side parts
-# keep LEAD_CLEAR from every part of the body in the room under the board, at the worst offsets (check_fit.py).
+# keep LEAD_CLEAR from every part of the body in the room under the board with the screws in, at the worst
+# offsets, and stay clear of it while the body goes on over a board pushed against its walls (check_fit.py).
 MID_BAR = dict(w=4.0)
 LEAD_CLEAR = 0.3
 # Body walls stop short of the plate: the bosses set its height. The gap must never close: MJF +-0.3 on the wall

@@ -91,8 +91,8 @@ Only if something does not fit or fails:
 
 | ☐ | Item | Shop, part | For |
 | --- | --- | --- | --- |
-| ☐ | Flat file or 240 grit sandpaper on a block | Local | A square corner, a burr or a V-cut edge that does not fit the body, [On arrival](bring-up.md#on-arrival); a body wall that touches the plate, step 4 of [Putting it together](assembly.md#putting-it-together) |
-| ☐ | Flat-nose pliers | Local | A board that arrives with its rail, [On arrival](bring-up.md#on-arrival) |
+| ☐ | Flat file or 240 grit sandpaper on a block | Local | A square corner, a burr, a mouse-bite stub or a V-cut edge that does not fit the body, [On arrival](bring-up.md#on-arrival); a body wall that touches the plate, step 4 of [Putting it together](assembly.md#putting-it-together) |
+| ☐ | Flat-nose pliers | Local | A board that arrives with a rail still on, [On arrival](bring-up.md#on-arrival) |
 | ☐ | Drill, 4.2 mm, and a pin vice to turn it by hand | Local | A screw that does not pass a body hole, step 4 of [Putting it together](assembly.md#putting-it-together) |
 | ☐ | Magnifier or loupe | Local | [When bring-up fails](bring-up.md#when-bring-up-fails); the joints after [soldering](hand-soldering.md#soldering) |
 | ☐ | Soldering iron (temperature controlled), solder, flux, solder wick | Local | Rework ([Soldering](hand-soldering.md#soldering)) |
@@ -106,22 +106,23 @@ outer copper, stackup, PCB quantity 5). Edge Rails/Fiducials: Added by JLCPCB. C
 Product Desc (the customs category, required): Research/Education/DIY > DIY. PCB Remark, 200 characters at
 most:
 
-> J1 overhangs the y=60 edge 0.5mm: no rail there. One rail >=10mm on y=0 only, removed before delivery; keep
+> J1 overhangs the y=60 edge 0.5mm: no rail there. Rails on x=0 and x=160 only, removed before delivery; keep
 > R3 corners. Keep mask dams at U1, J1, C_X2/R_X. 3 LED cutouts: R0.5 corners (1mm router).
 
 PCB Assembly: Standard, Assembly Side Both Sides, PCBA Qty 2 in the Custom Qty field (JLCPCB's minimum); the
 panel needs one, the second is the spare. Confirm Parts Placement: Yes. Each of the two confirmations opens a
 dialog: tick "Do not confirm automatically" in both, or JLCPCB confirms on its own after 48 hours (the
 production file) or 72 hours (the placement). Under Advanced Options set "Depanel boards & edge rail before
-delivery" to Yes (€2.10 in November 2026, charged after the review). Its note says it adds two 5 mm rails
-(the board then 160 x 70 mm); the remarks ask for one rail on y = 0 only, and the production file to confirm
-shows which JLCPCB made ([Edge rails](#edge-rails)). Set PCBA Remark to Yes and enter, in 500 characters at
-most (JLCPCB quotes it in the review):
+delivery" to Yes (€2.10 in November 2026, charged after the review). Its note says it adds two 5 mm rails (the
+board then 160 x 70 mm), which would put one on the J1 edge; the remarks put them on the short edges, and the
+production file to confirm shows which JLCPCB made ([Edge rails](#edge-rails)). Set PCBA Remark to Yes and
+enter, in 500 characters at most (JLCPCB quotes it in the review):
 
-> Solder the mounting lugs of ENC_ALTHDG, ENC_FREQ and ENC_FMS in their slots. Solder the four J1 shell
-> tabs from the top, filling the slots. All through-hole joints by hand soldering: no wave or selective
-> soldering over the bottom side. Rails: J1 overhangs the y=60 mm edge by 0.5 mm, so no rail and never a
-> V-cut on that edge; one rail on the y=0 edge only, removed before delivery.
+> Solder the mounting lugs of ENC_ALTHDG, ENC_FREQ and ENC_FMS in their slots. After reflow, solder the four
+> J1 shell tabs from the top, filling the slots (not the 12 contacts). All through-hole joints by hand
+> soldering: no wave or selective soldering over the bottom side. Rails: J1 overhangs the y=60 mm edge by
+> 0.5 mm, so no rail and never a V-cut on that edge; rails on the short edges (x=0, x=160 mm) only, with the
+> fixtures they need, removed before delivery.
 
 Upload `gerbers.zip`, then `BOM-full.csv` (the parts list) and `CPL-full.csv` (the placement file): one of
 each, for both sides. The BOM step must find all 29 lines with stock for 2 boards, the encoders and Y1 from
@@ -140,15 +141,22 @@ The reasons: [edge rails](#edge-rails), [solder mask](../architecture/electronic
 - No rail on the J1 edge (y = 60 mm in the Gerbers): J1 overhangs it by 0.5 mm, so that the plug reaches it
   through the body wall. If JLCPCB insists on one there, accept only one joined by mouse bites behind a
   routed gap, never a V-cut: its blade would run under J1.
-- One rail of at least 10 mm on the opposite long edge (y = 0): Standard assembly needs rails and 70 x 70 mm
-  with them, and the board is 60 mm wide. JLCPCB removes it before delivery; the V-cut edge it leaves (scored
-  and snapped, ±0.4 mm), or a mouse-bite edge filed flat, fits the body. A rail on a short edge as well leaves
-  a V-cut edge there that may need sanding.
-- In the confirmed production file: the rail on y = 0, the J1 edge free and the corners milled round (R3; a
-  V-cut square corner does not fit the body). JLCPCB's default is a 5 mm rail on two opposite edges, the J1
-  edge included, and the depanel option's note says the same.
+- The rails go on the two short edges (x = 0 and x = 160 mm), with no bottom-side part within 12.8 mm of
+  either (the nearest are D_ALTHDG and D_FMS). JLCPCB adds rails on two opposite edges, so a single rail on
+  the long edge opposite J1 does not work: asked for that, JLCPCB's review of rev 1 put them on the short
+  edges instead.
+- A 60 mm wide board carried by its short edges can jam in the line, so JLCPCB's review then asks for one of
+  two: fixtures that carry it (two fixtures, US$16.30 an order in November 2026, which the review called an
+  additional cost), or rails on the long edges. Take the fixtures, which the PCBA remark already accepts:
+  rails on the long edges put one on the J1 edge.
+- JLCPCB removes the rails before delivery. The body takes a board up to the routed size (0.2 mm long), so a
+  V-cut short edge (scored and snapped, ±0.4 mm) or a mouse-bite stub may need sanding or filing
+  ([On arrival](bring-up.md#on-arrival)).
+- In the confirmed production file: the rails on the two short edges, the J1 edge free and the corners milled
+  round (R3; a V-cut square corner does not fit the body). JLCPCB's default is a 5 mm rail on two opposite
+  edges, the J1 edge included, and the depanel option's note says the same.
 
-A board that arrives with a rail anyway: [On arrival](bring-up.md#on-arrival).
+A board that arrives with a rail still on: [On arrival](bring-up.md#on-arrival).
 
 ### Parts and stock
 
@@ -343,7 +351,8 @@ answer of their own:
 | JLCPCB | Encoder lug slots 1.5 x 3.0 mm, 0.4 mm longer than JLC's own footprint of C19270361 (and Bourns' recommended 2.6) | As drawn, on purpose: 3.0 mm meets JLC's 2:1 rule for slots, and the lugs are soldered in, so the extra length only takes solder |
 | JLCPCB | The reverse-mount LEDs over their board cutouts: JLCPCB may question them, as reverse-mount parts over a cutout are rare. The BOM step already flags them: "The processing of this component is difficult", reviewed, with additional fees | As designed (PCB remark): the cutouts are 2.2 x 2.6 mm with R0.5 corners, and each LED sits on its pads over its cutout ([why](../architecture/electronics.md#lights)); check it in the [placement preview](#placement-preview). Accept the fee |
 | JLCPCB | J1 overhangs the y = 60 mm edge by 0.5 mm | By design, as the PCB remark says: the plug reaches it through the body wall. No rail on that edge ([Edge rails](#edge-rails)) |
-| JLCPCB | A single edge rail, on y = 0 | As in the PCB remark. If the line needs a second one, it goes on a short edge (x = 0 or x = 160 mm), with no bottom-side part within 12.8 mm of either (the nearest are D_ALTHDG and D_FMS); never on the J1 edge, which J1 overhangs and C_OUT0 and U3 sit 3.7 and 6.75 mm from |
+| JLCPCB | "For J1, do you need us to add solder paste to red marked pins after reflow?" (the four shell tabs) | Yes, as the PCBA remark says: the four shell tabs from the top, filling the slots. Nothing more on the 12 contacts. With the [hand-soldering](hand-soldering.md) option: no, they are soldered at home |
+| JLCPCB | Rails on the short edges risk the board jamming in the line: two fixtures (US$16.30 an order) or rails moved to the long edges | The fixtures, as the PCBA remark says: rails on the long edges put one on the J1 edge, which J1 overhangs and C_OUT0 and U3 sit 3.7 and 6.75 mm from ([Edge rails](#edge-rails)) |
 | JLCCNC | The small legends: capitals 1.55 and 1.7 mm high (6.1 and 6.7 pt), strokes 0.19 mm at the thinnest; for its print JLCCNC asks for 6 pt and 0.176 mm lines, and its marking guide gives no minimum for the laser | Mark and print as drawn; accept a sample or a little blur |
 | JLCCNC | The marking near the holes: the amber (UV) legends start 0.7 mm from the key holes, and the laser line between the AUDIO and RADIO keys passes 0.575 mm from the key holes beside it, where JLCCNC usually keeps a 3 mm margin from an edge | Mark and print it as drawn. The amber legends keep 0.5 mm beyond the holes' edge breaks for the print's register. If JLCCNC will not print that close to a hole: laser marking for those legends, in the laser's one tone. Where the line meets a hole's edge break it is only cosmetic: accept it fading or ending short there |
 | JLCCNC | The floor over the RANGE pocket: 0.95 mm (at least 0.85 mm, the drawing's note); JLCCNC recommends 0.8 mm, and over 1.5 mm where the part is bead blasted (the floors over the encoder pockets are 1.65 mm) | As drawn. Hold the pocket depths +0/-0.1 mm (a thicker floor takes the room over the parts) and the flatness after blasting. If they will not blast it as drawn: anodising without blasting (tool marks may then show); never a thicker floor, and no blasting of the front face alone, which can bow the plate |
@@ -399,8 +408,9 @@ The quotes and the checkout on 2026-11-16, in EUR; prices move, so take them as 
 The shops round each fee and line on its own, so sums can differ by a few cents. The checkout's merchandise
 came to €6.36 more than the cart's lines (€374.17), about the plate's step from Economic to Standard (€6.35):
 check its build time before paying. The cart showed a JLCPCB coupon of -€18.12. After the review JLCPCB adds
-the depanelling (€2.10) and whatever it quotes for the PCBA remark. The plate's UV print, which that quote
-did not have, the local items and the screws come on top.
+the depanelling (€2.10), the fixtures for the rails on the short edges (US$16.30, [Edge rails](#edge-rails))
+and whatever it quotes for the PCBA remark. The plate's UV print, which that quote did not have, the local
+items and the screws come on top.
 
 Build times: JLCPCB 3 days for the PCB and 5 to 6 days for the assembly (a day more with the advanced
 options), JLCCNC 11 days at Economic, JLC3DP 3 to 5 days at Standard; the parcel leaves once all are done.
