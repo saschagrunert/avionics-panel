@@ -11,9 +11,9 @@ import zipfile
 import pytest
 
 from mobiflight import __main__ as cli
-from mobiflight import cards, ifr1, ifr1_card, ifr1_sheet, profile
+from mobiflight import cards, ifr1, ifr1_card, ifr1_grid, ifr1_sheet, profile
 from mobiflight.families import FAMILIES, parts
-from tests.test_mobiflight import READ, TOKEN, VALUE, run, sets
+from tests.rpn import READ, TOKEN, every_path, run, sets, well_formed
 from tests.test_mobiflight import unit as unit_of
 
 FAMILY = pytest.mark.parametrize("key", sorted(FAMILIES))
@@ -56,17 +56,10 @@ def test_every_button_is_mapped_or_unmapped_with_a_reason(key):
 @FAMILY
 def test_codes_are_well_formed(key):
     # as the panel's (test_mobiflight.test_codes_are_well_formed): known tokens, closed blocks, something set, no
-    # "@", room in MobiFlight's 1024-byte message
-    for button, event, code in codes(key):
-        tokens = TOKEN.findall(code)
-        assert " ".join(tokens) == code and "@" not in code, (button, event)
-        assert len(code.encode()) < 1000, (button, event)
-        depth = 0
-        for token in tokens:
-            assert READ.fullmatch(token) or sets(token) or VALUE.fullmatch(token), (button, token)
-            depth += (token in ("if{", "els{")) - (token == "}")
-            assert depth >= 0, (button, code)
-        assert depth == 0 and any(sets(token) for token in tokens), (button, event)
+    # "@", room in MobiFlight's 1024-byte message, and the stack as found down every way of its blocks
+    for *_, code in codes(key):
+        well_formed(code)
+        every_path(code)
 
 
 @FAMILY
@@ -81,34 +74,49 @@ def test_reads_use_the_unit_of_their_kind(key):
                 assert token.rsplit(", ", 1)[1][:-1].lower() == unit_of(variable), token
 
 
+def sent_by(p, button, use):
+    """What an IFR-1 button sends for one of its uses, run as MobiFlight sends its events (every variable 1): a
+    detent alone or with ⇆ held, a key pressed and let go, held, or held TALK_MS; None where its entry has no event
+    for it"""
+    entry, state = p.DEVICE[button], {}
+    if use == "held":
+        state[f"L:{ifr1._var(ifr1.mode(button))}"] = 1
+    if isinstance(entry, str):
+        return press(state, entry, default=1)
+    out = press(state, entry, default=1)
+    event = {"key": "release", "tap": "release", "hold": "long" if "long" in entry and "hold" in entry else "hold",
+             "long_hold": "hold"}[use]
+    if event not in entry:
+        return None
+    return out + press(state, entry, event, default=1)
+
+
 @FAMILY
 def test_every_use_sends_its_panel_sources_code(key):
-    # a Panel source sends what the panel button sends in the profile, whole, or carries its reason; an Own source
-    # is one of the module's own codes; and the button's codes hold every code its uses send
+    # a Panel source sends what the panel button sends in the profile, whole, or carries its reason; a Plus the
+    # panel button's code at once, then the IFR-1's own; and the button sends each use's code, run, on its event
     family, p = FAMILIES[key], PROFILES[key]
-    own = {o.code for o in (*ifr1.NAV2_COURSE.values(), *ifr1.SQUAWK_PAIRS.values(), ifr1.KAP140_VS,
-                            p.USES["Button_SHIFT_SW"]["key"].source, p.USES["Button_UNSHIFT_SW"]["key"].source,
-                            *(s for s in ifr1.HOLDS.values() if isinstance(s, ifr1.Own)),
-                            *(s for s in EXTRA[key].values() if isinstance(s, ifr1.Own)))}
     for button, used in p.USES.items():
-        sent = " ".join(profile.actions(p.DEVICE[button]).values()) if button in p.DEVICE else ""
         for use, u in used.items():
             if isinstance(u.source, ifr1.Panel):
                 table, rest = family.DEVICE[u.source.device], family.UNMAPPED[u.source.device]
                 if u.source.button in table:
                     assert u.entry == table[u.source.button] and u.reason is None, (button, use)
-                    assert ifr1.tapped(u.entry) in sent or all(
-                        code in sent for code in profile.actions(u.entry).values()), (button, use)
                 else:
                     assert u.entry is None and u.reason == rest[u.source.button], (button, use)
             elif isinstance(u.source, ifr1.Own):
-                assert u.entry in own and u.entry in sent, (button, use)
+                assert u.entry == u.source.code, (button, use)
             elif isinstance(u.source, ifr1.Plus):
-                # the panel button's code at once, then the IFR-1's own, both sent
                 panel = family.DEVICE[u.source.panel.device][u.source.panel.button]
-                assert u.entry == f"{ifr1.tapped(panel)} {u.source.own.code}" and u.entry in sent, (button, use)
+                assert u.entry == f"{ifr1.tapped(panel)} {u.source.own.code}", (button, use)
             else:
                 assert u.source is None and u.entry is None, (button, use)
+            if u.entry is None or button.endswith("SHIFT_SW"):
+                continue
+            want = press({}, ifr1.tapped(u.entry), default=1)
+            if isinstance(u.entry, dict) and set(u.entry) == {"press", "release"} and use == "key":
+                want = press({}, u.entry, default=1) + press({}, u.entry, "release", default=1)   # a GTN key-up
+            assert sent_by(p, button, use) == want, (button, use)
 
 
 # the rows every profile takes from the panel alike: (IFR-1 button, use) -> (device, panel button)
@@ -130,14 +138,13 @@ ROWS = {
     ("Button_NAV1^_OI", "turn"): (1, "CRS_10_UP"), ("Button_NAV1^_OD", "turn"): (1, "CRS_10_DN"),
     ("Button_NAV1^_II", "turn"): (1, "CRS_1_UP"), ("Button_NAV1^_ID", "turn"): (1, "CRS_1_DN"),
     ("Button_NAV1^_TOG", "key"): (1, "CRS_CTR"),
-    ("Button_XPDR^_OI", "turn"): (1, "PANEL_LT_UP"), ("Button_XPDR^_OD", "turn"): (1, "PANEL_LT_DN"),
-    ("Button_XPDR^_II", "turn"): (1, "FLOOD_LT_UP"), ("Button_XPDR^_ID", "turn"): (1, "FLOOD_LT_DN"),
-    ("Button_XPDR^_TOG", "key"): (1, "CABIN_LT"),
-    ("Button_AP_OI", "turn"): (1, "ALT_100_UP"), ("Button_AP_OI", "held"): (1, "ALT_1000_UP"),
-    ("Button_AP_OD", "turn"): (1, "ALT_100_DN"), ("Button_AP_OD", "held"): (1, "ALT_1000_DN"),
-    ("Button_AP_II", "turn"): (1, "UP"), ("Button_AP_ID", "turn"): (1, "DN"), ("Button_AP_CRSR", "key"): (1, "VNV"),
-    ("Button_XPDR_TOG", "tap"): (1, "IDENT"), ("Button_XPDR_TOG", "hold"): (1, "VFR"),
-    **{(f"Button_XPDR_{r}", "once"): (1, "XPDR_MODE") for r in ifr1.KNOB},
+    ("Button_XPDR_OI", "held"): (1, "PANEL_LT_UP"), ("Button_XPDR_OD", "held"): (1, "PANEL_LT_DN"),
+    ("Button_XPDR_II", "held"): (1, "FLOOD_LT_UP"), ("Button_XPDR_ID", "held"): (1, "FLOOD_LT_DN"),
+    ("Button_XPDR^_TOG", "key"): (1, "VFR"), ("Button_XPDR^_TOG", "hold"): (1, "CABIN_LT"),
+    ("Button_AP_OI", "turn"): (1, "ALT_1000_UP"), ("Button_AP_OD", "turn"): (1, "ALT_1000_DN"),
+    ("Button_AP_II", "turn"): (1, "ALT_100_UP"), ("Button_AP_ID", "turn"): (1, "ALT_100_DN"),
+    ("Button_AP_II", "held"): (1, "UP"), ("Button_AP_ID", "held"): (1, "DN"), ("Button_AP_CRSR", "hold"): (1, "VNV"),
+    ("Button_XPDR_TOG", "tap"): (1, "IDENT"),
     ("Button_AP_AP", "key"): (1, "AP"), ("Button_AP_HDG", "key"): (1, "HDG"), ("Button_AP_NAV", "key"): (1, "NAV"),
     ("Button_AP_APR", "key"): (1, "APR"), ("Button_AP_APR", "hold"): (1, "BC"),
     ("Button_AP_ALT", "key"): (1, "ALT"), ("Button_AP_ALT", "hold"): (1, "ARM"),
@@ -159,6 +166,9 @@ def test_each_row_takes_its_panel_button(key):
         assert used[f"Button_NAV2^_{ring}"][ring == "TOG" and "key" or "turn"].source == own
     for ring, own in ifr1.SQUAWK_PAIRS.items():
         assert used[f"Button_XPDR_{ring}"]["turn"].source == own
+    for button in ("Button_AP_TOG", "Button_XPDR_TOG", "Button_FMS1_TOG", "Button_FMS2_TOG"):
+        assert used[button]["hold"].source is None, button               # a modifier has no hold
+    assert used["Button_AP_CRSR"]["key"].source is None                    # VNV held only
 
 
 @FAMILY
@@ -168,12 +178,15 @@ def test_fms1_and_fms2_take_their_units_keys_and_knob(key):
             "FPL": "FPL", "VNAV": "VNAV", "PROC": "PROC", "CRSR": "FMS_CRSR"}
     rings = {"OI": "FMS_OUTER_CW", "OD": "FMS_OUTER_CCW", "II": "FMS_INNER_CW", "ID": "FMS_INNER_CCW"}
     for mode, unit in zip(("FMS1", "FMS2"), p.UNITS, strict=True):
+        tds = ifr1.tds_gtn(FAMILIES[key], unit)
         for ifr1_key, panel in {**keys, **rings}.items():
             use = "key" if ifr1_key in keys else "turn"
             source = used[f"Button_{mode}_{ifr1_key}"][use].source
             if (f"Button_{mode}_{ifr1_key}", use) in EXTRA[key]:          # the profile's own, over the panel's
                 assert source == EXTRA[key][f"Button_{mode}_{ifr1_key}", use], (mode, ifr1_key)
                 source = getattr(source, "panel", ifr1.Panel(unit, panel))
+            elif tds and ifr1_key in ifr1.TDS_KEYS:                       # TDS's GTN: its volume and push
+                continue
             assert source == ifr1.Panel(unit, panel), (mode, ifr1_key)
         assert used[f"Button_{mode}_TOG"]["tap"].source == ifr1.Panel(unit, "HOME")
         shift = "S_" if unit == 2 else ""
@@ -181,12 +194,14 @@ def test_fms1_and_fms2_take_their_units_keys_and_knob(key):
             assert used[f"Button_{mode}_{ring}"]["held"].source == ifr1.Panel(1, f"{shift}RANGE_{way}")
 
 
-@pytest.mark.parametrize(("key", "tap", "hold"), [
-    ("g1000", "FLC", "LVL"), ("cows-da40", "FLC", "LVL"), ("g3x", "FLC", "LVL"), ("gns", None, None),
-    ("gtn", None, None), ("carenado-c182t", None, None), ("black-square-bonanza", "FD", "YD")])
-def test_the_modifier_in_ap_taps_and_holds_by_autopilot(key, tap, hold):
+@pytest.mark.parametrize(("key", "tap"), [
+    ("g1000", "FLC"), ("cows-da40", "FLC"), ("g3x", "FLC"), ("gns", None), ("gtn", None), ("carenado-c182t", None),
+    ("black-square-bonanza", "FD")])
+def test_the_modifier_in_ap_taps_by_autopilot_and_has_no_hold(key, tap):
     used = PROFILES[key].USES["Button_AP_TOG"]
-    assert used["tap"].source == (tap and ifr1.Panel(1, tap)) and used["hold"].source == (hold and ifr1.Panel(1, hold))
+    assert used["tap"].source == (tap and ifr1.Panel(1, tap)) and used["hold"].source is None
+    for name in ifr1.MODIFIED:                    # let go after a hold, with a tap or without, it leaves its layer
+        assert PROFILES[key].DEVICE[f"Button_{name}_TOG"]["long"] == f"0 (>L:{ifr1._var(name)})", name
 
 
 @FAMILY
@@ -211,7 +226,7 @@ def test_the_ifr1_keeps_its_state_apart_from_the_panels(key):
             elif isinstance(u.source, ifr1.Own) and u.source in EXTRA[key].values():   # the aircraft's own state
                 code = code.replace(u.entry, "")
         for name in re.findall(r"\(>L:([A-Za-z0-9_]+)\)", code):
-            assert name.startswith("AvionicsPanel_IFR1_") or name == "AvionicsPanel_Squawk_Kept", (button, name)
+            assert name.startswith("AvPanelIFR1_") or name == "AvionicsPanel_Squawk_Kept", (button, name)
 
 
 # ---------------- what the codes do ----------------
@@ -248,18 +263,18 @@ def test_crs2_turns_and_centres_nav_2():
         == [("K:VOR2_SET", 270)]
 
 
-def press(state, entry, event="press"):
+def press(state, entry, event="press", default=None):
     """Runs an entry's code of this event ("press", "release", "long", "hold"; a code alone is a press) with the L:
-    variables of state, which it updates: what it sent besides them"""
+    variables of state, which it updates: what it sent besides them (default: as rpn.run()'s)"""
     code = entry if isinstance(entry, str) else entry.get(event)
     if code is None:
         return []
-    unset = {f"L:{name}": 0 for name in re.findall(r"\(L:(AvionicsPanel_IFR1_\w+), Bool\)", code)}   # read as 0
-    out = run(code, {**unset, **state})
+    unset = {f"L:{name}": 0 for name in re.findall(r"\(L:(AvPanelIFR1_\w+), Bool\)", code)}   # read as 0
+    out = run(code, {**unset, **state}, default=default)
     for name, value in out:
         if name.startswith("L:"):
             state[name] = value
-    return [o for o in out if not o[0].startswith("L:AvionicsPanel_IFR1_")]
+    return [o for o in out if not o[0].startswith("L:AvPanelIFR1_")]
 
 
 DA40 = PROFILES["cows-da40"].DEVICE
@@ -270,33 +285,36 @@ def test_a_tap_of_the_modifier_sends_its_tap():
     state = {}
     assert press(state, DA40["Button_AP_TOG"]) == []
     assert press(state, DA40["Button_AP_TOG"], "release") == run(FLC)
-    assert state["L:AvionicsPanel_IFR1_AP"] == 0
+    assert state["L:AvPanelIFR1_AP"] == 0
 
 
-def test_a_hold_of_the_modifier_sends_its_hold():
-    state = {}
-    press(state, DA40["Button_AP_TOG"])
-    assert press(state, DA40["Button_AP_TOG"], "long") == run(LVL)
-    assert state["L:AvionicsPanel_IFR1_AP"] == 0
+@pytest.mark.parametrize("name", ifr1.MODIFIED)
+def test_a_modifier_held_without_a_turn_sends_nothing(name):
+    # ⇆ held HOLD_MS and let go: no hold, and no tap either, as a hold meant for a turn that did not come
+    state = {"TRANSPONDER CODE:1": 0x7000}
+    press(state, DA40[f"Button_{name}_TOG"])
+    assert press(state, DA40[f"Button_{name}_TOG"], "long") == []
+    assert state[f"L:AvPanelIFR1_{name}"] == 0
 
 
 def test_a_ring_turned_with_the_modifier_held_sends_its_held_code_and_the_modifier_nothing():
-    state = {}
-    assert press(state, DA40["Button_AP_OI"]) == [("K:AP_ALT_VAR_INC", None)]
-    press(state, DA40["Button_AP_TOG"])
+    state = {"AUTOPILOT VERTICAL HOLD": 1}
     assert press(state, DA40["Button_AP_OI"]) == [("K:AP_ALT_VAR_INC", 1000)]
-    assert press(state, DA40["Button_AP_OD"]) == [("K:AP_ALT_VAR_DEC", 1000)]
+    assert press(state, DA40["Button_AP_II"]) == [("K:AP_ALT_VAR_INC", None)]
+    press(state, DA40["Button_AP_TOG"])
+    assert press(state, DA40["Button_AP_OI"]) == [("K:AP_ALT_VAR_INC", 1000)]       # the same with ⇆ held
+    assert press(state, DA40["Button_AP_II"]) == [("K:AP_VS_VAR_INC", None)]        # the rate
     assert press(state, DA40["Button_AP_TOG"], "release") == []
-    assert press(state, DA40["Button_AP_OI"]) == [("K:AP_ALT_VAR_INC", None)]
+    assert press(state, DA40["Button_AP_II"]) == [("K:AP_ALT_VAR_INC", None)]
 
 
 def test_a_change_of_mode_lets_go_of_every_modifier():
     for name in ifr1.MODIFIED:
         state = {}
         press(state, DA40[f"Button_{name}_TOG"])
-        assert state[f"L:AvionicsPanel_IFR1_{name}"] == 1
+        assert state[f"L:AvPanelIFR1_{name}"] == 1
         press(state, DA40["Button_UNSHIFT_SW"])
-        assert state[f"L:AvionicsPanel_IFR1_{name}"] == 0
+        assert state[f"L:AvPanelIFR1_{name}"] == 0
 
 
 @pytest.mark.parametrize("pressed", ["FMS1", "FMS2", "AP", "XPDR"])
@@ -310,15 +328,31 @@ def test_a_modifier_let_go_after_a_change_of_mode_sends_nothing(pressed, release
     assert press(state, DA40[f"Button_{released}_TOG"], event) == []
 
 
-@pytest.mark.parametrize("button", ["AP_APR", "AP_ALT", "COM1_TOG", "COM2_TOG", "FMS1_CLR", "FMS2_PROC"])
-@pytest.mark.parametrize("event", ["release", "long"])
-def test_a_key_with_a_hold_let_go_after_a_change_of_mode_sends_nothing(button, event):
-    state = {"COM RECEIVE EX1:1": 0, "COM RECEIVE EX1:2": 0}
-    press(state, DA40[f"Button_{button}"])
-    press(state, DA40["Button_UNSHIFT_SW"])
-    assert press(state, DA40[f"Button_{button}"], event) == []
-    press(state, DA40[f"Button_{button}"])                               # pressed and let go in one mode: it sends
-    assert press(state, DA40[f"Button_{button}"], event) != []
+@pytest.mark.parametrize("button", ["AP_APR", "AP_ALT", "AP_CRSR", "COM1_TOG", "COM2_TOG", "FMS1_CLR", "FMS2_PROC"])
+def test_a_key_with_a_hold_let_go_or_held_after_a_change_of_mode_sends_nothing(button):
+    entry = DA40[f"Button_{button}"]
+    for event in ("release", "long", "hold"):
+        if event not in entry or (event == "release" and button == "AP_CRSR"):   # VNV: held only
+            continue
+        state = {"COM RECEIVE EX1:1": 0, "COM RECEIVE EX1:2": 0}
+        press(state, entry)
+        press(state, DA40["Button_UNSHIFT_SW"])
+        assert press(state, entry, event) == [], event
+        press(state, entry)                                              # pressed and let go in one mode: it sends
+        assert press(state, entry, event) != [], event
+
+
+@FAMILY
+def test_a_key_held_sends_its_hold_at_once_and_nothing_when_let_go(key):
+    # every key with a hold but ⇆ of COM1 and COM2: onHold, then nothing on the release that follows
+    p = PROFILES[key]
+    for button, entry in p.DEVICE.items():
+        if not isinstance(entry, dict) or "hold" not in entry or "long" in entry:
+            continue
+        state, down = {}, f"L:{ifr1._down(button.removeprefix('Button_'))}"
+        press(state, entry)
+        press(state, entry, "hold", default=1)
+        assert state[down] == 0 and press(state, entry, "release", default=1) == [], button
 
 
 @pytest.mark.parametrize("com", (1, 2))
@@ -360,9 +394,9 @@ def test_entering_shift_lets_go_of_the_toggle_of_the_modes_with_a_shift_only(key
     shift, unshift = p.DEVICE["Button_SHIFT_SW"], p.DEVICE["Button_UNSHIFT_SW"]
     flags = re.findall(r"\(>L:(\w+)\)", shift)
     assert set(flags) < set(re.findall(r"\(>L:(\w+)\)", unshift))   # each also let go of on a change of mode
-    assert "AvionicsPanel_IFR1_COM1_TOG" in flags and "AvionicsPanel_IFR1_COM2_TOG" in flags
+    assert "AvPanelIFR1_COM1_TOG" in flags and "AvPanelIFR1_COM2_TOG" in flags
     for flag in flags:
-        assert flag.removeprefix("AvionicsPanel_IFR1_").split("_")[0] in ifr1.SHIFTED, flag
+        assert flag.removeprefix("AvPanelIFR1_").split("_")[0] in ifr1.SHIFTED, flag
 
 
 def test_bonanza_baro_steps_and_restores_both_altimeters():
@@ -394,26 +428,40 @@ def test_the_fms_ring_with_the_modifier_held_sets_the_units_map_range():
     assert press(state, DA40["Button_FMS1_II"]) == [("H:AS1000_PFD_FMS_Upper_INC", None)]
 
 
-def test_the_xpdr_rings_with_the_modifier_held_switch_the_mode_once_a_hold():
-    state = {"TRANSPONDER STATE:1": 1, "TRANSPONDER CODE:1": 0x7000}
+@pytest.mark.parametrize(("state", "alt", "standby"), [
+    (0, [("A:TRANSPONDER STATE:1", 4)], []), (1, [("A:TRANSPONDER STATE:1", 4)], []),       # off, standby
+    (3, [], [("A:TRANSPONDER STATE:1", 1)]), (4, [], [("A:TRANSPONDER STATE:1", 1)])])     # on, ALT
+def test_the_mode_rings_switch_the_transponder_one_way_each(state, alt, standby):
+    # clockwise ALT, counter-clockwise standby, either ring, however far it turns
+    for up, down in (("OI", "OD"), ("II", "ID")):
+        assert press({"TRANSPONDER STATE:1": state}, DA40[f"Button_XPDR^_{up}"]) == alt
+        assert press({"TRANSPONDER STATE:1": state}, DA40[f"Button_XPDR^_{down}"]) == standby
+    bonanza = BONANZA.DEVICE
+    assert press({"TRANSPONDER STATE:1": 1}, bonanza["Button_XPDR^_OI"]) == [("H:TRANSPONDER_Push_ALT", None)]
+    assert press({"TRANSPONDER STATE:1": 4}, bonanza["Button_XPDR^_OD"]) == [("H:TRANSPONDER_Push_STBY", None)]
+
+
+def test_the_xpdr_rings_with_the_modifier_held_dim_and_a_tap_idents():
+    state = {"TRANSPONDER CODE:1": 0x7000, "B:LIGHTING_PANEL_1": 50}
     press(state, DA40["Button_XPDR_TOG"])
-    assert press(state, DA40["Button_XPDR_OI"]) == [("A:TRANSPONDER STATE:1", 4)]
-    assert press(state, DA40["Button_XPDR_II"]) == []                   # one switch a hold
-    assert press(state, DA40["Button_XPDR_TOG"], "long") == []          # and no VFR after a detent
+    assert press(state, DA40["Button_XPDR_OI"]) == [("B:LIGHTING_PANEL_1_Set", 55)]
+    assert press(state, DA40["Button_XPDR_TOG"], "release") == []           # no IDENT after a detent
     press(state, DA40["Button_XPDR_TOG"])
     assert press(state, DA40["Button_XPDR_TOG"], "release") == [("K:XPNDR_IDENT_ON", None)]
 
 
 @FAMILY
-def test_holding_xpdr_toggles_the_vfr_code(key):
-    used = PROFILES[key].USES["Button_XPDR_TOG"]
-    assert used["hold"].entry == FAMILIES[key].DEVICE[1]["VFR"] and used["tap"].entry == FAMILIES[key].DEVICE[1][
-        "IDENT"]
+def test_mode_toggles_the_vfr_code_and_held_the_cabin_light(key):
+    used = PROFILES[key].USES["Button_XPDR^_TOG"]
+    assert used["key"].entry == FAMILIES[key].DEVICE[1]["VFR"]
+    assert used["hold"].entry == FAMILIES[key].DEVICE[1]["CABIN_LT"]
+    assert PROFILES[key].USES["Button_XPDR_TOG"]["tap"].entry == FAMILIES[key].DEVICE[1]["IDENT"]
 
 
-def test_a_vfr_code_replaces_the_one_xpdr_holds():
+def test_a_vfr_code_replaces_the_one_mode_toggles():
     p = ifr1.build("g1000", "1200")
-    assert "0x1200" in p.DEVICE["Button_XPDR_TOG"]["long"] and "0x7000" not in p.DEVICE["Button_XPDR_TOG"]["long"]
+    code = p.DEVICE["Button_XPDR^_TOG"]["release"]
+    assert "0x1200" in code and "0x7000" not in code
     with pytest.raises(ValueError):
         ifr1.build("g1000", "1280")
 
@@ -432,12 +480,13 @@ def test_a_held_key_sends_its_amber_function_and_ap_and_nav_send_on_press(key):
         entry, plain = p.DEVICE.get(button), p.USES[button]["key"].entry
         if amber in family.DEVICE[device] and family.DEVICE[device][amber] != plain:
             # the tap on the release only, once the key went down in this mode (a press of its own)
-            down = f"AvionicsPanel_IFR1_{button.removeprefix('Button_')}"
+            down = f"AvPanelIFR1_{button.removeprefix('Button_')}"
+            hold = entry["long"] if "long" in entry else entry["hold"]     # ⇆ of COM1 and COM2 when let go
             assert entry["press"] == f"1 (>L:{down})", button
-            assert ifr1.tapped(family.DEVICE[device][amber]) in entry["long"], button
+            assert ifr1.tapped(family.DEVICE[device][amber]) in hold, button
             if plain is not None:
                 assert ifr1.tapped(plain) in entry["release"], button
-            for code in (entry["release"], entry["long"]):
+            for code in (entry["release"], hold):
                 assert code.startswith(f"(L:{down}, Bool) if{{") and code.endswith(f"0 (>L:{down})"), button
         else:
             assert entry == plain, button
@@ -552,11 +601,14 @@ def test_the_project_has_the_structure_mobiflight_reads(key):
     assert all(i["Controller"] == controller and i["Active"] is True for i in items)
     assert [i["Device"]["Name"] for i in inputs] == [b for b in ifr1.BUTTONS if b in PROFILES[key].DEVICE]
     for item in inputs:
-        assert item["Device"]["Type"] == "Button"
-        if item["Device"]["Name"] in ("Button_COM1_TOG", "Button_COM2_TOG"):
-            assert item["button"]["HoldDelay"] == ifr1.TALK_MS and item["button"]["onHold"]
-        else:
-            assert item["button"]["onHold"] is None
+        name, button = item["Device"]["Name"], item["button"]
+        entry = PROFILES[key].DEVICE[name]
+        assert item["Device"]["Type"] == "Button" and button["LongReleaseDelay"] == ifr1.HOLD_MS
+        assert bool(button["onHold"]) == (isinstance(entry, dict) and "hold" in entry), name
+        # the longer hold of ⇆ in COM1 and COM2 after TALK_MS, every other after HOLD_MS
+        assert button["HoldDelay"] == (ifr1.TALK_MS if name in ("Button_COM1_TOG", "Button_COM2_TOG") else
+                                       ifr1.HOLD_MS), name
+        assert not any(n.startswith(ifr1.STATE) for n in item["Name"].split(": ", 1)[1].split(", ")), name
         if item["Device"]["Name"].rsplit("_", 1)[1] in ifr1.KNOB:     # a knob sends presses alone
             assert item["button"]["onRelease"] is None and item["button"]["onLongRelease"] is None
     # the labels of octavi.joystick.json's outputs, which MobiFlight finds a light by
@@ -615,7 +667,7 @@ def test_a_page_lists_every_reason_and_names_the_profile(key, words):
 @FAMILY
 def test_every_mapped_use_has_words(key):
     # what the cheat sheet says comes from the panel's words; a use that sends something has some (Grid.say)
-    words = ifr1_card.words_of(key)
+    words = ifr1_grid.words_of(key)
     for used in PROFILES[key].USES.values():
         for u in used.values():
             source = u.source.panel if isinstance(u.source, ifr1.Plus) else u.source
@@ -646,16 +698,18 @@ def said(key):
 def test_the_cells_say_what_the_controls_do():
     da40 = said("cows-da40")
     assert "⇆: tap: COM 1 flip-flop; hold: listen to COM 1, on or off; hold 2 s: talk on COM 1" in da40["COM1"]
-    assert "outer: selected altitude 100 ft; ⇆ held: 1000 ft" in da40["AP"]
-    assert "⇆: tap: FLC mode; hold: wings and pitch level, engages AP" in da40["AP"]
+    assert {"outer: selected altitude 1000 ft", "push: hold: VNAV", "⇆: tap: FLC mode"} <= set(da40["AP"])
+    assert da40["AP"][2].startswith("inner: selected altitude 100 ft; ⇆ held: nose up")
     assert {"outer: COM 2 MHz", "inner: COM 2 kHz",
             "⇆: tap: COM 2 flip-flop; hold: listen to COM 2, on or off; hold 2 s: talk on COM 2"} <= set(da40["COM2"])
     assert da40["NAV1"][da40["NAV1"].index("CRS1 (NAV1 shifted)") + 1] == \
         "outer: course of the CDI (PFD CRS knob) 10°"
-    assert "outer: NAV 2 course +10° / NAV 2 course -10°" in da40["NAV2"]
+    assert "outer: NAV 2 course 10°" in da40["NAV2"]
     assert "⇆: tap: NAV 2 flip-flop; hold: listen to the NAV 2 ident" in da40["NAV2"]
     assert {"outer: heading bug 10°", "inner: heading bug 1°"} <= set(da40["COM1"])
-    assert "a hold of over 0.35 s" in ifr1_card.page(PROFILES["cows-da40"], words=True)
+    assert {"MODE (XPDR shifted)", "rings: transponder ALT / transponder standby"} <= set(da40["XPDR"])
+    assert "outer: first two squawk digits; ⇆ held: panel lights, 5 % steps" in da40["XPDR"]
+    assert "its hold at once when held 0.7 s" in ifr1_card.page(PROFILES["cows-da40"], words=True)
     card = ifr1_card.page(PROFILES["cows-da40"])
     assert ("<td><i>tap:</i> COM1_RADIO_SWAP; <i>hold:</i> COM1_RECEIVE_SELECT; "
             "<i>hold 2 s:</i> PILOT_TRANSMITTER_SET, COPILOT_TRANSMITTER_SET</td>") in card
@@ -664,15 +718,15 @@ def test_the_cells_say_what_the_controls_do():
     bonanza = said("black-square-bonanza")
     assert "FMS2 CDI: tap: GNS 430 CDI: GPS or VLOC; hold: fuel boost pump: off → low → high → off" in bonanza["B_AP"]
     assert not any("course of the CDI" in row for rows in bonanza.values() for row in rows)
-    assert "⇆: tap: flight director; hold: yaw damper, if fitted" in bonanza["AP"]
+    assert "⇆: tap: flight director" in bonanza["AP"]
+    assert "Knob" in bonanza["KNOB"][0] and "XPDR to MODE" in bonanza["KNOB"][1] and bonanza["DCT"][0] == "D→"
     c182t = said("carenado-c182t")
     assert any("only held while turning a ring" in row for rows in c182t.values() for row in rows)
-    assert any("⇆ held, first detent: transponder standby or ALT" in row for row in c182t["XPDR"])
 
 
 def test_the_words_are_escaped(monkeypatch):
-    words = ifr1_card.words_of("cows-da40")
-    monkeypatch.setattr(ifr1_card, "words_of", lambda key: {**words, (1, "NAV_SWAP"): "<b>a & b</b>"})
+    words = ifr1_grid.words_of("cows-da40")
+    monkeypatch.setattr(ifr1_grid, "words_of", lambda key: {**words, (1, "NAV_SWAP"): "<b>a & b</b>"})
     page = ifr1_card.page(PROFILES["cows-da40"], words=True)
     assert "&lt;b&gt;a &amp; b&lt;/b&gt;" in page and "<b>a & b</b>" not in page
 
@@ -712,7 +766,7 @@ BONANZA = PROFILES["black-square-bonanza"]
     ("FMS2", "CLR", "key", "10 (>K:GPS_BUTTON2) 26 (>K:GPS_BUTTON2)"),
     ("FMS2", "ENT", "key", "10 (>K:GPS_BUTTON1) 12 (>K:GPS_BUTTON1) 26 (>K:GPS_BUTTON1) 28 (>K:GPS_BUTTON1)")])
 def test_the_bonanzas_menu_clr_and_ent_also_set_tds_volume_and_squelch(mode, key, use, gtn):
-    # the GNS's, KLN 90B's and pms50's key (pms50's MENU, BACK and ENTER), then TDS's volume or its push, which TDS
+    # the GNS's, KLN 90B's and PMS50's key (PMS50's MENU, BACK and ENTER), then TDS's volume or its push, which TDS
     # takes on no other key (its unit's values: the 750 as unit 1, the 650 as unit 1 or 2). FMS2's MENU sends them
     # held, as its tap is the EDM 800's STEP.
     unit = 1 if mode == "FMS1" else 2
@@ -759,7 +813,7 @@ def test_the_bonanzas_edm_800_takes_a_tap_of_menu_and_proc_in_fms2():
         press(state, device[f"Button_FMS2_{key}"])
         assert press(state, device[f"Button_FMS2_{key}"], "release") == tap, key
         press(state, device[f"Button_FMS2_{key}"])
-        assert press(state, device[f"Button_FMS2_{key}"], "long") == hold, key
+        assert press(state, device[f"Button_FMS2_{key}"], "hold") == hold, key
     # FMS1's MENU and PROC keep the KLN 90B's and GNS 530's keys on a tap
     assert "KLN90B_ALT_Push" in device["Button_FMS1_MENU"]["release"]
 
@@ -768,19 +822,19 @@ def test_the_bonanzas_holds_in_fms1_and_fms2_run_as_the_cockpit():
     device = BONANZA.DEVICE
     state = {"L:var_rnavDrivesHsi": 0, "L:var_oxygenOn": 0, "L:var_AirConditionerSwitch": 0}
     press(state, device["Button_FMS1_CDI"])
-    assert press(state, device["Button_FMS1_CDI"], "long") == [("L:var_rnavDrivesHsi", 1)]
+    assert press(state, device["Button_FMS1_CDI"], "hold") == [("L:var_rnavDrivesHsi", 1)]
     assert press(state, device["Button_FMS1_CDI"], "release") == []     # let go: nothing until pressed again
     press(state, device["Button_FMS2_MSG"])
-    assert press(state, device["Button_FMS2_MSG"], "long") == [("L:var_oxygenOn", 100)]    # the valve, fully open
+    assert press(state, device["Button_FMS2_MSG"], "hold") == [("L:var_oxygenOn", 100)]    # the valve, fully open
     state["L:var_oxygenOn"] = 40                                                                # partly open: shut
     press(state, device["Button_FMS2_MSG"])
-    assert press(state, device["Button_FMS2_MSG"], "long") == [("L:var_oxygenOn", 0)]
+    assert press(state, device["Button_FMS2_MSG"], "hold") == [("L:var_oxygenOn", 0)]
     press(state, device["Button_FMS2_MSG"])
     assert press(state, device["Button_FMS2_MSG"], "release") == [("H:AS430_MSG_Push", None), ("H:GTN650_2_MSG", None),
                                                                   ("H:GTN650_MSG", None)]
     for on in (1, 0):                                  # the air conditioner, with its blower on high or off
         press(state, device["Button_FMS2_VNAV"])
-        assert press(state, device["Button_FMS2_VNAV"], "long") == [("L:var_AirConditionerSwitch", on),
+        assert press(state, device["Button_FMS2_VNAV"], "hold") == [("L:var_AirConditionerSwitch", on),
                                                                     ("L:var_airConditioningBlowerSwitch", 2 * on)]
     state["L:var_dmeMode"] = 0
     press(state, device["Button_FMS2_VNAV"])
@@ -891,9 +945,9 @@ def test_holding_nav_crs_and_baro_toggles_their_audio_and_pitot_heat_and_a_tap_d
             else family.DEVICE[1]["BARO_STD"]}
     for button, event in holds.items():
         entry = device[f"Button_{button}"]
-        down = f"L:AvionicsPanel_IFR1_{button.replace('^', '_Shifted')}"
+        down = f"L:AvPanelIFR1_{button.replace('^', '_Shifted')}"
         assert re.fullmatch(r"L:\w+", down) and entry["press"] == f"1 (>{down})", button
-        assert f"(>{event})" in entry["long"] and ifr1.tapped(taps[button]) in entry["release"], button
+        assert f"(>{event})" in entry["hold"] and ifr1.tapped(taps[button]) in entry["release"], button
         assert f"0 (>{down})" in device["Button_UNSHIFT_SW"], button   # let go on a change of mode or leaving shift
 
 
@@ -902,7 +956,7 @@ def test_the_bonanzas_fms2_holds_run_its_tip_tanks_prop_heat_and_fuel_pump():
 
     def hold(key, state):
         press(state, device[f"Button_FMS2_{key}"])
-        return press(state, device[f"Button_FMS2_{key}"], "long")
+        return press(state, device[f"Button_FMS2_{key}"], "hold")
     # the tip tank pumps: both off where either runs, so a hold after one was switched in the cockpit stops both
     for left, right, then in ((0, 0, 1), (1, 1, 0), (1, 0, 0), (0, 1, 0)):
         state = {"L:TipTankTransferSwitch_L": left, "L:TipTankTransferSwitch_R": right}
@@ -922,8 +976,8 @@ def test_the_da40_and_c182t_hold_cdi_in_fms2_for_the_electric_fuel_pump(key):
     for now in (0, 1):
         state = {"B:FUEL_PUMP_1": now}
         press(state, device["Button_FMS2_CDI"])
-        assert press(state, device["Button_FMS2_CDI"], "long") == [("B:FUEL_PUMP_1_Set", not now)]
-    unit, down = PROFILES[key].UNITS[1], "L:AvionicsPanel_IFR1_FMS2_CDI"     # FMS2: the MFD, the panel's unit 1
+        assert press(state, device["Button_FMS2_CDI"], "hold") == [("B:FUEL_PUMP_1_Set", not now)]
+    unit, down = PROFILES[key].UNITS[1], "L:AvPanelIFR1_FMS2_CDI"     # FMS2: the MFD, the panel's unit 1
     assert device["Button_FMS2_CDI"]["release"] == f"({down}, Bool) if{{ {family.DEVICE[unit]['CDI']} }} 0 (>{down})"
 
 
@@ -932,7 +986,7 @@ def test_the_da40_holds_fpl_in_fms2_for_the_ngs_fuel_transfer_pump():
     for now in (0, 1):
         state = {"L:XFER_SWITCH": now}
         press(state, device["Button_FMS2_FPL"])
-        assert press(state, device["Button_FMS2_FPL"], "long") == [("L:XFER_SWITCH", not now)]
+        assert press(state, device["Button_FMS2_FPL"], "hold") == [("L:XFER_SWITCH", not now)]
     assert "Button_FMS2_FPL" not in EXTRA["carenado-c182t"]
     assert said("cows-da40")["B_APR"][-1] == "FMS2 FPL: tap: FPL; hold: NG fuel transfer pump on or off"
 
@@ -943,9 +997,8 @@ def test_the_button_for_a_change_of_mode_lets_go_of_every_held_key_of_the_profil
     # other key's, so it fits MobiFlight's message whatever a profile adds
     p = PROFILES[key]
     clear = p.DEVICE["Button_UNSHIFT_SW"]
-    held = {button for button, entry in p.DEVICE.items() if isinstance(entry, dict) and "long" in entry
-            and not (button.endswith("_TOG") and ifr1.mode(button) in ifr1.MODIFIED)}
-    want = [*(f"0 (>L:AvionicsPanel_IFR1_{m})" for m in ifr1.MODIFIED),
+    held = {button for button, entry in p.DEVICE.items() if isinstance(entry, dict) and "hold" in entry}
+    want = [*(f"0 (>L:AvPanelIFR1_{m})" for m in ifr1.MODIFIED),
             *(f"0 (>L:{ifr1._down(b.removeprefix('Button_'))})" for b in ifr1.BUTTONS if b in held)]
     assert clear == " ".join(want) and len(clear.encode()) < 1000
     for button in held:
@@ -956,11 +1009,62 @@ def test_the_button_for_a_change_of_mode_lets_go_of_every_held_key_of_the_profil
                                              ("black-square-bonanza", "FMS2_MENU")])
 def test_a_hold_key_let_go_after_a_change_of_mode_sends_nothing(key, button):
     device = PROFILES[key].DEVICE
-    for event in ("release", "long"):
+    for event in ("release", "hold"):
         state = {}
         press(state, device[f"Button_{button}"])
         press(state, device["Button_UNSHIFT_SW"])                  # the mode changed with the key held
         assert press(state, device[f"Button_{button}"], event) == [], (button, event)
+
+
+def test_the_course_follows_the_heading_round_north():
+    code = BONANZA.USES["Button_COM1^_TOG"]["key"].source.own.code
+    for heading, course in ((359.6, 0), (0.4, 0), (90.5, 91), (180.2, 180)):
+        assert run(code, {"HEADING INDICATOR:1": heading}) == [("K:VOR1_SET", course)], heading
+
+
+def test_a_longer_hold_takes_the_place_of_a_hold_that_sends_nothing():
+    # ⇆ of COM1 or COM2 in a profile that leaves the radio's audio unmapped: its talk hold at HOLD_MS, at once
+    use = ifr1.Use
+    used = {"key": use(None, "1 (>K:A)", None), "hold": use(None, None, "no audio panel"),
+            "long_hold": use(None, "1 (>K:B)", None)}
+    assert ifr1.holds(used) == ("1 (>K:A)", "1 (>K:B)", None)
+    entry = ifr1.entry("Button_COM1_TOG", used)
+    assert set(entry) == {"press", "release", "hold"} and "(>K:B)" in entry["hold"]
+    both = {**used, "hold": use(None, "1 (>K:C)", None)}
+    assert ifr1.holds(both) == ("1 (>K:A)", "1 (>K:C)", "1 (>K:B)")
+    assert set(ifr1.entry("Button_COM1_TOG", both)) == {"press", "release", "long", "hold"}
+
+
+def test_a_ring_with_only_a_held_use_sends_nothing_without_the_modifier():
+    code = ifr1.knob("AP", None, "1 (>K:A)")
+    assert press({}, code) == [] and press({f"L:{ifr1._var('AP')}": 1}, code) == [("K:A", 1)]
+    assert ifr1.knob("AP", None, None) is None
+
+
+def test_a_modifier_with_a_hold_is_refused():
+    used = {"tap": ifr1.Use(None, "1 (>K:A)", None), "hold": ifr1.Use(None, "1 (>K:B)", None)}
+    with pytest.raises(ValueError):
+        ifr1.entry("Button_AP_TOG", used)
+
+
+def test_an_entry_that_tells_a_tap_from_a_hold_cannot_go_out_at_once():
+    with pytest.raises(ValueError):
+        ifr1.tapped({"press": "1 (>K:A)", "long": "1 (>K:B)"})
+
+
+def test_the_buttons_that_let_go_are_named_by_what_they_do():
+    project = ifr1.project(BONANZA)
+    names = {i["Device"]["Name"]: i["Name"] for i in project["ConfigFiles"][0]["ConfigItems"]
+             if i["Type"] == "InputConfigItem"}
+    assert names["Button_UNSHIFT_SW"] == "UNSHIFT_SW: lets go of ⇆ and the held keys of every mode"
+    assert names["Button_SHIFT_SW"] == "SHIFT_SW: lets go of ⇆ in the modes with a shift"
+    assert names["Button_AP_APR"] == "AP_APR: AP_APR_HOLD, AP_BC_HOLD"
+
+
+def test_tds_gtns_take_their_volume_by_their_part():
+    # the GTN profile's units, TDS's GTNs; not the Bonanza's tablet selections (bonanza_extra()) or another navigator
+    assert [ifr1.tds_gtn(FAMILIES["gtn"], u) for u in (1, 2)] == ["GTN 750", "GTN 650"]
+    assert not any(ifr1.tds_gtn(FAMILIES[k], u) for k in FAMILIES if k != "gtn" for u in (1, 2))
 
 
 def test_the_bonanzas_self_test_runs_with_the_autopilot_off_only():
@@ -990,15 +1094,16 @@ def test_the_gtn_profile_puts_tds_volume_and_its_push_on_menu_clr_and_ent():
 
 @FAMILY
 def test_every_flag_a_hold_tests_is_let_go_on_a_change_of_mode(key):
-    # independent of how build() finds the keys with a hold: each IFR-1 flag a release after a hold reads goes to
-    # 0 in Button_UNSHIFT_SW
+    # independent of how build() finds the keys with a hold: each IFR-1 flag a hold, or a release after one, reads
+    # goes to 0 in Button_UNSHIFT_SW
     device = PROFILES[key].DEVICE
     clear = device["Button_UNSHIFT_SW"]
     for button, entry in device.items():
-        if isinstance(entry, dict) and "long" in entry:
-            for flag in re.findall(r"\(L:(AvionicsPanel_IFR1_\w+), Bool\) (?:\(L:\w+, Bool\) ! and )?if\{",
-                                   entry["long"]):
-                assert f"0 (>L:{flag})" in clear, (button, flag)
+        for event in ("long", "hold"):
+            if isinstance(entry, dict) and event in entry:
+                for flag in re.findall(r"\(L:(AvPanelIFR1_\w+), Bool\) (?:\(L:\w+, Bool\) ! and )?if\{",
+                                       entry[event]):
+                    assert f"0 (>L:{flag})" in clear, (button, flag)
 
 
 def test_pms50_gtns_in_unit_1_and_unit_2_share_no_event():

@@ -2,7 +2,6 @@
 project against the format MobiFlight 11.2 and newer reads, the joysticks read from a saved project, the documented
 workflows through the simulated panel and the profile to the codes, and the docs' lists of what does nothing."""
 import json
-import math
 import os
 import re
 import uuid
@@ -30,6 +29,7 @@ from mobiflight.families import black_square_bonanza as bksq
 from mobiflight.families.black_square_bonanza import KFC150_VNV
 from mobiflight.families.rpn import h, k
 from sim import Sim
+from tests.rpn import NUMBER, READ, REGISTER, TOKEN, every_path, run, sets, well_formed
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PANEL = {1: ("Avionics Panel", "JS-9c35f3d0-667e-11f1-8001-444553540000"),
@@ -88,24 +88,6 @@ def test_every_button_is_mapped_or_listed_as_unmapped(key):
         assert all(reason for reason in family.UNMAPPED[device].values())
 
 
-# a code's tokens: a variable, read as (A:NAME:INDEX, unit) or (L:NAME, unit) or set as (>X:NAME) or
-# (>A:NAME:INDEX, unit), a number or an operator
-TOKEN = re.compile(r"\([^()]*\)|[^\s()]+")
-READ = re.compile(r"\((?:(?:A:([A-Z0-9 ]+(?::[1-9])?)|(L:[A-Za-z0-9_]+)), [A-Za-z][A-Za-z0-9 ]*|(B:[A-Z0-9_]+))\)")
-WRITE = re.compile(r"\(>(?:(K:(?:2:)?[A-Z0-9_]+|H:[A-Za-z0-9_-]+|L:[A-Za-z0-9_]+|B:[A-Za-z0-9_]+_(?:Set|Toggle))|"
-                   r"(A:[A-Z ]+:[1-9]), Enum)\)")
-REGISTER = re.compile(r"(sp|s|l)([0-9])")         # a register: store and pop, store, load
-NUMBER = re.compile(r"[0-9]+(?:\.[0-9]+)?|0x[0-9A-F]+")
-VALUE = re.compile(NUMBER.pattern + r"|[-+!<>%*/]|==|and|or|neg|abs|min|max|dnor|near|flr|if\{|els\{|\}|" +
-                   REGISTER.pattern)
-
-
-def sets(token):
-    """What a token sets, as K:EVENT, H:EVENT, L:VARIABLE or A:VARIABLE:INDEX, or None"""
-    write = WRITE.fullmatch(token)
-    return write and (write[1] or write[2])
-
-
 def uses(code):
     """The numbers and signs a code holds and what it sets, in the code's order: 10,+,K:HEADING_BUG_SET (a space
     in a variable's name as _). What a code reads and decides by is for the tests that run it."""
@@ -118,81 +100,21 @@ def uses(code):
     return ",".join(out)
 
 
-def run(code, variables=()):
-    """Runs a code as the simulator's RPN does, on these variables ({name: value}, an L: variable with its
-    prefix): [(what it set, value)], with None for an event sent without a value. An L: variable it sets reads
-    as set after that, and a B: input event's value as its _Set event sets it. Registers keep values for the
-    code: sN keeps the top of the stack in N, spN takes it there, lN puts it back."""
-    variables, stack, out, registers = dict(variables), [], [], {}
-    binary = {"+": lambda x, y: x + y, "-": lambda x, y: x - y, "%": lambda x, y: x % y, "*": lambda x, y: x * y,
-              "/": lambda x, y: x / y, ">": lambda x, y: x > y, "<": lambda x, y: x < y,
-              "==": lambda x, y: x == y, "and": lambda x, y: bool(x and y), "or": lambda x, y: bool(x or y),
-              "min": min, "max": max}
-    # near rounds half up, as the SDK's RPN page says (Python's round() goes to the even number)
-    unary = {"!": lambda x: not x, "near": lambda x: math.floor(x + 0.5), "dnor": lambda x: x % 360, "abs": abs,
-             "neg": lambda x: -x, "flr": math.floor}
-
-    def block(tokens, live):
-        """Runs the tokens up to the } that closes their block, if live, and returns the ones after it"""
-        while tokens and tokens[0] != "}":
-            token, tokens = tokens[0], tokens[1:]
-            if token == "if{":
-                taken = live and bool(stack.pop())
-                tokens = block(tokens, taken)
-                if tokens[:1] == ["els{"]:
-                    tokens = block(tokens[1:], live and not taken)
-            elif not live:
-                continue
-            elif READ.fullmatch(token):
-                read = READ.fullmatch(token)
-                stack.append(variables[read[1] or read[2] or read[3]])
-            elif REGISTER.fullmatch(token):
-                op, n = REGISTER.fullmatch(token).groups()
-                if op == "l":
-                    stack.append(registers[n])
-                else:
-                    registers[n] = stack.pop() if op == "sp" else stack[-1]
-            elif sets(token):
-                name = sets(token)
-                value = stack.pop() if stack else None
-                if name.startswith("K:2:"):
-                    name, value = f"K:{name[4:]}", (value, stack.pop())
-                out.append((name, value))
-                name = out[-1][0]
-                if name.startswith("L:"):                # an L: variable reads as set from then on
-                    variables[name] = out[-1][1]
-                elif name.startswith("B:"):
-                    variables[name.removesuffix("_Set")] = out[-1][1]
-            elif token in binary:
-                right = stack.pop()
-                stack.append(binary[token](stack.pop(), right))
-            elif token in unary:
-                stack.append(unary[token](stack.pop()))
-            else:
-                stack.append(float(token) if "." in token else int(token, 0))
-        return tokens[1:]
-
-    block(TOKEN.findall(code), True)
-    assert not stack, code
-    return out
-
-
 @TABLE
 def test_codes_are_well_formed(key):
-    # every token reads a variable, sets an event or variable, or is a number or operator, every block is closed,
-    # and every code sets something; no "@", which MobiFlight would replace with the button's value; and a code
-    # fits the 1024 bytes of the message MobiFlight's WASM module takes it in (MOBIFLIGHT_MESSAGE_SIZE in its
-    # Module.cpp), with room for the command in front of it
-    for device, button, event, code in codes(key):
-        tokens = TOKEN.findall(code)
-        assert " ".join(tokens) == code and "@" not in code, (device, button, event)
-        assert len(code.encode()) < 1000, (device, button, event)
-        depth = 0
-        for token in tokens:
-            assert READ.fullmatch(token) or sets(token) or VALUE.fullmatch(token), (button, token)
-            depth += (token in ("if{", "els{")) - (token == "}")
-            assert depth >= 0, (button, code)
-        assert depth == 0 and any(sets(token) for token in tokens), (device, button, event)
+    # every code is one MobiFlight takes (rpn.well_formed()), and down each way its blocks can go it leaves the stack
+    # as it found it (rpn.every_path())
+    for *_, code in codes(key):
+        well_formed(code)
+        every_path(code)
+
+
+def test_every_path_finds_a_branch_that_leaves_the_stack_unbalanced():
+    # a value left behind on a way no other test takes fails, as does one taken off an empty stack
+    every_path("(A:AUTOPILOT MASTER, Bool) if{ 1 } els{ 0 } (>L:x)")
+    for code in ("(A:AUTOPILOT MASTER, Bool) if{ 1 2 } els{ 0 } (>L:x)", "(A:AUTOPILOT MASTER, Bool) if{ + } 1 (>L:x)"):
+        with pytest.raises((AssertionError, IndexError)):
+            every_path(code)
 
 
 def unit(variable):
@@ -203,7 +125,7 @@ def unit(variable):
     lights read, or the IFR-1's own state, as a key that is down)"""
     if variable.startswith("AUTOPILOT ") and variable.endswith((" LOCK", " HOLD")):
         return "bool"
-    if "AvionicsPanel_IFR1_" in variable:
+    if ifr1.STATE in variable:
         return "bool"
     if re.search(r"HEADING|OBS|RADIAL|NAV LOCALIZER", variable):
         return "degrees"
@@ -451,10 +373,10 @@ def test_every_other_input_is_one_its_source_names():
         assert under == next((v for p, v in SOURCES.items() if name.startswith(p)), None), (name, under)
     checked = set(checked)
     used = {name for key in TABLES for *_, code in codes(key) for name in re.findall(r"\(>?([AHLB]:[^),]+)", code)}
-    # and the IFR-1's (ifr1.py), but for its own state (L:AvionicsPanel_IFR1_, named by its buttons)
+    # and the IFR-1's (ifr1.py), but for its own state (ifr1.STATE, named by its buttons)
     used |= {name for key in FAMILIES for entry in ifr1.build(key).DEVICE.values()
              for code in profile.actions(entry).values() for name in re.findall(r"\(>?([AHLB]:[^),]+)", code)
-             if not name.startswith("L:AvionicsPanel_IFR1_")}
+             if not name.startswith(f"L:{ifr1.STATE}")}
     used |= {name for key in FAMILIES for read in ifr1.build(key).LEDS.values()          # what its AP lights read
              for name in re.findall(r"\(>?([AHLB]:[^),]+)", read)}
     assert used - checked == set(), "not checked against its source: add them to tests/inputs.txt once found there"
