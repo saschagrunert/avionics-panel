@@ -187,8 +187,10 @@ DETOUR_FACTOR, DETOUR_SLACK = 1.5, 15.0
 # to +-0.2 mm: legend closer than SILK_EDGE to the outline may be clipped or run off the edge (make.py places
 # the legend inside it, check.py measures it).
 SILK_EDGE = 0.3
-# The edge with JLCPCB's rail (the long edge away from J1, at y = board.H) is V-cut, to +-0.4 mm, and the groove
-# reaches about 0.12 mm in from it on each face: the legend keeps SILK_VCUT from it.
+# JLCPCB's rails go on the short edges (x = 0 and board.W; docs/building/ordering.md, Edge rails), and the long
+# edge away from J1 (y = board.H) is the one other edge that may take one, never the J1 edge. A rail's edge may
+# be V-cut, to +-0.4 mm, with a groove that reaches about 0.12 mm in from it on each face: the legend keeps
+# SILK_VCUT from those three edges.
 SILK_VCUT = 0.6
 
 

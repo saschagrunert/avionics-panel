@@ -1337,9 +1337,9 @@ def usb_rows():
     """USB-C socket and plug in the back wall opening (make_mech.USB_OPEN, carried up as a slot): its sides and
     bottom. Its top edge is the plate's tongue (tongue_rows)."""
     u, place, hole = MM.USB_OPEN, S.SMD_PLACE, S.POS_TOL["body_hole"]   # J1's placement, MJF on the opening
-    # the board lies anywhere in the cavity (CLEAR). Its sideways play is set by its short edges against the
-    # side walls: routed (+-0.2) without edge rails, but taken as V-cut (+-PCB_VCUT_TOL), the fallback should
-    # JLCPCB put rails on them: at worst one of them is that much short.
+    # the board lies anywhere in the cavity (CLEAR). Its sideways play is set by its short edges, which carry
+    # JLCPCB's rails, against the side walls: taken as V-cut (+-PCB_VCUT_TOL), so at worst one of them is that
+    # much short.
     # Against a side wall the opening sits that far plus USB_X (or W - USB_X) from the board edge, and MJF puts
     # it within mjf() of that length from the wall: this also covers a body printed large, whose gap grows
     edge = MM.CLEAR + S.PCB_VCUT_TOL
@@ -1444,11 +1444,14 @@ def under_board(pads):
 
 def cavity_play():
     """how far the board can lie off the body's middle while the body is lowered over it, no screw in yet (the
-    board against a cavity wall): in x (a large cavity, a board routed short) and in y (MJF on the cavity width,
-    the board with a V-cut edge short)."""
-    play_x = ((B.W + 2 * MM.CLEAR) * (1 + S.MJF_SCALE) - (B.W - S.PCB_OUTLINE_TOL)) / 2
+    board against a cavity wall): in x (a large cavity) and in y (MJF on the cavity width), each with the edge
+    against the wall short by a V-cut's tolerance at that end. A V-cut edge that comes out long is sanded to the
+    routed size (stack.PCB_OUTLINE_TOL), one that comes out short is not, and the copper (the leads, the parts)
+    keeps its place on the board, so the whole shortfall at that end moves it towards the wall."""
+    short = max(S.PCB_OUTLINE_TOL, S.PCB_VCUT_TOL)      # at one end
+    play_x = ((B.W + 2 * MM.CLEAR) * (1 + S.MJF_SCALE) - B.W) / 2 + short
     cav_h = B.H + 2 * MM.CLEAR
-    play_y = (cav_h + mjf(cav_h) - (B.H - max(S.PCB_OUTLINE_TOL, S.PCB_VCUT_TOL))) / 2
+    play_y = (cav_h + mjf(cav_h) - B.H) / 2 + short
     return play_x, play_y
 
 
@@ -1460,14 +1463,15 @@ def room_rows(pads, board_off, bar):
     nearest hole as well) and the board off the screw by board_off. While the body is lowered over the board, the
     board lies against the cavity walls: up to the cavity's play in x and y at once for the post and the column,
     which sit where MJF puts them in the cavity, and for a corner boss up to where MJF puts it from its two walls.
-    Each row is the least over all leads and parts, of the worse of the two cases."""
+    With the screws in, each feature keeps stack.LEAD_CLEAR; while the body goes on it need only not touch (the
+    board then moves to where the screws take it). Each row is the least over all leads and parts, of the worse of
+    the two cases."""
     pt = S.POS_TOL
     grow, col_off = pt["body_hole"], MM.SCREW_OFFSET
     items = under_board(pads)
     play = cavity_play()
     wall = B.CORNER_MOUNTS[0][0] + MM.CLEAR             # a corner boss from its walls (a length, MJF)
-    in_corner = (MM.CLEAR + mjf(wall) + S.PCB_OUTLINE_TOL / 2,
-                 MM.CLEAR + mjf(wall) + max(S.PCB_OUTLINE_TOL, S.PCB_VCUT_TOL) / 2)
+    in_corner = (MM.CLEAR + mjf(wall) + max(S.PCB_OUTLINE_TOL, S.PCB_VCUT_TOL),) * 2   # V-cut edges, one end short
     mid = B.MID_MOUNT
 
     def in_cavity(x, y):
@@ -1493,14 +1497,14 @@ def room_rows(pads, board_off, bar):
             moved = [(g[0], g[1] + dx, g[2] + dy, g[3] + dx, g[4] + dy, g[5])
                      for dx in (-px_, 0.0, px_) for dy in (-py_, 0.0, py_)]
             going_on = min(item_dist(f, q) for f in shapes for q in moved) - (lowered + pt["pcb"] + on)
-            worst = min(worst, (min(fixed, going_on) - grow - S.LEAD_CLEAR, name, gap, fixed, going_on))
+            worst = min(worst, (min(fixed - S.LEAD_CLEAR, going_on) - grow, name, gap, fixed, going_on))
         margin, name, gap, fixed, going_on = worst
         rows.append((f"{what} (MJF +{grow} per side) clear of the leads' solder fillets and the bottom-side parts: "
                      f"the closest at the worst offsets is {name}, {gap:.2f} off, {fixed:.2f} left with the screws in "
                      f"(hole play, board, PCB, part) and {going_on:.2f} while the body goes on (the board against the "
-                     f"cavity walls), beyond {S.LEAD_CLEAR}", margin,
+                     f"cavity walls), beyond {S.LEAD_CLEAR} with the screws in, clear while the body goes on", margin,
                      ("Body", "Post, corner bosses and middle column clear of leads, solder fillets and bottom "
-                              f"parts, over {S.LEAD_CLEAR} mm")))
+                              f"parts: over {S.LEAD_CLEAR} mm with the screws in, clear while the body goes on")))
     return rows
 
 
@@ -1919,7 +1923,7 @@ def fit_values(plate, outer, inner, range_knob, knobs):
     corner = min(-rrect_sd(mx - B.W / 2, my - B.H / 2, B.W + 2 * MM.o, B.H + 2 * MM.o, B.CORNER_R + MM.o)
                  for mx, my in B.CORNER_MOUNTS) - cb_hi   # counterbore to the outer body surface
     cav_w_tol = mjf(B.H + 2 * MM.CLEAR)                             # MJF on the cavity width (61 mm)
-    # width: the routed long edge, or the V-cut one after its rail comes off
+    # width: the routed long edge, or a V-cut one should a rail go there
     w_tol = max(S.PCB_OUTLINE_TOL, S.PCB_VCUT_TOL)
     cav = MM.CLEAR - w_tol / 2 - cav_w_tol / 2                       # per side
     cav_len = (B.W + 2 * MM.CLEAR) * (1 - S.MJF_SCALE)        # the cavity length, printed small
@@ -2434,13 +2438,14 @@ def body_fits(fv):
     pt, bm, bx1, bx0, by1, by0, mid_x, mid_y = fv.pt, fv.bm, fv.bx1, fv.bx0, fv.by1, fv.by0, fv.mid_x, fv.mid_y
     seat_tol, cav_want, open_bot, sc, hex_d = fv.seat_tol, fv.cav_want, fv.open_bot, fv.sc, fv.hex_d
     offset, off, boot_at, boot_off, boot_sum = fv.offset, fv.off, fv.boot_at, fv.boot_off, fv.boot_sum
+    cavity_row = ("Body", "Board in the cavity, per side: across (a V-cut long edge), along (V-cut edges sanded)")
     return [
-        (f"PCB width in the cavity (MJF -{cav_w_tol:.1f}; routed long edge +{S.PCB_OUTLINE_TOL}, or the V-cut rail "
-         f"edge +{S.PCB_VCUT_TOL}), per side", cav,
-         ("Body", "Board in the cavity, per side: across (V-cut rail edge), along")),
+        (f"PCB width in the cavity (MJF -{cav_w_tol:.1f}; routed long edge +{S.PCB_OUTLINE_TOL}, or a V-cut one "
+         f"+{S.PCB_VCUT_TOL}), per side", cav,
+         cavity_row),
         (f"PCB length in the cavity ({cav_len:.2f} at MJF -{100 * S.MJF_SCALE:g} %): routed short edges "
          f"(+{S.PCB_OUTLINE_TOL}), or V-cut ones sanded to that ({pcb_len:.1f} at most), per side",
-         (cav_len - pcb_len) / 2, ("Body", "Board in the cavity, per side: across (V-cut rail edge), along")),
+         (cav_len - pcb_len) / 2, cavity_row),
         (f"through-hole leads (untrimmed, up to {S.LEAD_MAX} under the PCB) over the body floor ({MM.UNDER} room, MJF "
          f"-{mjf(MM.UNDER)})", MM.UNDER - mjf(MM.UNDER) - S.LEAD_MAX, ("Body", "Untrimmed leads over the body floor")),
         *room_rows(pads, board + pt["plate"], bm["bar"]),

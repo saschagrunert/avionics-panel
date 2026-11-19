@@ -327,9 +327,10 @@ The legend:
   (0.154 mm on both sides). Text is 1.4 mm, 1.45 mm with "<" or ">", 1.5 mm with a "/" and 1.85 to 2.35 mm
   with lowercase, whose thinnest spot is where a bowl meets its stem.
 - Clearance: 0.15 mm from every mask opening and hole, 0.3 mm inside the board outline and round the three LED
-  cutouts, and 0.6 mm inside the edge with JLCPCB's rail, which is V-cut to ±0.4 mm with a groove reaching
-  0.12 mm in on each face (`geom.SILK_VCUT`; `check.py` holds 0.55 mm, its `SILK_VCUT_MIN`, and fails at
-  once if `make.py` places the legend closer than its limits).
+  cutouts, and 0.6 mm inside each edge that may take JLCPCB's rail (the two short edges and the long one away
+  from J1), which may be V-cut to ±0.4 mm with a groove reaching 0.12 mm in on each face (`geom.SILK_VCUT`;
+  `check.py` holds 0.55 mm, its `SILK_VCUT_MIN`, and fails at once if `make.py` places the legend closer than
+  its limits).
 - Bottom side: mirrored, so it reads from below; `check.py` compares the board's title with its text drawn
   both ways.
 - Placement: a part name or key legend that a via lands on, or that comes too near the edge, moves to the

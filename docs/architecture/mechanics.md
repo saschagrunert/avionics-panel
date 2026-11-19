@@ -131,7 +131,8 @@ Heights as drawn, z = 0 at the top of the board. Anodising raises the plate's fa
 - Body: PA12 printed by MJF (JLC3DP's nylon print), with 2.0 mm walls and ribs (JLC3DP's wall for parts over
   100 mm). The cavity leaves 0.5 mm per side round the board and 4.0 mm under it for the SMD (surface-mount)
   parts, the socket and the untrimmed leads (2.7 mm at most). The milled outline fits as delivered, and so
-  does the V-cut (scored and snapped) rail edge (±0.4 mm); V-cut short edges would have to be sanded
+  would a V-cut (scored and snapped) long edge away from J1 (±0.4 mm). JLCPCB puts its rails on the short
+  edges, and a V-cut short edge or a mouse-bite stub may have to be sanded or filed
   ([On arrival](../building/bring-up.md#on-arrival)).
 - Bottom: a 6.1 mm hole in the floor over the two BOOT pads, for recovery (CircuitPython 9.2.9's UF2 again, or
   `flash_nuke.uf2`) with the tip of the 2 mm hex key
@@ -312,9 +313,9 @@ plate STEP and DXF and the body STEP.
 | Screws | Full thread engaged, over 2.0 mm | 0.75 | |
 | Screws | Tip short of the end of the full thread | 0.45 | |
 | Body | Plate corner bosses clear of the cavity walls at the end of the body's screw play | 0.08 | |
-| Body | Board in the cavity, per side: across (V-cut rail edge), along | 0.15, 0.078 | |
+| Body | Board in the cavity, per side: across (a V-cut long edge), along (V-cut edges sanded) | 0.15, 0.078 | |
 | Body | Untrimmed leads over the body floor | 1.00 | |
-| Body | Post, corner bosses and middle column clear of leads, solder fillets and bottom parts, over 0.3 mm | 0.105, **0.025**, 0.157 | |
+| Body | Post, corner bosses and middle column clear of leads, solder fillets and bottom parts: over 0.3 mm with the screws in, clear while the body goes on | 0.105, **0.025**, 0.102 | |
 | Body | Column bar and corner boss walls round the counterbore, over JLC3DP's 1.5 mm | 0.10, 0.098 | |
 | USB-C | Plug overmould (12.85 x 7.0 mm) in the opening | 0.315 | |
 | USB-C | Tongue's smallest side gap in the body's slot, the body centred (largest gap 1.50 mm, limit 1.6) | 0.30 | |

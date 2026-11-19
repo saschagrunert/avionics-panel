@@ -17,14 +17,14 @@ again. This page has what differs from [Ordering](ordering.md) and [Bring-up](br
   set for the spare board if wanted.
 - JLCPCB: Standard assembly of the bottom side only, with `BOM.csv` and `CPL.csv` (the BOM step must find all
   26 lines with stock for 2 boards), and of the PCBA remark only its last sentence, the one on the rails. The
-  PCB settings, the PCB remark, the edge rail and the bottom side of the
+  PCB settings, the PCB remark, the edge rails and the bottom side of the
   [placement preview](ordering.md#placement-preview) stay the same.
 - Locally: the soldering iron, solder, flux, solder wick and the magnifier of the
   [shopping list](ordering.md#shopping-list).
 
 ## On arrival and bring-up
 
-[On arrival](bring-up.md#on-arrival): steps 1, 2 and 5 only (the rail edge, the plate threads and the cap
+[On arrival](bring-up.md#on-arrival): steps 1, 2 and 5 only (the rail edges, the plate threads and the cap
 set, tried on a loose key).
 
 [Flash and test](bring-up.md#flash-and-test) runs as written, with three stops for soldering:

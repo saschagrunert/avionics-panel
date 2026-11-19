@@ -42,7 +42,8 @@ the bosses. The nearest caps and shafts are about 10 mm in.
    it. Look at the face between the blocks: every cap must stand up through its hole. One that sits on the
    plate back was turned, so square it again.
 4. Body: set it over the board, bottom up. The tongue on the plate's back edge goes into the slot in the
-   body's back wall, over the USB-C socket.
+   body's back wall, over the USB-C socket. Lower it straight down, centred over the board, not pushed against
+   one side on the way: its middle column passes within a few tenths of a millimetre of the switch leads.
    1. Drop the five screws into the holes in the body's underside, which now faces up: four at the corners
       and one in the middle of the key field (they are all the same). Turn each in with the hex key until it
       holds the body loosely (the counterbores are too deep to start them by hand). A screw that does not pass

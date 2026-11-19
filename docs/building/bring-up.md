@@ -9,8 +9,8 @@ the firmware works is in [Firmware](../architecture/firmware.md). With the hand-
 
 In this order:
 
-1. Rail edge (the long front edge, away from J1, the USB-C socket): check that the rail is gone and both
-   corners are round (a 3 mm radius). File a square corner round and sand off a burr.
+1. Rail edges (the two short edges): check that the rails are gone and all four corners are round (a 3 mm
+   radius). File a square corner round, and file a mouse-bite stub or sand a burr flat.
 2. Plate threads: turn one of the M3 screws into each of the five bosses by hand with the 2 mm hex key,
    eleven turns (5.5 mm: about as deep as the screw reaches in use, a turn short of the end of the full
    thread), and out again. It must run freely: a thread that was anodised or holds blasting grit stops it
@@ -25,9 +25,11 @@ In this order:
 Solder bridges need no check now: steps 5 and 6 of [Flash and test](#flash-and-test) read every key, ring,
 tilt and push.
 
-A board that arrives with a rail anyway, or with a V-cut (scored and snapped) edge that does not fit the body:
+A board that arrives with a rail still on, or that does not drop into the body (the body takes a board up to
+0.2 mm long; a V-cut short edge, scored and snapped, can leave it up to 0.4 mm long at that end, and a
+mouse-bite edge can leave a stub):
 
-1. If the rail is still on, break it off along its score with flat-nose pliers, without bending the board.
+1. If a rail is still on, break it off along its score with flat-nose pliers, without bending the board.
 2. Take that edge down with a flat file or 240 grit sandpaper on a block until the board drops into the body
    (outdoors or wet: glass-fibre dust).
 
