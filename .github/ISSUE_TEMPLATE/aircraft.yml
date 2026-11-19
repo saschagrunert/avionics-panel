@@ -25,7 +25,7 @@ body:
     attributes:
       label: Avionics
       description: >-
-        Its autopilot, its navigators in unit 1 and unit 2 (G1000 NXi, GNS 530 and 430, TDS or pms50 GTN, KLN 90B,
+        Its autopilot, its navigators in unit 1 and unit 2 (G1000 NXi, GNS 530 and 430, TDS or PMS50 GTN, KLN 90B,
         radios alone), its audio panel, transponder and ADF, and any options its tablet or menu selects.
       placeholder: KFC 150 with a KAS 297B, GNS 530 and GNS 430, KMA 28, GTX 327, KR 87
     validations:

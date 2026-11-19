@@ -18,3 +18,5 @@ The profile:
 [avionics-panel-cows-da40.mfproj](https://github.com/saschagrunert/avionics-panel/releases/download/rolling/avionics-panel-cows-da40.mfproj)
 ([how to use it](../mapping.md#generated-profiles)). Every detail, and what each control sends:
 [Mapping](../mapping.md#cows-da40).
+
+The same profile for the Octavi IFR-1, with its card and cheat sheet: [Octavi IFR-1](../ifr1.md#downloads).

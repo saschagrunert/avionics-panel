@@ -275,9 +275,9 @@ for key, p in PARTS.items():
         model = re.match(r"navigator-(gns|gtn)(\d+)-(\w+-)?unit", key)
         assert model, f"{key}: a navigator of a new kind, give its prefixes here"
         own = (f"AS{model[2]}_",) if model[1] == "gns" else (f"GTN{model[2]}_",) if "pms50" in key else ()
-        if "pms50" in key and p.UNITS != (1,):           # pms50's GTN on COM 2 / NAV 2
+        if "pms50" in key and p.UNITS != (1,):           # PMS50's GTN on COM 2 / NAV 2
             own = (f"GTN{model[2]}_2_",)
-        # unit 2's map on device 1: the GNS's RNG keys, the pms50 GTN's inner knob and volume
+        # unit 2's map on device 1: the GNS's RNG keys, the PMS50 GTN's inner knob and volume
         on_1 = tuple(f"{o}{e}" for o in own for e in (("RNG_",) if model[1] == "gns" else ("KnobSmall", "Vol")))
         PREFIXES[key] = {1: own, 2: ()} if p.UNITS == (1,) else {1: on_1, 2: own}
 
@@ -400,7 +400,7 @@ def test_every_key_event_is_one_the_sdk_lists():
 # unsourced input
 _WT_G1000 = "Working Title's G1000 NXi (msfs-avionics-mirror)"
 _WT_GNS = "Working Title's GNS (InteractionEvent.ts)"
-_PMS50 = "pms50's GTN (PMS50's GTN750 events, which Black Square's guide follows)"
+_PMS50 = "PMS50's GTN (PMS50's GTN750 events, which Black Square's guide follows)"
 _BLACK_SQUARE = "Black Square's Bonanza guide, or a project the Bonanza is flown with"
 SOURCES = {
     "A:": "the simulator's simulation variables (the SDK's lists)",

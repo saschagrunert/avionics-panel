@@ -32,6 +32,9 @@ echo profile.bat --cards cards.zip writes a printable card and cheat sheet of ev
 echo profile.bat --joystick-definition avionics-panel.joystick.json the file that names the panel's buttons in
 echo MobiFlight (copy it into a folder of MobiFlight's Joysticks folder).
 echo.
+echo profile.bat --ifr1 cows-da40 --vfr 1200 writes the profile for the Octavi IFR-1 instead,
+echo avionics-panel-ifr1-cows-da40.mfproj; MobiFlight binds it to the one IFR-1 connected, without --from.
+echo.
 echo The profiles and the parts:
 "%~dp0python\python.exe" -m mobiflight --list
 set listed=%errorlevel%

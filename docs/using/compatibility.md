@@ -84,11 +84,11 @@ these controls do nothing with a GTN: FPL, PROC, MENU, CLR, ENT, MSG, NRST, TERR
 RANGE knob tilted left or right. Press HOME and touch the function on the screen; the map zooms with the inner
 FMS knob on the map page, which the GTN profile puts on RANGE too (turned the other way, so clockwise zooms
 out). The GTN and Bonanza profiles and the navigator parts put each GTN's volume knob on the RANGE tilt up and
-down and its volume push on the RANGE push, the second unit's with SHIFT. The pms50 GTN takes other events,
+down and its volume push on the RANGE push, the second unit's with SHIFT. PMS50's GTN takes other events,
 its MENU, CLR (BACK), ENT (ENTER) and MSG keys while its screen shows them, and PROC as its Procedures page
-(premium version): the [generated profile](mapping.md#generated-profiles) for TDS's GTNs does not work with
-it, the [Black Square Bonanza profile](mapping.md#black-square-bonanza) and the pms50 [navigator
-parts](mapping.md#avionics-parts) do.
+(these with PMS50's Premium version): the [generated profile](mapping.md#generated-profiles) for TDS's GTNs
+does not work with it, the [Black Square Bonanza profile](mapping.md#black-square-bonanza) and the PMS50
+[navigator parts](mapping.md#avionics-parts) do.
 
 The G3X Touch has its CDI, OBS, radios, transponder and audio panel on the touchscreen too, but those are the
 sim's own, which the sim's events work from outside. Its own functions stay on its screen, so these controls

@@ -180,7 +180,7 @@ H:KAP140_Push_NAV
 H:KAP140_Push_REV
 H:KAP140_Push_UP
 
-# pms50's GTN (PMS50's GTN750 events, which Black Square's guide follows)
+# PMS50's GTN (PMS50's GTN750 events, which Black Square's guide follows)
 H:GTN650_2_BACK
 H:GTN650_2_DirectToPush
 H:GTN650_2_ENTER

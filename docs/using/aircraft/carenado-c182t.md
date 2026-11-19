@@ -20,3 +20,5 @@ The profile:
 [avionics-panel-carenado-c182t.mfproj](https://github.com/saschagrunert/avionics-panel/releases/download/rolling/avionics-panel-carenado-c182t.mfproj)
 ([how to use it](../mapping.md#generated-profiles)). Every detail, and what each control sends:
 [Mapping](../mapping.md#carenado-c182t).
+
+The same profile for the Octavi IFR-1, with its card and cheat sheet: [Octavi IFR-1](../ifr1.md#downloads).

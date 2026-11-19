@@ -229,14 +229,16 @@ Cheat sheet: [TDS GTN 750Xi and 650Xi with the KAP 140](aircraft/gtn.md).
 The KAP 140 cockpit of the [GNS profile](#gns-530430) with TDS's GTN 750Xi as unit 1 and GTN 650Xi as unit 2,
 which TDS numbers as its GTN 750Xi unit 1 and GTN 650Xi unit 2. For an aircraft that loads them otherwise, as
 a GTN 650Xi unit 1 beside the GTN 750Xi, join [avionics parts](#avionics-parts) with the GTN of TDS's unit it
-has; the [Black Square Bonanza profile](#black-square-bonanza) covers the Bonanza's. TDS takes only the bezel
-from outside, so the profile sends HOME, D→, the FMS knob and its push; held, the push flips the frequencies.
-The RANGE knob works the GTN 750Xi, and with SHIFT the GTN 650Xi. Turned, it turns the GTN's inner knob the
-other way round, as Garmin's touchscreen units zoom in clockwise (assumed for the GTN): so clockwise zooms the
-map out on the map page, as on the GNS and the G1000; on other pages it works as the FMS knob's inner ring
-does there, the other way round. Tilted up and down, it turns the GTN's volume knob; pushed, it is the volume
-knob's push: squelch, or ident with NAV selected. The panel sends the RANGE push as a tap, so holding it does
-not tune 121.5: SHIFT, COM ⇆ (121.5) does.
+has; the [Black Square Bonanza profile](#black-square-bonanza) covers the Bonanza's. The profile sends TDS's
+key events, which PMS50's GTN does not take: for PMS50's GTN, join [avionics parts](#avionics-parts) with
+`gtn750-pms50` or `gtn650-pms50`. TDS takes only the bezel from
+outside, so the profile sends HOME, D→, the dual knob and its push, and the volume knob and its push; held,
+the dual knob's push flips the frequencies. The RANGE knob works the GTN 750Xi, and with SHIFT the GTN 650Xi.
+Turned, it turns the GTN's inner knob the other way round, as Garmin's touchscreen units zoom in clockwise
+(assumed for the GTN): so clockwise zooms the map out on the map page, as on the GNS and the G1000; on other
+pages it works as the FMS knob's inner ring does there, the other way round. Tilted up and down, it turns the
+GTN's volume knob; pushed, it is the volume knob's push: squelch, or ident with NAV selected. The panel sends
+the RANGE push as a tap, so holding it does not tune 121.5: SHIFT, COM ⇆ (121.5) does.
 
 COM ⇆ and NAV ⇆ are the sim's flip-flops, as the GTN has no such keys. TDS says the GTNs control the sim's COM
 and NAV radios; if a frequency set with the FREQ knob does not show on the GTN, tune it there with the FMS
@@ -260,8 +262,8 @@ of every navigator its unit may hold at once (the GNS's as in the GNS profile, T
 events as in the GTN profile, the GTN 650 as either of TDS's units); each takes only its own, so the profile
 works with whatever the tablet selected, without a change. With TDS's GTN, of the FMS keys only HOME, D→, the
 FMS knob and its push work, the rest is on its touchscreen; PMS50's GTN also takes MENU, CLR, ENT and MSG
-while its screen shows them, and PROC as its Procedures page (premium version); with a GNS, HOME does nothing.
-Differences from the real units:
+while its screen shows them, and PROC as its Procedures page (these with PMS50's Premium version); with a GNS,
+HOME does nothing. Differences from the real units:
 
 - The ALT/HDG knob sets the KAS 297B's altitude (or its rate while its knob is pulled in the cockpit) and the
   heading bug, and its push syncs the bug to the heading. With SHIFT it sets the course of NAV 1 and the
@@ -434,7 +436,7 @@ own, so one of each kind makes a whole profile:
   units): `g1000` (the PFD's CRS and BARO knobs), `g3x`, or `bendix-king` (the course of NAV 1 and the
   altimeter).
 - Navigators: `g1000` or `g3x` for both units, or one for each unit: `gns530`, `gns430`, TDS's GTN as TDS
-  numbers it in the aircraft (`gtn750-tds1`, `gtn750-tds2`, `gtn650-tds1`, `gtn650-tds2`), pms50's GTN
+  numbers it in the aircraft (`gtn750-tds1`, `gtn750-tds2`, `gtn650-tds1`, `gtn650-tds2`), PMS50's GTN
   (`gtn750-pms50`, `gtn650-pms50`, by PMS50's list of its events: in unit 2 as its COM 2 unit, `GTN750_2_` or
   `GTN650_2_`), or `none` for radios alone. A navigator of one unit takes that unit's keys and FMS knob and
   its map on the RANGE knob, without SHIFT in unit 1 and with SHIFT in unit 2: turned, the map's range; tilted
