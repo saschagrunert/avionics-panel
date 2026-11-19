@@ -98,7 +98,8 @@ class Grid(card.Reasons):
         sends it on one event (ifr1.tapped()), a key's press and release together"""
         if use.entry is None:
             return self.nothing(use.reason) if use.reason else None
-        times = f" ×{use.source.count}" if isinstance(use.source, ifr1.Times) else ""    # a step sent so many times
+        repeats = isinstance(use.source, ifr1.Times)                       # a step sent so many times at once
+        times = f" ×{use.source.count}" if repeats else ""
         if self.words is not None:
             if isinstance(use.source, ifr1.Own):
                 return html.escape(use.source.name)
@@ -107,7 +108,7 @@ class Grid(card.Reasons):
                 sent = button in FAMILIES[self.p.KEY].DEVICE[device]  # the panel's words only where it sends
                 panel = self.words[device, button] if sent else None
                 return html.escape("; ".join(filter(None, (panel, use.source.own.name))))
-            source = use.source.panel if times else use.source
+            source = use.source.panel if repeats else use.source
             text = self.words[source.device, source.button]
             assert text, (self.p.KEY, source)          # a mapped control has words (tests/test_ifr1.py)
             return html.escape(text + times)

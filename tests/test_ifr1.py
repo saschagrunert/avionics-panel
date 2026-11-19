@@ -116,7 +116,7 @@ def test_every_use_sends_its_panel_sources_code(key):
                 panel = ifr1.tapped(family.DEVICE[u.source.panel.device][u.source.panel.button])
                 for event in set(re.findall(r"\(>[^)]+\)", panel)):
                     assert u.entry.count(event) == u.source.count * panel.count(event), (button, use, event)
-                assert set(re.findall(r"\(A:[^)]+\)", u.entry)) == set(re.findall(r"\(A:[^)]+\)", panel))
+                assert re.findall(r"\(A:[^)]+\)", u.entry) == re.findall(r"\(A:[^)]+\)", panel)  # each test once
             else:
                 assert u.source is None and u.entry is None, (button, use)
             if u.entry is None or button.endswith("SHIFT_SW"):
@@ -348,7 +348,7 @@ def test_only_a_code_of_events_repeats():
     assert ifr1.repeated("100  (>K:A)", 2) == "100 (>K:A) 100 (>K:A)"                      # spacing kept apart
     for code in ("1 (>L:X)", "(A:X, Number) 1 + (>K:A)", "(L:X, Number) (>K:A)", "(A:X, Number) (>K:A)",
                  "0 1 (>K:2:A)", "(A:X, Bool) if{ 5 } els{ 6 } (>K:A)", "(A:X, Number) (A:Y, Bool) if{ (>K:A) }",
-                 "(A:X, Number) 5 (>K:A) (>K:B)"):
+                 "(A:X, Number) 5 (>K:A) (>K:B)", "1 (>H:A)"):
         with pytest.raises(ValueError, match="cannot repeat"):
             ifr1.repeated(code, 2)
 

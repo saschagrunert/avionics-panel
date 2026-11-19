@@ -403,10 +403,10 @@ def bonanza_extra():
     units = {1: ("GTN 750", "", black_square_bonanza.UNIT1_NAVIGATORS),
              2: ("GTN 650", "S_", black_square_bonanza.UNIT2_NAVIGATORS)}
     out = {}
-    gtn, shift, navigators = units[1]
+    gtn, _, navigators = units[1]
     for ifr1_key, button, words in (("MENU", "PAN_UP", "volume up"), ("CLR", "PAN_DN", "volume down"),
                                     ("ENT", "PTR", "volume push: squelch, or ident with NAV")):
-        code = _codes(navigators, shift + button, "-tds")
+        code = _codes(navigators, button, "-tds")
         out[f"Button_FMS1_{ifr1_key}", "key"] = Plus(Panel(1, ifr1_key), Own(f"TDS {gtn} {words}", code))
     for ring, kln, way, volume in (("OI", "PAN_RIGHT", "CW", "UP"), ("OD", "PAN_LEFT", "CCW", "DN")):
         for mode, unit in (("FMS1", 1), ("FMS2", 2)):
@@ -564,14 +564,15 @@ _NUMBER = re.compile(r"-?\d+(?:\.\d+)?")
 def repeated(code, count):
     """A code that sends each run of its events count times where it sends it once, a run whole, so a press and its
     release stay in order: its tests (the autopilot's mode) run once, and it stays short enough for MobiFlight's
-    message, where the whole code count times would not. Only for a code of the UP and DN keys' shape: events, each
-    of no value or a number just before it, in blocks of if{, els{ and }, each if{ after one read, its test. Anything
-    else could set a variable once for count events or leave an event's computed value to its first send alone, so it
-    raises ValueError."""
+    message, where the whole code count times would not. Only for a code of the UP and DN keys' shape: events, each of
+    no value or (a K: event) a number just before it, in blocks of if{, els{ and }, each if{ after one read, its test.
+    Anything else could set a variable once for count events or leave an event's computed value to its first send alone,
+    so it raises ValueError."""
     tokens = _TOKEN.findall(code)
     out, run = [], []
     for token, after in zip(tokens, [*tokens[1:], None], strict=True):
-        if _REPEATABLE.fullmatch(token) or (_NUMBER.fullmatch(token) and after and _REPEATABLE.fullmatch(after)):
+        if _REPEATABLE.fullmatch(token) or (_NUMBER.fullmatch(token) and after and _REPEATABLE.fullmatch(after)
+                                            and after.startswith("(>K:")):
             run.append(token)
             continue
         if not (token in ("if{", "els{", "}") or (token.startswith("(") and token[1] != ">" and after == "if{")):
