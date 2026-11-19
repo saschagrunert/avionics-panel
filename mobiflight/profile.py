@@ -40,10 +40,11 @@ UNBOUND = {1: (NAME, "JS-device-1"), 2: (NAME, "JS-device-2")}
 ITEMS = uuid.uuid5(uuid.NAMESPACE_URL, "avionics-panel/mobiflight")
 SERIAL = re.compile(r"JS-[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}")
 BUTTON = re.compile(r"Button ([0-9]+)")
-EVENTS = {"press": "onPress", "release": "onRelease", "long": "onLongRelease"}
+EVENTS = {"press": "onPress", "release": "onRelease", "long": "onLongRelease", "hold": "onHold"}
 LONG_MS = 350                    # a button held longer than this is a hold: onLongRelease, not onRelease
-HOLD_MS = 350                    # MobiFlight's default for onHold, which no profile uses
-WRITES = re.compile(r"\(>[ABHKL]:([^),]+)[^)]*\)")   # what a code sets: (>K:EVENT), (>A:VARIABLE, unit) and so on
+HOLD_MS = 350                    # MobiFlight's default for onHold
+# what a code sets: (>K:EVENT), (>K:2:EVENT), (>A:VARIABLE, unit) and so on
+WRITES = re.compile(r"\(>[ABHKL]:(?:2:)?([^),]+)[^)]*\)")
 
 
 def filename(key=None):
@@ -77,9 +78,10 @@ VERSION = version()
 
 
 def actions(entry):
-    """A table entry -> {"onPress": code, "onRelease": code, "onLongRelease": code}, without the events that send
-    nothing. An entry is a code (sent on press) or a dict with "press", "release" and/or "long" (sent on a release
-    after a hold, when "release" goes after a tap only)."""
+    """A table entry -> {"onPress": code, "onRelease": code, "onLongRelease": code, "onHold": code}, without the events
+    that send nothing. An entry is a code (sent on press) or a dict with "press", "release", "long" (sent on a release
+    after a hold, when "release" goes after a tap only) and/or "hold" (sent once when held HoldDelay, still down:
+    button_config())."""
     if isinstance(entry, str):
         entry = {"press": entry}
     if not entry or set(entry) - set(EVENTS):
@@ -120,12 +122,12 @@ def tables(family, vfr=None):
     return out
 
 
-def button_config(acts):
-    """An item's "button": its actions ({"onPress": code, ...}, actions()) as custom code, the others null (onHold
-    always: no profile holds a button for it), and the delays"""
+def button_config(acts, hold_delay=HOLD_MS):
+    """An item's "button": its actions ({"onPress": code, ...}, actions()) as custom code, the others null, and the
+    delays (hold_delay: of onHold, for the item that has one)"""
     config = dict.fromkeys(("onPress", "onRelease", "onLongRelease", "onHold"))
     config.update({event: {"Type": "MSFS2020CustomInputAction", "Command": code} for event, code in acts.items()})
-    config.update(LongReleaseDelay=LONG_MS, HoldDelay=HOLD_MS, RepeatDelay=0)
+    config.update(LongReleaseDelay=LONG_MS, HoldDelay=hold_delay, RepeatDelay=0)
     return config
 
 

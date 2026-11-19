@@ -52,9 +52,9 @@ another VFR code than 7000, as 1200 in the US: `python3 -m mobiflight --ifr1 cow
 
 | Mode | Outer / inner ring | ⇆ | Knob push, keys |
 | --- | --- | --- | --- |
-| COM1, COM2 | MHz / kHz of COM 1 / COM 2 | tap: flip-flop; hold: talk on COM 1 / COM 2 | shift |
+| COM1, COM2 | MHz / kHz of COM 1 / COM 2 | tap: flip-flop; hold: COM 1 / COM 2 audio (listen); hold 2 s: talk on COM 1 / COM 2 | shift |
 | HDG (COM1 shifted) | heading bug 10° / 1° | heading bug to the heading (in the Bonanza the HSI's course too) | shift back |
-| BARO (COM2 shifted) | altimeter setting on both | tap: STD; again: the setting before, where the panel does so; hold: pitot heat | shift back |
+| BARO (COM2 shifted) | altimeter setting on both rings; in the Bonanza, of both altimeters | tap: STD; again: the setting before, where the panel does so (in the Bonanza both altimeters); hold: pitot heat | shift back |
 | NAV1, NAV2 | MHz / kHz of NAV 1 / NAV 2 | tap: flip-flop; hold: NAV 1 / NAV 2 audio (ident) | shift |
 | CRS1 (NAV1 shifted) | course 10° / 1°: on the G1000 NXi and G3X the CDI's course, else NAV 1's | tap: the course to the VOR or LOC; hold: marker audio | shift back |
 | CRS2 (NAV2 shifted) | NAV 2 course 10° / 1° | tap: NAV 2's course to the VOR or LOC; hold: DME audio | shift back |
@@ -72,11 +72,13 @@ another VFR code than 7000, as 1200 in the US: `python3 -m mobiflight --ifr1 cow
   and XPDR, ⇆ keeps its tap and hold, so there a turn that comes with the press still lets ⇆ send them.
 - A key with an amber function on the panel sends that function when held and its own on a tap, both as it is
   let go: APR (BC), ALT (ARM), CLR (MAP), MENU (NRST) and PROC (TERR), each where the profile maps that
-  function; the cheat sheet says what it is in the aircraft. ⇆ in COM1 and COM2 does the same with the panel's
-  MIC 1 and MIC 2 in place of 121.5: held, it picks the radio you talk on. ⇆ in NAV1, NAV2 and CRS2, held, is
-  the panel's NAV 1, NAV 2 or DME audio; in CRS1 and BARO the simulator's event for the marker audio or pitot
-  heat, which an aircraft may ignore. A tap there does what it did, on its release. AP, HDG, NAV and VS send
-  at once: disengaging the autopilot cannot wait for the release.
+  function; the cheat sheet says what it is in the aircraft. ⇆ in COM1 and COM2 has two holds in place of
+  121.5: let go after more than 0.35 s, it is the panel's COM 1 or COM 2 audio, which turns listening to that
+  radio on or off; held for 2 s, it is the panel's MIC 1 or MIC 2 at that moment, which picks the radio you
+  talk on, and its release then sends nothing. So COM 2 can play the ATIS while you talk on COM 1. ⇆ in NAV1,
+  NAV2 and CRS2, held, is the panel's NAV 1, NAV 2 or DME audio; in CRS1 and BARO the simulator's event for
+  the marker audio or pitot heat, which an aircraft may ignore. A tap there does what it did, on its release.
+  AP, HDG, NAV and VS send at once: disengaging the autopilot cannot wait for the release.
 - FMS1 and FMS2 are the panel's units 1 and 2, but on the G1000 NXi FMS1 is the PFD and FMS2 the MFD, as the
   G1000 numbers them (the panel's unit 1 is the MFD). In the Black Square Bonanza, FMS1 is the primary
   selection of its tablet and FMS2 the secondary, every selection at once, as on the panel. With ⇆ held, the
@@ -88,14 +90,15 @@ another VFR code than 7000, as 1200 in the US: `python3 -m mobiflight --ifr1 cow
   its Procedures page (premium version), as on the panel. TDS's GTN takes none of those, so MENU, CLR and ENT
   also set TDS's volume up and down and push its volume knob (squelch with COM selected, ident with NAV);
   FMS2's MENU does so held. ⇆ in HDG sets the HSI's course (the yellow arrow) to the heading with the heading
-  bug. The cockpit's functions go on keys: CDI held in FMS1 switches the HSI between NAV 1 and RNAV (GPSS,
-  which CRS1 needs on RNAV); in FMS2, VNAV steps the DME selector, and MENU and PROC are the EDM 800's STEP
-  and LEAN FIND on a tap, as they are pressed often, the GNS 430's MENU and PROC (and PMS50's) moving to the
-  hold. Held in FMS2, ENT runs the KFC 150's self-test with the autopilot off, MSG opens or shuts the oxygen
-  valve, FPL switches the tip tank transfer pumps (both off if either runs, else both on), OBS prop heat, CDI
-  steps the fuel boost pump one position from where it is (off, low, high, off) and VNAV switches the air
-  conditioner with its blower, as the guide's "Hardware Inputs & Outputs" and the project the Bonanza is flown
-  with set them. The fuel selector stays in the cockpit.
+  bug. BARO's rings and ⇆ set both altimeters, the right-hand one to the left-hand one's setting. The
+  cockpit's functions go on keys: CDI held in FMS1 switches the HSI between NAV 1 and RNAV (GPSS, which CRS1
+  needs on RNAV); in FMS2, VNAV steps the DME selector, and MENU and PROC are the EDM 800's STEP and LEAN FIND
+  on a tap, as they are pressed often, the GNS 430's MENU and PROC (and PMS50's) moving to the hold. Held in
+  FMS2, ENT runs the KFC 150's self-test with the autopilot off, MSG opens or shuts the oxygen valve, FPL
+  switches the tip tank transfer pumps (both off if either runs, else both on), OBS prop heat, CDI steps the
+  fuel boost pump one position from where it is (off, low, high, off) and VNAV switches the air conditioner
+  with its blower, as the guide's "Hardware Inputs & Outputs" and the project the Bonanza is flown with set
+  them. The fuel selector stays in the cockpit.
 - In the GTN profile, MENU, CLR and ENT of FMS1 and FMS2 set TDS's volume up and down and push its volume knob
   (squelch with COM selected, ident with NAV), as TDS's GTN takes those keys only on its touchscreen.
 - The COWS DA40 and the Carenado C182T have their electric fuel pump on CDI held in FMS2, and the DA40 NG
@@ -108,12 +111,12 @@ another VFR code than 7000, as 1200 in the US: `python3 -m mobiflight --ifr1 cow
   fast spin; whether the sim keeps up is to check.
 - MobiFlight sends a key's release to the mode the IFR-1 is in when the key comes up. A change of mode, or
   leaving shift with the knob push, lets go of ⇆ and of every key with a hold, so one still held then sends
-  nothing when let go in the new mode. A key of TDS's GTN held in FMS1 or FMS2 while changing mode stays down
-  in the GTN until pressed again; its key-up never reaches the other GTN.
+  nothing when let go in the new mode; entering shift lets go of ⇆, so its 2 s hold in COM1 or COM2 sends
+  nothing in HDG or BARO. A key of TDS's GTN held in FMS1 or FMS2 while changing mode stays down in the GTN
+  until pressed again; its key-up never reaches the other GTN.
 
-What the IFR-1 has no control for, of the panel's functions: in every profile 121.5, the ADF and the audio
-panel, except MIC 1 and MIC 2 (⇆ held in COM1 and COM2) and the NAV 1, NAV 2 and DME audio (⇆ held in NAV1,
-NAV2 and CRS2); the maps' pan and pointer, or the COM volume and the GTN's volume push the GNS, GTN and
+What the IFR-1 has no control for, of the panel's functions: in every profile 121.5 and the ADF, including its
+ident audio; the maps' pan and pointer, or the COM volume and the GTN's volume push the GNS, GTN and
 Bonanza profiles put there (the GTN's volume is on the outer ring with ⇆ held, TDS's volume and push in the
 GTN and Bonanza profiles also on MENU, CLR and ENT); the GFC 700's and GFC 500's FD and YD (the Bonanza has
 its own on ⇆ in AP); in the Bonanza the MD41's lamp test, the KLN 90B's left CRSR, the KR 87's keys, the EDM
@@ -123,8 +126,8 @@ with the reason.
 ## To check on the device
 
 - In COM1, a fast spin of 20 detents steps exactly 20 channels; so do the squawk rings, HDG, CRS1 and CRS2's
-  outer rings and the dimmers, which read the sim's value and write a new one each detent. With firmware 1.2,
-  the mode key flashes only while shifted.
+  outer rings, the dimmers and the Bonanza's BARO rings, which read the sim's value and write a new one each
+  detent. With firmware 1.2, the mode key flashes only while shifted.
 - The AP lights: the G1000 NXi lights HDG, NAV and APR in those modes (if it sets the sim's flags for them);
   the KAP 140's NAV and APR armed or captured; the KFC 150's modes on the sim's flags, or Black Square's own.
 - The lights go out when the sim closes or MobiFlight stops.
@@ -136,6 +139,13 @@ with the reason.
 - ⇆ pressed with a ring turned at once, in FMS1, FMS2, AP and XPDR: how often the IFR-1 reports the press and
   a detent together, which sends the detent without ⇆ and, with no further turn, ⇆'s tap or hold when let
   go.
+- COM1 and COM2: ⇆ held for 0.35 s to 2 s turns only that radio's audio on or off, and held for 2 s picks
+  only the radio to talk on, while still held, with nothing more on its release.
+- Bonanza: with the two altimeters set apart, the right-hand one is the simulator's altimeter 2 and takes
+  KOHLSMAN_SET's two parameters in the order the profile gives them (index, then the setting); either BARO
+  ring sets both to the same setting; ⇆ tapped twice sets both to STD and back to the setting before. The
+  panel's BARO sets only the left-hand one, so its STD after the IFR-1's brings back only that one. The rings
+  step 0.01 inHg; with the sim in hPa, the setting moves 1 hPa about every third detent.
 - Bonanza: CRS2 turns NAV 2's indicator; CRS1 with the HSI on RNAV (CDI held in FMS1); ⇆ in HDG turns the
   HSI's course to the heading.
 - Bonanza: MENU, CLR and ENT in FMS1 and FMS2 (FMS2's MENU held) set the volume of TDS's GTN and push it; the

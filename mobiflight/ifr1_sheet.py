@@ -161,7 +161,8 @@ def boxes_of(ifr1_profile):
         "SWAP": ("⇆", [
             ("", "by the mode: each mode key's box. In FMS1, FMS2, AP and XPDR, held while turning a ring (press ⇆ "
                  "first, then turn): the ring does what follows <i>⇆ held</i>, and ⇆ sends nothing; otherwise a tap "
-                 f"sends its tap, a hold of over {ifr1.profile.LONG_MS / 1000:g} s its hold, on its release", INK)])}
+                 f"sends its tap, a hold of over {ifr1.profile.LONG_MS / 1000:g} s its hold, on its release; in COM1 "
+                 f"and COM2 a hold of {ifr1.TALK_MS / 1000:g} s sends at once, with nothing on the release", INK)])}
 
     def mode_rows(mode, colour):
         outer = grid.knob([f"Button_{mode}_OI", f"Button_{mode}_OD"])
