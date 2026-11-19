@@ -98,6 +98,7 @@ class Grid(card.Reasons):
         sends it on one event (ifr1.tapped()), a key's press and release together"""
         if use.entry is None:
             return self.nothing(use.reason) if use.reason else None
+        times = f" ×{use.source.count}" if isinstance(use.source, ifr1.Times) else ""    # a step sent so many times
         if self.words is not None:
             if isinstance(use.source, ifr1.Own):
                 return html.escape(use.source.name)
@@ -106,12 +107,13 @@ class Grid(card.Reasons):
                 sent = button in FAMILIES[self.p.KEY].DEVICE[device]  # the panel's words only where it sends
                 panel = self.words[device, button] if sent else None
                 return html.escape("; ".join(filter(None, (panel, use.source.own.name))))
-            text = self.words[use.source.device, use.source.button]
-            assert text, (self.p.KEY, use.source)      # a mapped control has words (tests/test_ifr1.py)
-            return html.escape(text)
+            source = use.source.panel if times else use.source
+            text = self.words[source.device, source.button]
+            assert text, (self.p.KEY, source)          # a mapped control has words (tests/test_ifr1.py)
+            return html.escape(text + times)
         if at_once:
-            return html.escape(profile.label(ifr1.tapped(use.entry)))
-        return html.escape(card.describe(use.entry))
+            return html.escape(profile.label(ifr1.tapped(use.entry)) + times)
+        return html.escape(card.describe(use.entry) + times)
 
     def ways(self, used, use, mapped=False):
         """The texts of one use of a pair of buttons (↻, ↺) joined, one text where both say the same; None where

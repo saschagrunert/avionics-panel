@@ -78,7 +78,7 @@ profiles](mapping.md#generated-profiles)).
 | CRS1 (NAV1 shifted) | course 10° / 1°: in the G1000 NXi, DA40, C182T and G3X profiles the CDI's course, else NAV 1's | tap: the course to the VOR or LOC; hold: marker audio | shift back |
 | CRS2 (NAV2 shifted) | NAV 2 course 10° / 1° | tap: NAV 2's course to the VOR or LOC; hold: DME audio | shift back |
 | FMS1, FMS2 | the unit's FMS knob; ⇆ held: its map range, where the profile has one (the G3X has none), the outer ring on a GTN its volume | tap: the unit's HOME, where it has one | CRSR; D→, MENU, CLR, ENT and CDI, OBS, MSG, FPL, VNAV (in the G1000 NXi and DA40 profiles the GFC 700's VNV), PROC; held CLR, MENU, PROC: MAP, NRST, TERR; each where the profile has it |
-| AP | selected altitude 1000 ft / 100 ft; ⇆ held: the inner ring is the panel's UP and DN (the held altitude, VS, IAS or pitch, by autopilot) | none: it only modifies the rings | held: VNV |
+| AP | selected altitude 1000 ft / 100 ft; ⇆ held: the inner ring is the panel's UP and DN (the held altitude, VS, IAS or pitch, by autopilot), the outer ring five of them at once (500 ft/min in VS, 5 kt in FLC, five pitch steps in pitch hold, in ALT hold five altitude steps on the KAP 140 and KFC 150, in the Bonanza 500 ft of the altitude its UP and DN step, [to check](mapping.md#vnv-without-vnav)) | none: it only modifies the rings | held: VNV |
 | XPDR | first two / last two squawk digits; ⇆ held: panel dimmer / flood dimmer (the C182T's cabin lights), where the profile knows the aircraft's | tap: IDENT | shift |
 | MODE (XPDR shifted) | either ring: clockwise ALT (from standby or off), counter-clockwise standby | tap: VFR and back; hold: cabin light | shift back |
 | Every mode but FMS1 and FMS2 | | | AP, HDG, NAV (in the Bonanza held: GPSS), APR (held: BC), ALT (held: ARM), VS (held: FLC on the GFC 700 and GFC 500, FD on the KFC 150), each where the profile has it |
@@ -117,22 +117,24 @@ profiles](mapping.md#generated-profiles)).
   range on a map page and works the knob on any other page. In the G1000 NXi and DA40 profiles VNAV is the GFC
   700's VNV, as the IFR-1's legend reads, not the MFD's Detail softkey the panel's amber VNAV is there; the
   C182T's KAP 140 has no VNAV, and its VNAV stays the softkey.
-- On TDS's GTN, in the GTN and Bonanza profiles, MENU, CLR and ENT of FMS1 and FMS2 set its volume up and down
-  and push its volume knob (squelch with COM selected, ident with NAV), as TDS's GTN takes those keys only on
-  its touchscreen; in the Bonanza FMS2's MENU does so held.
+- On TDS's GTN, in the GTN profile, MENU, CLR and ENT of FMS1 and FMS2 set its volume up and down and push its
+  volume knob (squelch with COM selected, ident with NAV), as TDS's GTN takes those keys only on its
+  touchscreen; in the Bonanza only those of FMS1 do, as the volume keys are seldom used and the outer ring
+  with ⇆ held sets the GTN 650's volume (FMS2's CLR and ENT are the EDM 800's).
 - The Black Square Bonanza has more on the IFR-1 than on the panel's keys alone, as one profile for every
   selection of its tablet. PMS50's GTN takes MENU, CLR, ENT and MSG as the keys its screen shows and PROC as
   its Procedures page (these with PMS50's Premium version), as on the panel. ⇆ in HDG sets the HSI's course
   (the yellow arrow) to the heading with the heading bug. BARO's rings and ⇆ set both altimeters, the
   right-hand one to the left-hand one's setting, as the panel's BARO does. NAV held switches the HSI between
   NAV 1 and RNAV (GPSS, which CRS1 needs on RNAV), as the panel's amber NAV. The cockpit's functions go on
-  keys: in FMS2, VNAV steps the DME selector, and MENU and PROC are the EDM 800's STEP and LEAN FIND on a tap,
-  as they are pressed often, the GNS 430's MENU and PROC (and PMS50's) moving to the hold. Held in FMS2, ENT
-  runs the KFC 150's self-test with the autopilot off, MSG opens or shuts the oxygen valve, FPL switches the
-  tip tank transfer pumps (both off if either runs, else both on), OBS prop heat, CDI steps the fuel boost
-  pump one position from where it is (off, low, high, off) and VNAV switches the air conditioner with its
-  blower, as the guide's "Hardware Inputs & Outputs" and the project the Bonanza is flown with set them. The
-  fuel selector stays in the cockpit.
+  keys: in FMS2, VNAV steps the DME selector, and CLR and ENT are the EDM 800's STEP and LEAN FIND on a tap,
+  side by side as its left and right buttons and pressed often, the GNS 430's CLR and ENT (and PMS50's) moving
+  to the hold (CLR's amber MAP gives way), so they take 0.7 s each there (D→ ENT ENT 1.4 s); the GTN 650's
+  volume is the outer ring's with ⇆ held. Held in FMS2, MENU runs the KFC 150's self-test with the autopilot
+  off, MSG opens or shuts the oxygen valve, FPL switches the tip tank transfer pumps (both off if either runs,
+  else both on), OBS prop heat, CDI steps the fuel boost pump one position from where it is (off, low, high,
+  off) and VNAV switches the air conditioner with its blower, as the guide's "Hardware Inputs & Outputs" and
+  the project the Bonanza is flown with set them. The fuel selector stays in the cockpit.
 - The COWS DA40 and the Carenado C182T have their electric fuel pump on CDI held in FMS2, and the DA40 NG
   its fuel transfer pump on FPL held in FMS2 (the XLS ignores it). The C182T's inner ring in XPDR with ⇆ held
   dims its two cabin lights, as on the panel.
@@ -150,10 +152,10 @@ profiles](mapping.md#generated-profiles)).
 
 What the IFR-1 has no control for, of the panel's functions: in every profile 121.5 and the ADF, including its
 ident audio, and the maps' pan and pointer; the COM volume in the GNS and Bonanza profiles; in the Bonanza,
-PMS50's volume push, the MD41's lamp test, the KLN 90B's left CRSR, the KR 87's keys, the EDM 800's long
-presses, the weather radar and the KFC 150's YD; the GFC 700's and GFC 500's FD, YD and LVL; in the G1000 NXi
-and DA40 profiles the MFD's Detail softkey. The cheat sheets mark every control that does nothing in a
-profile, with the reason.
+PMS50's volume push and the GTN 650's of TDS, the GNS 430's MAP (CLR held long), the MD41's lamp test, the KLN
+90B's left CRSR, the KR 87's keys, the EDM 800's long presses, the weather radar and the KFC 150's YD; the GFC
+700's and GFC 500's FD, YD and LVL; in the G1000 NXi and DA40 profiles the MFD's Detail softkey. The cheat
+sheets mark every control that does nothing in a profile, with the reason.
 
 ## To check on the device
 
@@ -165,6 +167,9 @@ profile, with the reason.
 - The AP lights: the G1000 NXi lights HDG, NAV and APR in those modes (if it sets the sim's flags for them);
   the KAP 140's NAV and APR armed or captured; the KFC 150's modes on the sim's flags, or Black Square's own.
 - The lights go out when the sim closes or MobiFlight stops.
+- The AP outer ring with ⇆ held: five steps of UP or DN sent at once take five steps, on the Garmin autopilots
+  and the KFC 150 (the sim's increment events) and on the KAP 140, whose KAP140.js handles each push: if it
+  sets the rate from the sim's value plus 100, five pushes in one go read the same value and take one step.
 - A bounce of the knob push (shift on and off at once, reported with MobiFlight) lets go of a ⇆ or key with a
   hold held meanwhile in COM1, COM2, NAV1, NAV2 or XPDR or their shifted modes: MobiFlight sends the same
   button for leaving shift as for a change of mode.
@@ -195,8 +200,8 @@ profile, with the reason.
   detent.
 - Bonanza: CRS2 turns NAV 2's indicator; CRS1 with the HSI on RNAV (NAV held); ⇆ in HDG turns the HSI's course
   to the heading.
-- Bonanza: MENU, CLR and ENT in FMS1 and FMS2 (FMS2's MENU held) set the volume of TDS's GTN and push it; the
-  outer ring with ⇆ held sets TDS's and PMS50's volume.
+- Bonanza: MENU, CLR and ENT in FMS1 set the volume of TDS's GTN 750 and push it; the outer ring with ⇆ held
+  sets TDS's and PMS50's volume.
 - Bonanza with PMS50's GTN 650: which prefix it takes, `GTN650_` (Black Square's guide) or `GTN650_2_`
   (PMS50's list for a GTN on COM 2); the profile sends both. MENU, CLR, ENT, MSG and PROC on PMS50's GTN.
 - Bonanza: the oxygen valve from FMS2's MSG held.
