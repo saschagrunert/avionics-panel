@@ -249,6 +249,7 @@ L:AvionicsPanel_Baro
 L:AvionicsPanel_G1000_Engine
 L:AvionicsPanel_Squawk
 L:AvionicsPanel_Squawk_Kept
+L:AvionicsPanel_Squawk_Set
 
 # TDS's GTNXi manual (Reading specific TDS GTNXi Data)
 L:TDSGTNXI_NextWaypointDistanceNM

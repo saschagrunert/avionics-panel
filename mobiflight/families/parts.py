@@ -30,26 +30,36 @@ def receive(com):
     return f"(A:COM RECEIVE EX1:{com}, bool) ! (A:COM TRANSMIT:{com}, bool) or (>K:COM{com}_RECEIVE_SELECT)"
 
 
-# VFR toggles the VFR code: from another code it keeps that code in L:AvionicsPanel_Squawk (TRANSPONDER CODE:1 in
-# BCD16, the digits as hex, as XPNDR_SET takes them), squawks the VFR code and selects ALT (alt: the code that
-# selects it); on the VFR code it squawks the code kept, once, as a GTX 327's VFR key does, and leaves the mode as
-# it is. The VFR code goes to register 0 at the start, so it stands in the code once (docs/using/mapping.md: change
-# it there). L:AvionicsPanel_Squawk_Kept says a code is kept (0000 is a code too).
+# The squawk: TRANSPONDER CODE:1 read as a number is its four digits as a decimal one (1200), and XPNDR_SET takes the
+# code in the simulator's unit Bco16 (MobiFlight's wiki, "MSFS2020 RPN Tips and Tricks"; the SDK's Bcd16 is wrong for
+# it, MSFS DevSupport "Faulty unit for SimVar TRANSPONDER CODE"). Code works with the digits; squawk() has the
+# simulator turn them into Bco16 through an L: variable set as a number and read as Bco16, as MobiFlight's wiki does.
+#
+# VFR toggles the VFR code: from another code it keeps that code in L:AvionicsPanel_Squawk (its digits), squawks the
+# VFR code and selects ALT (alt: the code that selects it); on the VFR code it squawks the code kept, once, as a GTX
+# 327's VFR key does, and leaves the mode as it is. The VFR code goes to register 0 at the start, so it stands in the
+# code once (docs/using/mapping.md: change it there). L:AvionicsPanel_Squawk_Kept says a code is kept (0000 is a code
+# too).
 ALT = "4 (>A:TRANSPONDER STATE:1, Enum)"         # the simulator's mode ALT (XPDR_MODE below)
-_CODE = "(A:TRANSPONDER CODE:1, Bcd16)"
-_KEPT, _KEEPS = "AvionicsPanel_Squawk", "AvionicsPanel_Squawk_Kept"
+CODE = "(A:TRANSPONDER CODE:1, number)"          # the squawk's digits, 1200 for 1200
+_KEPT, _KEEPS, _TO_SET = "AvionicsPanel_Squawk", "AvionicsPanel_Squawk_Kept", "AvionicsPanel_Squawk_Set"
+
+
+def squawk(digits=""):
+    """XPNDR_SET of a code's digits as a decimal number (an RPN value, "" for the top of the stack), in Bco16"""
+    return " ".join(filter(None, (digits, f"(>L:{_TO_SET}) (L:{_TO_SET}, Bco16) {k('XPNDR_SET')}")))
 
 
 def vfr(code=VFR, alt=ALT):
     """VFR: toggle this code, four digits of 0 to 7, in any aircraft (above); alt selects ALT"""
     if not re.fullmatch("[0-7]{4}", str(code)):
         raise ValueError(f"not a squawk code (four digits, each 0 to 7): {code!r}")
-    return (f"0x{code} sp0 {_CODE} l0 == if{{ (L:{_KEEPS}, Bool) if{{ (L:{_KEPT}, Number) {k('XPNDR_SET')} "
+    return (f"{int(code)} sp0 {CODE} l0 == if{{ (L:{_KEEPS}, Bool) if{{ (L:{_KEPT}, Bco16) {k('XPNDR_SET')} "
             f"0 (>L:{_KEEPS}) }} els{{ {alt} }} }} "
-            f"els{{ {_CODE} (>L:{_KEPT}) 1 (>L:{_KEEPS}) l0 {k('XPNDR_SET')} {alt} }}")
+            f"els{{ {CODE} (>L:{_KEPT}) 1 (>L:{_KEEPS}) {squawk('l0')} {alt} }}")
 
 
-_SQUAWK_ENTRY = re.compile(re.escape(vfr("0000", "@ALT@")).replace("0x0000", "0x[0-7]{4}", 1)
+_SQUAWK_ENTRY = re.compile(re.escape(vfr("7777", "@ALT@")).replace("7777", "[0-7]{1,4}", 1)
                            .replace("@ALT@", "(?P<alt>.+)", 1).replace("@ALT@", "(?P=alt)"))
 
 
