@@ -33,7 +33,6 @@ The profile (PROFILE) joins the KFC 150 part (AUTOPILOT, also offered alone), th
 each unit the navigator parts the tablet may put there (gns.py, gtn.py and the KLN 90B here, part.joined), with the
 Bonanza's own rows over them (part.compose).
 """
-from functools import partial
 
 from mobiflight.families import gns, gtn, parts
 from mobiflight.families.part import compose, distances, joined, navigator, part
@@ -69,7 +68,13 @@ _VS_ENG = (f"(A:AUTOPILOT MASTER, Bool) (A:AUTOPILOT VERTICAL HOLD, Bool) ! and 
 _RNAV_DISTANCE = "(L:var_rnavDrivesHsi, Bool) (L:var_RNAV_DME, Number) *"
 
 
-KFC150_VNV = partial(parts.descent, after=_VS_ENG)   # VNV's code, of the distances and required rate (part.compose)
+def KFC150_VNV(**kwargs):    # noqa: N802 (named as the other autopilots' VNV)
+    """VNV's entry, of the distances and required rate (part.compose): the rate and VS ENG pressed, the rate again
+    let go, as the KAP 140's (parts.KAP140_VNV): VS ENG is an H: event, which runs in the gauge after the code's K:
+    events, so should it take the present vertical speed after all, the rate set again holds"""
+    return {"press": parts.descent(after=_VS_ENG, **kwargs), "release": parts.descent(**kwargs)}
+
+
 _NO_FLC = "the KFC 150 has no FLC mode"
 
 # the KFC 150 and KAS 297B as an autopilot part, also for Black Square's aircraft with other avionics: AP ENG, the

@@ -136,8 +136,11 @@ it with the standby. 121.5 (SHIFT, COM ⇆) sets the active frequency of the uni
 squawks 7000, the VFR code of EASA, and selects ALT; pressed again on 7000 it squawks the code from before,
 once, as a GTX 327's VFR key does (the profile keeps it in `L:AvionicsPanel_Squawk`), and with none kept it
 only selects ALT. A code entered with the squawk digits forgets the one kept; one set in the cockpit with the
-mouse does not. For another VFR code, 1200 in the US, change the `0x7000` at the start of the code of the row
-"VFR: XPNDR_SET, ..." in MobiFlight, or generate the profile with `--vfr 1200` (above). The XPDR mode push
+mouse does not. For another VFR code, 1200 in the US, change the `7000` at the start of the code of the row
+"VFR: XPNDR_SET, ..." in MobiFlight (without leading zeros: 0400 is `400`), or generate the profile with
+`--vfr 1200` (above). The profiles read the code as its digits (`(A:TRANSPONDER CODE:1, number)`, 1200 for
+1200) and set it with `XPNDR_SET` in the sim's Bco16, which they have the sim convert through
+`L:AvionicsPanel_Squawk_Set`, as MobiFlight's wiki does. The XPDR mode push
 (SHIFT, FREQ push) switches the simulator's transponder between standby and ALT. MIC 1 and MIC 2 choose the
 radio both pilots talk on and turn its audio on; COM 1 and COM 2 turn listening to their radio on or off, but
 never off for the radio talked on, which an audio panel always plays. What the profiles keep (the setting
@@ -381,7 +384,8 @@ for you to set, with an eye on the airspeed and the power.
    between 300 and 1500 ft/min down. In the KAP 140 it leaves ALT hold for VS as the ALT key does and then
    sets the rate, and sets it again as the key is let go, as the G1000 NXi's and GNS's autopilot code may
    enter VS a moment later at the present rate; in the KAS 297B it sets the rate and then presses VS ENG, when
-   the autopilot is engaged, not in VS and not on a glideslope. With the autopilot off, VNV only sets the
+   the autopilot is engaged, not in VS and not on a glideslope, and sets the rate again as the key is let go,
+   should VS ENG take the present vertical speed. With the autopilot off, VNV only sets the
    rate; an autopilot may take the present vertical speed when it engages, so press VNV again after engaging
    it.
 3. Press VNV again now and then, after a turn or a change of speed or wind: it works the rate out anew from
@@ -439,8 +443,8 @@ None of this has been flown in the sim yet. To check there:
   give it index 1 (`1 <rate> (>K:2:AP_VS_VAR_SET_ENGLISH)`). With the autopilot off, press VNV and watch the
   sim's `AUTOPILOT VERTICAL HOLD VAR:1`; if it does not change, the event needs the index.
 - In the Bonanza, that VS ENG keeps the rate VNV set: Black Square's guide says VS ENG pressed while the KAS
-  297B shows the selected altitude takes the present vertical speed. If it does, VNV sets the rate after VS
-  ENG instead.
+  297B shows the selected altitude takes the present vertical speed. VNV sets the rate again as the key is
+  let go, after VS ENG; if the rate is still lost, press VNV again in VS.
 - Which of two GTNs TDS's distance is for. With a TDS GTN that has no active waypoint, a flight plan in the
   sim's own GPS may give the GPS distance. TDS's variable may also keep its last value after a flight with a
   TDS GTN: in the Bonanza with its tablet set to a GNS, the KLN 90B or PMS50's GTN, and with the parts alone,

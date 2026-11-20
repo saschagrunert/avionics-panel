@@ -134,6 +134,8 @@ class Grid(card.Reasons):
         parts = [self.ways(used, "turn") or "nothing"]
         if (held := self.ways(used, "held", mapped=True)) is not None:      # unmapped: the ring turns as without
             parts.append(f"<i>⇆ held:</i> {held}")
+            if (mode := ifr1.mode(buttons[0])) in ifr1.SWAPPED and buttons[0].endswith("_OI"):   # said once
+                parts.append(f"<i>{ifr1.SWAPPED[mode][1]}</i>")
         return "; ".join(parts)
 
     def key(self, button):

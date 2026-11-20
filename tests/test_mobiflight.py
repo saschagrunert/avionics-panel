@@ -29,7 +29,7 @@ from mobiflight.families import black_square_bonanza as bksq
 from mobiflight.families.black_square_bonanza import KFC150_VNV
 from mobiflight.families.rpn import h, k
 from sim import Sim
-from tests.rpn import NUMBER, READ, REGISTER, TOKEN, every_path, run, sets, well_formed
+from tests.rpn import NUMBER, READ, REGISTER, TOKEN, Bco16, every_path, run, sets, well_formed
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PANEL = {1: ("Avionics Panel", "JS-9c35f3d0-667e-11f1-8001-444553540000"),
@@ -140,11 +140,13 @@ def unit(variable):
     if variable == "GPS WP DISTANCE":
         return "nmiles"
     if variable == "TRANSPONDER CODE":
-        return "bcd16"
+        return "number"                                  # its digits (parts.CODE)
+    if variable.endswith(("AvionicsPanel_Squawk", "AvionicsPanel_Squawk_Set")):
+        return "bco16"                                   # as XPNDR_SET takes it (parts.squawk)
     if variable.endswith("Required_VS"):
         return "feet per minute"
     if variable.endswith(("SELECTED", "PFD_CDI_Source", "LightingKnob", "dmeMode", "RadarTilt", "DistanceNM",
-                          "RNAV_DME", "AvionicsPanel_Squawk", "AvionicsPanel_Baro", "oxygenOn",
+                          "RNAV_DME", "AvionicsPanel_Baro", "oxygenOn",
                           "Switch_Pump_1")):
         return "number"
     return "enum" if variable.endswith("STATE") else "bool"
@@ -500,7 +502,7 @@ EVERY = """
     SQK_D2_DN=K:XPNDR_100_DEC,0,L:AvionicsPanel_Squawk_Kept SQK_D2_UP=K:XPNDR_100_INC,0,L:AvionicsPanel_Squawk_Kept
     SQK_D3_DN=K:XPNDR_10_DEC,0,L:AvionicsPanel_Squawk_Kept SQK_D3_UP=K:XPNDR_10_INC,0,L:AvionicsPanel_Squawk_Kept
     SQK_D4_DN=K:XPNDR_1_DEC,0,L:AvionicsPanel_Squawk_Kept SQK_D4_UP=K:XPNDR_1_INC,0,L:AvionicsPanel_Squawk_Kept
-    VFR=0x7000,K:XPNDR_SET,0,L:AvionicsPanel_Squawk_Kept,4,A:TRANSPONDER_STATE:1,L:AvionicsPanel_Squawk,1,L:AvionicsPanel_Squawk_Kept,K:XPNDR_SET,4,A:TRANSPONDER_STATE:1
+    VFR=7000,K:XPNDR_SET,0,L:AvionicsPanel_Squawk_Kept,4,A:TRANSPONDER_STATE:1,L:AvionicsPanel_Squawk,1,L:AvionicsPanel_Squawk_Kept,L:AvionicsPanel_Squawk_Set,K:XPNDR_SET,4,A:TRANSPONDER_STATE:1
 """
 SETS = {
     "g1000": """
@@ -691,9 +693,9 @@ SETS = {
         S_UP=H:bksq_JpiButton_1_L_Short/H:bksq_JpiButton_1_L_Long S_VNV=H:adf_bfo S_VS=H:kas297b_VsButton TERR=K:GPS_OBS
         TEST=20,L:var_AutopilotStartupCounter,1,L:var_md41Test/0,L:var_md41Test
         UP=100,K:AP_ALT_VAR_INC,K:AP_VS_VAR_INC,K:AP_PITCH_REF_INC_UP
-        VFR=0x7000,K:XPNDR_SET,0,L:AvionicsPanel_Squawk_Kept,H:TRANSPONDER_Push_ALT,L:AvionicsPanel_Squawk,1,L:AvionicsPanel_Squawk_Kept,K:XPNDR_SET,H:TRANSPONDER_Push_ALT
+        VFR=7000,K:XPNDR_SET,0,L:AvionicsPanel_Squawk_Kept,H:TRANSPONDER_Push_ALT,L:AvionicsPanel_Squawk,1,L:AvionicsPanel_Squawk_Kept,L:AvionicsPanel_Squawk_Set,K:XPNDR_SET,H:TRANSPONDER_Push_ALT
         VNAV=H:AS530_VNAV_Push
-        VNV=0,0,-,0,300,0,0,30,60,0,100,100,100,300,1500,K:AP_VS_VAR_SET_ENGLISH,H:kas297b_VsButton
+        VNV=0,0,-,0,300,0,0,30,60,0,100,100,100,300,1500,K:AP_VS_VAR_SET_ENGLISH,H:kas297b_VsButton/0,0,-,0,300,0,0,30,60,0,100,100,100,300,1500,K:AP_VS_VAR_SET_ENGLISH
         VS=H:kas297b_VsButton XPDR_MODE=1,H:TRANSPONDER_Push_STBY,H:TRANSPONDER_Push_ALT YD=K:YAW_DAMPER_TOGGLE
     """,
     "cows-da40": """
@@ -796,15 +798,17 @@ def test_what_every_function_sets(key):
 
 
 def test_the_vfr_key_sets_the_squawk_asked_for():
-    # XPNDR_SET takes the code as BCD16, its four digits as hex: the tables' 7000 unless another is asked for, and
+    # XPNDR_SET takes the code in Bco16, as the simulator converts its digits: the tables' 7000 unless another is
+    # asked for, and
     # nothing else changes with it
     for key in FAMILIES:
         usual, other = items(build(key=key)), items(profile.build(FAMILIES[key], PANEL, "1200"))
         [(a, b)] = [(a, b) for a, b in zip(usual, other, strict=True) if a != b]
         assert a["Name"] == b["Name"] and a["Name"].startswith("VFR: XPNDR_SET, ")
-        for item, code in ((a, 0x7000), (b, 0x1200)):
-            assert ("K:XPNDR_SET", code) in run(item["button"]["onPress"]["Command"], {
-                "TRANSPONDER CODE:1": 0x4521, "L:AvionicsPanel_Squawk_Kept": 0})
+        for item, code in ((a, 7000), (b, 1200)):
+            [value] = [v for e, v in run(item["button"]["onPress"]["Command"], {
+                "TRANSPONDER CODE:1": 4521, "L:AvionicsPanel_Squawk_Kept": 0}) if e == "K:XPNDR_SET"]
+            assert isinstance(value, Bco16) and value == code
         assert items(profile.build(FAMILIES[key], PANEL, 1200)) == other
         assert items(profile.build(FAMILIES[key], PANEL, "7000")) == usual
     for bad in ("7800", "120", "12000", "VFR", "", 120):
@@ -819,12 +823,13 @@ def test_vfr_toggles_the_vfr_code(key):
     code = FAMILIES[key].DEVICE[1]["VFR"]
     alt = ("H:TRANSPONDER_Push_ALT", None) if key == BONANZA else ("A:TRANSPONDER STATE:1", 4)
     kept, keeps = "L:AvionicsPanel_Squawk", "L:AvionicsPanel_Squawk_Kept"
-    for other in (0x4521, 0x0000):
-        assert run(code, {"TRANSPONDER CODE:1": other, keeps: 0}) == [
-            (kept, other), (keeps, 1), ("K:XPNDR_SET", 0x7000), alt]
-        assert run(code, {"TRANSPONDER CODE:1": 0x7000, keeps: 1, kept: other}) == [
-            ("K:XPNDR_SET", other), (keeps, 0)]
-    assert run(code, {"TRANSPONDER CODE:1": 0x7000, keeps: 0}) == [alt]
+    for other in (4521, 0):
+        out = run(code, {"TRANSPONDER CODE:1": other, keeps: 0})
+        assert out == [(kept, other), (keeps, 1), ("L:AvionicsPanel_Squawk_Set", 7000), ("K:XPNDR_SET", 7000), alt]
+        assert isinstance(out[3][1], Bco16)
+        out = run(code, {"TRANSPONDER CODE:1": 7000, keeps: 1, kept: other})
+        assert out == [("K:XPNDR_SET", other), (keeps, 0)] and isinstance(out[0][1], Bco16)
+    assert run(code, {"TRANSPONDER CODE:1": 7000, keeps: 0}) == [alt]
     # a code entered with the squawk digits forgets the code kept
     for d, step in ((1, 1000), (2, 100), (3, 10), (4, 1)):
         for way, event in (("UP", "INC"), ("DN", "DEC")):
@@ -846,7 +851,7 @@ def test_a_vfr_code_replaces_the_squawk_of_the_table():
     assert command(parts.vfr(), "1200") == parts.vfr("1200")
     assert command(parts.vfr("1200", alt), "7000") == parts.vfr("7000", alt)
     assert command(ident, None) == ident
-    for entry in (ident, k("XPNDR_SET", "0x7000"), parts.vfr() + " " + ident):
+    for entry in (ident, k("XPNDR_SET", "7000"), parts.vfr() + " " + ident):
         with pytest.raises(ValueError, match="the VFR key of test has no VFR toggle"):
             command(entry, "1200")
     with pytest.raises(ValueError, match="not a squawk code"):
@@ -1076,7 +1081,7 @@ def flight(altitude=8000, selected=4000, speed=120, tds=0, gps=0, **more):
 
 
 def vnv(entry):
-    """VNV's code as pressed (the KAP 140's sets the rate again as it is let go: test_the_kap_140s_vnv_...)"""
+    """VNV's code as pressed (it sets the rate again as it is let go: test_vnv_sets_its_rate_again_...)"""
     return entry["press"] if isinstance(entry, dict) else entry
 
 
@@ -1133,15 +1138,17 @@ def test_vnv_takes_the_first_distance_above_0(key):
     assert rate(tds=20, **{**rnav, "L:var_rnavDrivesHsi": 0}) == [-400]
 
 
-@pytest.mark.parametrize("key", sorted(k for k, vs in VNV.items() if vs == KAP140_VS))
-def test_the_kap_140s_vnv_sets_its_rate_again_as_it_is_let_go(key):
-    # behind WT's G1000 NXi or GNS VS comes a frame after AP_PANEL_VS_ON and takes the present vertical speed: the
-    # release sets the rate again, without entering VS a second time
+@pytest.mark.parametrize("key", sorted(VNV))
+def test_vnv_sets_its_rate_again_as_it_is_let_go(key):
+    # behind WT's G1000 NXi or GNS VS comes a frame after AP_PANEL_VS_ON and takes the present vertical speed, and
+    # the KAS 297B's VS ENG, an H: event, runs after the rate is set: the release sets the rate again, without
+    # entering VS a second time
     entry = TABLES[key].DEVICE[1]["VNV"]
-    assert set(entry) == {"press", "release"} and entry == TABLES[key].DEVICE[1]["S_VNV"]
+    assert set(entry) == {"press", "release"}
+    assert entry == TABLES[key].DEVICE[1]["S_VNV"] or key == BONANZA              # its SHIFT, VNV: the KR 87's BFO
     released = run(entry["release"], {**flight(gps=20, tds=20), **_IN_VS})
-    assert released == [("K:AP_VS_VAR_SET_ENGLISH", -400)] and "AP_PANEL_VS_ON" not in entry["release"]
-    assert run(entry["press"], {**flight(gps=20, tds=20), **_IN_ALT})[-1] == ("K:AP_VS_VAR_SET_ENGLISH", -400)
+    assert released == [("K:AP_VS_VAR_SET_ENGLISH", -400)] and VNV[key][0][0][2:] not in entry["release"]
+    assert ("K:AP_VS_VAR_SET_ENGLISH", -400) in run(entry["press"], {**flight(gps=20, tds=20), **_IN_ALT})
 
 
 def test_vnv_reads_the_distances_of_the_navigators_it_is_composed_with():
@@ -1159,7 +1166,8 @@ def test_vnv_reads_the_distances_of_the_navigators_it_is_composed_with():
     nxi = part.compose("x", AUTOPILOTS["kap140"], COCKPITS["g1000"], NAVIGATORS["g1000"]).DEVICE[1]["VNV"]
     assert nxi == FAMILIES["carenado-c182t"].DEVICE[1]["VNV"] and "WTAP_VNAV_Required_VS" in text(nxi)
     assert not any("WTAP" in text(p.DEVICE[1].get("VNV", "")) for p in AUTOPILOTS.values())
-    assert "RNAV" not in AUTOPILOTS["kfc150"].DEVICE[1]["VNV"] and "RNAV" in FAMILIES[BONANZA].DEVICE[1]["VNV"]
+    assert "RNAV" not in text(AUTOPILOTS["kfc150"].DEVICE[1]["VNV"])
+    assert "RNAV" in text(FAMILIES[BONANZA].DEVICE[1]["VNV"])
 
 
 def test_an_autopilot_part_alone_reads_every_navigators_distance():
@@ -1600,7 +1608,7 @@ def test_command_line_with_a_vfr_code(tmp_path):
     out = tmp_path / "out.mfproj"
     cli.main(["--family", "gns", "--vfr", "1200", "-o", str(out)])
     assert out.read_text(encoding="utf-8") == profile.dumps(profile.build(FAMILIES["gns"], profile.UNBOUND, "1200"))
-    assert '"0x1200 sp0 (A:TRANSPONDER CODE:1, Bcd16) l0 == if{' in out.read_text(encoding="utf-8")
+    assert '"1200 sp0 (A:TRANSPONDER CODE:1, number) l0 == if{' in out.read_text(encoding="utf-8")
 
 
 def test_the_stamp_goes_in_the_name_alone(tmp_path):
