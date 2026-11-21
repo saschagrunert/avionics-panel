@@ -295,7 +295,7 @@ def test_every_key_event_is_one_checked_against_the_sdk(key):
 @FAMILY
 def test_the_ifr1_keeps_its_state_apart_from_the_panels(key):
     # every L: variable a code sets beyond the panel codes it sends is one of the IFR-1's own (the squawk pairs
-    # forget the code VFR kept, as the panel's digits do, and VFR keeps the code in parts' own variable)
+    # forget the code VFR kept, as the panel's digits do, and VFR keeps it in L:AvionicsPanel_Squawk)
     p = PROFILES[key]
     for button, entry in p.DEVICE.items():
         code = " ".join(profile.actions(entry).values())
