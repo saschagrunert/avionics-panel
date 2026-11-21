@@ -124,9 +124,11 @@ def unit(variable):
     feet for an altitude, knots for the ground speed, nmiles for the GPS's distance, number for an index, the
     G1000's CDI source, a dimmer, a selector, a valve, a pump's switch or an L: variable's distance, feet per minute
     for a rate, enum for a state, bool for a flag (an autopilot's mode, as AUTOPILOT HEADING LOCK, which the IFR-1's
-    lights read, or the IFR-1's own state, as a key that is down)"""
+    lights read, or the IFR-1's own state, as a key that is down, but its squawk digit, a number)"""
     if variable.startswith("AUTOPILOT ") and variable.endswith((" LOCK", " HOLD")):
         return "bool"
+    if variable == f"L:{ifr1.SQUAWK_DIGIT}":
+        return "number"                                  # the IFR-1's squawk digit selected, 0 to 3
     if ifr1.STATE in variable:
         return "bool"
     if re.search(r"HEADING|OBS|RADIAL|NAV LOCALIZER", variable):
@@ -695,7 +697,7 @@ SETS = {
         UP=100,K:AP_ALT_VAR_INC,K:AP_VS_VAR_INC,K:AP_PITCH_REF_INC_UP
         VFR=7000,K:XPNDR_SET,0,L:AvionicsPanel_Squawk_Kept,H:TRANSPONDER_Push_ALT,L:AvionicsPanel_Squawk,1,L:AvionicsPanel_Squawk_Kept,L:AvionicsPanel_Squawk_Set,K:XPNDR_SET,H:TRANSPONDER_Push_ALT
         VNAV=H:AS530_VNAV_Push
-        VNV=0,0,-,0,300,0,0,30,60,0,100,100,100,300,1500,K:AP_VS_VAR_SET_ENGLISH,H:kas297b_VsButton/0,0,-,0,300,0,0,30,60,0,100,100,100,300,1500,K:AP_VS_VAR_SET_ENGLISH
+        VNV=0,0,-,0,300,0,0,30,60,0,100,100,100,300,1500,K:AP_VS_VAR_SET_ENGLISH,H:kas297b_VsButton
         VS=H:kas297b_VsButton XPDR_MODE=1,H:TRANSPONDER_Push_STBY,H:TRANSPONDER_Push_ALT YD=K:YAW_DAMPER_TOGGLE
     """,
     "cows-da40": """
@@ -1138,17 +1140,23 @@ def test_vnv_takes_the_first_distance_above_0(key):
     assert rate(tds=20, **{**rnav, "L:var_rnavDrivesHsi": 0}) == [-400]
 
 
-@pytest.mark.parametrize("key", sorted(VNV))
+@pytest.mark.parametrize("key", sorted(k for k, (engage, _) in VNV.items() if engage == KAP140_VS))
 def test_vnv_sets_its_rate_again_as_it_is_let_go(key):
-    # behind WT's G1000 NXi or GNS VS comes a frame after AP_PANEL_VS_ON and takes the present vertical speed, and
-    # the KAS 297B's VS ENG, an H: event, runs after the rate is set: the release sets the rate again, without
-    # entering VS a second time
+    # behind WT's G1000 NXi or GNS VS comes a frame after AP_PANEL_VS_ON and takes the present vertical speed: the
+    # KAP 140's release sets the rate again, without entering VS a second time
     entry = TABLES[key].DEVICE[1]["VNV"]
     assert set(entry) == {"press", "release"}
-    assert entry == TABLES[key].DEVICE[1]["S_VNV"] or key == BONANZA              # its SHIFT, VNV: the KR 87's BFO
+    assert entry == TABLES[key].DEVICE[1]["S_VNV"]
     released = run(entry["release"], {**flight(gps=20, tds=20), **_IN_VS})
     assert released == [("K:AP_VS_VAR_SET_ENGLISH", -400)] and VNV[key][0][0][2:] not in entry["release"]
     assert ("K:AP_VS_VAR_SET_ENGLISH", -400) in run(entry["press"], {**flight(gps=20, tds=20), **_IN_ALT})
+
+
+@pytest.mark.parametrize("key", [BONANZA, "autopilot-kfc150"])
+def test_the_kfc150s_vnv_sends_on_press_alone(key):
+    # the rate, then VS ENG, once: the rate set again on release, while VS ENG takes it, stopped VNV working
+    entry = TABLES[key].DEVICE[1]["VNV"]
+    assert isinstance(entry, str) and entry.endswith("if{ (>H:kas297b_VsButton) } }")
 
 
 def test_vnv_reads_the_distances_of_the_navigators_it_is_composed_with():
