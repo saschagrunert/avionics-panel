@@ -163,6 +163,46 @@ ROWS = {
 }
 
 
+def test_the_10_degree_rings_step_ten_times_and_the_g3x_course_keeps_its_10_degree_step():
+    for key in FAMILIES:
+        used = PROFILES[key].USES
+        assert used["Button_COM1^_OI"]["turn"].source == ifr1.Times(ifr1.Panel(1, "HDG_1_UP"), 10), key
+        crs = used["Button_NAV1^_OI"]["turn"].source
+        assert crs == (ifr1.Panel(1, "CRS_10_UP") if key == "g3x" else ifr1.Times(ifr1.Panel(1, "CRS_1_UP"), 10)), key
+    assert press({}, PROFILES["gns"].DEVICE["Button_COM1^_OD"]) == [("K:HEADING_BUG_DEC", None)] * 10
+
+
+@FAMILY
+def test_hdg_held_syncs_the_heading_bug_and_a_tap_engages_hdg_on_release(key):
+    p, family = PROFILES[key], FAMILIES[key]
+    entry, state = p.DEVICE["Button_AP_HDG"], {"AUTOPILOT HEADING LOCK DIR:1": 90, "HEADING INDICATOR:1": 270}
+    assert press(state, entry, default=0) == []
+    held = press(state, entry, "hold", default=0)
+    assert held[0] == ("K:HEADING_BUG_SET", 270), key
+    assert held[1:] == ([("K:VOR1_SET", 270)] if key == "black-square-bonanza" else []), key    # and the HSI's course
+    press(state, entry, default=0)
+    assert press(state, entry, "release", default=0) == run(family.DEVICE[1]["HDG"]), key
+
+
+def test_the_bonanzas_yaw_damper_and_bc_holds():
+    device, family = BONANZA.DEVICE, FAMILIES["black-square-bonanza"]
+    for button, want in (("Button_COM1^_TOG", "YD"), ("Button_FMS1_CDI", "BC")):
+        state = {}
+        press(state, device[button])
+        assert press(state, device[button], "hold") == run(family.DEVICE[1][want]), button
+        assert press(state, device[button], "release") == [], button             # nothing more when let go
+
+
+def test_the_bonanzas_apr_held_is_the_go_around():
+    entry = BONANZA.DEVICE["Button_AP_APR"]
+    state = {}
+    press(state, entry)
+    assert press(state, entry, "hold") == [("K:AUTO_THROTTLE_TO_GA", None)]
+    press(state, entry)
+    assert press(state, entry, "release") == [("K:AP_APR_HOLD", None)]
+    assert PROFILES["gtn"].USES["Button_AP_APR"]["hold"].source == ifr1.Panel(1, "BC")     # elsewhere still BC
+
+
 @FAMILY
 def test_each_row_takes_its_panel_button(key):
     used = PROFILES[key].USES
@@ -170,6 +210,8 @@ def test_each_row_takes_its_panel_button(key):
         source = used[button][use].source
         if isinstance(source, ifr1.Own) and (button, use) in EXTRA[key]:     # the profile's own in place of it
             continue
+        if (button, name) in ifr1.TENFOLD and isinstance(source, ifr1.Times):    # 10° as ten 1° steps
+            source, name = source.panel, ifr1.TENFOLD[button, name]
         if isinstance(source, ifr1.Plus) and (button, use) in EXTRA[key]:     # the panel's, and the profile's own
             source = source.panel
         assert source == ifr1.Panel(device, name), (button, use)
@@ -285,8 +327,9 @@ def test_a_change_of_mode_starts_the_squawk_entry_at_digit_1_again(key):
 
 
 def test_crs2_turns_and_centres_nav_2():
-    assert run(ifr1.NAV2_COURSE["OI"].code, {"NAV OBS:2": 355}) == [("K:VOR2_SET", 5)]
-    assert run(ifr1.NAV2_COURSE["OD"].code, {"NAV OBS:2": 5}) == [("K:VOR2_SET", 355)]
+    # 10° as ten 1° steps, which read nothing, so a fast spin loses no detent (ifr1.TENFOLD)
+    assert run(ifr1.NAV2_COURSE["OI"].code) == [("K:VOR2_OBI_INC", None)] * 10
+    assert run(ifr1.NAV2_COURSE["OD"].code) == [("K:VOR2_OBI_DEC", None)] * 10
     assert run(ifr1.NAV2_COURSE["II"].code) == [("K:VOR2_OBI_INC", None)]
     assert run(ifr1.NAV2_COURSE["ID"].code) == [("K:VOR2_OBI_DEC", None)]
     assert run(ifr1.NAV2_COURSE["TOG"].code, {"NAV HAS LOCALIZER:2": 0, "NAV HAS NAV:2": 1, "NAV RADIAL:2": 90}) \
@@ -809,10 +852,10 @@ def test_the_cells_say_what_the_controls_do():
             "⇆: tap: COM 2 flip-flop; hold: listen, on or off; kept if talked on; hold 2 s: "
             "talk on, hear COM 2"} <= set(da40["COM2"])
     assert da40["NAV1"][da40["NAV1"].index("CRS1 (NAV1 shifted)") + 1] == \
-        "outer: course of the CDI (PFD CRS knob) 10°"
-    assert "outer: NAV 2 course 10°" in da40["NAV2"]
+        "outer: course of the CDI (PFD CRS knob) 1° ×10"
+    assert "outer: NAV 2 course 1° ×10" in da40["NAV2"]
     assert "⇆: tap: NAV 2 flip-flop; hold: listen to the NAV 2 ident" in da40["NAV2"]
-    assert {"outer: heading bug 10°", "inner: heading bug 1°"} <= set(da40["COM1"])
+    assert {"outer: heading bug 1° ×10", "inner: heading bug 1°"} <= set(da40["COM1"])
     assert {"MODE (XPDR shifted)", "rings: transponder to ALT / to standby"} <= set(da40["XPDR"])
     assert ("outer: selects the squawk digit, 1 to 4 (stops at both ends); ⇆ held: panel lights, 5 % steps"
             in da40["XPDR"])
@@ -882,7 +925,8 @@ def test_the_bonanzas_fms1_ent_says_the_edm_800():
 
 def test_the_bonanzas_cockpit_functions_take_the_slots_that_send_nothing_in_every_selection():
     used, family = BONANZA.USES, FAMILIES["black-square-bonanza"]
-    assert used["Button_AP_NAV"]["hold"].entry == family.DEVICE[1]["GPSS"] and "hold" not in used["Button_FMS1_CDI"]
+    assert used["Button_AP_NAV"]["hold"].entry == family.DEVICE[1]["GPSS"]
+    assert used["Button_FMS1_CDI"]["hold"].entry == family.DEVICE[1]["BC"]
     assert used["Button_COM1^_TOG"]["key"].entry == (f"{family.DEVICE[1]['HDG_SYNC']} (A:HEADING INDICATOR:1, "
                                                     "degrees) near dnor (>K:VOR1_SET)")
     assert used["Button_FMS2_VNAV"]["key"].entry == family.DEVICE[1]["LVL"]
@@ -967,10 +1011,11 @@ def test_the_bonanzas_sheet_says_what_the_merged_keys_do():
     assert ("outer: navigator's outer right knob; ⇆ held: KLN 90B left outer knob; GNS 530 map range; GTN 750 volume"
             in sheet["FMS1"])
     assert "⇆: tap: GTN HOME" in sheet["FMS1"] and "⇆: tap: GTN HOME" in sheet["FMS2"]
-    assert "FMS1 CDI: GPS or VLOC (GNS, HSI, MD41)" in sheet["B_AP"]
+    assert "FMS1 CDI: tap: GPS or VLOC (GNS, HSI, MD41); hold: BC mode" in sheet["B_AP"]
     assert "other modes: tap: NAV mode; hold: HSI source: NAV 1 or RNAV" in sheet["B_NAV"]
     assert "other modes: tap: KAS 297B VS ENG; hold: flight director (only with AP off)" in sheet["B_VS"]
-    assert "⇆: heading bug to the heading; HSI course to the heading" in sheet["COM1"]
+    assert "⇆: tap: heading bug to the heading; HSI course to the heading; hold: yaw damper, if fitted" in sheet["COM1"]
+    assert "other modes: tap: HDG mode; hold: heading bug to the heading; HSI course to the heading" in sheet["B_HDG"]
     assert "FMS2 VNAV: tap: KDI 572R DME selector, next; hold: air conditioner and blower on or off" in sheet["B_ALT"]
     assert "FMS2 MSG: tap: MSG; hold: oxygen on or off" in sheet["B_NAV"]
     assert "FMS2 PROC: PROC (GNS; PMS50 GTN: procedures)" in sheet["B_VS"]
@@ -1224,7 +1269,7 @@ def test_the_buttons_that_let_go_are_named_by_what_they_do():
     assert names["Button_UNSHIFT_SW"] == (
         "UNSHIFT_SW: lets go of ⇆ and the held keys of every mode, squawk digit 1 again")
     assert names["Button_SHIFT_SW"] == "SHIFT_SW: lets go of ⇆ in the modes with a shift"
-    assert names["Button_AP_APR"] == "AP_APR: AP_APR_HOLD, AP_BC_HOLD"
+    assert names["Button_AP_APR"] == "AP_APR: AP_APR_HOLD, AUTO_THROTTLE_TO_GA"      # GA held in the Bonanza
 
 
 def test_tds_gtns_take_their_volume_by_their_part():
