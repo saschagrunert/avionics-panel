@@ -32,9 +32,9 @@ def receive(com):
 
 # The squawk: TRANSPONDER CODE:1 read as a number is its four digits as a decimal one (1200), and XPNDR_SET takes the
 # code in the simulator's unit Bco16, a digit in each hex digit (0x1200), keeping three bits of each (MSFS DevSupport
-# "Faulty unit for SimVar TRANSPONDER CODE"). Code works with the digits; bco16() packs them itself. The simulator does
-# not convert them for an L: variable set as a number and read as Bco16: in flight that sent 7000 as it is, 0x1B58,
-# which the transponder took as 1350 (0x1B58 with three bits of each hex digit).
+# "Faulty unit for SimVar TRANSPONDER CODE"). Code works with the digits; squawk() packs them itself (BCO16). The
+# simulator does not convert them for an L: variable set as a number and read as Bco16: in flight that sent 7000 as it
+# is, 0x1B58, which the transponder took as 1350 (0x1B58 with three bits of each hex digit).
 #
 # VFR toggles the VFR code: from another code it keeps that code in L:AvionicsPanel_Squawk (its digits), squawks the
 # VFR code and selects ALT (alt: the code that selects it); on the VFR code it squawks the code kept, once, as a GTX
