@@ -194,7 +194,7 @@ def test_the_bonanzas_yaw_damper_and_bc_holds():
 
 
 def test_the_bonanzas_fms1_keys_hold_what_the_bottom_row_holds_in_their_position():
-    # FMS1 is where the Bonanza is mostly flown: OBS, MSG and FPL, under HDG, NAV and APR, hold the same as those
+    # FMS1 is where the Bonanza is mostly flown: OBS, MSG and FPL, over HDG, NAV and APR, hold the same as those
     used, device = BONANZA.USES, BONANZA.DEVICE
     assert ifr1.FMS1_HOLDS == {"HDG": "FMS1_OBS", "NAV": "FMS1_MSG", "APR": "FMS1_FPL"}
     for ap, fms1 in ifr1.FMS1_HOLDS.items():

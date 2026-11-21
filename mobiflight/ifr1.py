@@ -481,8 +481,8 @@ def bonanza_extra():
         ("Button_COM1^_TOG", "key"): Plus(Panel(1, "HDG_SYNC"), Own("HSI course to the heading", _COURSE_SYNC)),
         ("Button_COM1^_TOG", "hold"): Panel(1, "YD"),
         ("Button_FMS1_CDI", "hold"): Panel(1, "BC"),
-        # the bottom row's holds in FMS1 too, where the Bonanza is mostly flown, by position: OBS under HDG, MSG under
-        # NAV, FPL under APR (FMS1_HOLDS)
+        # the bottom row's holds in FMS1 too, where the Bonanza is mostly flown, by position: OBS over HDG, MSG over
+        # NAV, FPL over APR (FMS1_HOLDS)
         **{(f"Button_{button}", "hold"): source for key, source in _AP_ROW_HOLDS.items()
            for button in (f"AP_{key}", FMS1_HOLDS[key])},
         ("Button_FMS1_CLR", "key"): Own("EDM 800 STEP", edm["L"]["release"]),
