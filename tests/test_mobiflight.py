@@ -29,7 +29,7 @@ from mobiflight.families import black_square_bonanza as bksq
 from mobiflight.families.black_square_bonanza import KFC150_VNV
 from mobiflight.families.rpn import h, k
 from sim import Sim
-from tests.rpn import NUMBER, READ, REGISTER, TOKEN, Bco16, every_path, run, sets, well_formed
+from tests.rpn import NUMBER, READ, REGISTER, TOKEN, every_path, run, sets, well_formed
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PANEL = {1: ("Avionics Panel", "JS-9c35f3d0-667e-11f1-8001-444553540000"),
@@ -143,8 +143,8 @@ def unit(variable):
         return "nmiles"
     if variable == "TRANSPONDER CODE":
         return "number"                                  # its digits (parts.CODE)
-    if variable.endswith(("AvionicsPanel_Squawk", "AvionicsPanel_Squawk_Set")):
-        return "bco16"                                   # as XPNDR_SET takes it (parts.squawk)
+    if variable.endswith("AvionicsPanel_Squawk"):
+        return "number"                                  # the code VFR kept, as its digits (parts.vfr)
     if variable.endswith("Required_VS"):
         return "feet per minute"
     if variable.endswith(("SELECTED", "PFD_CDI_Source", "LightingKnob", "dmeMode", "RadarTilt", "DistanceNM",
@@ -504,7 +504,7 @@ EVERY = """
     SQK_D2_DN=K:XPNDR_100_DEC,0,L:AvionicsPanel_Squawk_Kept SQK_D2_UP=K:XPNDR_100_INC,0,L:AvionicsPanel_Squawk_Kept
     SQK_D3_DN=K:XPNDR_10_DEC,0,L:AvionicsPanel_Squawk_Kept SQK_D3_UP=K:XPNDR_10_INC,0,L:AvionicsPanel_Squawk_Kept
     SQK_D4_DN=K:XPNDR_1_DEC,0,L:AvionicsPanel_Squawk_Kept SQK_D4_UP=K:XPNDR_1_INC,0,L:AvionicsPanel_Squawk_Kept
-    VFR=7000,K:XPNDR_SET,0,L:AvionicsPanel_Squawk_Kept,4,A:TRANSPONDER_STATE:1,L:AvionicsPanel_Squawk,1,L:AvionicsPanel_Squawk_Kept,L:AvionicsPanel_Squawk_Set,K:XPNDR_SET,4,A:TRANSPONDER_STATE:1
+    VFR=7000,1000,4096,100,10,256,+,10,10,16,+,10,+,K:XPNDR_SET,0,L:AvionicsPanel_Squawk_Kept,4,A:TRANSPONDER_STATE:1,L:AvionicsPanel_Squawk,1,L:AvionicsPanel_Squawk_Kept,1000,4096,100,10,256,+,10,10,16,+,10,+,K:XPNDR_SET,4,A:TRANSPONDER_STATE:1
 """
 SETS = {
     "g1000": """
@@ -695,7 +695,7 @@ SETS = {
         S_UP=H:bksq_JpiButton_1_L_Short/H:bksq_JpiButton_1_L_Long S_VNV=H:adf_bfo S_VS=H:kas297b_VsButton TERR=K:GPS_OBS
         TEST=20,L:var_AutopilotStartupCounter,1,L:var_md41Test/0,L:var_md41Test
         UP=100,K:AP_ALT_VAR_INC,K:AP_VS_VAR_INC,K:AP_PITCH_REF_INC_UP
-        VFR=7000,K:XPNDR_SET,0,L:AvionicsPanel_Squawk_Kept,H:TRANSPONDER_Push_ALT,L:AvionicsPanel_Squawk,1,L:AvionicsPanel_Squawk_Kept,L:AvionicsPanel_Squawk_Set,K:XPNDR_SET,H:TRANSPONDER_Push_ALT
+        VFR=7000,1000,4096,100,10,256,+,10,10,16,+,10,+,K:XPNDR_SET,0,L:AvionicsPanel_Squawk_Kept,H:TRANSPONDER_Push_ALT,L:AvionicsPanel_Squawk,1,L:AvionicsPanel_Squawk_Kept,1000,4096,100,10,256,+,10,10,16,+,10,+,K:XPNDR_SET,H:TRANSPONDER_Push_ALT
         VNAV=H:AS530_VNAV_Push
         VNV=0,0,-,0,300,0,0,30,60,0,100,100,100,300,1500,K:AP_VS_VAR_SET_ENGLISH,H:kas297b_VsButton
         VS=H:kas297b_VsButton XPDR_MODE=1,H:TRANSPONDER_Push_STBY,H:TRANSPONDER_Push_ALT YD=K:YAW_DAMPER_TOGGLE
@@ -800,9 +800,8 @@ def test_what_every_function_sets(key):
 
 
 def test_the_vfr_key_sets_the_squawk_asked_for():
-    # XPNDR_SET takes the code in Bco16, as the simulator converts its digits: the tables' 7000 unless another is
-    # asked for, and
-    # nothing else changes with it
+    # XPNDR_SET takes the code in Bco16, a digit to a hex digit, which the code packs itself: the tables' 7000
+    # (0x7000) unless another is asked for, and nothing else changes with it
     for key in FAMILIES:
         usual, other = items(build(key=key)), items(profile.build(FAMILIES[key], PANEL, "1200"))
         [(a, b)] = [(a, b) for a, b in zip(usual, other, strict=True) if a != b]
@@ -810,12 +809,21 @@ def test_the_vfr_key_sets_the_squawk_asked_for():
         for item, code in ((a, 7000), (b, 1200)):
             [value] = [v for e, v in run(item["button"]["onPress"]["Command"], {
                 "TRANSPONDER CODE:1": 4521, "L:AvionicsPanel_Squawk_Kept": 0}) if e == "K:XPNDR_SET"]
-            assert isinstance(value, Bco16) and value == code
+            assert value == int(str(code), 16), (key, value)
         assert items(profile.build(FAMILIES[key], PANEL, 1200)) == other
         assert items(profile.build(FAMILIES[key], PANEL, "7000")) == usual
     for bad in ("7800", "120", "12000", "VFR", "", 120):
         with pytest.raises(ValueError, match="not a squawk code"):
             profile.build(FAMILIES["g1000"], PANEL, bad)
+
+
+def test_squawk_packs_the_digits_a_digit_to_a_hex_digit_for_every_code():
+    # XPNDR_SET takes 0x1200 for 1200: the simulator does not convert an L: variable read as Bco16 (in flight 7000
+    # went out as 0x1B58, which the transponder showed as 1350), so the code packs the digits itself
+    for n in range(4096):
+        digits = int(f"{n:04o}")                                     # every code of four digits 0 to 7, as a number
+        assert run(parts.squawk(str(digits))) == [("K:XPNDR_SET", int(str(digits), 16))], digits
+    assert "Bco16" not in parts.vfr()
 
 
 @FAMILY
@@ -827,10 +835,9 @@ def test_vfr_toggles_the_vfr_code(key):
     kept, keeps = "L:AvionicsPanel_Squawk", "L:AvionicsPanel_Squawk_Kept"
     for other in (4521, 0):
         out = run(code, {"TRANSPONDER CODE:1": other, keeps: 0})
-        assert out == [(kept, other), (keeps, 1), ("L:AvionicsPanel_Squawk_Set", 7000), ("K:XPNDR_SET", 7000), alt]
-        assert isinstance(out[3][1], Bco16)
+        assert out == [(kept, other), (keeps, 1), ("K:XPNDR_SET", 0x7000), alt]
         out = run(code, {"TRANSPONDER CODE:1": 7000, keeps: 1, kept: other})
-        assert out == [("K:XPNDR_SET", other), (keeps, 0)] and isinstance(out[0][1], Bco16)
+        assert out == [("K:XPNDR_SET", int(f"{other:04d}", 16)), (keeps, 0)]      # 4521 back as 0x4521
     assert run(code, {"TRANSPONDER CODE:1": 7000, keeps: 0}) == [alt]
     # a code entered with the squawk digits forgets the code kept
     for d, step in ((1, 1000), (2, 100), (3, 10), (4, 1)):

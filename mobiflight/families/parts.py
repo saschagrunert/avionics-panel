@@ -31,9 +31,10 @@ def receive(com):
 
 
 # The squawk: TRANSPONDER CODE:1 read as a number is its four digits as a decimal one (1200), and XPNDR_SET takes the
-# code in the simulator's unit Bco16 (MobiFlight's wiki, "MSFS2020 RPN Tips and Tricks"; the SDK's Bcd16 is wrong for
-# it, MSFS DevSupport "Faulty unit for SimVar TRANSPONDER CODE"). Code works with the digits; squawk() has the
-# simulator turn them into Bco16 through an L: variable set as a number and read as Bco16, as MobiFlight's wiki does.
+# code in the simulator's unit Bco16, a digit in each hex digit (0x1200), keeping three bits of each (MSFS DevSupport
+# "Faulty unit for SimVar TRANSPONDER CODE"). Code works with the digits; bco16() packs them itself. The simulator does
+# not convert them for an L: variable set as a number and read as Bco16: in flight that sent 7000 as it is, 0x1B58,
+# which the transponder took as 1350 (0x1B58 with three bits of each hex digit).
 #
 # VFR toggles the VFR code: from another code it keeps that code in L:AvionicsPanel_Squawk (its digits), squawks the
 # VFR code and selects ALT (alt: the code that selects it); on the VFR code it squawks the code kept, once, as a GTX
@@ -42,19 +43,21 @@ def receive(com):
 # too).
 ALT = "4 (>A:TRANSPONDER STATE:1, Enum)"         # the simulator's mode ALT (XPDR_MODE below)
 CODE = "(A:TRANSPONDER CODE:1, number)"          # the squawk's digits, 1200 for 1200
-_KEPT, _KEEPS, _TO_SET = "AvionicsPanel_Squawk", "AvionicsPanel_Squawk_Kept", "AvionicsPanel_Squawk_Set"
+_KEPT, _KEEPS = "AvionicsPanel_Squawk", "AvionicsPanel_Squawk_Kept"
+# the digits on the stack (1200) packed a digit to a hex digit (0x1200), register 5 holding them meanwhile
+BCO16 = "s5 1000 / flr 4096 * l5 100 / flr 10 % 256 * + l5 10 / flr 10 % 16 * + l5 10 % +"
 
 
 def squawk(digits=""):
     """XPNDR_SET of a code's digits as a decimal number (an RPN value, "" for the top of the stack), in Bco16"""
-    return " ".join(filter(None, (digits, f"(>L:{_TO_SET}) (L:{_TO_SET}, Bco16) {k('XPNDR_SET')}")))
+    return " ".join(filter(None, (digits, BCO16, k("XPNDR_SET"))))
 
 
 def vfr(code=VFR, alt=ALT):
     """VFR: toggle this code, four digits of 0 to 7, in any aircraft (above); alt selects ALT"""
     if not re.fullmatch("[0-7]{4}", str(code)):
         raise ValueError(f"not a squawk code (four digits, each 0 to 7): {code!r}")
-    return (f"{int(code)} sp0 {CODE} l0 == if{{ (L:{_KEEPS}, Bool) if{{ (L:{_KEPT}, Bco16) {k('XPNDR_SET')} "
+    return (f"{int(code)} sp0 {CODE} l0 == if{{ (L:{_KEEPS}, Bool) if{{ {squawk(f'(L:{_KEPT}, Number)')} "
             f"0 (>L:{_KEEPS}) }} els{{ {alt} }} }} "
             f"els{{ {CODE} (>L:{_KEPT}) 1 (>L:{_KEEPS}) {squawk('l0')} {alt} }}")
 
