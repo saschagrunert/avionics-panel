@@ -384,10 +384,10 @@ for you to set, with an eye on the airspeed and the power.
    between 300 and 1500 ft/min down. In the KAP 140 it leaves ALT hold for VS as the ALT key does and then
    sets the rate, and sets it again as the key is let go, as the G1000 NXi's and GNS's autopilot code may
    enter VS a moment later at the present rate; in the KAS 297B it sets the rate and then presses VS ENG, when
-   the autopilot is engaged, not in VS and not on a glideslope, and sets the rate again as the key is let go,
-   should VS ENG take the present vertical speed. With the autopilot off, VNV only sets the
-   rate; an autopilot may take the present vertical speed when it engages, so press VNV again after engaging
-   it.
+   the autopilot is engaged, not in VS and not on a glideslope, all on press (the IFR-1's VNV, which set the rate
+   again as the key was let go, while VS ENG took it, never worked in the Bonanza). With the autopilot off, VNV
+   only sets the rate; an autopilot may take the present vertical speed when it engages, so press VNV again
+   after engaging it.
 3. Press VNV again now and then, after a turn or a change of speed or wind: it works the rate out anew from
    where you are.
 
@@ -443,8 +443,8 @@ None of this has been flown in the sim yet. To check there:
   give it index 1 (`1 <rate> (>K:2:AP_VS_VAR_SET_ENGLISH)`). With the autopilot off, press VNV and watch the
   sim's `AUTOPILOT VERTICAL HOLD VAR:1`; if it does not change, the event needs the index.
 - In the Bonanza, that VS ENG keeps the rate VNV set: Black Square's guide says VS ENG pressed while the KAS
-  297B shows the selected altitude takes the present vertical speed. VNV sets the rate again as the key is
-  let go, after VS ENG; if the rate is still lost, press VNV again in VS.
+  297B shows the selected altitude takes the present vertical speed. If the rate is lost, press VNV again in
+  VS: there it only sets the rate.
 - Which of two GTNs TDS's distance is for. With a TDS GTN that has no active waypoint, a flight plan in the
   sim's own GPS may give the GPS distance. TDS's variable may also keep its last value after a flight with a
   TDS GTN: in the Bonanza with its tablet set to a GNS, the KLN 90B or PMS50's GTN, and with the parts alone,

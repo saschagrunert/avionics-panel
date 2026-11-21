@@ -13,7 +13,7 @@ import pytest
 from mobiflight import __main__ as cli
 from mobiflight import cards, ifr1, ifr1_card, ifr1_grid, ifr1_sheet, profile
 from mobiflight.families import FAMILIES, parts
-from tests.rpn import READ, TOKEN, Bco16, every_path, run, sets, well_formed
+from tests.rpn import READ, TOKEN, every_path, run, sets, well_formed
 from tests.test_mobiflight import unit as unit_of
 
 FAMILY = pytest.mark.parametrize("key", sorted(FAMILIES))
@@ -178,7 +178,9 @@ def test_each_row_takes_its_panel_button(key):
     assert used["Button_AP_OD"]["held"].source == ifr1.Times(ifr1.Panel(1, "DN"), ifr1.AP_COARSE)
     for ring, own in ifr1.NAV2_COURSE.items():
         assert used[f"Button_NAV2^_{ring}"][ring == "TOG" and "key" or "turn"].source == own
-    for ring, own in ifr1.SQUAWK_PAIRS.items():
+    table = profile.tables(FAMILIES[key])
+    for ring, own in (("OI", ifr1.squawk_select(1)), ("OD", ifr1.squawk_select(-1)),
+                      ("II", ifr1.squawk_digit(table, "UP")), ("ID", ifr1.squawk_digit(table, "DN"))):
         assert used[f"Button_XPDR_{ring}"]["turn"].source == own
     for button in ("Button_AP_TOG", "Button_XPDR_TOG", "Button_FMS1_TOG", "Button_FMS2_TOG"):
         assert used[button]["hold"].source is None, button               # a modifier has no hold
@@ -252,29 +254,34 @@ def test_the_ifr1_keeps_its_state_apart_from_the_panels(key):
 
 
 # ---------------- what the codes do ----------------
-def squawk(code, ring):
-    """The code a squawk ring's detent sets from this code (four octal digits as text)"""
-    out = run(ifr1.SQUAWK_PAIRS[ring].code, {"TRANSPONDER CODE:1": int(code)})
-    assert out[-1] == ("L:AvionicsPanel_Squawk_Kept", 0)
-    (event, value), = [o for o in out if o[0] == "K:XPNDR_SET"]
-    assert isinstance(value, Bco16)                    # in the simulator's unit, as XPNDR_SET takes it
-    return f"{value:04d}"
+DIGIT = f"L:{ifr1.SQUAWK_DIGIT}"
 
 
-@pytest.mark.parametrize(("code", "ring", "want"), [
-    ("7000", "OI", "7100"), ("7700", "OI", "0000"), ("0723", "OI", "1023"), ("1023", "OD", "0723"),
-    ("0000", "OD", "7700"), ("7000", "II", "7001"), ("7007", "II", "7010"), ("7077", "II", "7000"),
-    ("7000", "ID", "7077"), ("1234", "ID", "1233"), ("4567", "OI", "4667"), ("1200", "ID", "1277")])
-def test_a_squawk_ring_steps_its_two_digits_and_keeps_the_others(code, ring, want):
-    assert squawk(code, ring) == want
+@pytest.mark.parametrize(("digit", "step", "want"), [(0, 1, 1), (1, 1, 2), (2, 1, 3), (3, 1, 3), (3, -1, 2),
+                                                      (1, -1, 0), (0, -1, 0)])
+def test_the_xpdr_outer_ring_selects_the_digit_and_stops_at_both_ends(digit, step, want):
+    # as the panel's outer ring (docs/using/controls.md): digit 1 to 4, stopping at 1 and 4, nothing sent
+    assert run(ifr1.squawk_select(step).code, {DIGIT: digit}) == [(DIGIT, want)]
 
 
-def test_every_squawk_code_steps_round_and_back():
-    for high, low in itertools.product(range(64), repeat=2):
-        code = f"{high // 8}{high % 8}{low // 8}{low % 8}"
-        for up, down in (("OI", "OD"), ("II", "ID")):
-            stepped = squawk(code, up)
-            assert re.fullmatch("[0-7]{4}", stepped) and squawk(stepped, down) == code
+@FAMILY
+@pytest.mark.parametrize("way", ["UP", "DN"])
+def test_the_xpdr_inner_ring_steps_the_digit_selected_as_the_panels_digits(key, way):
+    p, family = PROFILES[key], FAMILIES[key]
+    ring = "II" if way == "UP" else "ID"
+    for digit in range(4):
+        want = run(family.DEVICE[1][f"SQK_D{digit + 1}_{way}"])
+        assert press({DIGIT: digit}, p.DEVICE[f"Button_XPDR_{ring}"], default=0) == want, digit
+        assert want[0] == (f"K:XPNDR_{1000 // 10 ** digit}_{'INC' if way == 'UP' else 'DEC'}", None)
+
+
+@FAMILY
+def test_a_change_of_mode_starts_the_squawk_entry_at_digit_1_again(key):
+    state = {DIGIT: 3}
+    press(state, PROFILES[key].DEVICE["Button_SHIFT_SW"], default=1)        # into MODE and back: no new entry yet
+    assert state[DIGIT] == 3
+    press(state, PROFILES[key].DEVICE["Button_UNSHIFT_SW"], default=1)
+    assert state[DIGIT] == 0
 
 
 def test_crs2_turns_and_centres_nav_2():
@@ -301,6 +308,7 @@ def press(state, entry, event="press", default=None):
 
 
 DA40 = PROFILES["cows-da40"].DEVICE
+FD = "AUTOPILOT FLIGHT DIRECTOR ACTIVE"
 FLC, LVL = FAMILIES["cows-da40"].DEVICE[1]["FLC"], FAMILIES["cows-da40"].DEVICE[1]["LVL"]
 
 
@@ -330,7 +338,7 @@ def panel_sends(key, button, state):
 
 def test_a_ring_turned_with_the_modifier_held_sends_its_held_code_and_the_modifier_nothing():
     # out of VS the rings set the altitude, with ⇆ held the reference of the mode (here FLC's speed, as UP and DN)
-    state = {"AUTOPILOT MASTER": 1, "AUTOPILOT VERTICAL HOLD": 0, "AUTOPILOT FLIGHT LEVEL CHANGE": 1}
+    state = {"AUTOPILOT MASTER": 1, "AUTOPILOT VERTICAL HOLD": 0, "AUTOPILOT FLIGHT LEVEL CHANGE": 1, FD: 0}
     assert press(state, DA40["Button_AP_OI"]) == [("K:AP_ALT_VAR_INC", 1000)]
     assert press(state, DA40["Button_AP_II"]) == [("K:AP_ALT_VAR_INC", None)]
     press(state, DA40["Button_AP_TOG"])
@@ -342,7 +350,7 @@ def test_a_ring_turned_with_the_modifier_held_sends_its_held_code_and_the_modifi
 def test_in_vs_the_ap_rings_set_the_rate_and_with_the_modifier_held_the_altitude():
     # after VS the rings set the rate at once, as the UP and DN keys do, the outer ring 500 ft/min a detent, the
     # inner 100; ⇆ held, they set the altitude to level off at
-    state = {"AUTOPILOT VERTICAL HOLD": 1, "AUTOPILOT MASTER": 1}
+    state = {"AUTOPILOT VERTICAL HOLD": 1, "AUTOPILOT MASTER": 1, FD: 0}
     assert press(state, DA40["Button_AP_OI"]) == [("K:AP_VS_VAR_INC", None)] * 5
     assert press(state, DA40["Button_AP_ID"]) == [("K:AP_VS_VAR_DEC", None)]
     press(state, DA40["Button_AP_TOG"])
@@ -356,19 +364,24 @@ def test_in_vs_the_ap_rings_set_the_rate_and_with_the_modifier_held_the_altitude
         assert press(dict(state), rings["Button_AP_II"]) == panel_sends(key, "UP", state)
         out_of_vs = {**state, "AUTOPILOT VERTICAL HOLD": 0}
         assert press(out_of_vs, rings["Button_AP_II"]) == panel_sends(key, "ALT_100_UP", {})
-    # with the autopilot off, a VS flag left on (or the flight director's VS) swaps nothing
+    # with the autopilot and the flight director off, a VS flag left on swaps nothing; VS on the flight director
+    # alone (the KFC 150's VS ENG with the autopilot off) swaps, so engaging the autopilot after it changes nothing
     off = {**state, "AUTOPILOT MASTER": 0}
     for key in ("black-square-bonanza", "carenado-c182t", "cows-da40"):
         assert press(dict(off), PROFILES[key].DEVICE["Button_AP_II"]) == panel_sends(key, "ALT_100_UP", {}), key
+        # the KAP 140 has no flight director: the sim's FD flag (the C182T's G1000's) swaps nothing there
+        want = "ALT_100_UP" if key == "carenado-c182t" else "UP"
+        assert press({**off, FD: 1}, PROFILES[key].DEVICE["Button_AP_II"]) == panel_sends(
+            key, want, state if want == "UP" else {}), key
 
 
 def test_the_ap_outer_ring_with_the_modifier_held_steps_the_reference_five_times():
     # the mode's test once, each event five times: 5 kt in FLC (nose down speeds up), the KAP 140's DN five times
-    state = {"AUTOPILOT MASTER": 1, "AUTOPILOT VERTICAL HOLD": 0, "AUTOPILOT FLIGHT LEVEL CHANGE": 1}
+    state = {"AUTOPILOT MASTER": 1, "AUTOPILOT VERTICAL HOLD": 0, "AUTOPILOT FLIGHT LEVEL CHANGE": 1, FD: 0}
     press(state, DA40["Button_AP_TOG"])
     assert press(state, DA40["Button_AP_OD"]) == [("K:AP_SPD_VAR_INC", None)] * 5
     c182t = PROFILES["carenado-c182t"].DEVICE
-    state = {"AUTOPILOT VERTICAL HOLD": 0, "AUTOPILOT MASTER": 1}
+    state = {"AUTOPILOT VERTICAL HOLD": 0, "AUTOPILOT MASTER": 1, FD: 0}
     press(state, c182t["Button_AP_TOG"])
     assert press(state, c182t["Button_AP_OD"]) == [("H:KAP140_Push_DN", None)] * 5
 
@@ -801,8 +814,9 @@ def test_the_cells_say_what_the_controls_do():
     assert "⇆: tap: NAV 2 flip-flop; hold: listen to the NAV 2 ident" in da40["NAV2"]
     assert {"outer: heading bug 10°", "inner: heading bug 1°"} <= set(da40["COM1"])
     assert {"MODE (XPDR shifted)", "rings: transponder to ALT / to standby"} <= set(da40["XPDR"])
-    assert ("outer: squawk digits 1 and 2 (12 of 1234), 00 to 77 and round; ⇆ held: panel lights, 5 % steps"
+    assert ("outer: selects the squawk digit, 1 to 4 (stops at both ends); ⇆ held: panel lights, 5 % steps"
             in da40["XPDR"])
+    assert "inner: steps the squawk digit selected; ⇆ held: glareshield lights, 5 % steps" in da40["XPDR"]
     assert "its hold at once when held 0.7 s" in ifr1_card.page(PROFILES["cows-da40"], words=True)
     card = ifr1_card.page(PROFILES["cows-da40"])
     assert ("<td><i>tap:</i> COM1_RADIO_SWAP; <i>hold:</i> COM1_RECEIVE_SELECT; "
@@ -863,7 +877,7 @@ def test_the_bonanzas_fms1_and_fms2_keys_send_no_tds_volume():
 
 def test_the_bonanzas_fms1_ent_says_the_edm_800():
     sheet = said("black-square-bonanza")
-    assert sheet["ENT"][1:] == ["FMS1: EDM 800 LEAN FIND", "FMS2: ENT"]
+    assert sheet["ENT"][1:] == ["FMS1: tap: EDM 800 LEAN FIND; hold: long press", "FMS2: ENT"]
 
 
 def test_the_bonanzas_cockpit_functions_take_the_slots_that_send_nothing_in_every_selection():
@@ -874,8 +888,9 @@ def test_the_bonanzas_cockpit_functions_take_the_slots_that_send_nothing_in_ever
     assert used["Button_FMS2_VNAV"]["key"].entry == family.DEVICE[1]["LVL"]
     assert used["Button_FMS2_MENU"]["hold"].entry == ("(A:AUTOPILOT MASTER, Bool) ! if{ "
                                                       "20 (>L:var_AutopilotStartupCounter) }")
-    assert used["Button_FMS1_CLR"]["key"].entry == family.DEVICE[1]["S_UP"]["release"]
-    assert used["Button_FMS1_ENT"]["key"].entry == family.DEVICE[1]["S_DN"]["release"]
+    for key, panel in (("CLR", "S_UP"), ("ENT", "S_DN")):             # the EDM 800's short and long presses
+        assert used[f"Button_FMS1_{key}"]["key"].entry == family.DEVICE[1][panel]["release"]
+        assert used[f"Button_FMS1_{key}"]["hold"].entry == family.DEVICE[1][panel]["long"]
     assert used["Button_FMS1_VNAV"]["key"].entry == family.DEVICE[1]["VNV"]
     assert used["Button_FMS2_CLR"]["key"].entry == family.DEVICE[2]["CLR"]
     assert used["Button_FMS2_ENT"]["key"].entry == family.DEVICE[2]["ENT"]
@@ -889,13 +904,18 @@ def test_the_bonanzas_cockpit_functions_take_the_slots_that_send_nothing_in_ever
     assert used["Button_FMS2_MSG"]["hold"].entry == "(L:var_oxygenOn, Number) 0 > ! 100 * (>L:var_oxygenOn)"
 
 
-def test_the_bonanzas_edm_800_takes_clr_and_ent_in_fms1_on_press():
-    # STEP and LEAN FIND at once on press, with no hold to wait for, on keys side by side as the EDM 800's buttons
-    # are: TDS's GTN 750 takes neither key; FMS2's CLR and ENT are the GNS 430's (and PMS50's) again
+def test_the_bonanzas_edm_800_takes_clr_and_ent_in_fms1_tapped_and_held():
+    # STEP and LEAN FIND, on keys side by side as the EDM 800's buttons are: tapped, a short press as the key is let
+    # go; held, a long press at once and nothing when let go. TDS's GTN 750 takes neither key; FMS2's CLR and ENT are
+    # the GNS 430's (and PMS50's) again
     device, state = BONANZA.DEVICE, {}
-    assert press(state, device["Button_FMS1_CLR"]) == [("H:bksq_JpiButton_1_L_Short", None)]
-    assert press(state, device["Button_FMS1_ENT"]) == [("H:bksq_JpiButton_1_R_Short", None)]
-    assert "Button_FMS1_CLR" not in BONANZA.UNMAPPED and isinstance(device["Button_FMS1_CLR"], str)
+    for key, side in (("CLR", "L"), ("ENT", "R")):
+        assert press(state, device[f"Button_FMS1_{key}"]) == []
+        assert press(state, device[f"Button_FMS1_{key}"], "release") == [(f"H:bksq_JpiButton_1_{side}_Short", None)]
+        assert press(state, device[f"Button_FMS1_{key}"]) == []
+        assert press(state, device[f"Button_FMS1_{key}"], "hold") == [(f"H:bksq_JpiButton_1_{side}_Long", None)]
+        assert press(state, device[f"Button_FMS1_{key}"], "release") == []
+    assert "Button_FMS1_CLR" not in BONANZA.UNMAPPED
     press(state, device["Button_FMS2_CLR"])
     assert press(state, device["Button_FMS2_CLR"], "release") == [
         ("H:AS430_CLR_Push", None), ("H:GTN650_2_BACK", None), ("H:GTN650_BACK", None)]
@@ -906,15 +926,13 @@ def test_the_bonanzas_edm_800_takes_clr_and_ent_in_fms1_on_press():
 
 
 def test_the_bonanzas_fms1_vnav_is_the_descent_calculator():
-    # pressed, the rate and VS ENG; let go, the rate again (the KFC 150's VNV), only from the button pressed
+    # pressed, the rate and VS ENG (the KFC 150's VNV); let go, nothing: the rate set again stopped VNV working
     state = {"L:var_rnavDrivesHsi": 0, "L:var_RNAV_DME": 0, "L:TDSGTNXI_NextWaypointDistanceNM": 10,
              "AUTOPILOT ALTITUDE LOCK VAR:1": 5000, "INDICATED ALTITUDE": 8000, "GROUND VELOCITY": 120,
              "AUTOPILOT MASTER": 1, "AUTOPILOT VERTICAL HOLD": 0, "AUTOPILOT GLIDESLOPE ACTIVE": 0}
     entry = BONANZA.DEVICE["Button_FMS1_VNAV"]
     rate = ("K:AP_VS_VAR_SET_ENGLISH", -600)                  # 3000 ft over 5 minutes
-    assert press(state, entry) == [rate, ("H:kas297b_VsButton", None)]
-    assert press(state, entry, "release") == [rate]
-    assert press(state, entry, "release") == []                # a release without its press
+    assert isinstance(entry, str) and press(state, entry) == [rate, ("H:kas297b_VsButton", None)]   # on press only
 
 
 def test_the_bonanzas_holds_in_fms1_and_fms2_run_as_the_cockpit():
@@ -944,7 +962,7 @@ def test_the_bonanzas_sheet_says_what_the_merged_keys_do():
     sheet = said("black-square-bonanza")
     assert sheet["MENU"][1:] == ["FMS1: tap: MENU (KLN 90B: ALT); hold: MD41 APR ARM (unit 1)",
                                  "FMS2: tap: MENU; hold: KFC 150 self-test, autopilot off only"]
-    assert sheet["CLR"][1] == "FMS1: EDM 800 STEP"
+    assert sheet["CLR"][1] == "FMS1: tap: EDM 800 STEP; hold: long press"
     assert "FMS1 VNAV: descent: sets VS, VS ENG" in sheet["B_ALT"]
     assert ("outer: navigator's outer right knob; ⇆ held: KLN 90B left outer knob; GNS 530 map range; GTN 750 volume"
             in sheet["FMS1"])
@@ -1106,6 +1124,7 @@ def test_the_button_for_a_change_of_mode_lets_go_of_every_held_key_of_the_profil
         if b in held:
             down = ifr1._down(b.removeprefix("Button_"))
             want += [f"0 (>L:{down})", *([f"0 (>L:{down}_Again)"] if f"{down}_Again" in p.DEVICE[b]["hold"] else [])]
+    want.append(f"0 (>L:{ifr1.SQUAWK_DIGIT})")                      # the squawk entry back at digit 1
     assert clear == " ".join(want) and len(clear.encode()) < 1000
     for button in held:
         assert p.DEVICE[button]["press"] == f"1 (>L:{ifr1._down(button.removeprefix('Button_'))})", button
@@ -1168,7 +1187,7 @@ def test_a_ring_with_only_a_held_use_sends_nothing_without_the_modifier():
     assert press({}, code) == [] and press({f"L:{ifr1._var('XPDR')}": 1}, code) == [("K:A", 1)]
     assert ifr1.knob("XPDR", None, None) is None
     # in a mode whose layers swap, the held use goes out without ⇆ while the swap is on
-    code, vs = ifr1.knob("AP", None, "1 (>K:A)"), {"AUTOPILOT MASTER": 1, "AUTOPILOT VERTICAL HOLD": 1}
+    code, vs = ifr1.knob("AP", None, "1 (>K:A)"), {"AUTOPILOT MASTER": 1, "AUTOPILOT VERTICAL HOLD": 1, FD: 0}
     assert press(dict(vs), code) == [("K:A", 1)] and press({**vs, f"L:{ifr1._var('AP')}": 1}, code) == []
 
 
@@ -1202,7 +1221,8 @@ def test_the_buttons_that_let_go_are_named_by_what_they_do():
     project = ifr1.project(BONANZA)
     names = {i["Device"]["Name"]: i["Name"] for i in project["ConfigFiles"][0]["ConfigItems"]
              if i["Type"] == "InputConfigItem"}
-    assert names["Button_UNSHIFT_SW"] == "UNSHIFT_SW: lets go of ⇆ and the held keys of every mode"
+    assert names["Button_UNSHIFT_SW"] == (
+        "UNSHIFT_SW: lets go of ⇆ and the held keys of every mode, squawk digit 1 again")
     assert names["Button_SHIFT_SW"] == "SHIFT_SW: lets go of ⇆ in the modes with a shift"
     assert names["Button_AP_APR"] == "AP_APR: AP_APR_HOLD, AP_BC_HOLD"
 

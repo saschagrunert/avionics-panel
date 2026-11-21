@@ -69,10 +69,11 @@ _RNAV_DISTANCE = "(L:var_rnavDrivesHsi, Bool) (L:var_RNAV_DME, Number) *"
 
 
 def KFC150_VNV(**kwargs):    # noqa: N802 (named as the other autopilots' VNV)
-    """VNV's entry, of the distances and required rate (part.compose): the rate and VS ENG pressed, the rate again
-    let go, as the KAP 140's (parts.KAP140_VNV): VS ENG is an H: event, which runs in the gauge after the code's K:
-    events, so should it take the present vertical speed after all, the rate set again holds"""
-    return {"press": parts.descent(after=_VS_ENG, **kwargs), "release": parts.descent(**kwargs)}
+    """VNV's code, of the distances and required rate (part.compose): the rate, then VS ENG, on press alone, as the
+    panel sent it when VNV worked in flight. Not the KAP 140's second step (parts.KAP140_VNV): the IFR-1's VNV, which
+    set the rate again on release, AP_VS_VAR_SET_ENGLISH sent to the KAS 297B just after VS ENG (the guide: it keeps
+    its older behaviour for that event), or sent it from onHold alone, never worked"""
+    return parts.descent(after=_VS_ENG, **kwargs)
 
 
 _NO_FLC = "the KFC 150 has no FLC mode"
