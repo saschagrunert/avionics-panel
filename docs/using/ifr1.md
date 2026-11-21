@@ -77,7 +77,7 @@ as for the panel ([Generated profiles](mapping.md#generated-profiles)).
 | NAV1, NAV2 | MHz / kHz of NAV 1 / NAV 2 | tap: flip-flop; hold: NAV 1 / NAV 2 audio (ident) | shift |
 | CRS1 (NAV1 shifted) | course 10° (ten 1° steps, in the G3X one 10° step) / 1°: in the G1000 NXi, DA40, C182T and G3X profiles the CDI's course, else NAV 1's | tap: the course to the VOR or LOC; hold: marker audio | shift back |
 | CRS2 (NAV2 shifted) | NAV 2 course 10° (ten 1° steps) / 1° | tap: NAV 2's course to the VOR or LOC; hold: DME audio | shift back |
-| FMS1, FMS2 | the unit's FMS knob; ⇆ held: its map range, where the profile has one (the G3X has none), the outer ring on a GTN its volume | tap: the unit's HOME, where it has one | CRSR; D→, MENU, CLR, ENT and CDI, OBS, MSG, FPL, VNAV (in the G1000 NXi and DA40 profiles the GFC 700's VNV, in the Bonanza's FMS1 the descent calculator), PROC; held CLR, MENU, PROC: MAP, NRST, TERR; each where the profile has it (in the Bonanza's FMS1, CLR and ENT are the EDM 800's, held its long press) |
+| FMS1, FMS2 | the unit's FMS knob; ⇆ held: its map range, where the profile has one (the G3X has none), the outer ring on a GTN its volume | tap: the unit's HOME, where it has one | CRSR; D→, MENU, CLR, ENT and CDI, OBS, MSG, FPL, VNAV (in the G1000 NXi and DA40 profiles the GFC 700's VNV, in the Bonanza's FMS1 the descent calculator), PROC; held CLR, MENU, PROC: MAP, NRST, TERR; each where the profile has it (in the Bonanza's FMS1, CLR and ENT are the EDM 800's, held its long press, and OBS, MSG and FPL held what HDG, NAV and APR hold below them) |
 | AP | selected altitude 1000 ft / 100 ft; ⇆ held: the inner ring is the panel's UP and DN (the held altitude, VS, IAS or pitch, by autopilot), the outer ring five of them at once (500 ft/min in VS, 5 kt in FLC, five pitch steps in pitch hold, in ALT hold five altitude steps on the KAP 140 and KFC 150, in the Bonanza 500 ft of the altitude its UP and DN step, [to check](mapping.md#vnv-without-vnav)). With the autopilot or the flight director in VS (on the KAP 140, which has none, the autopilot), the other way round: the rings set the rate without ⇆ (inner 100 ft/min, outer 500 ft/min) and the altitude to level off at with ⇆ held, in a climb too | none: it only modifies the rings | held: VNV |
 | XPDR | the squawk, a digit at a time, as on the panel: the outer ring selects the digit (1 to 4, stopping at both ends; every entry starts at digit 1), the inner ring steps it 0 … 7; ⇆ held: panel dimmer / flood dimmer (the C182T's cabin lights), where the profile knows the aircraft's | tap: IDENT | shift: MODE |
 | MODE (XPDR shifted) | either ring: clockwise ALT (from standby or off), counter-clockwise standby | tap: VFR and back; hold: cabin light | shift back |
@@ -134,15 +134,18 @@ as for the panel ([Generated profiles](mapping.md#generated-profiles)).
   the sim's TOGA event, which Black Square's guide gives for the throttle's GA button, in place of BC, as a
   back course is seldom flown; it works with TDS's GTN, not with Working Title's GNS, which has no go-around
   mode. BC goes on FMS1's CDI held, beside the navigation source, and the yaw damper on ⇆ held in HDG; HDG
-  held syncs the HSI's course with the heading bug, as ⇆ in HDG does. The cockpit's functions go on keys: in
-  FMS1, CLR and ENT are the EDM 800's STEP and LEAN FIND, side by side as its left and right buttons: a tap is
-  a short press, sent as the key is let go, held 0.7 s a long press (the GNS 530's and PMS50's CLR and ENT
-  give way, and CLR's amber MAP), and VNAV is the descent calculator; in FMS2, VNAV steps the DME selector,
-  and CLR and ENT are the GNS 430's (and PMS50's). Held in FMS2, MENU runs the KFC 150's self-test with the
-  autopilot off, MSG opens or shuts the oxygen valve, FPL switches the tip tank transfer pumps (both off if
-  either runs, else both on), OBS prop heat, CDI steps the fuel boost pump one position from where it is (off,
-  low, high, off) and VNAV switches the air conditioner with its blower, as the guide's "Hardware Inputs &
-  Outputs" and the project the Bonanza is flown with set them. The fuel selector stays in the cockpit.
+  held syncs the HSI's course with the heading bug, as ⇆ in HDG does. In FMS1, where the Bonanza is mostly
+  flown, OBS, MSG and FPL held do what HDG, NAV and APR held do, the keys in their positions: the heading bug
+  to the heading, GPSS and the go-around; their taps stay the navigators' keys. The cockpit's functions go on
+  keys: in FMS1, CLR and ENT are the EDM 800's STEP and LEAN FIND, side by side as its left and right buttons:
+  a tap is a short press, sent as the key is let go, held 0.7 s a long press (the GNS 530's and PMS50's CLR
+  and ENT give way, and CLR's amber MAP), and VNAV is the descent calculator; in FMS2, VNAV steps the DME
+  selector, and CLR and ENT are the GNS 430's (and PMS50's). Held in FMS2, MENU runs the KFC 150's self-test
+  with the autopilot off, MSG opens or shuts the oxygen valve, FPL switches the tip tank transfer pumps (both
+  off if either runs, else both on), OBS prop heat, CDI steps the fuel boost pump one position from where it
+  is (off, low, high, off) and VNAV switches the air conditioner with its blower, as the guide's "Hardware
+  Inputs & Outputs" and the project the Bonanza is flown with set them. The fuel selector stays in the
+  cockpit.
 - The COWS DA40 and the Carenado C182T have their electric fuel pump on CDI held in FMS2, and the DA40 NG
   its fuel transfer pump on FPL held in FMS2 (the XLS ignores it). The C182T's inner ring in XPDR with ⇆ held
   dims its two cabin lights, as on the panel.
@@ -256,6 +259,8 @@ altitude from where the KAS 297B does not keep it ([To check on the device](#to-
   (PMS50's list for a GTN on COM 2); the profile sends both. MENU, CLR, ENT, MSG and PROC on PMS50's GTN.
 - Bonanza: ⇆ held in HDG switches the yaw damper (the sim's YAW_DAMPER_TOGGLE, if the Bonanza has one); FMS1's
   CDI held engages BC.
+- Bonanza in FMS1: OBS held syncs the heading bug, MSG held switches GPSS, FPL held starts the go-around, as HDG,
+  NAV and APR held do in the other modes.
 - Bonanza: APR held starts the KFC 150's go-around with TDS's GTN 750 (AUTO_THROTTLE_TO_GA), and the GTN
   sequences into the missed approach.
 - Bonanza: the oxygen valve from FMS2's MSG held.
