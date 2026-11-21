@@ -16,11 +16,6 @@ VALUE = re.compile(NUMBER.pattern + r"|[-+!<>%*/]|==|and|or|neg|abs|min|max|dnor
                    REGISTER.pattern)
 
 
-class Bco16(int):
-    """A value read in the simulator's unit Bco16 (a squawk as XPNDR_SET takes it), which the tests keep as its digits
-    (1200) and tell apart from a number by its type: arithmetic on it gives a plain int"""
-
-
 def sets(token):
     """What a token sets, as K:EVENT, H:EVENT, L:VARIABLE or A:VARIABLE:INDEX, or None"""
     write = WRITE.fullmatch(token)
@@ -28,13 +23,13 @@ def sets(token):
 
 
 def run(code, variables=(), branches=None, default=None):
-    """Runs a code as the simulator's RPN does, on these variables ({name: value}, an L: variable with its
-    prefix): [(what it set, value)], with None for an event sent without a value. An L: variable it sets reads
-    as set after that, and a B: input event's value as its _Set event sets it; a read in Bco16 gives a Bco16 of
-    the value, the digits the simulator converts. Registers keep values for the code: sN keeps the top of the
-    stack in N, spN takes it there, lN puts it back. branches: an iterator of bools that decides each if{ in
-    place of the value it takes off the stack (every_path()); default: the value of a variable not in variables
-    (None: a KeyError)."""
+    """Runs a code as the simulator's RPN does, on these variables ({name: value}, an L: variable with its prefix):
+    [(what it set, value)], with None for an event sent without a value. An L: variable it sets reads as set after that,
+    and a B: input event's value as its _Set event sets it; a read in any unit gives the value as given (the simulator
+    converts no L: variable to Bco16: parts.squawk() packs the code itself). Registers keep values for the code: sN
+    keeps the top of the stack in N, spN takes it there, lN puts it back. branches: an iterator of bools that decides
+    each if{ in place of the value it takes off the stack (every_path()); default: the value of a variable not in
+    variables (None: a KeyError)."""
     variables, stack, out, registers = dict(variables), [], [], {}
     binary = {"+": lambda x, y: x + y, "-": lambda x, y: x - y, "%": lambda x, y: x % y, "*": lambda x, y: x * y,
               "/": lambda x, y: x / y, ">": lambda x, y: x > y, "<": lambda x, y: x < y,
@@ -60,7 +55,7 @@ def run(code, variables=(), branches=None, default=None):
                 read = READ.fullmatch(token)
                 name = read[1] or read[2] or read[3]
                 value = variables[name] if default is None or name in variables else default
-                stack.append(Bco16(value) if token.endswith(", Bco16)") else value)
+                stack.append(value)
             elif REGISTER.fullmatch(token):
                 op, n = REGISTER.fullmatch(token).groups()
                 if op == "l":
