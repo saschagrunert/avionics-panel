@@ -234,8 +234,10 @@ altitude from where the KAS 297B does not keep it ([To check on the device](#to-
   and not ALT after it.
 - Bonanza: VS held takes the KFC 150's FD (the simulator's TOGGLE_FLIGHT_DIRECTOR, which Black Square's guide
   does not list).
-- Bonanza: the GTX 327 shows the code VFR sets with XPNDR_SET, in the sim's Bco16 (the
-  code read as its digits, `(A:TRANSPONDER CODE:1, number)` 1200 for 1200; MobiFlight's wiki).
+- VFR (⇆ in MODE, and the panel's VFR key): squawks 7000 and ALT, and pressed again the code before. The code
+  goes to XPNDR_SET packed a digit to a hex digit (0x7000); it once showed 1350, the sim having passed 7000
+  unconverted. If the code before does not come back, the sim does not give the code as its digits in
+  `(A:TRANSPONDER CODE:1, number)`: watch that variable in developer mode while the transponder shows 1200.
 - Bonanza: VNV (FMS1's VNAV, or the AP knob's push held) from ALT hold with the altitude set 3000 ft lower on
   the KAS 297B and a GTN waypoint 10 nm ahead enters VS at a rate down. If nothing happens, the selected
   altitude is not in `AUTOPILOT ALTITUDE LOCK VAR:1` in ALT hold: in the sim's developer mode (Tools,

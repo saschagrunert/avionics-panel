@@ -139,8 +139,9 @@ only selects ALT. A code entered with the squawk digits forgets the one kept; on
 mouse does not. For another VFR code, 1200 in the US, change the `7000` at the start of the code of the row
 "VFR: XPNDR_SET, ..." in MobiFlight (without leading zeros: 0400 is `400`), or generate the profile with
 `--vfr 1200` (above). The profiles read the code as its digits (`(A:TRANSPONDER CODE:1, number)`, 1200 for
-1200) and set it with `XPNDR_SET` in the sim's Bco16, which they have the sim convert through
-`L:AvionicsPanel_Squawk_Set`, as MobiFlight's wiki does. The XPDR mode push
+1200) and set it with `XPNDR_SET` in the sim's Bco16, a digit to a hex digit (0x1200 for 1200), which they pack
+themselves: the sim does not convert a variable read in that unit, and 7000 went out as 0x1B58, which the
+transponder showed as 1350. The XPDR mode push
 (SHIFT, FREQ push) switches the simulator's transponder between standby and ALT. MIC 1 and MIC 2 choose the
 radio both pilots talk on and turn its audio on; COM 1 and COM 2 turn listening to their radio on or off, but
 never off for the radio talked on, which an audio panel always plays. What the profiles keep (the setting
