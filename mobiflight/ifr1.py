@@ -18,12 +18,12 @@ these rules over it:
   long it was held; then it clears the variable. It has no hold: a detent that comes with its press goes out without
   it, and ⇆ let go would send the hold (AP_VS_HOLD). The state lives in L: variables of the IFR-1's own (STATE), as the
   panel keeps its own, so the two devices can fly together.
-- A key with a hold (an amber function of AMBER of its panel key, HOLDS, MODE's cabin light, the profile's EXTRA, or VNV
-  on the AP knob's push) sends its hold at once when held HOLD_MS, while still down, and its plain function on a tap, on
-  its release; every other key sends on press as the panel's does, a key of TDS's GTN its key-up on release. ⇆ in COM1
-  and COM2 sends its hold, the panel's COM 1 or COM 2 audio, when let go after HOLD_MS, and a longer one, its MIC 1 or
-  MIC 2 (TALK), at once after TALK_MS. A hold of two steps (the KAP 140's VNV) sends its first at once
-  and its second when let go after it.
+- A key with a hold (an amber function of AMBER of its panel key, HOLDS, MODE's cabin light, HDG's sync of the bug, the
+  profile's EXTRA, or VNV on the AP knob's push) sends its hold at once when held HOLD_MS, while still down, and its
+  plain function on a tap, on its release; every other key sends on press as the panel's does, a key of TDS's GTN its
+  key-up on release. ⇆ in COM1 and COM2 sends its hold, the panel's COM 1 or COM 2 audio, when let go after HOLD_MS,
+  and a longer one, its MIC 1 or MIC 2 (TALK), at once after TALK_MS. A hold of two steps (the KAP 140's VNV) sends its
+  first at once and its second when let go after it.
 - MobiFlight sends a release to the button of the mode the IFR-1 is in by then, and Button_UNSHIFT_SW on every change
   of mode and on leaving shift. That button lets go of every ⇆ and every key with a hold (clear()), so one let go,
   or still held, after a change of mode sends nothing, and a GTN key sends its key-up only from the button that sent
@@ -40,7 +40,8 @@ in CRS2 the panel's DME audio and in BARO the simulator's pitot heat event (HOLD
 GTN's outer ring is its volume, and its MENU, CLR and ENT, without ⇆, the volume up, down and push (tds_gtn()). Per
 profile, EXTRA puts IFR-1 uses of their own over the panel's (Plus and Own sources): in the Black Square Bonanza the EDM
 800 and the descent calculator on keys of FMS1, each navigator's range or volume on the outer ring with ⇆ held, the
-HSI's course with the heading bug, GPSS on NAV held, and the cockpit's self-test, DME selector, oxygen, tip tanks, prop
+HSI's course with the heading bug (⇆ in HDG and HDG held), GPSS on NAV held, the go-around on APR held, BC on
+FMS1's CDI held, the yaw damper on ⇆ held in HDG, and the cockpit's self-test, DME selector, oxygen, tip tanks, prop
 heat, fuel pump and air conditioner on keys of FMS2 (bonanza_extra()); in the COWS DA40 and the C182T their fuel pump,
 and the NG DA40's fuel transfer pump, on keys of FMS2 held (da40_extra(), c182t_extra()).
 
@@ -56,7 +57,7 @@ from types import SimpleNamespace
 
 from mobiflight import profile
 from mobiflight.families import FAMILIES, black_square_bonanza, parts
-from mobiflight.families.rpn import k, lset, turn
+from mobiflight.families.rpn import k, lset
 
 BM = profile.BM
 
@@ -163,10 +164,12 @@ def squawk_digit(table, way):
 
 
 # NAV 2's course (CRS2), from the statements the panel sets NAV 1's with (parts.NAV1_KNOBS, parts.CENTRE), NAV 2 for
-# NAV 1: the sim's own events, which the G1000 NXi and the Bonanza's NAV 2 indicator are taken to follow
+# NAV 1: the sim's own events, which the G1000 NXi and the Bonanza's NAV 2 indicator are taken to follow; 10° as ten
+# 1° steps (TENFOLD)
+TENFOLD_STEPS = 10
 NAV2_COURSE = {
-    "OI": Own("NAV 2 course 10°", turn("NAV OBS:2", "VOR2_SET", 10)),
-    "OD": Own("NAV 2 course 10°", turn("NAV OBS:2", "VOR2_SET", -10)),
+    "OI": Own(f"NAV 2 course 1° ×{TENFOLD_STEPS}", " ".join([k("VOR2_OBI_INC")] * TENFOLD_STEPS)),
+    "OD": Own(f"NAV 2 course 1° ×{TENFOLD_STEPS}", " ".join([k("VOR2_OBI_DEC")] * TENFOLD_STEPS)),
     "II": Own("NAV 2 course 1°", k("VOR2_OBI_INC")),
     "ID": Own("NAV 2 course 1°", k("VOR2_OBI_DEC")),
     "TOG": Own("NAV 2 course to the VOR or LOC", parts.CENTRE.replace("#", "2")),
@@ -202,6 +205,15 @@ NO_USE = "⇆ has nothing to do in this mode: no tap, and its rings take nothing
 TALK_MS = 2000
 
 
+# the outer rings of HDG and CRS1, 10° a detent: the panel's 1° step sent TENFOLD_STEPS times at once (a Times source)
+# in place of its 10° step, which reads the bug or course and sets it 10° on (parts.HEADING_FAST, course_fast()):
+# MobiFlight sends each detent of a fast spin as its own command at once, and several reading the sim's value in one
+# frame would step it once. Where the 1° step is no plain event (the G3X's course follows its CDI by tests of a value),
+# the panel's 10° step stays. TENFOLD_STEPS is set above, with NAV2_COURSE, which steps the same way.
+TENFOLD = {("Button_COM1^_OI", "HDG_10_UP"): "HDG_1_UP", ("Button_COM1^_OD", "HDG_10_DN"): "HDG_1_DN",
+           ("Button_NAV1^_OI", "CRS_10_UP"): "CRS_1_UP", ("Button_NAV1^_OD", "CRS_10_DN"): "CRS_1_DN"}
+
+
 def _knob(device, *names):
     return {ring: {"turn": Panel(device, name)} for ring, name in zip(KNOB, names, strict=True)}
 
@@ -212,7 +224,8 @@ TABLE = {
     "COM2": {**_knob(2, "COM_MHZ_UP", "COM_MHZ_DN", "COM_KHZ_UP", "COM_KHZ_DN"), "TOG": {"key": Panel(2, "COM_SWAP")}},
     "NAV1": {**_knob(1, "NAV_MHZ_UP", "NAV_MHZ_DN", "NAV_KHZ_UP", "NAV_KHZ_DN"), "TOG": {"key": Panel(1, "NAV_SWAP")}},
     "NAV2": {**_knob(2, "NAV_MHZ_UP", "NAV_MHZ_DN", "NAV_KHZ_UP", "NAV_KHZ_DN"), "TOG": {"key": Panel(2, "NAV_SWAP")}},
-    # HDG: the heading bug, 10° on the outer ring (the panel's quick turn), 1° on the inner; ⇆ syncs it
+    # HDG: the heading bug, 10° on the outer ring (the panel's quick turn, sent as ten 1° steps: TENFOLD), 1° on the
+    # inner; ⇆ syncs it
     "COM1^": {**_knob(1, "HDG_10_UP", "HDG_10_DN", "HDG_1_UP", "HDG_1_DN"), "TOG": {"key": Panel(1, "HDG_SYNC")}},
     # BARO: the altimeter setting on either ring; ⇆ STD, and pressed again the setting before where the panel does so
     "COM2^": {**_knob(1, "BARO_UP", "BARO_DN", "BARO_UP", "BARO_DN"), "TOG": {"key": Panel(1, "BARO_STD")}},
@@ -301,8 +314,17 @@ def uses(key):
     at once, its release then sending nothing), "tap" (⇆ as a modifier, let go at once); a source is a Panel button,
     an Own code, a Plus of both, a Panel button Times over, or None for nothing."""
     family = FAMILIES[key]
+    table = profile.tables(family)
     autopilot = _part(family, "autopilot")
     out = {f"Button_{name}_{ring}": dict(use) for name, rings in TABLE.items() for ring, use in rings.items()}
+    for (button, coarse), fine in TENFOLD.items():
+        assert out[button]["turn"] == Panel(1, coarse), (button, out[button]["turn"])
+        try:
+            repeated(tapped(table[1].get(fine)) or "", TENFOLD_STEPS)
+        except ValueError:
+            continue                      # a 1° step that is no plain event (the G3X's course): the panel's 10°
+        if fine in table[1]:
+            out[button]["turn"] = Times(Panel(1, fine), TENFOLD_STEPS)
     for button, source in HOLDS.items():
         out[button]["hold"] = source
     for com, talk in TALK.items():
@@ -323,6 +345,9 @@ def uses(key):
     out["Button_AP_TOG"] = {"tap": None, "hold": None}
     for name in AP_ROW:
         out[f"Button_AP_{name}"] = amber(1, name) if name in ("APR", "ALT") else {"key": Panel(1, name)}
+    # HDG held: the heading bug to the heading (the panel's HDG SYNC, ⇆ in HDG), as it is set just before HDG is
+    # pressed; HDG then sends on its release, as every key with a hold
+    out["Button_AP_HDG"]["hold"] = Panel(1, "HDG_SYNC")
     if hold := AP_VS_HOLD[autopilot]:
         out["Button_AP_VS"]["hold"] = Panel(1, hold)
     # FMS1 and FMS2: the unit's keys and knob, with ⇆ held its map's range; ⇆ tapped the unit's HOME
@@ -345,7 +370,6 @@ def uses(key):
             out[f"Button_{name}_VNAV"] = {"key": Panel(1, "VNV")}
     # XPDR: the outer ring selects the squawk digit, the inner ring steps it; with ⇆ held the panel dimmer on the
     # outer ring and the flood dimmer on the inner; ⇆ tapped IDENT
-    table = profile.tables(family)
     for ring, own in (("OI", squawk_select(1)), ("OD", squawk_select(-1)),
                       ("II", squawk_digit(table, "UP")), ("ID", squawk_digit(table, "DN"))):
         out[f"Button_XPDR_{ring}"] = {"turn": own}
@@ -410,6 +434,12 @@ def bonanza_extra():
     sends the COM volume beside each GTN's, which the GNS takes, so the outer ring sends each navigator's own. ⇆ in HDG
     also sets the HSI's course (NAV 1's, its yellow arrow) to the heading, as it sets the heading bug.
 
+    APR held is the go-around (GA): the simulator's TOGA event, AUTO_THROTTLE_TO_GA, which the guide gives for the
+    throttle's GA button (with TDS's GTN; Working Title's GNS has no go-around mode), in place of BC, the amber
+    function of the panel's APR, as a back course is seldom flown and a missed approach often; BC goes on FMS1's CDI
+    held, beside the navigation source. ⇆ held in HDG is the KFC 150's yaw damper (the panel's YD), and HDG held
+    syncs the HSI's course with the heading bug, as ⇆ in HDG does.
+
     The cockpit's other functions go on keys of FMS2, none on a ⇆ that also modifies its ring, which has no hold
     (AP_VS_HOLD). NAV held is the HSI's NAV 1 / RNAV switch (GPSS), as the panel's amber NAV; in FMS2, VNAV is the DME
     selector (the GNS 430 has no VNAV key), and held, MENU the KFC 150's self-test with the autopilot off, MSG the
@@ -432,7 +462,11 @@ def bonanza_extra():
            for side, way in (("L", "UP"), ("R", "DN"))}     # the EDM 800's buttons: a short press, a long one
     out.update({
         ("Button_COM1^_TOG", "key"): Plus(Panel(1, "HDG_SYNC"), Own("HSI course to the heading", _COURSE_SYNC)),
+        ("Button_COM1^_TOG", "hold"): Panel(1, "YD"),
+        ("Button_AP_HDG", "hold"): Plus(Panel(1, "HDG_SYNC"), Own("HSI course to the heading", _COURSE_SYNC)),
+        ("Button_FMS1_CDI", "hold"): Panel(1, "BC"),
         ("Button_AP_NAV", "hold"): Panel(1, "GPSS"),
+        ("Button_AP_APR", "hold"): Own("go-around (TOGA)", k("AUTO_THROTTLE_TO_GA")),
         ("Button_FMS1_CLR", "key"): Own("EDM 800 STEP", edm["L"]["release"]),
         ("Button_FMS1_CLR", "hold"): Own("long press", edm["L"]["long"]),
         ("Button_FMS1_ENT", "key"): Own("EDM 800 LEAN FIND", edm["R"]["release"]),
