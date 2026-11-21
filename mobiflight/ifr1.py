@@ -40,10 +40,11 @@ in CRS2 the panel's DME audio and in BARO the simulator's pitot heat event (HOLD
 GTN's outer ring is its volume, and its MENU, CLR and ENT, without ⇆, the volume up, down and push (tds_gtn()). Per
 profile, EXTRA puts IFR-1 uses of their own over the panel's (Plus and Own sources): in the Black Square Bonanza the EDM
 800 and the descent calculator on keys of FMS1, each navigator's range or volume on the outer ring with ⇆ held, the
-HSI's course with the heading bug (⇆ in HDG and HDG held), GPSS on NAV held, the go-around on APR held, BC on
-FMS1's CDI held, the yaw damper on ⇆ held in HDG, and the cockpit's self-test, DME selector, oxygen, tip tanks, prop
-heat, fuel pump and air conditioner on keys of FMS2 (bonanza_extra()); in the COWS DA40 and the C182T their fuel pump,
-and the NG DA40's fuel transfer pump, on keys of FMS2 held (da40_extra(), c182t_extra()).
+HSI's course with the heading bug (⇆ in HDG and HDG held), GPSS on NAV held, the go-around on APR held (and the
+three on FMS1's OBS, MSG and FPL held, the keys in their positions), BC on FMS1's CDI held, the yaw damper on ⇆ held
+in HDG, and the cockpit's self-test, DME selector, oxygen, tip tanks, prop heat, fuel pump and air conditioner on keys
+of FMS2 (bonanza_extra()); in the COWS DA40 and the C182T their fuel pump, and the NG DA40's fuel transfer pump, on
+keys of FMS2 held (da40_extra(), c182t_extra()).
 
 New code, which no panel button sends (Own sources): the squawk digit selected and stepped (squawk_select(),
 squawk_digit()), NAV 2's course (NAV2_COURSE), the transponder's mode one way (transponder_mode()), the modifier
@@ -429,9 +430,10 @@ _AP_ROW_HOLDS = {
     "NAV": Panel(1, "GPSS"),
     "APR": Own("go-around (TOGA)", k("AUTO_THROTTLE_TO_GA")),
 }
-# FMS1's key in the position of each bottom-row key with a hold of _AP_ROW_HOLDS (FMS_KEYS[4:] lie under AP_ROW: CDI
-# under AP, OBS under HDG and so on). Not CDI (AP: its hold is BC there, AP has none), VNAV (ALT: the descent calculator
-# sends on press, as the panel's that worked) or PROC (VS: TERR, the MD41's OBS for the KLN 90B)
+# FMS1's key in the position of each bottom-row key with a hold of _AP_ROW_HOLDS (FMS_KEYS[4:] are the blue legends
+# over AP_ROW's keys: CDI over AP, OBS over HDG and so on). Not CDI (AP: its hold is BC there, AP has none), VNAV
+# (ALT: the descent calculator sends on press, as the panel's that worked) or PROC (VS: TERR, the MD41's OBS for the
+# KLN 90B)
 FMS1_HOLDS = {key: f"FMS1_{fms}" for key, fms in zip(AP_ROW, FMS_KEYS[4:], strict=True) if key in _AP_ROW_HOLDS}
 
 
