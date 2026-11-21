@@ -204,7 +204,7 @@ def test_the_bonanzas_fms1_keys_hold_what_the_bottom_row_holds_in_their_position
     press(state, device["Button_FMS1_FPL"])
     assert press(state, device["Button_FMS1_FPL"], "hold") == [("K:AUTO_THROTTLE_TO_GA", None)]
     assert press(state, device["Button_FMS1_FPL"], "release") == []
-    assert "hold" not in PROFILES["gtn"].USES["Button_FMS1_FPL"] and "Button_FMS1_VNAV" not in ifr1.FMS1_HOLDS.values()
+    assert "hold" not in PROFILES["gtn"].USES["Button_FMS1_FPL"] and "FMS1_VNAV" not in ifr1.FMS1_HOLDS.values()
 
 
 def test_the_bonanzas_apr_held_is_the_go_around():
