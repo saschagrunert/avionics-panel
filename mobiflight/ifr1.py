@@ -422,6 +422,19 @@ _AIR_CONDITIONER = ("(L:var_AirConditionerSwitch, Bool) ! sp0 l0 (>L:var_AirCond
                     "l0 2 * (>L:var_airConditioningBlowerSwitch)")
 
 
+# the Bonanza's holds of the bottom row (AP, HDG, NAV, APR, ALT, VS outside FMS1 and FMS2), which FMS1's keys in the
+# same positions repeat (FMS1_HOLDS): the heading bug and the HSI's course to the heading, GPSS, the go-around
+_AP_ROW_HOLDS = {
+    "HDG": Plus(Panel(1, "HDG_SYNC"), Own("HSI course to the heading", _COURSE_SYNC)),
+    "NAV": Panel(1, "GPSS"),
+    "APR": Own("go-around (TOGA)", k("AUTO_THROTTLE_TO_GA")),
+}
+# FMS1's key in the position of each bottom-row key with a hold of _AP_ROW_HOLDS (FMS_KEYS[4:] lie under AP_ROW: CDI
+# under AP, OBS under HDG and so on). Not CDI (AP: its hold is BC there, AP has none), VNAV (ALT: the descent calculator
+# sends on press, as the panel's that worked) or PROC (VS: TERR, the MD41's OBS for the KLN 90B)
+FMS1_HOLDS = {key: f"FMS1_{fms}" for key, fms in zip(AP_ROW, FMS_KEYS[4:], strict=True) if key in _AP_ROW_HOLDS}
+
+
 def bonanza_extra():
     """{(IFR-1 button, use): source} over the panel's, for the Black Square Bonanza (EXTRA). FMS1's CLR and ENT are the
     EDM 800's STEP and LEAN FIND, its left and right buttons side by side: tapped, a short press, sent as the key is let
@@ -438,7 +451,9 @@ def bonanza_extra():
     throttle's GA button (with TDS's GTN; Working Title's GNS has no go-around mode), in place of BC, the amber
     function of the panel's APR, as a back course is seldom flown and a missed approach often; BC goes on FMS1's CDI
     held, beside the navigation source. ⇆ held in HDG is the KFC 150's yaw damper (the panel's YD), and HDG held
-    syncs the HSI's course with the heading bug, as ⇆ in HDG does.
+    syncs the HSI's course with the heading bug, as ⇆ in HDG does. In FMS1, where the Bonanza is mostly flown, the
+    keys in the positions of HDG, NAV and APR (OBS, MSG, FPL) hold the same (FMS1_HOLDS), their taps the navigators'
+    keys as before.
 
     The cockpit's other functions go on keys of FMS2, none on a ⇆ that also modifies its ring, which has no hold
     (AP_VS_HOLD). NAV held is the HSI's NAV 1 / RNAV switch (GPSS), as the panel's amber NAV; in FMS2, VNAV is the DME
@@ -463,10 +478,11 @@ def bonanza_extra():
     out.update({
         ("Button_COM1^_TOG", "key"): Plus(Panel(1, "HDG_SYNC"), Own("HSI course to the heading", _COURSE_SYNC)),
         ("Button_COM1^_TOG", "hold"): Panel(1, "YD"),
-        ("Button_AP_HDG", "hold"): Plus(Panel(1, "HDG_SYNC"), Own("HSI course to the heading", _COURSE_SYNC)),
         ("Button_FMS1_CDI", "hold"): Panel(1, "BC"),
-        ("Button_AP_NAV", "hold"): Panel(1, "GPSS"),
-        ("Button_AP_APR", "hold"): Own("go-around (TOGA)", k("AUTO_THROTTLE_TO_GA")),
+        # the bottom row's holds in FMS1 too, where the Bonanza is mostly flown, by position: OBS under HDG, MSG under
+        # NAV, FPL under APR (FMS1_HOLDS)
+        **{(f"Button_{button}", "hold"): source for key, source in _AP_ROW_HOLDS.items()
+           for button in (f"AP_{key}", FMS1_HOLDS[key])},
         ("Button_FMS1_CLR", "key"): Own("EDM 800 STEP", edm["L"]["release"]),
         ("Button_FMS1_CLR", "hold"): Own("long press", edm["L"]["long"]),
         ("Button_FMS1_ENT", "key"): Own("EDM 800 LEAN FIND", edm["R"]["release"]),

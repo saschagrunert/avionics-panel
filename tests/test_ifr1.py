@@ -193,6 +193,20 @@ def test_the_bonanzas_yaw_damper_and_bc_holds():
         assert press(state, device[button], "release") == [], button             # nothing more when let go
 
 
+def test_the_bonanzas_fms1_keys_hold_what_the_bottom_row_holds_in_their_position():
+    # FMS1 is where the Bonanza is mostly flown: OBS, MSG and FPL, under HDG, NAV and APR, hold the same as those
+    used, device = BONANZA.USES, BONANZA.DEVICE
+    assert ifr1.FMS1_HOLDS == {"HDG": "FMS1_OBS", "NAV": "FMS1_MSG", "APR": "FMS1_FPL"}
+    for ap, fms1 in ifr1.FMS1_HOLDS.items():
+        assert used[f"Button_{fms1}"]["hold"].entry == used[f"Button_AP_{ap}"]["hold"].entry, fms1
+        assert used[f"Button_{fms1}"]["key"].source == ifr1.Panel(1, fms1.removeprefix("FMS1_")), fms1   # taps kept
+    state = {}
+    press(state, device["Button_FMS1_FPL"])
+    assert press(state, device["Button_FMS1_FPL"], "hold") == [("K:AUTO_THROTTLE_TO_GA", None)]
+    assert press(state, device["Button_FMS1_FPL"], "release") == []
+    assert "hold" not in PROFILES["gtn"].USES["Button_FMS1_FPL"] and "Button_FMS1_VNAV" not in ifr1.FMS1_HOLDS.values()
+
+
 def test_the_bonanzas_apr_held_is_the_go_around():
     entry = BONANZA.DEVICE["Button_AP_APR"]
     state = {}
