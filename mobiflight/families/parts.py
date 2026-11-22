@@ -319,7 +319,9 @@ _GUARDS = ("(A:AIRSPEED INDICATED, knots) sp5 l5 (A:DESIGN SPEED VS1, knots) 1.3
 # what VNV keeps for the recalculation (follow()): that it follows, the rate it set last (ft/min, signed) and when it
 # next works the rate out (seconds of the sim's clock)
 VNV_ACTIVE, VNV_RATE, VNV_NEXT = "AvPanel_VNV", "AvPanel_VNV_Rate", "AvPanel_VNV_Next"
-_NOW = "(A:ABSOLUTE TIME, seconds)"
+# the sim's clock, as gauges and MobiFlight's own blinking read it: seconds since the flight started, which starts
+# anew with each flight loaded (follow() stops VNV when it went back)
+NOW = "(E:SIMULATION TIME, seconds)"
 VNV_INTERVAL = 30           # seconds between recalculations
 _GRACE = 5                  # seconds after a rate is set before follow() looks whether VS still holds it
 
@@ -348,7 +350,7 @@ def _fly(before="", after="", start=True):
     following (not for follow()'s own update, which runs only while it follows)"""
     return " ".join(filter(None, (before, f"l4 {_SET_VS}", after, f"l4 (>L:{VNV_RATE})",
                                   f"1 (>L:{VNV_ACTIVE})" if start else "",
-                                  f"{_NOW} {VNV_INTERVAL} + (>L:{VNV_NEXT})")))
+                                  f"{NOW} {VNV_INTERVAL} + (>L:{VNV_NEXT})")))
 
 
 def descent(before="", after="", distances=(GPS_DISTANCE,), required=None):
@@ -373,8 +375,8 @@ def follow(distances=(GPS_DISTANCE,), required=None):
     rate = f"(L:{VNV_RATE}, Number)"
     held = f"(A:AUTOPILOT VERTICAL HOLD VAR:1, feet per minute) {rate} - abs 50 <"
     watch = " ".join([
-        f"(L:{VNV_ACTIVE}, Bool) {_NOW} {VNV_INTERVAL} + (L:{VNV_NEXT}, Number) < and if{{ {_STOP} }}",
-        f"(L:{VNV_ACTIVE}, Bool) {_NOW} (L:{VNV_NEXT}, Number) {VNV_INTERVAL - _GRACE} - > and if{{ {_GUARDS}",
+        f"(L:{VNV_ACTIVE}, Bool) {NOW} {VNV_INTERVAL} + (L:{VNV_NEXT}, Number) < and if{{ {_STOP} }}",
+        f"(L:{VNV_ACTIVE}, Bool) {NOW} (L:{VNV_NEXT}, Number) {VNV_INTERVAL - _GRACE} - > and if{{ {_GUARDS}",
         f"(A:AUTOPILOT VERTICAL HOLD, Bool) (A:AUTOPILOT MASTER, Bool) and {held} and ! if{{ {_STOP} }}",
         f"els{{ {rate} 0 > l6 and if{{ 0 {_SET_VS} {_STOP} }}",
         f"els{{ {rate} 0 < l5 and if{{ 300 neg {_SET_VS} {_STOP} }} }} }} }}",
@@ -383,7 +385,7 @@ def follow(distances=(GPS_DISTANCE,), required=None):
     # a climb that may not be flown may be one too slow; in the rate's place, and stop (one set for both, as the code
     # must fit MobiFlight's message)
     ease = f"l0 0 < 300 * neg sp4 {_STOP}"
-    update = (f"(L:{VNV_ACTIVE}, Bool) {_NOW} (L:{VNV_NEXT}, Number) > and (A:AUTOPILOT VERTICAL HOLD, Bool) and "
+    update = (f"(L:{VNV_ACTIVE}, Bool) {NOW} (L:{VNV_NEXT}, Number) > and (A:AUTOPILOT VERTICAL HOLD, Bool) and "
               f"if{{ {_rate(distances, required)} {_FLYABLE} ! if{{ {ease} }} {_fly(start=False)} }}")
     return watch, update
 

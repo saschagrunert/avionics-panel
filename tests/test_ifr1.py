@@ -70,7 +70,7 @@ def test_reads_use_the_unit_of_their_kind(key):
         for token in TOKEN.findall(code):
             read = READ.fullmatch(token)
             if read and not read[3]:
-                variable = read[1].split(":")[0] if read[1] else read[2]
+                variable = read[1].split(":")[0] if read[1] else read[2] or read[4]
                 assert token.rsplit(", ", 1)[1][:-1].lower() == unit_of(variable), token
 
 
@@ -756,10 +756,14 @@ def test_the_ap_vs_light_blinks_while_vnv_follows_and_every_light_code_fits():
 
     def shown(active, time):
         """the light's value, stored at the end of its code to be read back"""
-        out = run(f"{code} (>L:Shown)", {**sim, "L:AvPanel_VNV": active, "ABSOLUTE TIME": time})
+        out = run(f"{code} (>L:Shown)", {**sim, "L:AvPanel_VNV": active, "E:SIMULATION TIME": time})
         return [v for name, v in out if name == "L:Shown"]
     assert [shown(1, t) for t in (1000.0, 1000.6, 1001.1, 1001.7)] == [[0], [1], [0], [1]]
     assert shown(0, 1000.6) == shown(0, 1000.0) == [True]             # VS on: steady
+    # a VNV flag without VS (left from another flight, or a moment before VS engages), within the watch's 5 s grace,
+    # where the watch has not stopped it yet: no blinking
+    sim.update({"AUTOPILOT VERTICAL HOLD": 0, "L:AvPanel_VNV_Next": 1028})   # neither gone back nor past grace
+    assert shown(1, 1000.6) == shown(1, 1000.0) == [False]
     for key, p in PROFILES.items():
         for light, read in p.LEDS.items():
             assert len(read.encode()) < 1000, (key, light)
@@ -1014,7 +1018,7 @@ def test_the_bonanzas_edm_800_takes_clr_and_ent_in_fms1_tapped_and_held():
 
 # what VNV reads beside the altitudes, distance and ground speed: the airspeed against a stall speed of 60 kt and a
 # Vne of 200 kt, and the sim's clock (parts.follow)
-SPEEDS = {"AIRSPEED INDICATED": 140, "DESIGN SPEED VS1": 60, "AIRSPEED BARBER POLE": 200, "ABSOLUTE TIME": 1000}
+SPEEDS = {"AIRSPEED INDICATED": 140, "DESIGN SPEED VS1": 60, "AIRSPEED BARBER POLE": 200, "E:SIMULATION TIME": 1000}
 
 
 def events(sent):
