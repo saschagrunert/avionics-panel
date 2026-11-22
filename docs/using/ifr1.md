@@ -77,7 +77,7 @@ as for the panel ([Generated profiles](mapping.md#generated-profiles)).
 | NAV1, NAV2 | MHz / kHz of NAV 1 / NAV 2 | tap: flip-flop; hold: NAV 1 / NAV 2 audio (ident) | shift |
 | CRS1 (NAV1 shifted) | course 10° (ten 1° steps, in the G3X one 10° step) / 1°: in the G1000 NXi, DA40, C182T and G3X profiles the CDI's course, else NAV 1's | tap: the course to the VOR or LOC; hold: marker audio | shift back |
 | CRS2 (NAV2 shifted) | NAV 2 course 10° (ten 1° steps) / 1° | tap: NAV 2's course to the VOR or LOC; hold: DME audio | shift back |
-| FMS1, FMS2 | the unit's FMS knob; ⇆ held: its map range, where the profile has one (the G3X has none), the outer ring on a GTN its volume | tap: the unit's HOME, where it has one | CRSR; D→, MENU, CLR, ENT and CDI, OBS, MSG, FPL, VNAV (in the G1000 NXi and DA40 profiles the GFC 700's VNV, in the Bonanza's FMS1 the descent calculator), PROC; held CLR, MENU, PROC: MAP, NRST, TERR; each where the profile has it (in the Bonanza's FMS1, CLR and ENT are the EDM 800's, held its long press, and OBS, MSG and FPL held what HDG, NAV and APR hold below them) |
+| FMS1, FMS2 | the unit's FMS knob; ⇆ held: its map range, where the profile has one (the G3X has none), the outer ring on a GTN its volume | tap: the unit's HOME, where it has one | CRSR; D→, MENU, CLR, ENT and CDI, OBS, MSG, FPL, VNAV (in the G1000 NXi and DA40 profiles the GFC 700's VNV, in the Bonanza's FMS1 the vertical speed calculator), PROC; held CLR, MENU, PROC: MAP, NRST, TERR; each where the profile has it (in the Bonanza's FMS1, CLR and ENT are the EDM 800's, held its long press, and OBS, MSG and FPL held what HDG, NAV and APR hold below them) |
 | AP | selected altitude 1000 ft / 100 ft; ⇆ held: the inner ring is the panel's UP and DN (the held altitude, VS, IAS or pitch, by autopilot), the outer ring five of them at once (500 ft/min in VS, 5 kt in FLC, five pitch steps in pitch hold, in ALT hold five altitude steps on the KAP 140 and KFC 150, in the Bonanza 500 ft of the altitude its UP and DN step, [to check](mapping.md#vnv-without-vnav)). With the autopilot or the flight director in VS (on the KAP 140, which has none, the autopilot), the other way round: the rings set the rate without ⇆ (inner 100 ft/min, outer 500 ft/min) and the altitude to level off at with ⇆ held, in a climb too | none: it only modifies the rings | held: VNV |
 | XPDR | the squawk, a digit at a time, as on the panel: the outer ring selects the digit (1 to 4, stopping at both ends; every entry starts at digit 1), the inner ring steps it 0 … 7; ⇆ held: panel dimmer / flood dimmer (the C182T's cabin lights), where the profile knows the aircraft's | tap: IDENT | shift: MODE |
 | MODE (XPDR shifted) | either ring: clockwise ALT (from standby or off), counter-clockwise standby | tap: VFR and back; hold: cabin light | shift back |
@@ -117,8 +117,8 @@ as for the panel ([Generated profiles](mapping.md#generated-profiles)).
   the KLN 90B's left inner knob. On a GTN (TDS's or PMS50's) that range is its inner knob, which sets the
   range on a map page and works the knob on any other page. In the G1000 NXi and DA40 profiles VNAV is the GFC
   700's VNV, as the IFR-1's legend reads, not the MFD's Detail softkey the panel's amber VNAV is there; the
-  C182T's KAP 140 has no VNAV, and its VNAV stays the softkey. In the Bonanza FMS1's VNAV is the descent
-  calculator ([VNV in the Bonanza](#vnv-in-the-bonanza)).
+  C182T's KAP 140 has no VNAV, and its VNAV stays the softkey. In the Bonanza FMS1's VNAV is the vertical
+  speed calculator ([VNV in the Bonanza](#vnv-in-the-bonanza)).
 - On TDS's GTN, in the GTN profile, MENU, CLR and ENT of FMS1 and FMS2 set its volume up and down and push its
   volume knob (squelch with COM selected, ident with NAV), as TDS's GTN takes those keys only on its
   touchscreen; in the Bonanza none do, as the volume keys are seldom used: there the outer ring with ⇆ held
@@ -139,7 +139,7 @@ as for the panel ([Generated profiles](mapping.md#generated-profiles)).
   to the heading, GPSS and the go-around; their taps stay the navigators' keys. The cockpit's functions go on
   keys: in FMS1, CLR and ENT are the EDM 800's STEP and LEAN FIND, side by side as its left and right buttons:
   a tap is a short press, sent as the key is let go, held 0.7 s a long press (the GNS 530's and PMS50's CLR
-  and ENT give way, and CLR's amber MAP), and VNAV is the descent calculator; in FMS2, VNAV steps the DME
+  and ENT give way, and CLR's amber MAP), and VNAV is the vertical speed calculator; in FMS2, VNAV steps the DME
   selector, and CLR and ENT are the GNS 430's (and PMS50's). Held in FMS2, MENU runs the KFC 150's self-test
   with the autopilot off, MSG opens or shuts the oxygen valve, FPL switches the tip tank transfer pumps (both
   off if either runs, else both on), OBS prop heat, CDI steps the fuel boost pump one position from where it
@@ -169,32 +169,36 @@ as for the panel ([Generated profiles](mapping.md#generated-profiles)).
 What the IFR-1 has no control for, of the panel's functions: in every profile 121.5 and the ADF, including its
 ident audio, and the maps' pan and pointer; the COM volume in the GNS and Bonanza profiles; in the Bonanza,
 the GTNs' volume push, the GNS 530's CLR, ENT, MAP (CLR held long) and VNAV and PMS50's GTN 750's CLR and ENT
-(FMS1's CLR and ENT are the EDM 800's, its VNAV the descent calculator), the MD41's lamp test, the KLN 90B's
-left CRSR, the KR 87's keys and the weather radar; the GFC 700's and GFC 500's FD, YD and LVL; in the G1000
-NXi and DA40 profiles the MFD's Detail softkey. The cheat sheets mark every control that does nothing in a
-profile, with the reason.
+(FMS1's CLR and ENT are the EDM 800's, its VNAV the vertical speed calculator), the MD41's lamp test, the KLN
+90B's left CRSR, the KR 87's keys and the weather radar; the GFC 700's and GFC 500's FD, YD and LVL; in the
+G1000 NXi and DA40 profiles the MFD's Detail softkey. The cheat sheets mark every control that does nothing in
+a profile, with the reason.
 
 ## VNV in the Bonanza
 
-The KFC 150 has no VNAV and the GTNs drive none through it, so VNV is a descent calculator ([VNV without
+The KFC 150 has no VNAV and the GTNs drive none through it, so VNV is a vertical speed calculator ([VNV without
 VNAV](mapping.md#vnv-without-vnav)): one press works out the vertical speed that reaches the KAS 297B's
-selected altitude at the GTN's active waypoint, sets it and engages VS. It does not track a path: press it
-again now and then on the way down.
+selected altitude at the GTN's active waypoint, up or down, sets it and engages VS. Then it works the rate out
+anew every 30 s, while the IFR-1's profile runs, which gets close to following a path.
 
 1. Fly with the autopilot engaged, in ALT hold or any other mode (not on a glideslope).
 2. In AP, turn the rings to the altitude to reach (outer 1000 ft, inner 100 ft), on the KAS 297B; already in
    VS, hold ⇆ while turning, as the rings set the rate there.
 3. On the GTN 750 make the fix where you want to be at that altitude the active waypoint: D→ to it, or fly
    the flight plan's leg to it.
-4. Press VNAV in FMS1 (the key under ALT), or hold the AP knob's push for 0.7 s in AP. The KAS 297B shows the
+4. Press VNAV in FMS1 (the key over ALT), or hold the AP knob's push for 0.7 s in AP. The KAS 297B shows the
    rate for 2 s and the KFC 150 enters VS; the KAS 297B captures the altitude at the end.
-5. In VS the AP rings now set the rate (inner 100 ft/min, outer 500 ft/min) and, with ⇆ held, the altitude.
-   After a turn, a change of speed or wind, press VNAV again: it works the rate out anew.
+5. Every 30 s VNV sets the rate again from the distance and ground speed left; the AP VS light blinks while it
+   does. It stops when the altitude is captured or VS ends, when you set the rate yourself (the AP rings in
+   VS: inner 100 ft/min, outer 500 ft/min), and with 100 ft or less to go or the waypoint passed, first easing
+   a descent to 300 ft/min or levelling a climb off; the AP VS light then shows VS steady again. Press VNAV
+   again to start it anew.
 
-VNV sets nothing when the selected altitude is not more than 100 ft below, without a distance from the GTN
-(no active waypoint), at 30 kt or less over the ground, or for a climb. The rate is rounded to 100 ft/min and
-kept between 300 and 1500 ft/min. If nothing happens, it is one of these, or VNV reads the selected
-altitude from where the KAS 297B does not keep it ([To check on the device](#to-check-on-the-device)).
+The rate is rounded to 100 ft/min and kept between 300 and 1500 ft/min down or 300 and 2000 ft/min up. VNV
+guards the airspeed by the Bonanza's own speeds in the sim: a climb only at 1.3 times the stall speed or
+faster, a descent only below 95 % of Vne; a recalculated climb that slows below that levels off (0 ft/min),
+and a descent that reaches it eases to 300 ft/min, and VNV stops. VNV sets nothing within 100 ft of the
+selected altitude, without a distance from the GTN (no active waypoint), or at 30 kt or less over the ground.
 
 ## To check on the device
 

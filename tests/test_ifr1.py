@@ -305,8 +305,8 @@ def test_the_ifr1_keeps_its_state_apart_from_the_panels(key):
             elif isinstance(u.source, ifr1.Own) and u.source in EXTRA[key].values():   # the aircraft's own state
                 code = code.replace(u.entry, "")
         for name in re.findall(r"\(>L:([A-Za-z0-9_]+)\)", code):
-            assert name.startswith("AvPanelIFR1_") or name in ("AvionicsPanel_Squawk_Kept",
-                                                                      "AvionicsPanel_Squawk"), (button, name)
+            ok = ("AvionicsPanel_Squawk_Kept", "AvionicsPanel_Squawk")          # and VNV's own (parts.follow)
+            assert name.startswith(("AvPanelIFR1_", "AvPanel_VNV")) or name in ok, (button, name)
 
 
 # ---------------- what the codes do ----------------
@@ -733,7 +733,36 @@ def test_the_kap_140s_mode_lights_go_with_the_autopilot_and_apr_shows_rev():
     ("g1000", "gfc700"), ("cows-da40", "gfc700"), ("g3x", "gfc500"), ("gns", "kap140"), ("gtn", "kap140"),
     ("carenado-c182t", "kap140"), ("black-square-bonanza", "kfc150")])
 def test_each_profile_has_its_autopilots_lights(key, autopilot):
-    assert ifr1.LEDS[autopilot] == PROFILES[key].LEDS
+    # the autopilot's lights; where VNV is the vertical speed calculator (the KAP 140, the KFC 150), the AP VS and
+    # AP ALT lights carry its recalculation ahead of their read, which still decides what the light shows (the AP VS
+    # light blinking while VNV follows)
+    follow = parts.follow(**FAMILIES[key].VNV_ARGS) if autopilot in ("kap140", "kfc150") else None
+    for light, read in ifr1.LEDS[autopilot].items():
+        code = PROFILES[key].LEDS[light]
+        if follow and light in ifr1.FOLLOW:
+            shown = ifr1.blink(read) if light == "AP VS" else read
+            assert code == f"{follow[ifr1.FOLLOW.index(light)]} {shown}", (key, light)
+        else:
+            assert code == read, (key, light)
+
+
+def test_the_ap_vs_light_blinks_while_vnv_follows_and_every_light_code_fits():
+    # half a second on, half off, by the sim's clock, while VNV recalculates; its flag again once VNV stops. Every
+    # light's code, recalculation included, fits MobiFlight's message
+    code = PROFILES["black-square-bonanza"].LEDS["AP VS"]
+    sim = {**SPEEDS, "INDICATED ALTITUDE": 8000, "AUTOPILOT ALTITUDE LOCK VAR:1": 4000, "GROUND VELOCITY": 120,
+           "L:AvPanel_VNV_Rate": -400, "L:AvPanel_VNV_Next": 1020, "AUTOPILOT VERTICAL HOLD VAR:1": -400,
+           "AUTOPILOT MASTER": 1, "AUTOPILOT VERTICAL HOLD": 1}
+
+    def shown(active, time):
+        """the light's value, stored at the end of its code to be read back"""
+        out = run(f"{code} (>L:Shown)", {**sim, "L:AvPanel_VNV": active, "ABSOLUTE TIME": time})
+        return [v for name, v in out if name == "L:Shown"]
+    assert [shown(1, t) for t in (1000.0, 1000.6, 1001.1, 1001.7)] == [[0], [1], [0], [1]]
+    assert shown(0, 1000.6) == shown(0, 1000.0) == [True]             # VS on: steady
+    for key, p in PROFILES.items():
+        for light, read in p.LEDS.items():
+            assert len(read.encode()) < 1000, (key, light)
 
 
 # ---------------- the project ----------------
@@ -983,14 +1012,24 @@ def test_the_bonanzas_edm_800_takes_clr_and_ent_in_fms1_tapped_and_held():
     assert "KLN90B_ALT_Push" in device["Button_FMS1_MENU"]["release"]
 
 
-def test_the_bonanzas_fms1_vnav_is_the_descent_calculator():
+# what VNV reads beside the altitudes, distance and ground speed: the airspeed against a stall speed of 60 kt and a
+# Vne of 200 kt, and the sim's clock (parts.follow)
+SPEEDS = {"AIRSPEED INDICATED": 140, "DESIGN SPEED VS1": 60, "AIRSPEED BARBER POLE": 200, "ABSOLUTE TIME": 1000}
+
+
+def events(sent):
+    """What a code sent, without the variables VNV keeps for its recalculation"""
+    return [s for s in sent if not s[0].startswith("L:AvPanel_VNV")]
+
+
+def test_the_bonanzas_fms1_vnav_is_the_vertical_speed_calculator():
     # pressed, the rate and VS ENG (the KFC 150's VNV); let go, nothing: the rate set again stopped VNV working
     state = {"L:var_rnavDrivesHsi": 0, "L:var_RNAV_DME": 0, "L:TDSGTNXI_NextWaypointDistanceNM": 10,
              "AUTOPILOT ALTITUDE LOCK VAR:1": 5000, "INDICATED ALTITUDE": 8000, "GROUND VELOCITY": 120,
-             "AUTOPILOT MASTER": 1, "AUTOPILOT VERTICAL HOLD": 0, "AUTOPILOT GLIDESLOPE ACTIVE": 0}
+             "AUTOPILOT MASTER": 1, "AUTOPILOT VERTICAL HOLD": 0, "AUTOPILOT GLIDESLOPE ACTIVE": 0, **SPEEDS}
     entry = BONANZA.DEVICE["Button_FMS1_VNAV"]
     rate = ("K:AP_VS_VAR_SET_ENGLISH", -600)                  # 3000 ft over 5 minutes
-    assert isinstance(entry, str) and press(state, entry) == [rate, ("H:kas297b_VsButton", None)]   # on press only
+    assert isinstance(entry, str) and events(press(state, entry)) == [rate, ("H:kas297b_VsButton", None)]   # press
 
 
 def test_the_bonanzas_holds_in_fms1_and_fms2_run_as_the_cockpit():
@@ -1021,7 +1060,7 @@ def test_the_bonanzas_sheet_says_what_the_merged_keys_do():
     assert sheet["MENU"][1:] == ["FMS1: tap: MENU (KLN 90B: ALT); hold: MD41 APR ARM (unit 1)",
                                  "FMS2: tap: MENU; hold: KFC 150 self-test, autopilot off only"]
     assert sheet["CLR"][1] == "FMS1: tap: EDM 800 STEP; hold: long press"
-    assert "FMS1 VNAV: descent: sets VS, VS ENG" in sheet["B_ALT"]
+    assert "FMS1 VNAV: to waypoint: sets VS, VS ENG" in sheet["B_ALT"]
     assert ("outer: navigator's outer right knob; ⇆ held: KLN 90B left outer knob; GNS 530 map range; GTN 750 volume"
             in sheet["FMS1"])
     assert "⇆: tap: GTN HOME" in sheet["FMS1"] and "⇆: tap: GTN HOME" in sheet["FMS2"]
@@ -1213,13 +1252,13 @@ def test_the_kap_140s_vnv_held_sets_its_rate_again_as_it_is_let_go(key):
     entry = PROFILES[key].DEVICE["Button_AP_CRSR"]
     sim = {"INDICATED ALTITUDE": 8000, "AUTOPILOT ALTITUDE LOCK VAR:1": 4000, "GROUND VELOCITY": 120,
            "GPS WP DISTANCE": 20, "L:TDSGTNXI_NextWaypointDistanceNM": 20, "L:WTAP_VNAV_Required_VS": 0,
-           "AUTOPILOT MASTER": 1, "AUTOPILOT ALTITUDE LOCK": 1}
+           "AUTOPILOT MASTER": 1, "AUTOPILOT ALTITUDE LOCK": 1, **SPEEDS}
     state = dict(sim)
     press(state, entry)
-    held = press(state, entry, "hold")
+    held = events(press(state, entry, "hold"))
     assert ("K:AP_PANEL_VS_ON", 0) in held and held[-1] == ("K:AP_VS_VAR_SET_ENGLISH", -400)   # 4000 ft, 10 min
     assert "long" not in entry                                           # any release after the hold: a late one too
-    assert press(state, entry, "release") == [("K:AP_VS_VAR_SET_ENGLISH", -400)]
+    assert events(press(state, entry, "release")) == [("K:AP_VS_VAR_SET_ENGLISH", -400)]
     assert press(state, entry, "release") == []                          # once
     state = dict(sim)
     press(state, entry)

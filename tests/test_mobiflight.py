@@ -137,8 +137,14 @@ def unit(variable):
         return "millibars"
     if variable in ("INDICATED ALTITUDE", "AUTOPILOT ALTITUDE LOCK VAR"):
         return "feet"
-    if variable == "GROUND VELOCITY":
+    if variable in ("GROUND VELOCITY", "AIRSPEED INDICATED", "AIRSPEED BARBER POLE", "DESIGN SPEED VS1"):
         return "knots"
+    if variable == "ABSOLUTE TIME":
+        return "seconds"                                 # the sim's clock, VNV's recalculation (parts.follow)
+    if variable == "AUTOPILOT VERTICAL HOLD VAR":
+        return "feet per minute"
+    if variable.endswith(("AvPanel_VNV_Rate", "AvPanel_VNV_Next")):
+        return "number"
     if variable == "GPS WP DISTANCE":
         return "nmiles"
     if variable == "TRANSPONDER CODE":
@@ -342,7 +348,7 @@ SOURCES = {
     "H:KAP140_": "the sim's KAP 140 (KAP140.js)",
     "H:GTN750_": _PMS50,
     "H:GTN650_": _PMS50,
-    "L:AvionicsPanel_": "the profiles' own",
+    **dict.fromkeys(("L:AvionicsPanel_", "L:AvPanel_VNV"), "the profiles' own"),
     "L:TDSGTNXI_": "TDS's GTNXi manual (Reading specific TDS GTNXi Data)",
     "L:WTAP_": "Working Title's VNAV (sdk/autopilot/vnav/VNavEvents.ts)",
     **dict.fromkeys(("H:KLN90B_", "H:kas297b_", "H:bksq_", "H:adf_", "H:TRANSPONDER_Push_", "L:var_", "L:bksq_",
@@ -603,9 +609,9 @@ SETS = {
         RANGE_CW=H:AS530_RNG_Dezoom S_DN=H:KAP140_Push_DN S_ENT=H:AS530_ENT_Push S_ENT@2=H:AS430_ENT_Push
         S_PAN_DN=K:COM2_VOLUME_DEC S_PAN_UP=K:COM2_VOLUME_INC S_RANGE_CCW=H:AS430_RNG_Zoom S_RANGE_CW=H:AS430_RNG_Dezoom
         S_UP=H:KAP140_Push_UP
-        S_VNV=-,0,300,0,0,30,60,0,100,0,K:AP_PANEL_VS_ON,100,100,300,1500,K:AP_VS_VAR_SET_ENGLISH/-,0,300,0,0,30,60,0,100,100,100,300,1500,K:AP_VS_VAR_SET_ENGLISH
+        S_VNV=-,0,300,0,0,0,30,60,100,100,300,0,2000,1500,0,1.3,0.95,0,0,100,0,100,0,K:AP_PANEL_VS_ON,K:AP_VS_VAR_SET_ENGLISH,L:AvPanel_VNV_Rate,1,L:AvPanel_VNV,30,+,L:AvPanel_VNV_Next/-,0,300,0,0,0,30,60,100,100,300,0,2000,1500,0,1.3,0.95,0,0,100,0,100,K:AP_VS_VAR_SET_ENGLISH,L:AvPanel_VNV_Rate,1,L:AvPanel_VNV,30,+,L:AvPanel_VNV_Next
         UP=H:KAP140_Push_UP VNAV=H:AS530_VNAV_Push
-        VNV=-,0,300,0,0,30,60,0,100,0,K:AP_PANEL_VS_ON,100,100,300,1500,K:AP_VS_VAR_SET_ENGLISH/-,0,300,0,0,30,60,0,100,100,100,300,1500,K:AP_VS_VAR_SET_ENGLISH
+        VNV=-,0,300,0,0,0,30,60,100,100,300,0,2000,1500,0,1.3,0.95,0,0,100,0,100,0,K:AP_PANEL_VS_ON,K:AP_VS_VAR_SET_ENGLISH,L:AvPanel_VNV_Rate,1,L:AvPanel_VNV,30,+,L:AvPanel_VNV_Next/-,0,300,0,0,0,30,60,100,100,300,0,2000,1500,0,1.3,0.95,0,0,100,0,100,K:AP_VS_VAR_SET_ENGLISH,L:AvPanel_VNV_Rate,1,L:AvPanel_VNV,30,+,L:AvPanel_VNV_Next
         XPDR_MODE=1,1,4,A:TRANSPONDER_STATE:1
     """,
     "gtn": """
@@ -632,9 +638,9 @@ SETS = {
         RANGE_CW=0,K:GPS_PAGE_KNOB_DEC S_DN=H:KAP140_Push_DN S_PAN_DN=26,K:GPS_BUTTON2 S_PAN_UP=28,K:GPS_BUTTON2
         S_PTR=26,K:GPS_BUTTON1/28,K:GPS_BUTTON1 S_RANGE_CCW=24,K:GPS_PAGE_KNOB_INC S_RANGE_CW=24,K:GPS_PAGE_KNOB_DEC
         S_UP=H:KAP140_Push_UP
-        S_VNV=0,-,0,300,0,0,30,60,0,100,0,K:AP_PANEL_VS_ON,100,100,300,1500,K:AP_VS_VAR_SET_ENGLISH/0,-,0,300,0,0,30,60,0,100,100,100,300,1500,K:AP_VS_VAR_SET_ENGLISH
+        S_VNV=0,-,0,300,0,0,0,30,60,100,100,300,0,2000,1500,0,1.3,0.95,0,0,100,0,100,0,K:AP_PANEL_VS_ON,K:AP_VS_VAR_SET_ENGLISH,L:AvPanel_VNV_Rate,1,L:AvPanel_VNV,30,+,L:AvPanel_VNV_Next/0,-,0,300,0,0,0,30,60,100,100,300,0,2000,1500,0,1.3,0.95,0,0,100,0,100,K:AP_VS_VAR_SET_ENGLISH,L:AvPanel_VNV_Rate,1,L:AvPanel_VNV,30,+,L:AvPanel_VNV_Next
         UP=H:KAP140_Push_UP
-        VNV=0,-,0,300,0,0,30,60,0,100,0,K:AP_PANEL_VS_ON,100,100,300,1500,K:AP_VS_VAR_SET_ENGLISH/0,-,0,300,0,0,30,60,0,100,100,100,300,1500,K:AP_VS_VAR_SET_ENGLISH
+        VNV=0,-,0,300,0,0,0,30,60,100,100,300,0,2000,1500,0,1.3,0.95,0,0,100,0,100,0,K:AP_PANEL_VS_ON,K:AP_VS_VAR_SET_ENGLISH,L:AvPanel_VNV_Rate,1,L:AvPanel_VNV,30,+,L:AvPanel_VNV_Next/0,-,0,300,0,0,0,30,60,100,100,300,0,2000,1500,0,1.3,0.95,0,0,100,0,100,K:AP_VS_VAR_SET_ENGLISH,L:AvPanel_VNV_Rate,1,L:AvPanel_VNV,30,+,L:AvPanel_VNV_Next
         XPDR_MODE=1,1,4,A:TRANSPONDER_STATE:1
     """,
     BONANZA: """
@@ -697,7 +703,7 @@ SETS = {
         UP=100,K:AP_ALT_VAR_INC,K:AP_VS_VAR_INC,K:AP_PITCH_REF_INC_UP
         VFR=7000,1000,4096,100,10,256,+,10,10,16,+,10,+,K:XPNDR_SET,0,L:AvionicsPanel_Squawk_Kept,H:TRANSPONDER_Push_ALT,L:AvionicsPanel_Squawk,1,L:AvionicsPanel_Squawk_Kept,1000,4096,100,10,256,+,10,10,16,+,10,+,K:XPNDR_SET,H:TRANSPONDER_Push_ALT
         VNAV=H:AS530_VNAV_Push
-        VNV=0,0,-,0,300,0,0,30,60,0,100,100,100,300,1500,K:AP_VS_VAR_SET_ENGLISH,H:kas297b_VsButton
+        VNV=0,0,-,0,300,0,0,0,30,60,100,100,300,0,2000,1500,0,1.3,0.95,0,0,100,0,100,K:AP_VS_VAR_SET_ENGLISH,H:kas297b_VsButton,L:AvPanel_VNV_Rate,1,L:AvPanel_VNV,30,+,L:AvPanel_VNV_Next
         VS=H:kas297b_VsButton XPDR_MODE=1,H:TRANSPONDER_Push_STBY,H:TRANSPONDER_Push_ALT YD=K:YAW_DAMPER_TOGGLE
     """,
     "cows-da40": """
@@ -780,10 +786,10 @@ SETS = {
         S_PAN_DN=H:AS1000_PFD_JOYSTICK_DOWN S_PAN_LEFT=H:AS1000_PFD_JOYSTICK_LEFT
         S_PAN_RIGHT=H:AS1000_PFD_JOYSTICK_RIGHT S_PAN_UP=H:AS1000_PFD_JOYSTICK_UP S_PTR=H:AS1000_PFD_JOYSTICK_PUSH
         S_RANGE_CCW=H:AS1000_PFD_RANGE_DEC S_RANGE_CW=H:AS1000_PFD_RANGE_INC S_UP=H:KAP140_Push_UP
-        S_VNV=-,300,0,0,30,60,0,100,0,K:AP_PANEL_VS_ON,100,100,300,1500,K:AP_VS_VAR_SET_ENGLISH/-,300,0,0,30,60,0,100,100,100,300,1500,K:AP_VS_VAR_SET_ENGLISH
+        S_VNV=-,300,0,0,0,30,60,100,100,300,0,2000,1500,0,1.3,0.95,0,0,100,0,100,0,K:AP_PANEL_VS_ON,K:AP_VS_VAR_SET_ENGLISH,L:AvPanel_VNV_Rate,1,L:AvPanel_VNV,30,+,L:AvPanel_VNV_Next/-,300,0,0,0,30,60,100,100,300,0,2000,1500,0,1.3,0.95,0,0,100,0,100,K:AP_VS_VAR_SET_ENGLISH,L:AvPanel_VNV_Rate,1,L:AvPanel_VNV,30,+,L:AvPanel_VNV_Next
         TERR=H:AS1000_MFD_SOFTKEYS_12 TERR@2=H:AS1000_MFD_SOFTKEYS_12 UP=H:KAP140_Push_UP VNAV=H:AS1000_MFD_SOFTKEYS_10
         VNAV@2=H:AS1000_MFD_SOFTKEYS_10
-        VNV=-,300,0,0,30,60,0,100,0,K:AP_PANEL_VS_ON,100,100,300,1500,K:AP_VS_VAR_SET_ENGLISH/-,300,0,0,30,60,0,100,100,100,300,1500,K:AP_VS_VAR_SET_ENGLISH
+        VNV=-,300,0,0,0,30,60,100,100,300,0,2000,1500,0,1.3,0.95,0,0,100,0,100,0,K:AP_PANEL_VS_ON,K:AP_VS_VAR_SET_ENGLISH,L:AvPanel_VNV_Rate,1,L:AvPanel_VNV,30,+,L:AvPanel_VNV_Next/-,300,0,0,0,30,60,100,100,300,0,2000,1500,0,1.3,0.95,0,0,100,0,100,K:AP_VS_VAR_SET_ENGLISH,L:AvPanel_VNV_Rate,1,L:AvPanel_VNV,30,+,L:AvPanel_VNV_Next
         XPDR_MODE=1,1,4,A:TRANSPONDER_STATE:1
     """,
 }
@@ -1071,22 +1077,34 @@ VNV = {"gns": KAP140_VS, "gtn": KAP140_VS, "carenado-c182t": KAP140_VS, "autopil
        BONANZA: KFC150_VS, "autopilot-kfc150": KFC150_VS}
 
 
+NOW = 1000                     # the sim's clock in flight() (ABSOLUTE TIME, seconds)
+
+
+def followed(rate):
+    """What VNV keeps after setting a rate, for its recalculation (parts.follow): the rate, that it follows, and
+    when it next works the rate out"""
+    return [(f"L:{parts.VNV_RATE}", rate), (f"L:{parts.VNV_ACTIVE}", 1),
+            (f"L:{parts.VNV_NEXT}", NOW + parts.VNV_INTERVAL)]
+
+
 def vnv_sends(key, rate, engages=True):
     """What VNV or SHIFT, VNV sends in this table for a rate (None: nothing), entering VS or not"""
     if rate is None:
         return []
     (engage, where), set_vs = VNV[key], ("K:AP_VS_VAR_SET_ENGLISH", rate)
     if not engages:
-        return [set_vs]
-    return [engage, set_vs] if where == "before" else [set_vs, engage]
+        return [set_vs, *followed(rate)]
+    return [*([engage, set_vs] if where == "before" else [set_vs, engage]), *followed(rate)]
 
 
-def flight(altitude=8000, selected=4000, speed=120, tds=0, gps=0, **more):
+def flight(altitude=8000, selected=4000, speed=120, tds=0, gps=0, ias=140, **more):
     """The variables VNV and SHIFT, VNV read: the altimeter's and the selected altitude (ft), the ground speed (kt),
-    TDS's GTNXi's and the GPS's distance to the active waypoint (nm), and more of them by name"""
+    TDS's GTNXi's and the GPS's distance to the active waypoint (nm), the indicated airspeed (kt) against a stall
+    speed of 60 kt and a Vne of 200 kt, the sim's clock, and more of them by name"""
     return {"INDICATED ALTITUDE": altitude, "AUTOPILOT ALTITUDE LOCK VAR:1": selected, "GROUND VELOCITY": speed,
             "L:TDSGTNXI_NextWaypointDistanceNM": tds, "GPS WP DISTANCE": gps, "L:var_rnavDrivesHsi": 0,
-            "L:var_RNAV_DME": 0, "L:WTAP_VNAV_Required_VS": 0, **more}
+            "L:var_RNAV_DME": 0, "L:WTAP_VNAV_Required_VS": 0, "AIRSPEED INDICATED": ias, "DESIGN SPEED VS1": 60,
+            "AIRSPEED BARBER POLE": 200, "ABSOLUTE TIME": NOW, **more}
 
 
 def vnv(entry):
@@ -1102,15 +1120,22 @@ def text(entry):
 @pytest.mark.parametrize("key", sorted(VNV))
 def test_vnv_sets_the_rate_to_the_selected_altitude_at_the_waypoint(key):
     # (selected - altitude) / (distance / ground speed in minutes), rounded to 100 ft/min and kept between 300 and
-    # 1500 ft/min, down only; VS entered unless it is on; nothing without a distance, at 30 knots or less, or unless
-    # the selected altitude is more than 100 ft below
+    # 1500 ft/min down or 2000 ft/min up; VS entered unless it is on; nothing without a distance, at 30 knots or less,
+    # within 100 ft of the selected altitude, in a climb below 1.3 times the stall speed (78 kt here) or in a
+    # descent at 95 % of Vne (190 kt here) or faster
     code = vnv(TABLES[key].DEVICE[1]["VNV"])
     for case, rate in ((flight(gps=20), -400),                                    # 4000 ft in 10 min
                        (flight(9000, 4000, 140, gps=20), -600),                    # 583 ft/min, rounded
                        (flight(gps=5), -1500),                                     # 3000 ft/min, clamped
                        (flight(5000, 4000, 100, gps=20), -300),                    # 83 ft/min, clamped
-                       (flight(3000, 7500, gps=10), None),                         # a climb
-                       (flight(3000, 3500, 100, gps=20), None),
+                       (flight(3000, 7500, gps=10), 900),                          # a climb: 4500 ft in 5 min
+                       (flight(3000, 9000, gps=5), 2000),                          # 2400 ft/min up, clamped
+                       (flight(3000, 7500, gps=10, ias=77), None),                 # too slow to climb
+                       (flight(3000, 7500, gps=10, ias=79), 900),
+                       (flight(gps=20, ias=191), None),                            # too fast to descend
+                       (flight(gps=20, ias=189), -400),
+                       (flight(gps=20, ias=191, **{"AIRSPEED BARBER POLE": 0}), -400),   # no Vne given: no guard
+                       (flight(3000, 3500, 100, gps=20), 300),                     # 42 ft/min up, clamped
                        (flight(), None),                                           # no distance
                        (flight(gps=-1), None),
                        (flight(speed=30, gps=20), None),                           # too slow
@@ -1155,7 +1180,8 @@ def test_vnv_sets_its_rate_again_as_it_is_let_go(key):
     assert set(entry) == {"press", "release"}
     assert entry == TABLES[key].DEVICE[1]["S_VNV"]
     released = run(entry["release"], {**flight(gps=20, tds=20), **_IN_VS})
-    assert released == [("K:AP_VS_VAR_SET_ENGLISH", -400)] and VNV[key][0][0][2:] not in entry["release"]
+    assert released == [("K:AP_VS_VAR_SET_ENGLISH", -400), *followed(-400)]
+    assert VNV[key][0][0][2:] not in entry["release"]
     assert ("K:AP_VS_VAR_SET_ENGLISH", -400) in run(entry["press"], {**flight(gps=20, tds=20), **_IN_ALT})
 
 
@@ -1163,7 +1189,7 @@ def test_vnv_sets_its_rate_again_as_it_is_let_go(key):
 def test_the_kfc150s_vnv_sends_on_press_alone(key):
     # the rate, then VS ENG, once: the rate set again on release, while VS ENG takes it, stopped VNV working
     entry = TABLES[key].DEVICE[1]["VNV"]
-    assert isinstance(entry, str) and entry.endswith("if{ (>H:kas297b_VsButton) } }")
+    assert isinstance(entry, str) and "if{ (>H:kas297b_VsButton) }" in entry
 
 
 def test_vnv_reads_the_distances_of_the_navigators_it_is_composed_with():
@@ -1207,8 +1233,72 @@ def test_gps_last_keeps_each_read_once_and_the_gps_distance_last():
     assert part.gps_last([tds, "x"]) == (tds, "x") and part.gps_last([]) == ()
 
 
+FOLLOWING = {f"L:{parts.VNV_ACTIVE}": 1, f"L:{parts.VNV_RATE}": -400, f"L:{parts.VNV_NEXT}": NOW + 30,
+             "AUTOPILOT VERTICAL HOLD": 1, "AUTOPILOT VERTICAL HOLD VAR:1": -400, "AUTOPILOT MASTER": 1}
+
+
+def test_vnvs_recalculation_codes_are_well_formed_and_fit():
+    # each of the two codes alone in MobiFlight's message, leaving the stack empty down every path (the light's read
+    # comes after it)
+    for args in ({"distances": (part.GPS_DISTANCE,), "required": None}, FAMILIES[BONANZA].VNV_ARGS,
+                 FAMILIES["carenado-c182t"].VNV_ARGS):
+        for code in parts.follow(**args):
+            well_formed(code)
+            every_path(code)
+
+
+def test_vnvs_recalculation_watches_the_rate_and_the_speed_guards():
+    watch, _ = parts.follow()
+    stop = (f"L:{parts.VNV_ACTIVE}", 0)
+
+    def watched(**changes):
+        return run(watch, {**flight(gps=20), **FOLLOWING, **changes})
+    assert watched() == []                                              # within 5 s of setting the rate: not yet
+    late = {"ABSOLUTE TIME": NOW + 6}
+    assert watched(**late) == []                                        # VS holds the rate set
+    assert watched(**late, **{"AUTOPILOT VERTICAL HOLD": 0}) == [stop]   # VS ended (captured, another mode)
+    assert watched(**late, **{"AUTOPILOT MASTER": 0}) == [stop]          # the autopilot off, its VS flag left on
+    assert watched(**{"ABSOLUTE TIME": NOW - 3600}) == [stop]           # the sim's clock gone back: no stale VNV
+    assert watched(**late, **{"AUTOPILOT VERTICAL HOLD VAR:1": -700}) == [stop]      # the rate changed by hand
+    assert watched(**late, **{"AUTOPILOT VERTICAL HOLD VAR:1": -430}) == []          # within 50 ft/min: the same
+    descent_fast = {**late, "AIRSPEED INDICATED": 195}
+    assert watched(**descent_fast) == [("K:AP_VS_VAR_SET_ENGLISH", -300), stop]      # at 95 % of Vne: ease, stop
+    climb = {**late, f"L:{parts.VNV_RATE}": 900, "AUTOPILOT VERTICAL HOLD VAR:1": 900}
+    assert watched(**climb) == []
+    assert watched(**climb, **{"AIRSPEED INDICATED": 75}) == [("K:AP_VS_VAR_SET_ENGLISH", 0), stop]   # level off
+    assert watched(**climb, **{"AIRSPEED INDICATED": 195}) == []        # fast in a climb: fine
+    assert watched(**late, **{f"L:{parts.VNV_ACTIVE}": 0, "AUTOPILOT VERTICAL HOLD": 0}) == []   # not following
+
+
+def test_vnvs_recalculation_works_the_rate_out_every_30_seconds():
+    _, update = parts.follow()
+
+    def updated(**changes):
+        return run(update, {**flight(gps=20), **FOLLOWING, **changes})
+    assert updated(**{"ABSOLUTE TIME": NOW + 29}) == []                 # not due yet
+    due = NOW + 31
+    later = flight(7000, 4000, 120, gps=5)                              # 3000 ft in 2.5 min: 1200 ft/min
+    assert run(update, {**later, **FOLLOWING, "ABSOLUTE TIME": due}) == [
+        ("K:AP_VS_VAR_SET_ENGLISH", -1200), (f"L:{parts.VNV_RATE}", -1200),
+        (f"L:{parts.VNV_NEXT}", due + parts.VNV_INTERVAL)]
+    # where the new rate may not be flown: 300 ft/min toward the selected altitude, then stop
+    stop = (f"L:{parts.VNV_ACTIVE}", 0)
+    for case, eased in ((flight(4050, 4000, gps=5), -300),             # 100 ft or less to go
+                        (flight(gps=0), -300),                          # no distance any more (waypoint passed)
+                        (flight(gps=20, ias=195), -300),                # a descent at 95 % of Vne
+                        (flight(3000, 7500, gps=10, ias=70), 0)):       # a climb too slow: level off
+        assert run(update, {**case, **FOLLOWING, "ABSOLUTE TIME": due}) == [
+            stop, ("K:AP_VS_VAR_SET_ENGLISH", eased), (f"L:{parts.VNV_RATE}", eased),
+            (f"L:{parts.VNV_NEXT}", due + parts.VNV_INTERVAL)], case
+    assert updated(**{"ABSOLUTE TIME": due, f"L:{parts.VNV_ACTIVE}": 0}) == []
+    # a stale VNV (another flight, or the panel's project alone) sends nothing with VS not flown; watch stops it
+    assert updated(**{"ABSOLUTE TIME": due, "AUTOPILOT MASTER": 0, "AUTOPILOT VERTICAL HOLD": 0}) == []
+    assert updated(**{"ABSOLUTE TIME": due, "AUTOPILOT VERTICAL HOLD": 0}) == []
+
+
 def test_the_c182t_vnv_takes_the_g1000_nxis_required_rate_first():
-    # the NXi's VSR, rounded and clamped, when it descends at 300 ft/min or more; else the calculation
+    # the NXi's VSR, rounded and clamped, when it descends at 300 ft/min or more; else the calculation, also for a
+    # climb, where a VSR (a descent) does not apply
     code = vnv(FAMILIES["carenado-c182t"].DEVICE[1]["VNV"])
     for vsr, case, rate in ((-650, flight(gps=20), -700), (-650, flight(), -700), (-2000, flight(), -1500),
                             (-300, flight(gps=20), -300), (-300, flight(), -300),
@@ -1216,8 +1306,8 @@ def test_the_c182t_vnv_takes_the_g1000_nxis_required_rate_first():
                             (-20, flight(), None),
                             (650, flight(gps=20), -400),             # a climb: the calculation
                             (650, flight(), None), (0, flight(gps=20), -400), (900, flight(3000, 7500), None),
-                            (-650, flight(3950, 4000, gps=20), None), (-650, flight(3000, 4000, gps=20), None)):
-        sent = [("K:AP_VS_VAR_SET_ENGLISH", rate)] if rate else []
+                            (-650, flight(3950, 4000, gps=20), None), (-650, flight(3000, 4000, gps=20), 300)):
+        sent = [("K:AP_VS_VAR_SET_ENGLISH", rate), *followed(rate)] if rate else []
         assert run(code, {**case, **_IN_VS, "L:WTAP_VNAV_Required_VS": vsr}) == sent, (vsr, case)
     # the KAP 140 part, as in the GNS and GTN profiles, has no VSR
     assert "WTAP" not in text(FAMILIES["gns"].DEVICE[1]["VNV"]) + text(PARTS["autopilot-kap140"].DEVICE[1]["VNV"])

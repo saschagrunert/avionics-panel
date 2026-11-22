@@ -203,7 +203,9 @@ def compose(name, *parts, rows=None, **extra):
     lights. An autopilot whose VNV reads the navigator's distance (its VNV: the code of distances= and required=, for
     VNV and SHIFT, VNV alike) gets the distances the navigators give (DISTANCES), unit 1's first, then the sim's GPS
     WP DISTANCE if none gave it, and the REQUIRED_VS of the first navigator with one, unit 1's first: no profile reads
-    a variable of a navigator it lacks, which another aircraft of the session may have left."""
+    a variable of a navigator it lacks, which another aircraft of the session may have left. VNV_ARGS keeps those
+    ({"distances": …, "required": …}, None without such a VNV) for the IFR-1's recalculation (parts.follow()); a
+    profile that gives its VNV row itself gives its VNV_ARGS too."""
     if unknown := sorted(k for k in extra if not k.isupper()):     # an attribute is upper case; a keyword is not
         raise TypeError(f"compose() takes no keyword {', '.join(unknown)}: an attribute's name is upper case")
     kinds = [p.KIND for p in parts]
@@ -216,10 +218,13 @@ def compose(name, *parts, rows=None, **extra):
         for d in (1, 2):
             device[d].update(p.DEVICE[d])
             rest[d].update(p.UNMAPPED[d])
+    vnv_args = None
     if vnv := next((p.VNV for p in parts if p.VNV), None):
         navigators = sorted((p for p in parts if p.KIND == "navigator"), key=lambda p: p.UNITS)
         required = next((p.REQUIRED_VS for p in navigators if p.REQUIRED_VS), None)
-        device = with_vnv(device, vnv(distances=distances(*navigators), required=required))
+        vnv_args = {"distances": distances(*navigators), "required": required}
+        device = with_vnv(device, vnv(**vnv_args))
+    extra = {"VNV_ARGS": vnv_args, **extra}
     for d in (1, 2):
         for button, entry in (rows or {}).get(d, {}).items():
             rest[d].pop(button, None)
