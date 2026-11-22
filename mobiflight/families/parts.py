@@ -286,46 +286,106 @@ NAV1_KNOBS = {
     **STD_TOGGLE,
 }
 
-# ---------------- VNV without VNAV: the descent calculator ----------------
-# For an autopilot without VNAV (the KAP 140, the KFC 150), VNV works out once per press the vertical speed that
-# reaches the selected altitude at the navigator's active waypoint: Δ / (distance / ground speed in minutes). Δ is the
-# selected altitude (AUTOPILOT ALTITUDE LOCK VAR:1, the slot the sim's SimPlane.js names the selected one, which
-# KAP140.js leaves alone in ALT hold, where it holds its altitude in slot 2) less the altimeter's (INDICATED
-# ALTITUDE); the ground speed is the aircraft's own (GROUND VELOCITY), whatever the navigator. It descends only: these
-# autopilots hold a climb rate with no care for the airspeed. It rounds the rate to 100 ft/min, keeps its size between
-# 300 and 1500 ft/min and sets it with the SDK's AP_VS_VAR_SET_ENGLISH, after the autopilot's code that enters VS
-# (before) or before the one that engages it (after), so the autopilot flies VS at that rate: the KAP 140 takes the
-# present vertical speed as it enters VS, and the KAS 297B's VS ENG takes the rate it shows. It does nothing without a
-# distance, at 30 knots or less (below which TDS's GTNXi and Working Title's VNAV work out no times or rates either)
-# or unless the selected altitude is more than 100 ft below. The distance is the first above 0 of distances (RPN
-# reads, in nautical miles), which the navigators declare: TDS's GTNXi's (gtn.py), or the simulator's GPS WP DISTANCE,
-# which Working Title's GNS and G1000 NXi write from their own LNAV (GpsSynchronizer.ts in
-# microsoft/msfs-avionics-mirror's sdk/autopilot, run by the GNS's MainScreen.tsx and the NXi's WTG1000_MFD.tsx);
-# Working Title publishes no L: variable of its own for it. A profile joined from parts reads its navigators' (the
-# autopilot part's VNV, part.compose), the part alone every navigator's (families/__init__.py). A required rate
-# (required: an RPN read in ft/min, 0 for none, as the G1000 NXi gives one, g1000.py) goes first when it is a descent
-# of 300 ft/min or more; a smaller one, as for a constraint far ahead, gives way to the rate worked out. VNV and
-# SHIFT, VNV are the same: the key has no amber legend, so a stray SHIFT changes nothing.
-_SIZE = "100 / near 100 * 300 max 1500 min"          # a rate's size, rounded to 100 ft/min and clamped
+# ---------------- VNV without VNAV: the vertical speed calculator ----------------
+# For an autopilot without VNAV (the KAP 140, the KFC 150), VNV works out the vertical speed that reaches the selected
+# altitude at the navigator's active waypoint: Δ / (distance / ground speed in minutes), up or down. Δ is the selected
+# altitude (AUTOPILOT ALTITUDE LOCK VAR:1, the slot the sim's SimPlane.js names the selected one, which KAP140.js leaves
+# alone in ALT hold, where it holds its altitude in slot 2) less the altimeter's (INDICATED ALTITUDE); the ground speed
+# is the aircraft's own (GROUND VELOCITY), whatever the navigator. It rounds the rate to 100 ft/min, keeps it between
+# 300 and 1500 ft/min down or 2000 ft/min up and sets it with the SDK's AP_VS_VAR_SET_ENGLISH, after the autopilot's
+# code that enters VS (before) or before the one that engages it (after), so the autopilot flies VS at that rate: the
+# KAP 140 takes the present vertical speed as it enters VS, and the KAS 297B's VS ENG takes the rate it shows. These
+# autopilots hold a rate with no care for the airspeed, so VNV guards it by the aircraft's own speeds (_GUARDS): a climb
+# only at 1.3 times the stall speed or faster, a descent only below 95 % of Vne. It does nothing without a distance, at
+# 30 knots or less (below which TDS's GTNXi and Working Title's VNAV work out no times or rates either) or within 100 ft
+# of the selected altitude. After a press it follows: follow() works the rate out anew every 30 s, run over and over by
+# the IFR-1's lights. The distance is the first above 0 of distances (RPN reads, in nautical miles), which the
+# navigators declare: TDS's GTNXi's (gtn.py), or the simulator's GPS WP DISTANCE, which Working Title's GNS and G1000
+# NXi write from their own LNAV (GpsSynchronizer.ts in microsoft/msfs-avionics-mirror's sdk/autopilot, run by the GNS's
+# MainScreen.tsx and the NXi's WTG1000_MFD.tsx); Working Title publishes no L: variable of its own for it. A profile
+# joined from parts reads its navigators' (the autopilot part's VNV, part.compose), the part alone every navigator's
+# (families/__init__.py). A required rate (required: an RPN read in ft/min, 0 for none, as the G1000 NXi gives one,
+# g1000.py) goes first when it is a descent of 300 ft/min or more and the selected altitude is below; a smaller one, as
+# for a constraint far ahead, gives way to the rate worked out. VNV and SHIFT, VNV are the same: the key has no amber
+# legend, so a stray SHIFT changes nothing.
 _SET_VS = k("AP_VS_VAR_SET_ENGLISH")
 _SELECTED = "(A:AUTOPILOT ALTITUDE LOCK VAR:1, feet)"
+# the speed guards, from the aircraft's own data, read once into registers: 6 is 1 for a climb too slow (below 1.3
+# times the stall speed, clean), 5 is 1 for a descent too fast (at 95 % of Vne, the airspeed indicator's barber pole,
+# or faster; register 7 holds that speed). A speed the aircraft does not give (0) guards nothing: a barber pole of 0
+# must not stop every descent
+_GUARDS = ("(A:AIRSPEED INDICATED, knots) sp5 l5 (A:DESIGN SPEED VS1, knots) 1.3 * < sp6 "
+           "(A:AIRSPEED BARBER POLE, knots) 0.95 * sp7 l5 l7 < ! l7 0 > and sp5")
+# what VNV keeps for the recalculation (follow()): that it follows, the rate it set last (ft/min, signed) and when it
+# next works the rate out (seconds of the sim's clock)
+VNV_ACTIVE, VNV_RATE, VNV_NEXT = "AvPanel_VNV", "AvPanel_VNV_Rate", "AvPanel_VNV_Next"
+_NOW = "(A:ABSOLUTE TIME, seconds)"
+VNV_INTERVAL = 30           # seconds between recalculations
+_GRACE = 5                  # seconds after a rate is set before follow() looks whether VS still holds it
 
 
-def _set(rate, before, after):
-    """rate (RPN, a size in ft/min) set as a descent, between the autopilot's codes before and after"""
-    return " ".join(filter(None, (before, f"{rate} {_SIZE} neg {_SET_VS}", after)))
-
-
-def descent(before="", after="", distances=(GPS_DISTANCE,), required=None):
-    """VNV's code: the vertical speed to the selected altitude at the active waypoint, by registers 0 (Δ, ft),
-    1 (the distance, nm), 2 (the ground speed, kt) and 3 (the rate, ft/min)"""
+def _rate(distances, required):
+    """The vertical speed to the selected altitude at the active waypoint, by registers 0 (Δ, ft), 1 (the distance,
+    nm), 2 (the ground speed, kt) and 3 (the rate, ft/min, signed: below 0 a descent), then register 4: the rate
+    rounded to 100 ft/min and kept between 300 and 1500 ft/min down or 2000 ft/min up; and the speed guards in 5 and 6
+    (_GUARDS). The required rate (a descent) goes first in a descent of 300 ft/min or more. Leaves nothing on the
+    stack."""
     first, *rest = distances
     return " ".join([
         f"{first} sp1", *(f"l1 0 > ! if{{ {d} sp1 }}" for d in rest),
         f"{_SELECTED} (A:INDICATED ALTITUDE, feet) - sp0 (A:GROUND VELOCITY, knots) sp2",
-        f"{required or 0} sp3 l3 neg 300 < if{{ 0 sp3 l1 0 > l2 30 > and if{{ l0 l2 * l1 60 * / sp3 }} }}",
-        f"l3 0 < l0 neg 100 > and if{{ {_set('l3 abs', before, after)} }}",
+        f"{required or 0} sp3 l3 neg 300 < l0 0 > or if{{ 0 sp3 l1 0 > l2 30 > and if{{ l0 l2 * l1 60 * / sp3 }} }}",
+        "l3 abs 100 / near 100 * 300 max l3 0 > if{ 2000 } els{ 1500 } min l3 0 < if{ neg } sp4", _GUARDS,
     ])
+
+
+# a rate worked out by _rate() that VNV may fly: more than 100 ft to go, a descent not too fast, a climb not too slow
+_FLYABLE = "l3 0 < l0 neg 100 > and l5 ! and l3 0 > l0 100 > and l6 ! and or"
+
+
+def _fly(before="", after="", start=True):
+    """Register 4's rate set between the autopilot's codes before and after, kept for follow(); start: also starts
+    following (not for follow()'s own update, which runs only while it follows)"""
+    return " ".join(filter(None, (before, f"l4 {_SET_VS}", after, f"l4 (>L:{VNV_RATE})",
+                                  f"1 (>L:{VNV_ACTIVE})" if start else "",
+                                  f"{_NOW} {VNV_INTERVAL} + (>L:{VNV_NEXT})")))
+
+
+def descent(before="", after="", distances=(GPS_DISTANCE,), required=None):
+    """VNV's code: the vertical speed to the selected altitude at the active waypoint (_rate()), set between the
+    autopilot's codes before and after when it may be flown (_FLYABLE), and followed from then on (follow())"""
+    return f"{_rate(distances, required)} {_FLYABLE} if{{ {_fly(before, after)} }}"
+
+
+_STOP = f"0 (>L:{VNV_ACTIVE})"
+
+
+def follow(distances=(GPS_DISTANCE,), required=None):
+    """The recalculation after VNV, in two codes run over and over (the IFR-1's AP lights, ifr1.py), each short enough
+    for MobiFlight's message: (watch, update). watch stops at once when the sim's clock has gone back (a flight loaded
+    at an earlier time: VNV_NEXT would otherwise lie far ahead), and from _GRACE seconds after a rate is set when VS
+    ends (the altitude captured, another mode, the autopilot off) or holds another rate than the one set (changed by
+    hand), and with a speed guard: a climb too slow levels off (0 ft/min), a descent too fast eases to 300 ft/min
+    (_GUARDS). update, every VNV_INTERVAL seconds while the sim's VS flag is on (a stale VNV_ACTIVE, left by another
+    flight or by the panel's project alone, sends nothing before watch stops it): the rate worked out anew and set;
+    where it may not be flown (100 ft or less to go, no distance, a speed guard) it eases a descent to 300 ft/min or
+    levels a climb off, and stops. Each leaves nothing on the stack."""
+    rate = f"(L:{VNV_RATE}, Number)"
+    held = f"(A:AUTOPILOT VERTICAL HOLD VAR:1, feet per minute) {rate} - abs 50 <"
+    watch = " ".join([
+        f"(L:{VNV_ACTIVE}, Bool) {_NOW} {VNV_INTERVAL} + (L:{VNV_NEXT}, Number) < and if{{ {_STOP} }}",
+        f"(L:{VNV_ACTIVE}, Bool) {_NOW} (L:{VNV_NEXT}, Number) {VNV_INTERVAL - _GRACE} - > and if{{ {_GUARDS}",
+        f"(A:AUTOPILOT VERTICAL HOLD, Bool) (A:AUTOPILOT MASTER, Bool) and {held} and ! if{{ {_STOP} }}",
+        f"els{{ {rate} 0 > l6 and if{{ 0 {_SET_VS} {_STOP} }}",
+        f"els{{ {rate} 0 < l5 and if{{ 300 neg {_SET_VS} {_STOP} }} }} }} }}",
+    ])
+    # where the rate may not be flown: 300 ft/min down toward a selected altitude below, level (0) toward one above, as
+    # a climb that may not be flown may be one too slow; in the rate's place, and stop (one set for both, as the code
+    # must fit MobiFlight's message)
+    ease = f"l0 0 < 300 * neg sp4 {_STOP}"
+    update = (f"(L:{VNV_ACTIVE}, Bool) {_NOW} (L:{VNV_NEXT}, Number) > and (A:AUTOPILOT VERTICAL HOLD, Bool) and "
+              f"if{{ {_rate(distances, required)} {_FLYABLE} ! if{{ {ease} }} {_fly(start=False)} }}")
+    return watch, update
 
 
 # ---------------- the KAP 140 and the instruments round it (device 1) ----------------
@@ -402,7 +462,7 @@ def cockpit(key, name, knobs):
 
 
 # the autopilot and cockpit parts round the KAP 140, as in the Cessna 172 Skyhawk Classic and Carenado's C182T; VNV
-# and SHIFT, VNV are the descent calculator, of the distances the part reads alone (part.alone) or in a profile
+# and SHIFT, VNV are the vertical speed calculator, of the distances the part reads alone (part.alone) or in a profile
 # (part.compose)
 KAP140_AUTOPILOT = part("kap140", "KAP 140", "autopilot", {1: KAP140}, {1: KAP140_UNMAPPED}, VNV=KAP140_VNV)
 BENDIX_KING = cockpit("bendix-king", "Bendix/King", NAV1_KNOBS)

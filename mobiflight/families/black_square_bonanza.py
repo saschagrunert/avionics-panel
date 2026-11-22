@@ -55,7 +55,7 @@ def _toggle(variable):
 _UP = parts.reference(k("AP_VS_VAR_INC"), k("AP_PITCH_REF_INC_UP"), alt=k("AP_ALT_VAR_INC", 100))
 _DN = parts.reference(k("AP_VS_VAR_DEC"), k("AP_PITCH_REF_INC_DN"), alt=k("AP_ALT_VAR_DEC", 100))
 _VS = h("kas297b_VsButton")
-# VNV: the descent calculator (parts.descent), with VS ENG pressed after the rate is set, while the autopilot is
+# VNV: the vertical speed calculator (parts.descent), with VS ENG pressed after the rate is set, while the autopilot is
 # engaged, not in VS and not on a glideslope (a press there would leave it): the guide says VS ENG takes the rate the
 # KAS 297B shows, which shows a rate set from outside for 2 s, and arms the altitude's capture when that rate leads
 # towards it; with the autopilot off VS ENG would set the flight director's mode instead. The guide also says the KAS
@@ -80,8 +80,8 @@ _NO_FLC = "the KFC 150 has no FLC mode"
 
 # the KFC 150 and KAS 297B as an autopilot part, also for Black Square's aircraft with other avionics: AP ENG, the
 # modes and the KAS 297B's VS ENG and ALT ARM, the ALT/HDG knob, SHIFT, UP and SHIFT, DN as the rocker (a stray
-# SHIFT does no harm), TEST the self-test's counter, as the guide sets it, and VNV and SHIFT, VNV the descent
-# calculator without the Bonanza's KNS 81, which another aircraft lacks (of the distances the part reads alone,
+# SHIFT does no harm), TEST the self-test's counter, as the guide sets it, and VNV and SHIFT, VNV the vertical
+# speed calculator without the Bonanza's KNS 81, which another aircraft lacks (of the distances the part reads alone,
 # part.alone, or in a profile, part.compose). FD and the self-test only with the autopilot off, as Garmin's FD
 # (parts.GARMIN_SHARED): a press in flight must not take the flight director away from it or test it.
 _OFF = "(A:AUTOPILOT MASTER, Bool) !"
@@ -194,7 +194,8 @@ UNIT2 = joined("black-square-bonanza", "Black Square Bonanza's secondary", *UNIT
                    "VNAV": "the GNS 430 has no VNAV key, and the GTN none at all"})
 # the Bonanza's VNV: its KNS 81 first, then the distances of the navigators the tablet may choose, as compose()
 # orders them (part.distances)
-_VNV = KFC150_VNV(distances=(_RNAV_DISTANCE, *distances(UNIT1, UNIT2)))
+_VNV_ARGS = {"distances": (_RNAV_DISTANCE, *distances(UNIT1, UNIT2)), "required": None}
+_VNV = KFC150_VNV(**_VNV_ARGS)
 
 
 # the lighting, as a project the Bonanza is flown with sets it: the outer ring steps the instrument lights, with the
@@ -269,4 +270,4 @@ _BOTH_ALTIMETERS = {
 PROFILE = compose(NAME, AUTOPILOT, parts.BENDIX_KING, UNIT1, UNIT2, rows={
     1: {**_AROUND_AUTOPILOT, "VNV": _VNV, **_LIGHTS, **_RADAR, **_AUDIO, **_SQUAWK, **_ADF, **_BOTH_ALTIMETERS},
     2: _ADF,
-})
+}, VNV_ARGS=_VNV_ARGS)

@@ -10,8 +10,8 @@ Good to know:
 
 - Unit 1 is the primary selection (KX 155B, KLN 90B, GNS 530 or GTN 750), unit 2 the secondary (KX 155B, GNS
   430 or GTN 650). One profile works whichever the tablet selected.
-- VNV works out the descent rate to the selected altitude at the active waypoint, sets it and presses VS ENG
-  ([how](../mapping.md#vnv-without-vnav)).
+- VNV works out the vertical speed, up or down, to the selected altitude at the active waypoint, sets it
+  and presses VS ENG ([how](../mapping.md#vnv-without-vnav)).
 - SHIFT, UP and SHIFT, DN are the EDM 800's STEP and LEAN FIND: a tap is a short press, held longer than 0.35
   s a long one.
 - FLC and ½ BANK tilt the weather radar's antenna; SHIFT with the RANGE knob tilted left and right sets its

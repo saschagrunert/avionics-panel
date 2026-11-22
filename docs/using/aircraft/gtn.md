@@ -14,7 +14,7 @@ Good to know:
   profile](black-square-bonanza.md) in the Bonanza.
 - The RANGE knob works the GTN 750Xi, with SHIFT the GTN 650Xi: turn to zoom, tilt up and down for the volume,
   push for squelch (ident with NAV selected). For 121.5, use SHIFT, COM ⇆.
-- VNV is the descent calculator, with TDS's distance to the next waypoint
+- VNV is the vertical speed calculator, with TDS's distance to the next waypoint
   ([how](../mapping.md#vnv-without-vnav)).
 
 The same sheet with the commit of the latest build in its title:

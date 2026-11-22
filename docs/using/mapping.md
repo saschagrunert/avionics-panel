@@ -264,7 +264,7 @@ COM ⇆ and NAV ⇆ are the sim's flip-flops, as the GTN has no such keys. TDS s
 and NAV radios; if a frequency set with the FREQ knob does not show on the GTN, tune it there with the FMS
 knob, whose push toggles between COM and NAV. The XPDR mode push works the cockpit's KT 76 through the
 simulator's variable; a transponder that the GTN runs itself may not follow it. VNV and SHIFT, VNV are the
-descent calculator, as in the GNS profile, with TDS's distance to the next waypoint.
+vertical speed calculator, as in the GNS profile, with TDS's distance to the next waypoint.
 
 Does nothing in this profile: TEST, FD, YD, FLC, LVL, GPSS, ½ BANK and ARM (as in the GNS profile),
 FPL, PROC, MENU, CLR, ENT, MSG, NRST, TERR, VNAV, MAP, CDI, OBS, the RANGE knob tilted left or right (on the
@@ -363,8 +363,8 @@ the [G1000 NXi profile](#g1000-nxi), with the same differences from the real uni
 SHIFT sets the PFD's CRS and BARO knobs, and the heading bug is the sim's. The C182T dims all its panel lights
 with one knob: the outer ring steps its four dimmers alike (two potentiometers, the panel and the pedestal),
 in steps of 5 %, the inner ring dims its two cabin lights together, and the cabin light push turns them
-fully on or off, as a project the C182T is flown with sets them. VNV and SHIFT, VNV are the descent
-calculator, as in the GNS profile; VNV takes the NXi's required vertical speed first
+fully on or off, as a project the C182T is flown with sets them. VNV and SHIFT, VNV are the vertical
+speed calculator, as in the GNS profile; VNV takes the NXi's required vertical speed first
 ([VNV without VNAV](#vnv-without-vnav)).
 
 Does nothing in this profile: TEST, FD, YD, FLC, LVL, GPSS, ½ BANK and ARM (as in the GNS profile).
@@ -373,27 +373,36 @@ Does nothing in this profile: TEST, FD, YD, FLC, LVL, GPSS, ½ BANK and ARM (as 
 
 The KAP 140 and the KFC 150 with the KAS 297B have no VNAV, and a GNS or GTN drives none through them. In the
 GNS, GTN, Black Square Bonanza and Carenado C182T profiles and the `kap140` and `kfc150` autopilot parts, VNV
-is a descent calculator instead: one press works out a vertical speed down and sets it. It is a calculator,
-not path tracking: the rate stays as it was set until you press VNV again, change it with UP and DN, or the
-autopilot captures the altitude. It sets no climb: neither autopilot minds the airspeed in VS, so a climb is
-for you to set, with an eye on the airspeed and the power.
+is a vertical speed calculator instead: one press works out the vertical speed that reaches the selected
+altitude at the active waypoint, up or down, and sets it. With the IFR-1's profile running too, it then
+recalculates every 30 s, which gets close to following a path; the panel's project alone has nothing that runs
+on its own, so there the rate stays as set until you press VNV again.
 
 1. Set the altitude to reach with the ALT/HDG knob, as usual, and make the fix where you want to reach it the
    navigator's active waypoint: D→ to it, or fly the flight plan's leg to it.
 2. Press VNV. It works out the rate that reaches the selected altitude at that waypoint: the altitude to lose
-   over the time to the waypoint at the present ground speed. It rounds the rate to 100 ft/min and keeps it
-   between 300 and 1500 ft/min down. In the KAP 140 it leaves ALT hold for VS as the ALT key does and then
-   sets the rate, and sets it again as the key is let go, as the G1000 NXi's and GNS's autopilot code may
-   enter VS a moment later at the present rate; in the KAS 297B it sets the rate and then presses VS ENG, when
-   the autopilot is engaged, not in VS and not on a glideslope, all on press (the IFR-1's VNV, which set the rate
-   again as the key was let go, while VS ENG took it, never worked in the Bonanza). With the autopilot off, VNV
-   only sets the rate; an autopilot may take the present vertical speed when it engages, so press VNV again
-   after engaging it.
-3. Press VNV again now and then, after a turn or a change of speed or wind: it works the rate out anew from
-   where you are.
+   or gain over the time to the waypoint at the present ground speed. It rounds the rate to 100 ft/min and
+   keeps it between 300 and 1500 ft/min down or 300 and 2000 ft/min up. In the KAP 140 it leaves ALT hold for
+   VS as the ALT key does and then sets the rate, and sets it again as the key is let go, as the G1000 NXi's
+   and GNS's autopilot code may enter VS a moment later at the present rate; in the KAS 297B it sets the rate
+   and then presses VS ENG, when the autopilot is engaged, not in VS and not on a glideslope, all on press.
+   With the autopilot off, VNV only sets the rate; an autopilot may take the present vertical speed when it
+   engages, so press VNV again after engaging it.
+3. With the IFR-1's profile running, VNV works the rate out anew every 30 s from where you are, so a change of
+   speed or wind, or a turn, is taken up. It stops recalculating when VS ends (the altitude captured, another
+   mode), when you change the rate yourself (the AP rings, UP and DN), and with 100 ft or less to go or no
+   distance left (the waypoint passed), first easing a descent to 300 ft/min or levelling a climb off. The
+   IFR-1's AP VS light blinks while VNV recalculates. Without the IFR-1's profile, press VNV again now and
+   then.
+
+Neither autopilot minds the airspeed in VS, so VNV guards it with the aircraft's own speeds from the sim: it
+starts a climb only at 1.3 times the stall speed (`DESIGN SPEED VS1`) or faster, and a descent only below 95 %
+of Vne (the barber pole, `AIRSPEED BARBER POLE`). While recalculating, a climb that slows below 1.3 times the
+stall speed levels off (0 ft/min), and a descent that reaches 95 % of Vne eases to 300 ft/min; VNV then stops
+recalculating, and the power and the rate are yours to set.
 
 VNV does nothing without a distance or at 30 knots or less (in the C182T, unless the NXi gives a required
-vertical speed, below), or unless the selected altitude is more than 100 ft below. VNV has no amber legend, so
+vertical speed for a descent, below), or within 100 ft of the selected altitude. VNV has no amber legend, so
 SHIFT, VNV does the same and a stray SHIFT changes nothing; in the Bonanza, SHIFT, VNV stays the KR 87's BFO
 key.
 
@@ -412,8 +421,13 @@ smaller one, as for a constraint far ahead, VNV works the rate out itself. The N
 next altitude constraint of its flight plan, which may lie above the selected altitude: VNV holds that rate
 past the constraint's fix too, so press VNV again there.
 
-None of this has been flown in the sim yet. To check there:
+The Bonanza's VNV has been flown: one press from ALT hold enters VS at the computed rate down, on the IFR-1's
+VNAV and AP knob alike. To check there:
 
+- The recalculation: every 30 s the rate set follows the distance and ground speed; turning the AP rings in VS
+  stops it, and so do the altitude's capture and a climb below 1.3 times the stall speed, which levels off
+  first. Whether the KAS 297B and the KAP 140 take a rate set from outside while already in VS.
+- A climb: VNV with the selected altitude above starts VS up, and the KAS 297B captures the altitude at the top.
 - That the selected altitude is the sim's first autopilot altitude (`AUTOPILOT ALTITUDE LOCK VAR:1`) in the
   KAP 140 and the KAS 297B, also in ALT hold, where the sim's KAP 140 holds its altitude in the second. If VNV
   does nothing in ALT hold after you set a lower altitude, it is not.
@@ -466,7 +480,7 @@ own, so one of each kind makes a whole profile:
 
 - An autopilot (the autopilot keys, UP and DN, the ALT/HDG knob's altitude and heading): `gfc700` (the G1000
   NXi's), `gfc500` (the G3X Touch's), `kap140`, or `kfc150` (Black Square's KFC 150 and KAS 297B). In
-  `kap140` and `kfc150`, VNV is the descent calculator, with or without SHIFT ([VNV without
+  `kap140` and `kfc150`, VNV is the vertical speed calculator, with or without SHIFT ([VNV without
   VNAV](#vnv-without-vnav)).
 - A cockpit (the ALT/HDG knob with SHIFT, the audio panel, transponder and lighting, the radios and ADF of both
   units): `g1000` (the PFD's CRS and BARO knobs), `g3x`, or `bendix-king` (the course of NAV 1 and the

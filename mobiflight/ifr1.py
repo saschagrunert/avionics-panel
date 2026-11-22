@@ -39,12 +39,12 @@ every profile ⇆ held in NAV1 and NAV2 is the panel's NAV 1 and NAV 2 audio, in
 in CRS2 the panel's DME audio and in BARO the simulator's pitot heat event (HOLDS); with ⇆ held in FMS1 and FMS2, TDS's
 GTN's outer ring is its volume, and its MENU, CLR and ENT, without ⇆, the volume up, down and push (tds_gtn()). Per
 profile, EXTRA puts IFR-1 uses of their own over the panel's (Plus and Own sources): in the Black Square Bonanza the EDM
-800 and the descent calculator on keys of FMS1, each navigator's range or volume on the outer ring with ⇆ held, the
-HSI's course with the heading bug (⇆ in HDG and HDG held), GPSS on NAV held, the go-around on APR held (and the
-three on FMS1's OBS, MSG and FPL held, the keys in their positions), BC on FMS1's CDI held, the yaw damper on ⇆ held
-in HDG, and the cockpit's self-test, DME selector, oxygen, tip tanks, prop heat, fuel pump and air conditioner on keys
-of FMS2 (bonanza_extra()); in the COWS DA40 and the C182T their fuel pump, and the NG DA40's fuel transfer pump, on
-keys of FMS2 held (da40_extra(), c182t_extra()).
+800 and the vertical speed calculator on keys of FMS1, each navigator's range or volume on the outer ring with ⇆ held,
+the HSI's course with the heading bug (⇆ in HDG and HDG held), GPSS on NAV held, the go-around on APR held (and the
+three on FMS1's OBS, MSG and FPL held, the keys in their positions), BC on FMS1's CDI held, the yaw damper on ⇆ held in
+HDG, and the cockpit's self-test, DME selector, oxygen, tip tanks, prop heat, fuel pump and air conditioner on keys of
+FMS2 (bonanza_extra()); in the COWS DA40 and the C182T their fuel pump, and the NG DA40's fuel transfer pump, on keys of
+FMS2 held (da40_extra(), c182t_extra()).
 
 New code, which no panel button sends (Own sources): the squawk digit selected and stepped (squawk_select(),
 squawk_digit()), NAV 2's course (NAV2_COURSE), the transponder's mode one way (transponder_mode()), the modifier
@@ -430,10 +430,10 @@ _AP_ROW_HOLDS = {
     "NAV": Panel(1, "GPSS"),
     "APR": Own("go-around (TOGA)", k("AUTO_THROTTLE_TO_GA")),
 }
-# FMS1's key in the position of each bottom-row key with a hold of _AP_ROW_HOLDS (FMS_KEYS[4:] are the blue legends
-# over AP_ROW's keys: CDI over AP, OBS over HDG and so on). Not CDI (AP: its hold is BC there, AP has none), VNAV
-# (ALT: the descent calculator sends on press, as the panel's that worked) or PROC (VS: TERR, the MD41's OBS for the
-# KLN 90B)
+# FMS1's key in the position of each bottom-row key with a hold of _AP_ROW_HOLDS (FMS_KEYS[4:] are the blue legends over
+# AP_ROW's keys: CDI over AP, OBS over HDG and so on). Not CDI (AP: its hold is BC there, AP has none), VNAV (ALT: the
+# vertical speed calculator sends on press, as the panel's that worked) or PROC (VS: TERR, the MD41's OBS for the KLN
+# 90B)
 FMS1_HOLDS = {key: f"FMS1_{fms}" for key, fms in zip(AP_ROW, FMS_KEYS[4:], strict=True) if key in _AP_ROW_HOLDS}
 
 
@@ -442,12 +442,12 @@ def bonanza_extra():
     EDM 800's STEP and LEAN FIND, its left and right buttons side by side: tapped, a short press, sent as the key is let
     go; held HOLD_MS, a long press, sent at once, as the panel's SHIFT, UP and SHIFT, DN hold them. TDS's GTN 750 takes
     neither key from outside (the GNS 530's and PMS50's CLR and ENT give way, and MAP, CLR's amber). FMS1's VNAV is the
-    descent calculator (the panel's VNV, as the AP knob's push held), as the GNS 530's VNAV page is seldom used and
-    TDS's GTN takes no VNAV key; it sends on press. The GTN volume keys are gone (seldom used): the volume is the outer
-    ring's with ⇆ held. That ring is the GNS's map range, as the inner ring is, and the GTN's volume knob (TDS's and
-    PMS50's, as TDS_HELD_OUTER has it for TDS's GTN), and in FMS1 the KLN 90B's left outer knob: the panel's RANGE knob
-    sends the COM volume beside each GTN's, which the GNS takes, so the outer ring sends each navigator's own. ⇆ in HDG
-    also sets the HSI's course (NAV 1's, its yellow arrow) to the heading, as it sets the heading bug.
+    vertical speed calculator (the panel's VNV, as the AP knob's push held), as the GNS 530's VNAV page is seldom used
+    and TDS's GTN takes no VNAV key; it sends on press. The GTN volume keys are gone (seldom used): the volume is the
+    outer ring's with ⇆ held. That ring is the GNS's map range, as the inner ring is, and the GTN's volume knob (TDS's
+    and PMS50's, as TDS_HELD_OUTER has it for TDS's GTN), and in FMS1 the KLN 90B's left outer knob: the panel's RANGE
+    knob sends the COM volume beside each GTN's, which the GNS takes, so the outer ring sends each navigator's own. ⇆ in
+    HDG also sets the HSI's course (NAV 1's, its yellow arrow) to the heading, as it sets the heading bug.
 
     APR held is the go-around (GA): the simulator's TOGA event, AUTO_THROTTLE_TO_GA, which the guide gives for the
     throttle's GA button (with TDS's GTN; Working Title's GNS has no go-around mode), in place of BC, the amber
@@ -600,6 +600,34 @@ LEDS = {
 
 
 READS = re.compile(r"\(A:([^),]+)")              # the variables a light reads
+# the lights that also carry VNV's recalculation (parts.follow()), as MobiFlight runs a light's code over and over:
+# the AP VS light watches the rate and the speed guards, the AP ALT light works the rate out anew. While VNV follows,
+# the AP VS light blinks, half a second on and half off by the sim's clock (blink()), and shows its flag again after.
+FOLLOW = ("AP VS", "AP ALT")
+
+
+def blink(read):
+    """A light's code that blinks while VNV follows, and shows read otherwise"""
+    return f"(L:{parts.VNV_ACTIVE}, Bool) if{{ (A:ABSOLUTE TIME, seconds) 2 * flr 2 % }} els{{ {read} }}"
+
+
+def leds(family):
+    """{light: code} of a profile (LEDS by its autopilot part), with VNV's recalculation ahead of the two lights of
+    FOLLOW where its VNV is the vertical speed calculator (family.VNV_ARGS): each leaves nothing on the stack, so the
+    light still shows its read, but for the AP VS light's blinking while VNV follows (blink())"""
+    out = dict(LEDS[_part(family, "autopilot")])
+    if family.VNV_ARGS:
+        for light, code in zip(FOLLOW, parts.follow(**family.VNV_ARGS), strict=True):
+            read = blink(out[light]) if light == "AP VS" else out[light]
+            out[light] = f"{code} {read}"
+    return out
+
+
+def light_name(ifr1_profile, light):
+    """An AP light item's name in MobiFlight's list: the flags it shows, and the recalculation where it carries one"""
+    flags = ", ".join(dict.fromkeys(READS.findall(LEDS[_part(FAMILIES[ifr1_profile.KEY], "autopilot")][light])))
+    follows = light in FOLLOW and FAMILIES[ifr1_profile.KEY].VNV_ARGS
+    return f"{light} light: {flags}{'; VNV recalculation' if follows else ''}"
 
 
 # ---------------- a profile ----------------
@@ -738,7 +766,7 @@ def build(key, vfr=None):
         device[button] = let_go.code
     device = {button: device[button] for button in BUTTONS if button in device}
     return SimpleNamespace(KEY=key, NAME=family.NAME, USES=used_by, DEVICE=device, UNMAPPED=unmapped,
-                           LEDS=dict(LEDS[_part(family, "autopilot")]), UNITS=fms_units(family))
+                           LEDS=leds(family), UNITS=fms_units(family))
 
 
 def filename(key):
@@ -785,7 +813,7 @@ def project(ifr1_profile, stamp=None):
         items.append({
             "GUID": str(uuid.uuid5(profile.ITEMS, f"ifr1/{ifr1_profile.NAME}/{light}")),
             "Active": True,
-            "Name": f"{light} light: {', '.join(dict.fromkeys(READS.findall(read)))}",
+            "Name": light_name(ifr1_profile, light),
             "Type": "OutputConfigItem",
             "Controller": controller,
             "Source": {"Type": "SimConnectSource", "SimConnectValue": {"UUID": "", "Value": read, "VarType": 2}},
