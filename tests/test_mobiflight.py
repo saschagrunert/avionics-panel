@@ -139,7 +139,7 @@ def unit(variable):
         return "feet"
     if variable in ("GROUND VELOCITY", "AIRSPEED INDICATED", "AIRSPEED BARBER POLE", "DESIGN SPEED VS1"):
         return "knots"
-    if variable == "ABSOLUTE TIME":
+    if variable == "E:SIMULATION TIME":
         return "seconds"                                 # the sim's clock, VNV's recalculation (parts.follow)
     if variable == "AUTOPILOT VERTICAL HOLD VAR":
         return "feet per minute"
@@ -168,7 +168,7 @@ def test_reads_use_the_unit_of_their_kind(key):
                 read = READ.fullmatch(token)
                 if read[3]:                              # a B: input event's value, read without a unit
                     continue
-                variable = read[1].split(":")[0] if read[1] else read[2]
+                variable = read[1].split(":")[0] if read[1] else read[2] or read[4]
                 assert token.rsplit(", ", 1)[1][:-1].lower() == unit(variable), (button, token)
 
 
@@ -338,6 +338,7 @@ _PMS50 = "PMS50's GTN (PMS50's GTN750 events, which Black Square's guide follows
 _BLACK_SQUARE = "Black Square's Bonanza guide, or a project the Bonanza is flown with"
 SOURCES = {
     "A:": "the simulator's simulation variables (the SDK's lists)",
+    "E:": "the simulator's environment variables (the SDK's list)",
     **dict.fromkeys(("B:LIGHTING_", "B:FUEL_PUMP_", "B:DEICE_"),
                     "the simulator's input events, as projects the aircraft are flown with use them"),
     "H:AS1000_": _WT_G1000,
@@ -362,7 +363,7 @@ def test_every_other_input_has_a_source(key):
     # every set or read names an A:, B:, H:, K: or L: input, in that case; an H:, L: or B: name has the prefix of a
     # cited source
     for device, button, _, code in codes(key):
-        assert set(re.findall(r"\(>?([A-Za-z]+):", code)) <= set("ABHKL"), (key, device, button, code)
+        assert set(re.findall(r"\(>?([A-Za-z]+):", code)) <= set("ABEHKL"), (key, device, button, code)
         for name in re.findall(r"\(>?([HLB]:[\w-]+)", code):
             assert name.startswith(tuple(SOURCES)), (f"{name} ({key}, device {device}, {button}): no cited source for "
                                                      "its prefix; add the source to SOURCES and a heading to "
@@ -384,13 +385,13 @@ def test_every_other_input_is_one_its_source_names():
     for name, under in checked.items():                 # each under its source, as SOURCES names it
         assert under == next((v for p, v in SOURCES.items() if name.startswith(p)), None), (name, under)
     checked = set(checked)
-    used = {name for key in TABLES for *_, code in codes(key) for name in re.findall(r"\(>?([AHLB]:[^),]+)", code)}
+    used = {name for key in TABLES for *_, code in codes(key) for name in re.findall(r"\(>?([AEHLB]:[^),]+)", code)}
     # and the IFR-1's (ifr1.py), but for its own state (ifr1.STATE, named by its buttons)
     used |= {name for key in FAMILIES for entry in ifr1.build(key).DEVICE.values()
-             for code in profile.actions(entry).values() for name in re.findall(r"\(>?([AHLB]:[^),]+)", code)
+             for code in profile.actions(entry).values() for name in re.findall(r"\(>?([AEHLB]:[^),]+)", code)
              if not name.startswith(f"L:{ifr1.STATE}")}
     used |= {name for key in FAMILIES for read in ifr1.build(key).LEDS.values()          # what its AP lights read
-             for name in re.findall(r"\(>?([AHLB]:[^),]+)", read)}
+             for name in re.findall(r"\(>?([AEHLB]:[^),]+)", read)}
     assert used - checked == set(), "not checked against its source: add them to tests/inputs.txt once found there"
     assert checked - used == set(), "used no more: take them out of tests/inputs.txt"
 
@@ -1077,7 +1078,7 @@ VNV = {"gns": KAP140_VS, "gtn": KAP140_VS, "carenado-c182t": KAP140_VS, "autopil
        BONANZA: KFC150_VS, "autopilot-kfc150": KFC150_VS}
 
 
-NOW = 1000                     # the sim's clock in flight() (ABSOLUTE TIME, seconds)
+NOW = 1000                     # the sim's clock in flight() (E:SIMULATION TIME, seconds)
 
 
 def followed(rate):
@@ -1104,7 +1105,7 @@ def flight(altitude=8000, selected=4000, speed=120, tds=0, gps=0, ias=140, **mor
     return {"INDICATED ALTITUDE": altitude, "AUTOPILOT ALTITUDE LOCK VAR:1": selected, "GROUND VELOCITY": speed,
             "L:TDSGTNXI_NextWaypointDistanceNM": tds, "GPS WP DISTANCE": gps, "L:var_rnavDrivesHsi": 0,
             "L:var_RNAV_DME": 0, "L:WTAP_VNAV_Required_VS": 0, "AIRSPEED INDICATED": ias, "DESIGN SPEED VS1": 60,
-            "AIRSPEED BARBER POLE": 200, "ABSOLUTE TIME": NOW, **more}
+            "AIRSPEED BARBER POLE": 200, "E:SIMULATION TIME": NOW, **more}
 
 
 def vnv(entry):
@@ -1261,11 +1262,11 @@ def test_vnvs_recalculation_watches_the_rate_and_the_speed_guards():
     def watched(**changes):
         return run(watch, {**flight(gps=20), **FOLLOWING, **changes})
     assert watched() == []                                              # within 5 s of setting the rate: not yet
-    late = {"ABSOLUTE TIME": NOW + 6}
+    late = {"E:SIMULATION TIME": NOW + 6}
     assert watched(**late) == []                                        # VS holds the rate set
     assert watched(**late, **{"AUTOPILOT VERTICAL HOLD": 0}) == [stop]   # VS ended (captured, another mode)
     assert watched(**late, **{"AUTOPILOT MASTER": 0}) == [stop]          # the autopilot off, its VS flag left on
-    assert watched(**{"ABSOLUTE TIME": NOW - 3600}) == [stop]           # the sim's clock gone back: no stale VNV
+    assert watched(**{"E:SIMULATION TIME": NOW - 3600}) == [stop]           # the sim's clock gone back: no stale VNV
     assert watched(**late, **{"AUTOPILOT VERTICAL HOLD VAR:1": -700}) == [stop]      # the rate changed by hand
     assert watched(**late, **{"AUTOPILOT VERTICAL HOLD VAR:1": -430}) == []          # within 50 ft/min: the same
     descent_fast = {**late, "AIRSPEED INDICATED": 195}
@@ -1282,10 +1283,10 @@ def test_vnvs_recalculation_works_the_rate_out_every_30_seconds():
 
     def updated(**changes):
         return run(update, {**flight(gps=20), **FOLLOWING, **changes})
-    assert updated(**{"ABSOLUTE TIME": NOW + 29}) == []                 # not due yet
+    assert updated(**{"E:SIMULATION TIME": NOW + 29}) == []                 # not due yet
     due = NOW + 31
     later = flight(7000, 4000, 120, gps=5)                              # 3000 ft in 2.5 min: 1200 ft/min
-    assert run(update, {**later, **FOLLOWING, "ABSOLUTE TIME": due}) == [
+    assert run(update, {**later, **FOLLOWING, "E:SIMULATION TIME": due}) == [
         ("K:AP_VS_VAR_SET_ENGLISH", -1200), (f"L:{parts.VNV_RATE}", -1200),
         (f"L:{parts.VNV_NEXT}", due + parts.VNV_INTERVAL)]
     # where the new rate may not be flown: 300 ft/min toward the selected altitude, then stop
@@ -1294,13 +1295,13 @@ def test_vnvs_recalculation_works_the_rate_out_every_30_seconds():
                         (flight(gps=0), -300),                          # no distance any more (waypoint passed)
                         (flight(gps=20, ias=195), -300),                # a descent at 95 % of Vne
                         (flight(3000, 7500, gps=10, ias=70), 0)):       # a climb too slow: level off
-        assert run(update, {**case, **FOLLOWING, "ABSOLUTE TIME": due}) == [
+        assert run(update, {**case, **FOLLOWING, "E:SIMULATION TIME": due}) == [
             stop, ("K:AP_VS_VAR_SET_ENGLISH", eased), (f"L:{parts.VNV_RATE}", eased),
             (f"L:{parts.VNV_NEXT}", due + parts.VNV_INTERVAL)], case
-    assert updated(**{"ABSOLUTE TIME": due, f"L:{parts.VNV_ACTIVE}": 0}) == []
+    assert updated(**{"E:SIMULATION TIME": due, f"L:{parts.VNV_ACTIVE}": 0}) == []
     # a stale VNV (another flight, or the panel's project alone) sends nothing with VS not flown; watch stops it
-    assert updated(**{"ABSOLUTE TIME": due, "AUTOPILOT MASTER": 0, "AUTOPILOT VERTICAL HOLD": 0}) == []
-    assert updated(**{"ABSOLUTE TIME": due, "AUTOPILOT VERTICAL HOLD": 0}) == []
+    assert updated(**{"E:SIMULATION TIME": due, "AUTOPILOT MASTER": 0, "AUTOPILOT VERTICAL HOLD": 0}) == []
+    assert updated(**{"E:SIMULATION TIME": due, "AUTOPILOT VERTICAL HOLD": 0}) == []
 
 
 def test_the_c182t_vnv_takes_the_g1000_nxis_required_rate_first():

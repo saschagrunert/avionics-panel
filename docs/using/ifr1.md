@@ -267,6 +267,9 @@ selected altitude, without a distance from the GTN (no active waypoint), or at 3
   CDI held engages BC.
 - Bonanza in FMS1: OBS held syncs the heading bug, MSG held switches GPSS, FPL held starts the go-around, as HDG,
   NAV and APR held do in the other modes.
+- VNV's recalculation: the AP VS light blinks once a second while VNV follows in VS, and the rate changes every
+  30 s. If the light stays steady or dark, watch in developer mode `L:AvPanel_VNV` (1 while VNV follows) and the
+  sim's clock `E:SIMULATION TIME`, which the blinking and the 30 s timer read.
 - Bonanza: APR held starts the KFC 150's go-around with TDS's GTN 750 (AUTO_THROTTLE_TO_GA), and the GTN
   sequences into the missed approach.
 - Bonanza: the oxygen valve from FMS2's MSG held.

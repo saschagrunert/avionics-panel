@@ -607,8 +607,9 @@ FOLLOW = ("AP VS", "AP ALT")
 
 
 def blink(read):
-    """A light's code that blinks while VNV follows, and shows read otherwise"""
-    return f"(L:{parts.VNV_ACTIVE}, Bool) if{{ (A:ABSOLUTE TIME, seconds) 2 * flr 2 % }} els{{ {read} }}"
+    """A light's code that blinks while VNV follows and read is on (VS engaged), and shows read otherwise: a VNV flag
+    left over from another flight, or set a moment before VS engages, blinks nothing"""
+    return f"(L:{parts.VNV_ACTIVE}, Bool) {read} and if{{ {parts.NOW} 2 * flr 2 % }} els{{ {read} }}"
 
 
 def leds(family):

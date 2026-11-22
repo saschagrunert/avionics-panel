@@ -4,10 +4,12 @@ import itertools
 import math
 import re
 
-# a code's tokens: a variable, read as (A:NAME:INDEX, unit) or (L:NAME, unit) or set as (>X:NAME) or
-# (>A:NAME:INDEX, unit), a number or an operator
+# a code's tokens: a variable, read as (A:NAME:INDEX, unit), (L:NAME, unit), (E:NAME, unit) (an environment variable,
+# as the sim's clock) or (B:NAME) (an input event's value), or set as (>X:NAME) or (>A:NAME:INDEX, unit), a number or
+# an operator
 TOKEN = re.compile(r"\([^()]*\)|[^\s()]+")
-READ = re.compile(r"\((?:(?:A:([A-Z0-9 ]+(?::[1-9])?)|(L:[A-Za-z0-9_]+)), [A-Za-z][A-Za-z0-9 ]*|(B:[A-Z0-9_]+))\)")
+READ = re.compile(r"\((?:(?:A:([A-Z0-9 ]+(?::[1-9])?)|(L:[A-Za-z0-9_]+)), [A-Za-z][A-Za-z0-9 ]*|(B:[A-Z0-9_]+)|"
+                  r"(E:[A-Z ]+), [A-Za-z][A-Za-z0-9 ]*)\)")
 WRITE = re.compile(r"\(>(?:(K:(?:2:)?[A-Z0-9_]+|H:[A-Za-z0-9_-]+|L:[A-Za-z0-9_]+|B:[A-Za-z0-9_]+_(?:Set|Toggle))|"
                    r"(A:[A-Z ]+:[1-9]), Enum)\)")
 REGISTER = re.compile(r"(sp|s|l)([0-9])")         # a register: store and pop, store, load
@@ -53,7 +55,7 @@ def run(code, variables=(), branches=None, default=None):
                 continue
             elif READ.fullmatch(token):
                 read = READ.fullmatch(token)
-                name = read[1] or read[2] or read[3]
+                name = read[1] or read[2] or read[3] or read[4]
                 value = variables[name] if default is None or name in variables else default
                 stack.append(value)
             elif REGISTER.fullmatch(token):

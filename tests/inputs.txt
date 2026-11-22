@@ -4,7 +4,6 @@
 # names it; a dropped one goes out.
 
 # the simulator's simulation variables (the SDK's lists)
-A:ABSOLUTE TIME
 A:AIRSPEED BARBER POLE
 A:AIRSPEED INDICATED
 A:AUTOPILOT ALTITUDE LOCK
@@ -46,6 +45,9 @@ A:NAV RADIAL:1
 A:NAV RADIAL:2
 A:TRANSPONDER CODE:1
 A:TRANSPONDER STATE:1
+
+# the simulator's environment variables (the SDK's list)
+E:SIMULATION TIME
 
 # the simulator's input events, as projects the aircraft are flown with use them
 B:DEICE_Propeller_1_Toggle
