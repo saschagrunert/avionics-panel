@@ -1237,6 +1237,13 @@ FOLLOWING = {f"L:{parts.VNV_ACTIVE}": 1, f"L:{parts.VNV_RATE}": -400, f"L:{parts
              "AUTOPILOT VERTICAL HOLD": 1, "AUTOPILOT VERTICAL HOLD VAR:1": -400, "AUTOPILOT MASTER": 1}
 
 
+def test_a_codes_name_leaves_out_vnvs_bookkeeping():
+    # the card's VNV line, and MobiFlight's item name, list what a pilot recognises: VNV's own variables made the
+    # Bonanza's card spill onto a second page
+    assert profile.label(FAMILIES[BONANZA].DEVICE[1]["VNV"]) == "AP_VS_VAR_SET_ENGLISH, kas297b_VsButton"
+    assert not any(name in profile.label(parts.follow()[1]) for name in profile.UNNAMED)
+
+
 def test_vnvs_recalculation_codes_are_well_formed_and_fit():
     # each of the two codes alone in MobiFlight's message, leaving the stack empty down every path (the light's read
     # comes after it)
