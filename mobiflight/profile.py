@@ -93,10 +93,14 @@ def actions(entry):
     return {EVENTS[event]: code for event, code in entry.items()}
 
 
+# what VNV keeps for its recalculation (parts.follow()): bookkeeping no pilot reads, left out of a code's name
+UNNAMED = (parts.VNV_ACTIVE, parts.VNV_RATE, parts.VNV_NEXT)
+
+
 def label(code):
-    """What a code is named by in MobiFlight's list: the events and variables it sets, each once (an item's
-    codes joined: its press, release and long release)"""
-    return ", ".join(dict.fromkeys(WRITES.findall(code)))
+    """What a code is named by in MobiFlight's list and on the cards: the events and variables it sets, each once
+    (an item's codes joined: its press, release and long release), without VNV's bookkeeping (UNNAMED)"""
+    return ", ".join(name for name in dict.fromkeys(WRITES.findall(code)) if name not in UNNAMED)
 
 
 def lowered(text):
