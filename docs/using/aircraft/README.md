@@ -5,7 +5,8 @@ aircraft around it. ⇧ is a function after a tap on SHIFT (the amber legends), 
 control the profile sends nothing for: the aircraft lacks it, or the profile does not know the aircraft's own
 (the dimmers, mostly), so it is free for a mapping of your own. The words are written from the profiles and
 [Mapping](../mapping.md), and a test keeps "does nothing" to exactly the controls a profile leaves unmapped;
-`python3 -m mobiflight --sheets docs/using/aircraft` draws the sheets.
+`python3 -m mobiflight --sheets docs/using/aircraft` draws the sheets. Opened on their own, the sheets (and
+the IFR-1's) fill the browser window; printed, they are A4 in landscape.
 
 ## By avionics
 

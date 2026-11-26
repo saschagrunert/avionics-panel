@@ -84,6 +84,9 @@ def geometry():
 # ---------------- layout, in SVG units (px): A4 landscape, 297 mm wide ----------------
 W, H = 1600, 1000
 PAGE_MM = 297
+# on screen the page fills the window, whole (the viewBox fits it, centred); printed and as an image (the docs) it keeps
+# its size in mm, A4 landscape
+SCREEN = "@media screen { :root { width: 100%; height: 100%; background: #f6f7f9; } }"
 S = 5.6                          # px per mm on the panel
 OVH = 2.5                        # the plate's overhang round the board, mm
 FONT = "Arial, 'Liberation Sans', Helvetica, sans-serif"
@@ -327,7 +330,7 @@ class Sheet:
         body = "\n".join(self.out)
         name = html.escape(f"Avionics Panel: {title}, cheat sheet" + (f" ({version})" if version else ""))
         return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{PAGE_MM}mm" height="{PAGE_MM * H / W:g}mm" '
-                f'viewBox="0 0 {W} {H}" font-family="{FONT}">\n<title>{name}</title>\n'
+                f'viewBox="0 0 {W} {H}" font-family="{FONT}">\n<title>{name}</title>\n<style>{SCREEN}</style>\n'
                 f'<rect width="{W}" height="{H}" fill="#f6f7f9"/>\n{body}\n</svg>\n')
 
 

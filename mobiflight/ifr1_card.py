@@ -21,6 +21,14 @@ i { color: var(--soft); }
 ol { columns: 2; column-gap: 4mm; margin: 1mm 0 0; padding-left: 3mm; color: var(--soft); }
 figure { margin: 0; }
 figure svg { display: block; width: 100%; height: auto; max-height: 172mm; }
+/* the cheat sheet on screen: as wide as the window, its drawing as high, its words half as large again; printed, A4 */
+@media screen {
+  body.sheet { width: auto; padding: 0 1.5vw; font-size: 9pt; }
+  body.sheet h1 { font-size: 16.5pt; }
+  body.sheet .version { font-size: 10.5pt; }
+  body.sheet h2 { font-size: 11.25pt; }
+  body.sheet figure svg { max-height: 100vh; }
+}
 """
 
 
@@ -68,7 +76,7 @@ def page(ifr1_profile, version=None, words=False):
 <style>
 {STYLE}</style>
 </head>
-<body>
+<body{' class="sheet"' if words else ''}>
 <header>
 <h1>IFR-1: {name}{stamp}</h1>
 <p>{html.escape(intro)}</p>
