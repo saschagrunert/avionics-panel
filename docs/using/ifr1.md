@@ -64,8 +64,8 @@ For another VFR code than 7000, as 1200 in the US, write the profile with that c
 `.\profile.bat --ifr1 cows-da40 --vfr 1200` in a terminal (cmd or PowerShell) in the folder of the
 [simulator's zip](simulator.md) writes `avionics-panel-ifr1-cows-da40.mfproj`, as `python3 -m mobiflight
 --ifr1 cows-da40 --vfr 1200` does from the repository ([Generators](../architecture/generators.md)). Or change
-`7000` in the project's `XPDR^_TOG` item, where the code stands once (without leading zeros: 0400 is `400`),
-as for the panel ([Generated profiles](mapping.md#generated-profiles)).
+`7000` in the project's `XPDR_TOG` and `XPDR^_TOG` items, where it stands once in each (without leading zeros:
+0400 is `400`), as for the panel ([Generated profiles](mapping.md#generated-profiles)).
 
 ## What each control does
 
@@ -79,12 +79,13 @@ as for the panel ([Generated profiles](mapping.md#generated-profiles)).
 | CRS2 (NAV2 shifted) | NAV 2 course 10° (ten 1° steps) / 1° | tap: NAV 2's course to the VOR or LOC; hold: DME audio | shift back |
 | FMS1, FMS2 | the unit's FMS knob; ⇆ held: its map range, where the profile has one (the G3X has none), the outer ring on a GTN its volume | tap: the unit's HOME, where it has one | CRSR; D→, MENU, CLR, ENT and CDI, OBS, MSG, FPL, VNAV (in the G1000 NXi and DA40 profiles the GFC 700's VNV, in the Bonanza's FMS1 the vertical speed calculator), PROC; held CLR, MENU, PROC: MAP, NRST, TERR; each where the profile has it (in the Bonanza's FMS1, CLR and ENT are the EDM 800's, held its long press, and OBS, MSG and FPL held what HDG, NAV and APR hold below them) |
 | AP | selected altitude 1000 ft / 100 ft; ⇆ held: the inner ring is the panel's UP and DN (the held altitude, VS, IAS or pitch, by autopilot), the outer ring five of them at once (500 ft/min in VS, 5 kt in FLC, five pitch steps in pitch hold, in ALT hold five altitude steps on the KAP 140 and KFC 150, in the Bonanza 500 ft of the altitude its UP and DN step, [to check](mapping.md#vnv-without-vnav)). With the autopilot or the flight director in VS (on the KAP 140, which has none, the autopilot), the other way round: the rings set the rate without ⇆ (inner 100 ft/min, outer 500 ft/min) and the altitude to level off at with ⇆ held, in a climb too | none: it only modifies the rings | held: VNV |
-| XPDR | the squawk, a digit at a time, as on the panel: the outer ring selects the digit (1 to 4, stopping at both ends; every entry starts at digit 1), the inner ring steps it 0 … 7; ⇆ held: panel dimmer / flood dimmer (the C182T's cabin lights), where the profile knows the aircraft's | tap: IDENT | shift: MODE |
+| XPDR | the squawk, a digit at a time, as on the panel: the outer ring selects the digit (1 to 4, stopping at both ends; every entry starts at digit 1), the inner ring steps it 0 … 7; ⇆ held: panel dimmer / flood dimmer (the C182T's cabin lights), where the profile knows the aircraft's | tap: VFR and back | shift: MODE |
 | MODE (XPDR shifted) | either ring: clockwise ALT (from standby or off), counter-clockwise standby | tap: VFR and back; hold: cabin light | shift back |
 | Every mode but FMS1 and FMS2 | | | AP, HDG (held: heading bug to the heading; in the Bonanza the HSI's course too), NAV (in the Bonanza held: GPSS), APR (held: BC; in the Bonanza GA), ALT (held: ARM), VS (held: FLC on the GFC 700 and GFC 500, FD on the KFC 150), each where the profile has it |
 
 - ⇆ in FMS1, FMS2, AP and XPDR: held while turning a ring, the ring does what follows "⇆ held" and ⇆ sends
-  nothing when let go. Otherwise ⇆ sends its tap when let go, however long it was held. Press ⇆ first, then
+  nothing when let go. Otherwise ⇆ sends its tap when let go, however long it was held (in XPDR only within
+  0.7 s). Press ⇆ first, then
   turn: a detent that comes with the press, in the same report of the IFR-1, reaches the profile before it
   (MobiFlight 11.3.1), so that detent does what it does without ⇆, and ⇆ let go at once then sends its tap,
   unless the ring turned again. For that reason ⇆ has no hold in these modes, and in AP no tap either: a hold
@@ -155,10 +156,15 @@ as for the panel ([Generated profiles](mapping.md#generated-profiles)).
   stopping at 4, counter-clockwise back, stopping at 1, so a turn far counter-clockwise always finds digit 1;
   the inner ring steps that digit (the simulator's XPNDR_1000_INC and the like, as the panel's), the others
   kept. Every change of mode starts the entry at digit 1 again. To squawk 4512 from 7000: inner ring to 4,
-  outer one detent, inner to 5, outer, inner to 1, outer, inner to 2. The knob push in XPDR shifts to MODE,
-  whose rings take the transponder one way each however far they turn: clockwise from standby or off to ALT,
-  counter-clockwise from ALT or on to standby; ⇆ there squawks the VFR code, and pressed again the code
-  before. Push the knob again to come back to XPDR.
+  outer one detent, inner to 5, outer, inner to 1, outer, inner to 2. ⇆ tapped in XPDR squawks the VFR code,
+  and tapped again the code before; the IFR-1 has no IDENT, which a tap sent too easily, and unseen (the
+  panel's keeps it). Only a quick tap counts: ⇆ held 0.7 s or longer and let go without a turn sends nothing,
+  so a press for the dimmers given up leaves the code alone. 7000 on the display is easy to notice where a
+  stray IDENT was not. Unlike the panel's VFR, which right after a digit is IDENT, ⇆ tapped after an entry
+  squawks VFR over the code just set: tap it again to bring that code back. The knob push in XPDR shifts to
+  MODE, whose rings take the transponder one way each however far they turn: clockwise from standby or off to
+  ALT, counter-clockwise from ALT or on to standby; ⇆ there toggles the VFR code too. Push the knob again to
+  come back to XPDR.
 - The rings send one step per detent, without the panel's quick turn. MobiFlight passes on every detent of a
   fast spin; whether the sim keeps up is to check.
 - MobiFlight sends a key's release to the mode the IFR-1 is in when the key comes up, and a hold to the button
@@ -167,13 +173,13 @@ as for the panel ([Generated profiles](mapping.md#generated-profiles)).
   so a hold of COM1 or COM2 sends nothing in HDG or BARO. A key of TDS's GTN held in FMS1 or FMS2 while
   changing mode stays down in the GTN until pressed again; its key-up never reaches the other GTN.
 
-What the IFR-1 has no control for, of the panel's functions: in every profile 121.5 and the ADF, including its
-ident audio, and the maps' pan and pointer; the COM volume in the GNS and Bonanza profiles; in the Bonanza,
-the GTNs' volume push, the GNS 530's CLR, ENT, MAP (CLR held long) and VNAV and PMS50's GTN 750's CLR and ENT
-(FMS1's CLR and ENT are the EDM 800's, its VNAV the vertical speed calculator), the MD41's lamp test, the KLN
-90B's left CRSR, the KR 87's keys and the weather radar; the GFC 700's and GFC 500's FD, YD and LVL; in the
-G1000 NXi and DA40 profiles the MFD's Detail softkey. The cheat sheets mark every control that does nothing in
-a profile, with the reason.
+What the IFR-1 has no control for, of the panel's functions: in every profile the transponder's IDENT, 121.5
+and the ADF, including its ident audio, and the maps' pan and pointer; the COM volume in the GNS and Bonanza
+profiles; in the Bonanza, the GTNs' volume push, the GNS 530's CLR, ENT, MAP (CLR held long) and VNAV and
+PMS50's GTN 750's CLR and ENT (FMS1's CLR and ENT are the EDM 800's, its VNAV the vertical speed calculator),
+the MD41's lamp test, the KLN 90B's left CRSR, the KR 87's keys and the weather radar; the GFC 700's and GFC
+500's FD, YD and LVL; in the G1000 NXi and DA40 profiles the MFD's Detail softkey. The cheat sheets mark every
+control that does nothing in a profile, with the reason.
 
 ## VNV in the Bonanza
 
@@ -225,7 +231,8 @@ selected altitude, without a distance from the GTN (no active waypoint), or at 3
   C182T projects already send it).
 - ⇆ pressed with a ring turned at once, in FMS1, FMS2, AP and XPDR: how often the IFR-1 reports the press and
   a detent together, which sends the detent without ⇆ and, with no further turn, ⇆'s tap when let go. In XPDR
-  that detent changes the squawk unseen and ⇆ then IDENTs: if it happens, the dimmers leave XPDR's ⇆ layer.
+  that detent changes a digit unseen and ⇆ then squawks VFR, keeping the changed code, which a second tap
+  brings back: check the code after it. If it happens, the dimmers leave XPDR's ⇆ layer.
 - Fast spins: MobiFlight sends each detent of a report as its own command at once, so several may read the
   same value of the sim in one frame and step it once (BARO, the dimmers, the G3X's 10° course step); if the
   fast spin above loses detents, those rings step from a value of their own instead.
@@ -239,9 +246,9 @@ selected altitude, without a distance from the GTN (no active waypoint), or at 3
   and not ALT after it.
 - Bonanza: VS held takes the KFC 150's FD (the simulator's TOGGLE_FLIGHT_DIRECTOR, which Black Square's guide
   does not list).
-- VFR (⇆ in MODE, and the panel's VFR key): squawks 7000 and ALT, and pressed again the code before. The code
-  goes to XPNDR_SET packed a digit to a hex digit (0x7000); it once showed 1350, the sim having passed 7000
-  unconverted. If the code before does not come back, the sim does not give the code as its digits in
+- VFR (⇆ in XPDR and MODE, and the panel's VFR key): squawks 7000 and ALT, and pressed again the code before.
+  The code goes to XPNDR_SET packed a digit to a hex digit (0x7000); it once showed 1350, the sim having passed
+  7000 unconverted. If the code before does not come back, the sim does not give the code as its digits in
   `(A:TRANSPONDER CODE:1, number)`: watch that variable in developer mode while the transponder shows 1200.
 - Bonanza: VNV (FMS1's VNAV, or the AP knob's push held) from ALT hold with the altitude set 3000 ft lower on
   the KAS 297B and a GTN waypoint 10 nm ahead enters VS at a rate down. If nothing happens, the selected

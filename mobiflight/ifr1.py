@@ -13,11 +13,11 @@ it is, so a 2 would light the next light too.
 Every IFR-1 button sends what a panel button sends in the profile (uses(): Panel sources, by the table TABLE), with
 these rules over it:
 
-- ⇆ in FMS1, FMS2, AP and XPDR is a modifier of its mode's knob (MODIFIED): pressed, it sets the mode's L: variable;
-  a detent while it is held sends the knob's held code; let go without a detent between, it sends its tap, however
-  long it was held; then it clears the variable. It has no hold: a detent that comes with its press goes out without
-  it, and ⇆ let go would send the hold (AP_VS_HOLD). The state lives in L: variables of the IFR-1's own (STATE), as the
-  panel keeps its own, so the two devices can fly together.
+- ⇆ in FMS1, FMS2, AP and XPDR is a modifier of its mode's knob (MODIFIED): pressed, it sets the mode's L: variable; a
+  detent while it is held sends the knob's held code; let go without a detent between, it sends its tap, however long it
+  was held (in XPDR only before HOLD_MS: QUICK); then it clears the variable. It has no hold: a detent that comes with
+  its press goes out without it, and ⇆ let go would send the hold (AP_VS_HOLD). The state lives in L: variables of the
+  IFR-1's own (STATE), as the panel keeps its own, so the two devices can fly together.
 - A key with a hold (an amber function of AMBER of its panel key, HOLDS, MODE's cabin light, HDG's sync of the bug, the
   profile's EXTRA, or VNV on the AP knob's push) sends its hold at once when held HOLD_MS, while still down, and its
   plain function on a tap, on its release; every other key sends on press as the panel's does, a key of TDS's GTN its
@@ -33,23 +33,22 @@ these rules over it:
 
 The layers: the AP rings set the selected altitude 1000 ft (outer) and 100 ft (inner), with ⇆ held the inner ring the
 panel's UP and DN and the outer ring AP_COARSE of them at once (a Times source), the other way round in VS (SWAPPED);
-XPDR's outer ring selects a squawk digit and its inner ring steps it, with ⇆ held the panel and flood dimmers; MODE
-(XPDR shifted) the transponder's mode, ALT one way and standby the other (transponder_mode()), its ⇆ the VFR code. In
-every profile ⇆ held in NAV1 and NAV2 is the panel's NAV 1 and NAV 2 audio, in CRS1 the simulator's marker audio event,
-in CRS2 the panel's DME audio and in BARO the simulator's pitot heat event (HOLDS); with ⇆ held in FMS1 and FMS2, TDS's
-GTN's outer ring is its volume, and its MENU, CLR and ENT, without ⇆, the volume up, down and push (tds_gtn()). Per
-profile, EXTRA puts IFR-1 uses of their own over the panel's (Plus and Own sources): in the Black Square Bonanza the EDM
-800 and the vertical speed calculator on keys of FMS1, each navigator's range or volume on the outer ring with ⇆ held,
-the HSI's course with the heading bug (⇆ in HDG and HDG held), GPSS on NAV held, the go-around on APR held (and the
-three on FMS1's OBS, MSG and FPL held, the keys in their positions), BC on FMS1's CDI held, the yaw damper on ⇆ held in
-HDG, and the cockpit's self-test, DME selector, oxygen, tip tanks, prop heat, fuel pump and air conditioner on keys of
-FMS2 (bonanza_extra()); in the COWS DA40 its fuel pump, the NG's fuel transfer pump and pitot heat on keys held in FMS1
-and FMS2 (da40_extra()), in the C182T its fuel pump on a key held in FMS1 and FMS2 (c182t_extra()).
-
-New code, which no panel button sends (Own sources): the squawk digit selected and stepped (squawk_select(),
-squawk_digit()), NAV 2's course (NAV2_COURSE), the transponder's mode one way (transponder_mode()), the modifier
-(held(), knob()), the marker audio and pitot heat (HOLDS), the buttons that let go of the held keys (clear()) and the
-aircraft's own codes of EXTRA. project() writes the project.
+XPDR's outer ring selects a squawk digit and its inner ring steps it, with ⇆ held the panel and flood dimmers and ⇆
+tapped the VFR code and back (no IDENT, which a tap sent too easily); MODE (XPDR shifted) the transponder's mode, ALT
+one way and standby the other (transponder_mode()), its ⇆ the VFR code too. In every profile ⇆ held in NAV1 and NAV2 is
+the panel's NAV 1 and NAV 2 audio, in CRS1 the simulator's marker audio event, in CRS2 the panel's DME audio and in BARO
+the simulator's pitot heat event (HOLDS); with ⇆ held in FMS1 and FMS2, TDS's GTN's outer ring is its volume, and its
+MENU, CLR and ENT, without ⇆, the volume up, down and push (tds_gtn()). Per profile, EXTRA puts IFR-1 uses of their own
+over the panel's (Plus and Own sources): in the Black Square Bonanza the EDM 800 and the vertical speed calculator on
+keys of FMS1, each navigator's range or volume on the outer ring with ⇆ held, the HSI's course with the heading bug (⇆
+in HDG and HDG held), GPSS on NAV held, the go-around on APR held (and the three on FMS1's OBS, MSG and FPL held, the
+keys in their positions), BC on FMS1's CDI held, the yaw damper on ⇆ held in HDG, and the cockpit's self-test, DME
+selector, oxygen, tip tanks, prop heat, fuel pump and air conditioner on keys of FMS2 (bonanza_extra()); in the COWS
+DA40 its fuel pump, the NG's fuel transfer pump and pitot heat on keys held in FMS1 and FMS2 (da40_extra()), in the
+C182T its fuel pump on a key held in FMS1 and FMS2 (c182t_extra()). New code, which no panel button sends (Own sources):
+the squawk digit selected and stepped (squawk_select(), squawk_digit()), NAV 2's course (NAV2_COURSE), the transponder's
+mode one way (transponder_mode()), the modifier (held(), knob()), the marker audio and pitot heat (HOLDS), the buttons
+that let go of the held keys (clear()) and the aircraft's own codes of EXTRA. project() writes the project.
 """
 import re
 import uuid
@@ -200,6 +199,9 @@ TALK = {1: "MIC1", 2: "MIC2"}                  # ⇆ held TALK_MS in COM1 and CO
 # keys: a hold that switches something off unseen (a radio's audio, pitot heat, a pump) must not come from a press a
 # little slow.
 HOLD_MS = 700
+# the modes whose ⇆ sends its tap only when let go before HOLD_MS: XPDR's, whose tap squawks VFR over the code, so a
+# press of the dimmers given up without a turn leaves the code alone
+QUICK = ("XPDR",)
 # why a ⇆ with neither a tap nor a ring that uses it held sends nothing, where its sources give no reason (none of
 # them is a panel button the profile leaves unmapped)
 NO_USE = "⇆ has nothing to do in this mode: no tap, and its rings take nothing with it held"
@@ -370,13 +372,14 @@ def uses(key):
             # which there is the MFD's Detail softkey (the C182T's KAP 140 has no VNAV: its VNV is a calculator)
             out[f"Button_{name}_VNAV"] = {"key": Panel(1, "VNV")}
     # XPDR: the outer ring selects the squawk digit, the inner ring steps it; with ⇆ held the panel dimmer on the
-    # outer ring and the flood dimmer on the inner; ⇆ tapped IDENT
+    # outer ring and the flood dimmer on the inner; ⇆ tapped the VFR code and back, as MODE's ⇆. No IDENT: a tap
+    # sent it too easily, and a detent that came with the press changed the squawk unseen before it
     for ring, own in (("OI", squawk_select(1)), ("OD", squawk_select(-1)),
                       ("II", squawk_digit(table, "UP")), ("ID", squawk_digit(table, "DN"))):
         out[f"Button_XPDR_{ring}"] = {"turn": own}
     for ring, button in zip(KNOB, ("PANEL_LT_UP", "PANEL_LT_DN", "FLOOD_LT_UP", "FLOOD_LT_DN"), strict=True):
         out[f"Button_XPDR_{ring}"]["held"] = Panel(1, button)
-    out["Button_XPDR_TOG"] = {"tap": Panel(1, "IDENT"), "hold": None}
+    out["Button_XPDR_TOG"] = {"tap": Panel(1, "VFR"), "hold": None}
     out["Button_UNSHIFT_SW"] = {"key": None}      # clear(), of the keys with a hold the profile has (build())
     out["Button_SHIFT_SW"] = {"key": None}        # clear(shifting=True), likewise
     for (button, use), source in EXTRA.get(key, dict)().items():
@@ -554,10 +557,12 @@ def held(name, tap):
     """⇆ of the mode name as a modifier: pressed, it sets its L: variable (_var()) and clears its _Turned; let go, it
     sends tap (None: nothing) unless a detent came between or the mode changed since the press (clear() let go of it),
     however long it was held, then clears the modifier. It has no hold (AP_VS_HOLD). Its long release is its release,
-    so a slow tap counts and the ring leaves its held layer whatever MobiFlight sends on a release after a hold."""
+    so a slow tap counts, but in a mode of QUICK, where it only clears the modifier; either way the ring leaves its
+    held layer whatever MobiFlight sends on a release after a hold."""
     on, turned = _var(name), _var(name, True)
     release = f"(L:{on}, Bool) (L:{turned}, Bool) ! and if{{ {tap} }} {lset(on, 0)}" if tap else lset(on, 0)
-    return {"press": f"{lset(on, 1)} {lset(turned, 0)}", "release": release, "long": release}
+    return {"press": f"{lset(on, 1)} {lset(turned, 0)}", "release": release,
+            "long": lset(on, 0) if name in QUICK else release}
 
 
 def knob(name, turn_code, held_code=None, autopilot=None):
@@ -738,7 +743,7 @@ def build(key, vfr=None):
     """The IFR-1 profile of a panel profile (FAMILIES[key]): KEY, NAME (the panel's), USES ({button: {use: Use}}),
     DEVICE ({button: entry}), UNMAPPED ({button: reason}, every other button, with the reason of its first use the
     profile leaves unmapped), LEDS ({light: read}) and UNITS (FMS1's and FMS2's panel units). vfr: the VFR code ⇆
-    in MODE squawks (profile.tables())."""
+    in XPDR and MODE squawks (profile.tables())."""
     family = FAMILIES[key]
     table = profile.tables(family, vfr)
     device, unmapped, used_by, held_keys = {}, {}, {}, []

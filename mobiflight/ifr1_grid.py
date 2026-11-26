@@ -21,8 +21,9 @@ def hold_rules():
     hold, talk = f"{ifr1.HOLD_MS / 1000:g} s", f"{ifr1.TALK_MS / 1000:g} s"
     return (f"⇆ in {listed(ifr1.MODIFIED)}, held while turning a ring (press ⇆ first, then turn): the ring does what "
             "follows \"⇆ held\", and ⇆ sends nothing; otherwise ⇆ sends its tap when let go, however long it was "
-            f"held. A key with a hold sends its tap when let go, and its hold at once when held {hold}; ⇆ in COM1 "
-            f"and COM2 its hold when let go after {hold}, and its {talk} hold at once.")
+            f"held ({listed(ifr1.QUICK)} only within {hold}). A key with a hold sends its tap when let go, and its "
+            f"hold at once when held {hold}; ⇆ in COM1 and COM2 its hold when let go after {hold}, and its {talk} "
+            "hold at once.")
 
 
 # the modes as rows: (MobiFlight's name, title), the shifted ones by the legend under their mode key
