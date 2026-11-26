@@ -110,6 +110,8 @@ class Grid(card.Reasons):
                 panel = self.words[device, button] if sent else None
                 return html.escape("; ".join(filter(None, (panel, use.source.own.name))))
             source = use.source.panel if repeats else use.source
+            if isinstance(source, ifr1.Own):                     # the IFR-1's own, so many times (ifr1.AP_RINGS)
+                return html.escape(source.name + times)
             text = self.words[source.device, source.button]
             assert text, (self.p.KEY, source)          # a mapped control has words (tests/test_ifr1.py)
             return html.escape(text + times)
@@ -135,8 +137,9 @@ class Grid(card.Reasons):
         parts = [self.ways(used, "turn") or "nothing"]
         if (held := self.ways(used, "held", mapped=True)) is not None:      # unmapped: the ring turns as without
             parts.append(f"<i>⇆ held:</i> {held}")
-            if (mode := ifr1.mode(buttons[0])) in ifr1.SWAPPED and buttons[0].endswith("_OI"):   # said once
-                parts.append(f"<i>{ifr1.SWAPPED[mode][1]}</i>")
+            if ifr1.mode(buttons[0]) in ifr1.SWAPPED and buttons[0].endswith("_OI"):   # said once
+                autopilot = ifr1._part(FAMILIES[self.p.KEY], "autopilot")
+                parts.append(f"<i>{html.escape(ifr1.window_text(autopilot))}</i>")
         return "; ".join(parts)
 
     def key(self, button):

@@ -32,7 +32,9 @@ these rules over it:
 - A panel button the profile leaves unmapped leaves the IFR-1's unmapped too, with the profile's reason.
 
 The layers: the AP rings set the selected altitude 1000 ft (outer) and 100 ft (inner), with ⇆ held the inner ring the
-panel's UP and DN and the outer ring AP_COARSE of them at once (a Times source), the other way round in VS (SWAPPED);
+panel's UP and DN (on Garmin's autopilots, clockwise a faster FLC: AP_RINGS) and the outer ring AP_COARSE of them at
+once (a Times source), the other way round for WINDOW_S after VS or FLC engages or a tap of the knob push in them
+(SWAPPED; Garmin's AP VS light blinks in FLC, which has no light);
 XPDR's outer ring selects a squawk digit and its inner ring steps it, with ⇆ held the panel and flood dimmers and ⇆
 tapped the VFR code and back (no IDENT, which a tap sent too easily); MODE (XPDR shifted) the transponder's mode, ALT
 one way and standby the other (transponder_mode()), its ⇆ the VFR code too. In every profile ⇆ held in NAV1 and NAV2 is
@@ -47,8 +49,9 @@ selector, oxygen, tip tanks, prop heat, fuel pump and air conditioner on keys of
 DA40 its fuel pump, the NG's fuel transfer pump and pitot heat on keys held in FMS1 and FMS2 (da40_extra()), in the
 C182T its fuel pump on a key held in FMS1 and FMS2 (c182t_extra()). New code, which no panel button sends (Own sources):
 the squawk digit selected and stepped (squawk_select(), squawk_digit()), NAV 2's course (NAV2_COURSE), the transponder's
-mode one way (transponder_mode()), the modifier (held(), knob()), the marker audio and pitot heat (HOLDS), the buttons
-that let go of the held keys (clear()) and the aircraft's own codes of EXTRA. project() writes the project.
+mode one way (transponder_mode()), the modifier (held(), knob()), the AP rings' window (window_toggle(),
+window_watch()) and Garmin's reference steps (AP_RINGS), the marker audio and pitot heat (HOLDS), the buttons that let
+go of the held keys (clear()) and the aircraft's own codes of EXTRA. project() writes the project.
 """
 import re
 import uuid
@@ -98,7 +101,7 @@ BUTTONS = buttons()
 Panel = namedtuple("Panel", "device button")   # a panel button: what it sends in the profile
 Own = namedtuple("Own", "name code")           # code no panel button sends, and what it does
 Plus = namedtuple("Plus", "panel own")         # a panel button and an Own after it, on one event (at once)
-Times = namedtuple("Times", "panel count")     # a panel button sent count times on one event (at once)
+Times = namedtuple("Times", "panel count")     # a panel button (or an Own) sent count times on one event (at once)
 
 
 # the prefix of the IFR-1's own L: variables, short as Button_UNSHIFT_SW names one per key with a hold in a message of
@@ -248,23 +251,96 @@ MAP = dict(zip(KNOB, ("RANGE_CW", "RANGE_CCW", "RANGE_CW", "RANGE_CCW"), strict=
 # only modifies its rings, with no tap or hold: a detent that comes with its press goes out without it
 # (docs/using/ifr1.md), and ⇆ let go would then send its tap, as FLC, which switches FLC off when it is the mode
 AP_VS_HOLD = {"gfc700": "FLC", "gfc500": "FLC", "kfc150": "FD", "kap140": None}
-# steps of the panel's UP and DN a detent of the AP outer ring sends in its other layer (⇆ held, or in VS without ⇆,
-# SWAPPED): 500 ft/min in VS (100 ft/min a step), 5 kt in FLC, five pitch steps, five altitude steps in ALT hold (the
-# KAP 140's, or the Bonanza's 100 ft each); a quick change of the reference, as the inner ring trims it
+# steps of the panel's UP and DN a detent of the AP outer ring sends in its other layer (⇆ held, or in the window
+# without ⇆, SWAPPED): 500 ft/min in VS (100 ft/min a step), 5 kt in FLC, five pitch steps, five altitude steps in ALT
+# hold (the KAP 140's, or the Bonanza's 100 ft each); a quick change of the reference, as the inner ring trims it
 AP_COARSE = 5
-# the modes whose rings swap their two layers while a read of the sim is 1, with what the cheat sheet says of it: AP's
-# with the autopilot or the flight director in VS (the flag the AP VS light shows, LEDS; a VS flag left on with both off
-# swaps nothing, and VS entered with the flight director alone, as the KFC 150's VS ENG does with the autopilot off,
-# swaps too, so engaging the autopilot after it keeps the rings on the rate), so after VS the rings set the rate at
-# once, without ⇆, and with ⇆ held the altitude to level off at, also in a climb; in every other mode (ALT hold among
-# them) the rings set the altitude (knob())
-SWAPPED = {"AP": ("(A:AUTOPILOT VERTICAL HOLD, Bool) (A:AUTOPILOT MASTER, Bool) "
-                  "(A:AUTOPILOT FLIGHT DIRECTOR ACTIVE, Bool) or and",
-                  "in VS the other way round: the rate without ⇆")}
-# per autopilot part, a read of its own in place of SWAPPED's: the KAP 140 has no flight director, so the sim's FD
-# flag is another instrument's (the C182T's G1000) and only the autopilot engaged in VS swaps, as its AP VS light
+# per autopilot part: the AP rings' reference steps (↻, ↺) where they are not the panel's UP and DN. Garmin's UP is nose
+# up (parts.GARMIN_SHARED), which slows FLC; a ring turned clockwise speeds FLC up, as a knob turned clockwise raises
+# what it sets, and steps VS and pitch up as UP does
+_GARMIN_RINGS = (
+    Own("VS up, IAS faster or pitch up",
+        parts.reference(k("AP_VS_VAR_INC"), k("AP_PITCH_REF_INC_UP"), flc=k("AP_SPD_VAR_INC"))),
+    Own("VS down, IAS slower or pitch down",
+        parts.reference(k("AP_VS_VAR_DEC"), k("AP_PITCH_REF_INC_DN"), flc=k("AP_SPD_VAR_DEC"))))
+AP_RINGS = {"gfc700": _GARMIN_RINGS, "gfc500": _GARMIN_RINGS}
+# the AP rings' window: for WINDOW_S after VS or FLC engages (from any key, the panel's, the cockpit's or VNV), after a
+# tap of the AP knob's push, and after each detent in it, the rings swap their two layers, so they set the rate or
+# speed at once, without ⇆, and with ⇆ held the altitude to level off at; after it, and as soon as the mode ends, they
+# set the altitude again (knob()). L:AvPanelIFR1_APWindow keeps the sim's time it closes at (0: closed). The AP Master
+# light's code, which MobiFlight runs over and over, opens it on a change into VS or FLC (window_watch()), as no key
+# of the IFR-1 sees every way in (the AP VS and AP ALT lights' codes are long with VNV's recalculation); the push
+# opens or closes it (window_toggle()). A change of the IFR-1's mode leaves it, so VS pressed in COM1 (the bottom row
+# works in every mode but FMS1 and FMS2) still finds the rings on the rate in AP.
+WINDOW_S = 5
+AP_WINDOW = f"{STATE}APWindow"
+AP_MODE = f"{STATE}APMode"           # the vertical mode the AP Master light saw last: 0, 1 (VS) or 2 (FLC)
+AP_PUSH = f"{STATE}APPush"           # the AP knob's push tapped, for the AP Master light to toggle the window
+_ENGAGED = "(A:AUTOPILOT MASTER, Bool) (A:AUTOPILOT FLIGHT DIRECTOR ACTIVE, Bool) or"
+_VS_ENGAGED = f"(A:AUTOPILOT VERTICAL HOLD, Bool) {_ENGAGED} and"
+# per autopilot part: (VS engaged, FLC engaged or None for none), each with the autopilot or the flight director on
+# (a VS flag left on with both off opens nothing, and VS on the flight director alone, as the KFC 150's VS ENG with the
+# autopilot off, opens it, so engaging the autopilot after it changes nothing); the KAP 140 has no flight director, so
+# the sim's FD flag is another instrument's (the C182T's G1000) and only the autopilot in VS counts, as its AP VS light
 # shows (LEDS)
-SWAPPED_BY_AUTOPILOT = {"AP": {"kap140": "(A:AUTOPILOT VERTICAL HOLD, Bool) (A:AUTOPILOT MASTER, Bool) and"}}
+WINDOW_MODES = {
+    "gfc700": (_VS_ENGAGED, f"(A:AUTOPILOT FLIGHT LEVEL CHANGE, Bool) {_ENGAGED} and"),
+    "gfc500": (_VS_ENGAGED, f"(A:AUTOPILOT FLIGHT LEVEL CHANGE, Bool) {_ENGAGED} and"),
+    "kfc150": (_VS_ENGAGED, None),
+    "kap140": ("(A:AUTOPILOT VERTICAL HOLD, Bool) (A:AUTOPILOT MASTER, Bool) and", None),
+}
+# the modes whose rings swap their two layers while their window (an L: variable of the sim's time) is open
+SWAPPED = {"AP": AP_WINDOW}
+
+
+def _open(window):
+    return f"{parts.NOW} (L:{window}, Number) <"
+
+
+def _extend(window):
+    return f"{parts.NOW} {WINDOW_S} + (>L:{window})"
+
+
+def _reference(autopilot):
+    return "rate or speed" if WINDOW_MODES[autopilot][1] else "rate"
+
+
+def _modes(autopilot):
+    return "VS or FLC" if WINDOW_MODES[autopilot][1] else "VS"
+
+
+def window_text(autopilot):
+    """What the cheat sheet says of the AP rings' window, by the autopilot part"""
+    return (f"for {WINDOW_S} s after {_modes(autopilot)} engages or a tap of the knob push in it, each turn restarting "
+            f"it, the other way round: the {_reference(autopilot)} without ⇆")
+
+
+def window_toggle(autopilot):
+    """The AP knob's push tapped: a flag, which the AP Master light's code takes on its next run (window_watch()), as
+    the KAP 140's two-step VNV leaves the push's release no room for the toggle itself"""
+    return Own(f"in {_modes(autopilot)}: rings on the {_reference(autopilot)} for {WINDOW_S} s, or back to the "
+               "altitude", lset(AP_PUSH, 1))
+
+
+def window_watch(autopilot):
+    """The code ahead of the AP Master light's read: the push's tap taken (window_toggle()), in VS or FLC (as this code
+    saw it last, AP_MODE) the window opened where it is closed, else closed, so a tap in another mode leaves the rings
+    on the altitude; closed where it ends more than WINDOW_S ahead, as after a flight reloaded, which starts the sim's
+    clock again (parts.follow() checks its own timer so), so a window opened late in one flight does not stay open in
+    the next (a second over WINDOW_S, past the rounding of the sim's time + WINDOW_S − the sim's time); kept open while
+    ⇆ is held, so a ring held on the altitude through the window's end stays on it before its first detent too; and on
+    a change of the vertical mode (WINDOW_MODES), into VS or FLC opened, out of both closed"""
+    vs, flc = WINDOW_MODES[autopilot]
+    seen = f"{vs} {flc} 2 * +" if flc else vs
+    toggle = (f"{parts.NOW} sp0 (L:{AP_WINDOW}, Number) l0 < (L:{AP_MODE}, Number) 0 > and l0 {WINDOW_S} + * "
+              f"(>L:{AP_WINDOW})")          # the sim's time + WINDOW_S times (closed and in VS or FLC), else 0
+    return (f"(L:{AP_PUSH}, Bool) if{{ {toggle} {lset(AP_PUSH, 0)} }} "
+            f"(L:{AP_WINDOW}, Number) {parts.NOW} - {WINDOW_S + 1} > if{{ 0 (>L:{AP_WINDOW}) }} "
+            f"(L:{_var('AP')}, Bool) {_open(AP_WINDOW)} and if{{ {_extend(AP_WINDOW)} }} "
+            f"{seen} sp0 l0 (L:{AP_MODE}, Number) == ! if{{ l0 (>L:{AP_MODE}) "
+            f"l0 if{{ {_extend(AP_WINDOW)} }} els{{ 0 (>L:{AP_WINDOW}) }} }}")
+
+
 # per navigator part: the panel's units of FMS1 and FMS2 where they are not 1 and 2. The G1000 NXi's unit 1 is its MFD
 # (with the panel's COM 1, the radios sharing a knob); the IFR-1 has modes for its radios, so FMS1 is the PFD, as the
 # G1000 numbers its displays.
@@ -336,15 +412,18 @@ def uses(key):
     for ring, alt in zip(KNOB, (True, False, True, False), strict=True):
         out[f"Button_XPDR^_{ring}"] = {"turn": transponder_mode(family, alt)}
     # AP: the selected altitude 1000 ft on the outer ring and 100 ft on the inner, as the selectors the profiles drive
-    # have them; with ⇆ held the inner ring is the panel's UP and DN (the rate or speed), the outer ring AP_COARSE of
-    # them at once; the push VNV, held, as a push comes easily with a turn of the rings
+    # have them; with ⇆ held the inner ring is the panel's UP and DN (the rate or speed; Garmin's of AP_RINGS), the
+    # outer ring AP_COARSE of them at once, in the window the other way round (SWAPPED); the push tapped opens or
+    # closes the window, held VNV, and a detent while it is down lets go of it, as a push comes easily with a turn of
+    # the rings (build())
     for ring, button in zip(KNOB, ("ALT_1000_UP", "ALT_1000_DN", "ALT_100_UP", "ALT_100_DN"), strict=True):
         out[f"Button_AP_{ring}"] = {"turn": Panel(1, button)}
-    out["Button_AP_OI"]["held"] = Times(Panel(1, "UP"), AP_COARSE)
-    out["Button_AP_OD"]["held"] = Times(Panel(1, "DN"), AP_COARSE)
-    out["Button_AP_II"]["held"] = Panel(1, "UP")
-    out["Button_AP_ID"]["held"] = Panel(1, "DN")
-    out["Button_AP_CRSR"] = {"key": None, "hold": Panel(1, "VNV")}
+    up, down = AP_RINGS.get(autopilot, (Panel(1, "UP"), Panel(1, "DN")))
+    out["Button_AP_OI"]["held"] = Times(up, AP_COARSE)
+    out["Button_AP_OD"]["held"] = Times(down, AP_COARSE)
+    out["Button_AP_II"]["held"] = up
+    out["Button_AP_ID"]["held"] = down
+    out["Button_AP_CRSR"] = {"key": window_toggle(autopilot), "hold": Panel(1, "VNV")}
     out["Button_AP_TOG"] = {"tap": None, "hold": None}
     for name in AP_ROW:
         out[f"Button_AP_{name}"] = amber(1, name) if name in ("APR", "ALT") else {"key": Panel(1, name)}
@@ -565,15 +644,17 @@ def held(name, tap):
             "long": lset(on, 0) if name in QUICK else release}
 
 
-def knob(name, turn_code, held_code=None, autopilot=None):
+def knob(name, turn_code, held_code=None):
     """A detent of the knob of the mode name, whose ⇆ is a modifier: turn_code, or held_code while ⇆ is held; in a
-    mode of SWAPPED while its read is 1 (the autopilot part's own, SWAPPED_BY_AUTOPILOT), the other way round.
-    Without held_code (no use with ⇆ held, or one the profile leaves unmapped) it sends turn_code whether ⇆ is held
-    or not. Every detent marks the knob turned, so ⇆ let go sends nothing; a detent that sends nothing at all is
-    None."""
+    mode of SWAPPED while its window is open, the other way round, and each detent then keeps it open WINDOW_S more,
+    with ⇆ held too, so a ring held on the altitude through the window's end stays on it. Without held_code (no use
+    with ⇆ held, or one the profile leaves unmapped) it sends turn_code whether ⇆ is held or not. Every detent marks
+    the knob turned, so ⇆ let go sends nothing; a detent that sends nothing at all is None."""
     on, turned = f"(L:{_var(name)}, Bool)", _var(name, True)
-    swap = SWAPPED_BY_AUTOPILOT.get(name, {}).get(autopilot) or SWAPPED.get(name, (None,))[0]
-    held_layer = f"{on} {swap} == !" if swap else on              # ⇆ held, or with the swap on ⇆ not held
+    window = SWAPPED.get(name)
+    held_layer = f"{on} {_open(window)} == !" if window else on   # ⇆ held, or with the window open ⇆ not held
+    if held_code and window:                                       # the window open: open it on
+        held_layer = f"{_open(window)} if{{ {_extend(window)} }} {held_layer}"
     if held_code and turn_code:
         code = f"{held_layer} if{{ {held_code} }} els{{ {turn_code} }}"
     elif held_code:
@@ -589,7 +670,9 @@ _FLAGS = dict(zip(LIGHTS, ("AUTOPILOT MASTER", "AUTOPILOT HEADING LOCK", "AUTOPI
                   strict=True))
 _FLAG = {light: f"(A:{flag}, Bool)" for light, flag in _FLAGS.items()}
 _APR_OR_BC = f"{_FLAG['AP APR']} (A:AUTOPILOT BACKCOURSE HOLD, Bool) or"
-_GARMIN = dict(_FLAG)
+# Garmin's AP VS light blinks in FLC, which has no light of its own (the GFC 500's IAS mode too), as VNV's does
+_GARMIN = {**_FLAG, "AP VS": f"(A:AUTOPILOT FLIGHT LEVEL CHANGE, Bool) if{{ {parts.NOW} 2 * flr 2 % }} "
+                             f"els{{ {_FLAG['AP VS']} }}"}
 # what each light shows, by the autopilot part: the sim's autopilot flags, which Garmin's autopilot (Working Title's
 # directors), the KAP 140 (the sim's KAP140.js) and Black Square's KFC 150 (its keys are the sim's autopilot events)
 # are taken to keep, to check on the device (docs/using/ifr1.md). The KAP 140 has no flight director, so its mode
@@ -620,13 +703,16 @@ def blink(read):
 
 def leds(family):
     """{light: code} of a profile (LEDS by its autopilot part), with VNV's recalculation ahead of the two lights of
-    FOLLOW where its VNV is the vertical speed calculator (family.VNV_ARGS): each leaves nothing on the stack, so the
-    light still shows its read, but for the AP VS light's blinking while VNV follows (blink())"""
-    out = dict(LEDS[_part(family, "autopilot")])
+    FOLLOW where its VNV is the vertical speed calculator (family.VNV_ARGS), and the AP rings' window watched ahead
+    of the AP Master light (window_watch()): each leaves nothing on the stack, so the light still shows its read, but
+    for the AP VS light's blinking while VNV follows (blink())"""
+    autopilot = _part(family, "autopilot")
+    out = dict(LEDS[autopilot])
     if family.VNV_ARGS:
         for light, code in zip(FOLLOW, parts.follow(**family.VNV_ARGS), strict=True):
             read = blink(out[light]) if light == "AP VS" else out[light]
             out[light] = f"{code} {read}"
+    out["AP Master"] = f"{window_watch(autopilot)} {out['AP Master']}"
     return out
 
 
@@ -634,7 +720,8 @@ def light_name(ifr1_profile, light):
     """An AP light item's name in MobiFlight's list: the flags it shows, and the recalculation where it carries one"""
     flags = ", ".join(dict.fromkeys(READS.findall(LEDS[_part(FAMILIES[ifr1_profile.KEY], "autopilot")][light])))
     follows = light in FOLLOW and FAMILIES[ifr1_profile.KEY].VNV_ARGS
-    return f"{light} light: {flags}{'; VNV recalculation' if follows else ''}"
+    window = "; AP rings' window" if light == "AP Master" else ""
+    return f"{light} light: {flags}{'; VNV recalculation' if follows else ''}{window}"
 
 
 # ---------------- a profile ----------------
@@ -695,9 +782,8 @@ def holds(used):
     return plain, (hold if hold != plain else None), longer
 
 
-def entry(button, used, autopilot=None):
-    """The table entry of an IFR-1 button from its Uses ({use: Use}), or None where it sends nothing, in a profile of
-    this autopilot part (knob())"""
+def entry(button, used):
+    """The table entry of an IFR-1 button from its Uses ({use: Use}), or None where it sends nothing"""
     sent = {use: u.entry for use, u in used.items()}
     name = mode(button)
     if is_modifier(button):
@@ -706,7 +792,7 @@ def entry(button, used, autopilot=None):
         return held(name, tapped(sent.get("tap")))
     if is_ring(button):
         turn_code = tapped(sent.get("turn"))
-        return knob(name, turn_code, tapped(sent.get("held")), autopilot) if name in MODIFIED else turn_code
+        return knob(name, turn_code, tapped(sent.get("held"))) if name in MODIFIED else turn_code
     plain, hold, longer = holds(used)
     if hold is not None:          # a tap on its release, a hold at once, each only if the key went down here
         down = _down(button.removeprefix("Button_"))
@@ -750,7 +836,7 @@ def build(key, vfr=None):
     for button, sources in uses(key).items():
         used = {use: resolve(table, family, source) for use, source in sources.items()}
         used_by[button] = used
-        sent = entry(button, used, _part(family, "autopilot"))
+        sent = entry(button, used)
         if is_modifier(button) and sent and used["tap"].entry is None and not any(
                 used_by[f"Button_{mode(button)}_{ring}"].get("held", Use(None, None, None)).entry for ring in KNOB):
             sent = None                     # a ⇆ with no tap whose rings have no use with it held (the G3X's FMS)
@@ -767,6 +853,10 @@ def build(key, vfr=None):
             device[button] = sent
         elif button not in ("Button_SHIFT_SW", "Button_UNSHIFT_SW"):
             unmapped[button] = next((u.reason for u in used.values() if u.reason), NO_USE)
+    if "AP_CRSR" in held_keys:          # a detent lets go of the AP knob's push: no tap or hold with a turn
+        for ring in KNOB:
+            if (ring_button := f"Button_AP_{ring}") in device:
+                device[ring_button] = f"{device[ring_button]} {lset(_down('AP_CRSR'), 0)}"
     for button, let_go in (("Button_SHIFT_SW", clear(held_keys, shifting=True)),
                            ("Button_UNSHIFT_SW", clear(held_keys))):
         used_by[button] = {"key": Use(let_go, let_go.code, None)}
