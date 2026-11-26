@@ -228,9 +228,10 @@ selected altitude, without a distance from the GTN (no active waypoint), or at 3
   and the KFC 150 (the sim's increment events) and on the KAP 140, whose KAP140.js handles each push: if it
   sets the rate from the sim's value plus 100, five pushes in one go read the same value and take one step.
 - The AP rings' 5 s: VS or FLC entered from the panel, the cockpit or VNV opens them as the IFR-1's keys do,
-  and the knob push's tap takes effect at once. Both go through the AP Master light's code, which MobiFlight
-  runs over and over; the window runs on the sim's clock, so at a higher sim rate it is shorter. On the KAP 140,
-  engaging the autopilot enters VS, so the rings set the rate for the first 5 s after it.
+  and the knob push's tap works as it is let go, on the AP Master light's next run. Both go through the AP
+  Master light's code, which MobiFlight runs over and over; the window runs on the sim's clock, so at a higher
+  sim rate it is shorter, and it stays open while the sim is paused. On the KAP 140, engaging the autopilot
+  enters VS, so the rings set the rate for the first 5 s after it.
 - A bounce of the knob push (shift on and off at once, reported with MobiFlight) lets go of a ⇆ or key with a
   hold held meanwhile in COM1, COM2, NAV1, NAV2 or XPDR or their shifted modes: MobiFlight sends the same
   button for leaving shift as for a change of mode.
