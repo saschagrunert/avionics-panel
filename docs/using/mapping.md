@@ -175,10 +175,11 @@ step of a quick turn (steps less than 0.3 s apart, one way). Differences from th
 - At the top level of the PFD's softkeys, MSG (SHIFT, D→) toggles the Alerts window (the rightmost softkey),
   NRST (SHIFT, MENU) the Nearest window (the second from the right; in PFD Opt it is Back) and ARM (SHIFT,
   ALT) the Tmr/Ref window, where the minimums are set (the third from the right).
-- The BARO push (STD) sets standard pressure. With the altimeter within half a hPa of 29.92 inHg (1013 hPa),
-  as in STD, it presses PFD Opt, then STD Baro on the PFD instead, which toggle STD and, leaving it, return to
+- The BARO push (STD) presses PFD Opt, then STD Baro on the PFD, which toggle STD and, leaving it, return to
   the setting before; STD Baro then returns the softkeys to their top level. That works from the top level of
-  the PFD's softkeys only; from another of their menus, press STD Baro there.
+  the PFD's softkeys only; from another of their menus, press STD Baro there (from PFD Opt the push opens or
+  closes the DME window, then toggles STD; from the XPDR menu it sets the transponder to ON). The simulator's
+  STD event would set 29.92 before the NXi keeps the setting, so leaving STD would return to 29.92.
 - CDI steps through GPS, NAV 1 and NAV 2 as the CDI softkey does, and OBS switches the GPS's OBS mode, from
   both units. In SUSP, OBS switches to OBS mode instead of resuming the sequence as the softkey does.
 - UP and DN step the VS, IAS or pitch reference, as NOSE UP and NOSE DN do, but not the altitude in ALT hold.

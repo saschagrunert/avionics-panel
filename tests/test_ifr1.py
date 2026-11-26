@@ -1193,25 +1193,42 @@ def test_the_bonanzas_fms2_holds_run_its_tip_tanks_prop_heat_and_fuel_pump():
     assert press(state, device["Button_FMS2_OBS"], "release") == [("H:AS430_OBS_Push", None)]   # a tap: the GNS's
 
 
+@pytest.mark.parametrize("fms", ["FMS1", "FMS2"])
 @pytest.mark.parametrize("key", ["cows-da40", "carenado-c182t"])
-def test_the_da40_and_c182t_hold_cdi_in_fms2_for_the_electric_fuel_pump(key):
+def test_the_da40_and_c182t_hold_cdi_for_the_electric_fuel_pump(key, fms):
     device, family = PROFILES[key].DEVICE, FAMILIES[key]
     for now in (0, 1):
         state = {"B:FUEL_PUMP_1": now}
-        press(state, device["Button_FMS2_CDI"])
-        assert press(state, device["Button_FMS2_CDI"], "hold") == [("B:FUEL_PUMP_1_Set", not now)]
-    unit, down = PROFILES[key].UNITS[1], "L:AvPanelIFR1_FMS2_CDI"     # FMS2: the MFD, the panel's unit 1
-    assert device["Button_FMS2_CDI"]["release"] == f"({down}, Bool) if{{ {family.DEVICE[unit]['CDI']} }} 0 (>{down})"
+        press(state, device[f"Button_{fms}_CDI"])
+        assert press(state, device[f"Button_{fms}_CDI"], "hold") == [("B:FUEL_PUMP_1_Set", not now)]
+    # FMS1 the PFD, the panel's unit 2; FMS2 the MFD, its unit 1
+    unit, down = PROFILES[key].UNITS[fms == "FMS2"], f"L:AvPanelIFR1_{fms}_CDI"
+    assert device[f"Button_{fms}_CDI"]["release"] == f"({down}, Bool) if{{ {family.DEVICE[unit]['CDI']} }} 0 (>{down})"
 
 
-def test_the_da40_holds_fpl_in_fms2_for_the_ngs_fuel_transfer_pump():
+@pytest.mark.parametrize("fms", ["FMS1", "FMS2"])
+def test_the_da40_holds_fpl_for_the_ngs_fuel_transfer_pump_and_obs_for_pitot_heat(fms):
     device = PROFILES["cows-da40"].DEVICE
     for now in (0, 1):
         state = {"L:XFER_SWITCH": now}
-        press(state, device["Button_FMS2_FPL"])
-        assert press(state, device["Button_FMS2_FPL"], "hold") == [("L:XFER_SWITCH", not now)]
-    assert "Button_FMS2_FPL" not in EXTRA["carenado-c182t"]
-    assert said("cows-da40")["B_APR"][-1] == "FMS2 FPL: tap: FPL; hold: NG fuel transfer pump on or off"
+        press(state, device[f"Button_{fms}_FPL"])
+        assert press(state, device[f"Button_{fms}_FPL"], "hold") == [("L:XFER_SWITCH", not now)]
+    state = {}
+    press(state, device[f"Button_{fms}_OBS"])
+    assert press(state, device[f"Button_{fms}_OBS"], "hold") == [("K:PITOT_HEAT_TOGGLE", 1)]
+    state = {}
+    press(state, device[f"Button_{fms}_OBS"])
+    assert press(state, device[f"Button_{fms}_OBS"], "release") == [("K:GPS_OBS", None)]    # a tap: the GPS's OBS
+    state = {}
+    press(state, device[f"Button_{fms}_FPL"])                      # a tap: the unit's own FPL, the PFD's in FMS1
+    display = "PFD" if fms == "FMS1" else "MFD"
+    assert press(state, device[f"Button_{fms}_FPL"], "release") == [(f"H:AS1000_{display}_FPL_Push", None)]
+    assert f"{fms} FPL: tap: FPL; hold: NG fuel transfer pump on or off" in said("cows-da40")["B_APR"]
+    assert f"{fms} OBS: tap: GPS OBS mode; hold: pitot heat on or off" in said("cows-da40")["B_HDG"]
+
+
+def test_the_c182t_holds_only_cdi():
+    assert set(EXTRA["carenado-c182t"]) == {("Button_FMS1_CDI", "hold"), ("Button_FMS2_CDI", "hold")}
 
 
 @FAMILY
