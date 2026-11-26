@@ -60,6 +60,9 @@ def test_codes_are_well_formed(key):
     for *_, code in codes(key):
         well_formed(code)
         every_path(code)
+    for code in PROFILES[key].LEDS.values():         # a light's code leaves its value: stored here to be checked
+        well_formed(f"{code} (>L:Out)")
+        every_path(f"{code} (>L:Out)")
 
 
 @FAMILY

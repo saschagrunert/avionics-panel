@@ -717,7 +717,8 @@ def leds(family):
 
 
 def light_name(ifr1_profile, light):
-    """An AP light item's name in MobiFlight's list: the flags it shows, and the recalculation where it carries one"""
+    """An AP light item's name in MobiFlight's list: the flags it shows, the recalculation where it carries one, and
+    the AP rings' window on the AP Master light"""
     flags = ", ".join(dict.fromkeys(READS.findall(LEDS[_part(FAMILIES[ifr1_profile.KEY], "autopilot")][light])))
     follows = light in FOLLOW and FAMILIES[ifr1_profile.KEY].VNV_ARGS
     window = "; AP rings' window" if light == "AP Master" else ""
