@@ -425,9 +425,10 @@ past the constraint's fix too, so press VNV again there.
 The Bonanza's VNV has been flown: one press from ALT hold enters VS at the computed rate down, on the IFR-1's
 VNAV and AP knob alike. To check there:
 
-- The recalculation: every 30 s the rate set follows the distance and ground speed; turning the AP rings in VS
-  stops it, and so do the altitude's capture and a climb below 1.3 times the stall speed, which levels off
-  first. Whether the KAS 297B and the KAP 140 take a rate set from outside while already in VS.
+- The recalculation: every 30 s the rate set follows the distance and ground speed; setting the rate with the
+  AP rings (within 5 s of VS engaging or a tap of their push, or with ⇆ held) stops it, and so do the
+  altitude's capture and a climb below 1.3 times the stall speed, which levels off first. Whether the KAS 297B
+  and the KAP 140 take a rate set from outside while already in VS.
 - A climb: VNV with the selected altitude above starts VS up, and the KAS 297B captures the altitude at the top.
 - That the selected altitude is the sim's first autopilot altitude (`AUTOPILOT ALTITUDE LOCK VAR:1`) in the
   KAP 140 and the KAS 297B, also in ALT hold, where the sim's KAP 140 holds its altitude in the second. If VNV

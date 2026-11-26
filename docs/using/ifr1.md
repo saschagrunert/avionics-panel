@@ -78,7 +78,7 @@ For another VFR code than 7000, as 1200 in the US, write the profile with that c
 | CRS1 (NAV1 shifted) | course 10° (ten 1° steps, in the G3X one 10° step) / 1°: in the G1000 NXi, DA40, C182T and G3X profiles the CDI's course, else NAV 1's | tap: the course to the VOR or LOC; hold: marker audio | shift back |
 | CRS2 (NAV2 shifted) | NAV 2 course 10° (ten 1° steps) / 1° | tap: NAV 2's course to the VOR or LOC; hold: DME audio | shift back |
 | FMS1, FMS2 | the unit's FMS knob; ⇆ held: its map range, where the profile has one (the G3X has none), the outer ring on a GTN its volume | tap: the unit's HOME, where it has one | CRSR; D→, MENU, CLR, ENT and CDI, OBS, MSG, FPL, VNAV (in the G1000 NXi and DA40 profiles the GFC 700's VNV, in the Bonanza's FMS1 the vertical speed calculator), PROC; held CLR, MENU, PROC: MAP, NRST, TERR; each where the profile has it (in the Bonanza's FMS1, CLR and ENT are the EDM 800's, held its long press, and OBS, MSG and FPL held what HDG, NAV and APR hold below them) |
-| AP | selected altitude 1000 ft / 100 ft; ⇆ held: the inner ring is the panel's UP and DN (the held altitude, VS, IAS or pitch, by autopilot), the outer ring five of them at once (500 ft/min in VS, 5 kt in FLC, five pitch steps in pitch hold, in ALT hold five altitude steps on the KAP 140 and KFC 150, in the Bonanza 500 ft of the altitude its UP and DN step, [to check](mapping.md#vnv-without-vnav)). With the autopilot or the flight director in VS (on the KAP 140, which has none, the autopilot), the other way round: the rings set the rate without ⇆ (inner 100 ft/min, outer 500 ft/min) and the altitude to level off at with ⇆ held, in a climb too | none: it only modifies the rings | held: VNV |
+| AP | selected altitude 1000 ft / 100 ft; ⇆ held: the inner ring is the panel's UP and DN (the held altitude, VS, IAS or pitch, by autopilot; on the GFC 700 and GFC 500 clockwise is a faster FLC, though the panel's UP, nose up, slows it), the outer ring five of them at once (500 ft/min in VS, 5 kt in FLC, five pitch steps in pitch hold, in ALT hold five altitude steps on the KAP 140 and KFC 150, in the Bonanza 500 ft of the altitude its UP and DN step, [to check](mapping.md#vnv-without-vnav)). For 5 s after VS engages with the autopilot or the flight director (on the KAP 140, which has none, the autopilot), or FLC on the GFC 700 and GFC 500, from any key or VNV, the other way round: the rings set the rate or speed without ⇆ (inner 100 ft/min or 1 kt, outer 500 ft/min or 5 kt) and the altitude to level off at with ⇆ held, in a climb too. Each turn restarts the 5 s, and so does ⇆ held; after them, or as soon as the mode ends, the rings set the altitude again | none: it only modifies the rings | tap, in VS or FLC: the rings on the rate or speed for 5 s, or back to the altitude; held: VNV |
 | XPDR | the squawk, a digit at a time, as on the panel: the outer ring selects the digit (1 to 4, stopping at both ends; every entry starts at digit 1), the inner ring steps it 0 … 7; ⇆ held: panel dimmer / flood dimmer (the C182T's cabin lights), where the profile knows the aircraft's | tap: VFR and back | shift: MODE |
 | MODE (XPDR shifted) | either ring: clockwise ALT (from standby or off), counter-clockwise standby | tap: VFR and back; hold: cabin light | shift back |
 | Every mode but FMS1 and FMS2 | | | AP, HDG (held: heading bug to the heading; in the Bonanza the HSI's course too), NAV (in the Bonanza held: GPSS), APR (held: BC; in the Bonanza GA), ALT (held: ARM), VS (held: FLC on the GFC 700 and GFC 500, FD on the KFC 150), each where the profile has it |
@@ -98,11 +98,14 @@ For another VFR code than 7000, as 1200 in the US, write the profile with that c
   MENU (NRST) and PROC (TERR), each where the profile maps that function; the cheat sheet says what it is in
   the aircraft. ⇆ in NAV1, NAV2 and CRS2, held, is the panel's NAV 1, NAV 2 or DME audio; in CRS1 and BARO the
   simulator's event for the marker audio or pitot heat, which an aircraft may ignore; in MODE the cabin light.
-  The AP knob's push is VNV, held only, as a push comes easily with a turn of the altitude rings. VS held is
-  FLC on the GFC 700 and GFC 500 (the GFC 500's IAS mode) and FD on the KFC 150 (with the autopilot off only,
-  as on the panel). AP sends at once, as disengaging the autopilot cannot wait for the release, and NAV and VS
-  too where they have no hold; HDG has one everywhere (the heading bug to the heading), so it sends on
-  release.
+  The AP knob's push held is VNV; tapped in VS or FLC, it puts the rings on the rate or speed for 5 s, or back
+  on the altitude (in another mode it leaves them on the altitude). A detent while it is down lets go of it
+  (neither the tap nor VNV), as a push comes easily with a turn of the rings; but, as with ⇆, a detent in the
+  same report as the press reaches the profile first, so a push that comes with a single click still sends its
+  tap. In FLC on the GFC 700 and GFC 500 the AP VS light blinks, as FLC has no light. VS held is FLC on the
+  GFC 700 and GFC 500 (the GFC 500's IAS mode) and FD on the KFC 150 (with the autopilot off only, as on the
+  panel). AP sends at once, as disengaging the autopilot cannot wait for the release, and NAV and VS too where
+  they have no hold; HDG has one everywhere (the heading bug to the heading), so it sends on release.
 - ⇆ in COM1 and COM2 has two holds in place of 121.5: let go after 0.7 s, it is the panel's COM 1 or COM 2
   audio, which turns listening to that radio on or off; held for 2 s, it is the panel's MIC 1 or MIC 2 at that
   moment, which picks the radio you talk on, and its release then sends nothing. So COM 2 can play the ATIS
@@ -189,15 +192,16 @@ selected altitude at the GTN's active waypoint, up or down, sets it and engages 
 anew every 30 s, while the IFR-1's profile runs, which gets close to following a path.
 
 1. Fly with the autopilot engaged, in ALT hold or any other mode (not on a glideslope).
-2. In AP, turn the rings to the altitude to reach (outer 1000 ft, inner 100 ft), on the KAS 297B; already in
-   VS, hold ⇆ while turning, as the rings set the rate there.
+2. In AP, turn the rings to the altitude to reach (outer 1000 ft, inner 100 ft), on the KAS 297B; within 5 s
+   of VS engaging, hold ⇆ while turning, as the rings set the rate then.
 3. On the GTN 750 make the fix where you want to be at that altitude the active waypoint: D→ to it, or fly
    the flight plan's leg to it.
 4. Press VNAV in FMS1 (the key over ALT), or hold the AP knob's push for 0.7 s in AP. The KAS 297B shows the
    rate for 2 s and the KFC 150 enters VS; the KAS 297B captures the altitude at the end.
 5. Every 30 s VNV sets the rate again from the distance and ground speed left; the AP VS light blinks while it
-   does. It stops when the altitude is captured or VS ends, when you set the rate yourself (the AP rings in
-   VS: inner 100 ft/min, outer 500 ft/min), and with 100 ft or less to go or the waypoint passed, first easing
+   does. It stops when the altitude is captured or VS ends, when you set the rate yourself (the AP rings for
+   5 s after VS engages, VNV's own VS too, or after a tap of the knob push: inner 100 ft/min, outer
+   500 ft/min), and with 100 ft or less to go or the waypoint passed, first easing
    a descent to 300 ft/min or levelling a climb off; the AP VS light then shows VS steady again. Press VNAV
    again to start it anew.
 
@@ -223,6 +227,10 @@ selected altitude, without a distance from the GTN (no active waypoint), or at 3
 - The AP outer ring with ⇆ held: five steps of UP or DN sent at once take five steps, on the Garmin autopilots
   and the KFC 150 (the sim's increment events) and on the KAP 140, whose KAP140.js handles each push: if it
   sets the rate from the sim's value plus 100, five pushes in one go read the same value and take one step.
+- The AP rings' 5 s: VS or FLC entered from the panel, the cockpit or VNV opens them as the IFR-1's keys do,
+  and the knob push's tap takes effect at once. Both go through the AP Master light's code, which MobiFlight
+  runs over and over; the window runs on the sim's clock, so at a higher sim rate it is shorter. On the KAP 140,
+  engaging the autopilot enters VS, so the rings set the rate for the first 5 s after it.
 - A bounce of the knob push (shift on and off at once, reported with MobiFlight) lets go of a ⇆ or key with a
   hold held meanwhile in COM1, COM2, NAV1, NAV2 or XPDR or their shifted modes: MobiFlight sends the same
   button for leaving shift as for a change of mode.
@@ -255,11 +263,14 @@ selected altitude, without a distance from the GTN (no active waypoint), or at 3
   altitude is not in `AUTOPILOT ALTITUDE LOCK VAR:1` in ALT hold: in the sim's developer mode (Tools,
   Behaviors, LocalVariables) look for the KAS 297B's selected altitude among the L: variables (`kas297b`,
   `Preselect`).
-- The AP rings in VS set the rate, on the sim's AUTOPILOT VERTICAL HOLD flag with the autopilot or the flight
-  director on (the KFC 150, the GFC 700 and the GFC 500; the KAP 140, which has no flight director, with the
-  autopilot on), also with VS entered straight from the VS key. If they still set the altitude, look at the AP
-  VS light, which reads the same flag: dark in VS, the aircraft keeps VS to itself (in the Bonanza, the KAS
-  297B's `L:var_VsAdjustMode` may tell it).
+- The AP rings set the rate for 5 s after VS engages, on the sim's AUTOPILOT VERTICAL HOLD flag with the
+  autopilot or the flight director on (the KFC 150, the GFC 700 and the GFC 500; the KAP 140, which has no
+  flight director, with the autopilot on), and the speed after FLC on the GFC 700 and GFC 500 (AUTOPILOT
+  FLIGHT LEVEL CHANGE). The AP Master light's code watches for the change, as MobiFlight runs it over and
+  over, and the window runs on the sim's clock (`E:SIMULATION TIME`). If they still set the altitude, look at
+  the AP VS light, which reads the VS flag (and blinks on the FLC flag): dark in VS, the aircraft keeps VS to
+  itself (in the Bonanza, the KAS 297B's `L:var_VsAdjustMode` may tell it); and in developer mode at
+  `L:AvPanelIFR1_APWindow`, the sim's time the window closes at.
 - Bonanza: with the two altimeters set apart, the right-hand one is the simulator's altimeter 2 and takes
   KOHLSMAN_SET's two parameters in the order the profile gives them (index, then the setting); either BARO
   ring sets both to the same setting; ⇆ tapped twice sets both to STD and back to the setting before, as the

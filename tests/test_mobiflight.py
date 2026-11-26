@@ -124,11 +124,14 @@ def unit(variable):
     feet for an altitude, knots for the ground speed, nmiles for the GPS's distance, number for an index, the
     G1000's CDI source, a dimmer, a selector, a valve, a pump's switch or an L: variable's distance, feet per minute
     for a rate, enum for a state, bool for a flag (an autopilot's mode, as AUTOPILOT HEADING LOCK, which the IFR-1's
-    lights read, or the IFR-1's own state, as a key that is down, but its squawk digit, a number)"""
+    lights read, or the IFR-1's own state, as a key that is down, but its squawk digit and its AP rings'
+    window, numbers)"""
     if variable.startswith("AUTOPILOT ") and variable.endswith((" LOCK", " HOLD")):
         return "bool"
     if variable == f"L:{ifr1.SQUAWK_DIGIT}":
         return "number"                                  # the IFR-1's squawk digit selected, 0 to 3
+    if variable in (f"L:{ifr1.AP_WINDOW}", f"L:{ifr1.AP_MODE}"):
+        return "number"                                  # the sim's time the AP rings' window closes at; a mode
     if ifr1.STATE in variable:
         return "bool"
     if re.search(r"HEADING|OBS|RADIAL|NAV LOCALIZER", variable):
@@ -391,7 +394,7 @@ def test_every_other_input_is_one_its_source_names():
              for code in profile.actions(entry).values() for name in re.findall(r"\(>?([AEHLB]:[^),]+)", code)
              if not name.startswith(f"L:{ifr1.STATE}")}
     used |= {name for key in FAMILIES for read in ifr1.build(key).LEDS.values()          # what its AP lights read
-             for name in re.findall(r"\(>?([AEHLB]:[^),]+)", read)}
+             for name in re.findall(r"\(>?([AEHLB]:[^),]+)", read) if not name.startswith(f"L:{ifr1.STATE}")}
     assert used - checked == set(), "not checked against its source: add them to tests/inputs.txt once found there"
     assert checked - used == set(), "used no more: take them out of tests/inputs.txt"
 
