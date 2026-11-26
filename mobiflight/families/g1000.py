@@ -67,15 +67,13 @@ def _range(display, shift=""):
     })
 
 
-# STD: BAROMETRIC_STD_PRESSURE only ever sets STD in the NXi (AltimeterBaroKeyEventHandler.ts), and a second one would
-# store 29.92 as the setting to return to. Where the altimeter is within half a hPa of 29.92 inHg (1013.2 hPa), as in
-# STD, the push presses the PFD's PFD Opt and STD Baro softkeys instead, which toggle STD and, leaving it, return to
-# the setting before it (RootMenu.ts, PFDOptMenu.ts, Altimeter.tsx). PFD Opt is the 4th softkey at the top level of
-# the PFD's softkeys, where they mostly are, and STD Baro the 10th in PFD Opt; from another of its menus the two
-# presses do other things.
-_STD = (f"(A:KOHLSMAN SETTING MB:1, millibars) 1013.2 - abs 0.5 < "
-        f"if{{ {h('AS1000_PFD_SOFTKEYS_4')} {h('AS1000_PFD_SOFTKEYS_10')} }} "
-        f"els{{ {k('BAROMETRIC_STD_PRESSURE', 1)} }}")
+# STD: the PFD's PFD Opt and STD Baro softkeys, which toggle STD and, leaving it, return to the setting before it
+# (RootMenu.ts, PFDOptMenu.ts, Altimeter.tsx); STD Baro then returns the softkeys to their top level. Not
+# BAROMETRIC_STD_PRESSURE: the NXi's MFD intercepts it and passes it on to the sim (AltimeterBaroKeyEventHandler.ts),
+# which sets 29.92 before the PFD's altimeter keeps the setting to return to, so STD Baro came back to 29.92 (seen in
+# the COWS DA40). PFD Opt is the 4th softkey at the top level of the PFD's softkeys, where they mostly are, and STD
+# Baro the 10th in PFD Opt; from another of its menus the two presses do other things (in XPDR, On and the like).
+_STD = f"{h('AS1000_PFD_SOFTKEYS_4')} {h('AS1000_PFD_SOFTKEYS_10')}"
 
 # HOME toggles the MFD's engine menu: ENGINE, its first softkey at the top level of its softkeys (MFDRootMenu.ts),
 # then BACK, the 11th in the engine, lean and system menus (EngineMenu.ts, LeanMenu.ts, SystemMenu.ts). The NXi

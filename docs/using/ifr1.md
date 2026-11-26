@@ -146,9 +146,10 @@ as for the panel ([Generated profiles](mapping.md#generated-profiles)).
   is (off, low, high, off) and VNAV switches the air conditioner with its blower, as the guide's "Hardware
   Inputs & Outputs" and the project the Bonanza is flown with set them. The fuel selector stays in the
   cockpit.
-- The COWS DA40 and the Carenado C182T have their electric fuel pump on CDI held in FMS2, and the DA40 NG
-  its fuel transfer pump on FPL held in FMS2 (the XLS ignores it). The C182T's inner ring in XPDR with ⇆ held
-  dims its two cabin lights, as on the panel.
+- The COWS DA40 has its electric fuel pump on CDI held, the NG's fuel transfer pump on FPL held (the XLS
+  ignores it) and pitot heat on OBS held, in FMS1 and FMS2 alike. The Carenado C182T has its electric fuel
+  pump on CDI held, in FMS1 and FMS2 alike, and its inner ring in XPDR with ⇆ held dims its two cabin lights,
+  as on the panel.
 - The KAP 140's VS key leaves ALT hold for VS, as the panel's does; it has no hold.
 - The squawk goes a digit at a time, as on the panel: the outer ring selects the digit, clockwise to the next,
   stopping at 4, counter-clockwise back, stopping at 1, so a turn far counter-clockwise always finds digit 1;

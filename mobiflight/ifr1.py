@@ -43,8 +43,8 @@ profile, EXTRA puts IFR-1 uses of their own over the panel's (Plus and Own sourc
 the HSI's course with the heading bug (⇆ in HDG and HDG held), GPSS on NAV held, the go-around on APR held (and the
 three on FMS1's OBS, MSG and FPL held, the keys in their positions), BC on FMS1's CDI held, the yaw damper on ⇆ held in
 HDG, and the cockpit's self-test, DME selector, oxygen, tip tanks, prop heat, fuel pump and air conditioner on keys of
-FMS2 (bonanza_extra()); in the COWS DA40 and the C182T their fuel pump, and the NG DA40's fuel transfer pump, on keys of
-FMS2 held (da40_extra(), c182t_extra()).
+FMS2 (bonanza_extra()); in the COWS DA40 its fuel pump, the NG's fuel transfer pump and pitot heat on keys held in FMS1
+and FMS2 (da40_extra()), in the C182T its fuel pump on a key held in FMS1 and FMS2 (c182t_extra()).
 
 New code, which no panel button sends (Own sources): the squawk digit selected and stepped (squawk_select(),
 squawk_digit()), NAV 2's course (NAV2_COURSE), the transponder's mode one way (transponder_mode()), the modifier
@@ -507,22 +507,23 @@ _ELECTRIC_PUMP = Own("electric fuel pump on or off", "(B:FUEL_PUMP_1) ! (>B:FUEL
 
 
 def da40_extra():
-    """{(IFR-1 button, use): source} over the panel's, for the COWS DA40 (EXTRA): FMS2's keys held, which the G1000
-    NXi's MFD leaves free, as the project the DA40 is flown with sets them: CDI the electric fuel pump, FPL the NG's
-    auxiliary fuel transfer pump (L:XFER_SWITCH, which the XLS ignores), as FPL held is the Bonanza's tip tank pumps.
-    Those keys then send their tap on release, their hold at once (HOLD_MS). The fuel selector stays the cockpit's
-    (bonanza_extra()); the DA40 has no oxygen, tip tanks or prop heat."""
-    return {
-        ("Button_FMS2_CDI", "hold"): _ELECTRIC_PUMP,
-        ("Button_FMS2_FPL", "hold"): Own("NG fuel transfer pump on or off", "(L:XFER_SWITCH, Bool) ! (>L:XFER_SWITCH)"),
-    }
+    """{(IFR-1 button, use): source} over the panel's, for the COWS DA40 (EXTRA): keys held in FMS1 and FMS2 alike,
+    which the G1000 NXi leaves free, so they work in either: CDI the electric fuel pump, as the project the DA40 is
+    flown with sets it, FPL the NG's auxiliary fuel transfer pump (L:XFER_SWITCH, which the XLS ignores), as FPL held
+    in FMS2 is the Bonanza's tip tank pumps, and OBS pitot heat (as ⇆ held in BARO, HOLDS), as OBS held in FMS2 is
+    the Bonanza's prop heat. Those keys then send their tap on release, their hold at once (HOLD_MS). The fuel
+    selector stays the cockpit's (bonanza_extra()); the DA40 has no oxygen, tip tanks or prop heat."""
+    holds = {"CDI": _ELECTRIC_PUMP,
+             "FPL": Own("NG fuel transfer pump on or off", "(L:XFER_SWITCH, Bool) ! (>L:XFER_SWITCH)"),
+             "OBS": HOLDS["Button_COM2^_TOG"]}
+    return {(f"Button_{fms}_{key}", "hold"): own for fms in ("FMS1", "FMS2") for key, own in holds.items()}
 
 
 def c182t_extra():
-    """{(IFR-1 button, use): source} over the panel's, for Carenado's C182T (EXTRA): CDI held in FMS2, which the G1000
-    NXi's MFD leaves free, the electric fuel pump, as the project the C182T is flown with switches it; CDI then sends
-    its tap on release, its hold at once (HOLD_MS)"""
-    return {("Button_FMS2_CDI", "hold"): _ELECTRIC_PUMP}
+    """{(IFR-1 button, use): source} over the panel's, for Carenado's C182T (EXTRA): CDI held in FMS1 and FMS2 alike,
+    which the G1000 NXi leaves free, the electric fuel pump, as the project the C182T is flown with switches it and as
+    in the DA40 (da40_extra()); CDI then sends its tap on release, its hold at once (HOLD_MS)"""
+    return {(f"Button_{fms}_CDI", "hold"): _ELECTRIC_PUMP for fms in ("FMS1", "FMS2")}
 
 
 # per profile: the IFR-1's uses over the panel's, as a function of no arguments (uses())
