@@ -32,6 +32,7 @@ A:GPS WP DISTANCE
 A:GROUND VELOCITY
 A:HEADING INDICATOR:1
 A:INDICATED ALTITUDE
+A:KOHLSMAN SETTING HG:1
 A:KOHLSMAN SETTING MB:1
 A:NAV HAS LOCALIZER:1
 A:NAV HAS LOCALIZER:2
@@ -257,6 +258,7 @@ L:AvionicsPanel_Baro
 L:AvionicsPanel_G1000_Engine
 L:AvionicsPanel_Squawk
 L:AvionicsPanel_Squawk_Kept
+L:AvionicsPanel_Standby_Baro
 L:AvPanel_VNV
 L:AvPanel_VNV_Next
 L:AvPanel_VNV_Rate
@@ -333,3 +335,6 @@ L:var_rnavDrivesHsi
 
 # the project the COWS DA40 is flown with
 L:XFER_SWITCH
+
+# the COWS DA40's standby altimeter (its knob's code in the aircraft)
+L:KOHLSMAN SETTING HG:2

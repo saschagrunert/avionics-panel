@@ -147,7 +147,8 @@ radio both pilots talk on and turn its audio on; COM 1 and COM 2 turn listening 
 never off for the radio talked on, which an audio panel always plays. What the profiles keep (the setting
 before STD, the code before VFR, the G1000 NXi's engine page) stays in L: variables until the sim restarts;
 whether MSFS keeps them from one flight to the next is still to check, as then STD pressed on 29.92 in a new
-flight would set the last flight's setting. MobiFlight shows the commands as custom code.
+flight would set the last flight's setting (in the COWS DA40 a detent on 29.92 too, from the standby's 29.92).
+MobiFlight shows the commands as custom code.
 
 Does nothing in every profile: the FREQ push (it only switches the FREQ knob between COM, NAV and ADF; it
 sends nothing to the sim). Each family below lists what else does nothing, mostly the keys its avionics lack
@@ -349,6 +350,15 @@ profile](#g1000-nxi) under the DA40's name, so a project of its own can be linke
 same differences from the real units, and the DA40's lighting as a project it is flown with sets it: the
 dimmers are the panel lights (outer ring) and the glareshield lights (inner ring), in steps of 5 %, and the
 cabin light push turns the three cabin lights on or off.
+
+The BARO knob and its push (STD) set the standby altimeter along with the PFD's (in the real DA40 each has
+its own knob). A detent sets the standby 0.01 inHg up or down from the PFD's setting, as the NXi steps it with
+the PFD in inHg; on STD from the setting before STD, which the NXi leaves STD for. With the PFD in hPa the
+NXi steps 1 hPa, and the standby, which steps 0.01 inHg, can end up to 0.02 inHg (about 20 ft) off. STD sets
+the standby to 29.92 with the PFD and, pressed again, back to the PFD's setting before; on 29.92 (or 1013 hPa)
+with no setting kept, as after STD from the cockpit, it leaves the standby as it is. A push that cannot reach
+STD Baro (from another menu of the PFD's softkeys) sets the standby all the same, and the next detent sets it
+again. The standby is the aircraft's own variable (`L:KOHLSMAN SETTING HG:2`), not the sim's altimeter 2.
 
 Does nothing in this profile: TEST, GPSS and ½ BANK (as in the G1000 NXi profile).
 

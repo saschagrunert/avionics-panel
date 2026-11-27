@@ -120,12 +120,12 @@ def test_every_path_finds_a_branch_that_leaves_the_stack_unbalanced():
 
 
 def unit(variable):
-    """The unit a variable is read in: degrees for a heading or course, millibars for the altimeter's setting,
-    feet for an altitude, knots for the ground speed, nmiles for the GPS's distance, number for an index, the
-    G1000's CDI source, a dimmer, a selector, a valve, a pump's switch or an L: variable's distance, feet per minute
-    for a rate, enum for a state, bool for a flag (an autopilot's mode, as AUTOPILOT HEADING LOCK, which the IFR-1's
-    lights read, or the IFR-1's own state, as a key that is down, but its squawk digit and its AP rings'
-    window, numbers)"""
+    """The unit a variable is read in: degrees for a heading or course, millibars for the altimeter's setting, inHg
+    for the one the COWS DA40's standby is set from, feet for an altitude, knots for the ground speed, nmiles for
+    the GPS's distance, number for an index, the G1000's CDI source, a dimmer, a selector, a valve, a pump's switch
+    or an L: variable's distance, feet per minute for a rate, enum for a state, bool for a flag (an autopilot's
+    mode, as AUTOPILOT HEADING LOCK, which the IFR-1's lights read, or the IFR-1's own state, as a key that is
+    down, but its squawk digit and its AP rings' window, numbers)"""
     if variable.startswith("AUTOPILOT ") and variable.endswith((" LOCK", " HOLD")):
         return "bool"
     if variable == f"L:{ifr1.SQUAWK_DIGIT}":
@@ -138,6 +138,8 @@ def unit(variable):
         return "degrees"
     if variable.startswith("KOHLSMAN SETTING MB"):
         return "millibars"
+    if variable.startswith("KOHLSMAN SETTING HG"):
+        return "inhg"                                    # the PFD's, which the DA40's standby takes (aircraft.py)
     if variable in ("INDICATED ALTITUDE", "AUTOPILOT ALTITUDE LOCK VAR"):
         return "feet"
     if variable in ("GROUND VELOCITY", "AIRSPEED INDICATED", "AIRSPEED BARBER POLE", "DESIGN SPEED VS1"):
@@ -157,8 +159,8 @@ def unit(variable):
     if variable.endswith("Required_VS"):
         return "feet per minute"
     if variable.endswith(("SELECTED", "PFD_CDI_Source", "LightingKnob", "dmeMode", "RadarTilt", "DistanceNM",
-                          "RNAV_DME", "AvionicsPanel_Baro", "oxygenOn",
-                          "Switch_Pump_1")):
+                          "RNAV_DME", "AvionicsPanel_Baro", "AvionicsPanel_Standby_Baro", "KOHLSMAN SETTING HG:2",
+                          "oxygenOn", "Switch_Pump_1")):
         return "number"
     return "enum" if variable.endswith("STATE") else "bool"
 
@@ -358,6 +360,7 @@ SOURCES = {
     **dict.fromkeys(("H:KLN90B_", "H:kas297b_", "H:bksq_", "H:adf_", "H:TRANSPONDER_Push_", "L:var_", "L:bksq_",
                      "L:OatMapCompassLightButton_", "L:TipTankTransferSwitch_"), _BLACK_SQUARE),
     "L:XFER_SWITCH": "the project the COWS DA40 is flown with",
+    "L:KOHLSMAN SETTING HG:2": "the COWS DA40's standby altimeter (its knob's code in the aircraft)",
 }
 
 
@@ -367,7 +370,7 @@ def test_every_other_input_has_a_source(key):
     # cited source
     for device, button, _, code in codes(key):
         assert set(re.findall(r"\(>?([A-Za-z]+):", code)) <= set("ABEHKL"), (key, device, button, code)
-        for name in re.findall(r"\(>?([HLB]:[\w-]+)", code):
+        for name in re.findall(r"\(>?([HLB]:[^),]+)", code):
             assert name.startswith(tuple(SOURCES)), (f"{name} ({key}, device {device}, {button}): no cited source for "
                                                      "its prefix; add the source to SOURCES and a heading to "
                                                      "tests/inputs.txt")
@@ -713,10 +716,11 @@ SETS = {
     "cows-da40": """
         ADF_SWAP=K:ADF1_RADIO_SWAP ADF_SWAP@2=K:ADF1_RADIO_SWAP ALT=K:AP_ALT_HOLD ALT_1000_DN=1000,K:AP_ALT_VAR_DEC
         ALT_1000_UP=1000,K:AP_ALT_VAR_INC ALT_100_DN=K:AP_ALT_VAR_DEC ALT_100_UP=K:AP_ALT_VAR_INC AP=K:AP_MASTER
-        APR=K:AP_APR_HOLD ARM=H:AS1000_PFD_SOFTKEYS_10 BARO_DN=H:AS1000_PFD_BARO_DEC
-        BARO_STD=H:AS1000_PFD_SOFTKEYS_4,H:AS1000_PFD_SOFTKEYS_10
-        BARO_UP=H:AS1000_PFD_BARO_INC BC=K:AP_BC_HOLD
-        CABIN_LT=0,1,B:LIGHTING_CABIN_1_Set,B:LIGHTING_CABIN_2_Set,B:LIGHTING_CABIN_3_Set
+        APR=K:AP_APR_HOLD ARM=H:AS1000_PFD_SOFTKEYS_10
+        BARO_DN=H:AS1000_PFD_BARO_DEC,1013.23,-,0.1,100,2992,0,100,100,1,-,3150,2800,100,L:KOHLSMAN_SETTING_HG:2,0,L:AvionicsPanel_Standby_Baro
+        BARO_STD=H:AS1000_PFD_SOFTKEYS_4,H:AS1000_PFD_SOFTKEYS_10,1013.23,-,0.1,0,100,3150,2800,100,L:KOHLSMAN_SETTING_HG:2,0,L:AvionicsPanel_Standby_Baro,100,100,L:AvionicsPanel_Standby_Baro,2992,3150,2800,100,L:KOHLSMAN_SETTING_HG:2
+        BARO_UP=H:AS1000_PFD_BARO_INC,1013.23,-,0.1,100,2992,0,100,100,1,+,3150,2800,100,L:KOHLSMAN_SETTING_HG:2,0,L:AvionicsPanel_Standby_Baro
+        BC=K:AP_BC_HOLD CABIN_LT=0,1,B:LIGHTING_CABIN_1_Set,B:LIGHTING_CABIN_2_Set,B:LIGHTING_CABIN_3_Set
         CDI=3,1,K:AP_NAV_SELECT_SET,1,2,K:AP_NAV_SELECT_SET,K:TOGGLE_GPS_DRIVES_NAV1
         CDI@2=3,1,K:AP_NAV_SELECT_SET,1,2,K:AP_NAV_SELECT_SET,K:TOGGLE_GPS_DRIVES_NAV1 CLR=H:AS1000_MFD_CLR
         CLR@2=H:AS1000_PFD_CLR CRS_10_DN=3,10,-,K:GPS_OBS_SET,2,10,-,K:VOR2_SET,10,-,K:VOR1_SET
@@ -1051,6 +1055,41 @@ def test_std_pressed_again_returns_to_the_setting_before(key):
     # a turn of the BARO ring forgets the setting kept
     for button, event in (("BARO_UP", "K:KOHLSMAN_INC"), ("BARO_DN", "K:KOHLSMAN_DEC")):
         assert run(FAMILIES[key].DEVICE[1][button]) == [(event, None), ("L:AvionicsPanel_Baro", 0)]
+
+
+def test_the_da40s_standby_altimeter_follows_the_pfd():
+    # the NXi's knob and STD Baro as on the G1000 NXi, then the standby (aircraft.DA40_STANDBY): a detent sets it a
+    # step of 0.01 inHg from the PFD's setting, to 0.01 inHg, within the standby's 28 to 31.5, and forgets the setting
+    # STD kept; STD keeps the PFD's setting and sets 29.92, on STD sets the setting kept, once
+    table, standby, kept = FAMILIES["cows-da40"].DEVICE[1], "L:KOHLSMAN SETTING HG:2", "L:AvionicsPanel_Standby_Baro"
+    up, down = ("BARO_UP", "H:AS1000_PFD_BARO_INC"), ("BARO_DN", "H:AS1000_PFD_BARO_DEC")
+
+    def detent(turn, pfd, standby_before, kept_before):
+        """The standby a detent sets, with the PFD at pfd inHg (29.92 on STD)"""
+        state = {"KOHLSMAN SETTING MB:1": pfd * 33.8639, "KOHLSMAN SETTING HG:1": pfd, standby: standby_before,
+                 kept: kept_before}
+        sent = run(table[turn[0]], state)
+        assert sent[0] == (turn[1], None) and sent[2] == (kept, 0) and len(sent) == 3, sent
+        return sent[1][1] if sent[1][0] == standby else sent
+
+    for turn, pfd, want in ((up, 29.951, 29.96), (down, 29.951, 29.94), (up, 30.1249, 30.13), (up, 31.5, 31.5),
+                            (down, 28.0, 28.0), (down, 27.5, 28.0)):
+        assert detent(turn, pfd, 29.5, 29.5) == want, (turn, pfd)
+    # on STD, from the setting the NXi leaves STD for: the one kept while the standby reads the panel's 29.92, else
+    # the standby's own (STD from the cockpit; a QNH of 29.92)
+    assert detent(up, 29.92, 29.92, 29.62) == 29.63
+    assert detent(down, 29.92, 29.92, 29.62) == 29.61
+    assert detent(up, 29.92, 30.12, 0) == 30.13
+    assert detent(up, 29.92, 30.12, 29.62) == 30.13
+    assert detent(down, 29.92, 29.92, 0) == 29.91
+    softkeys = [("H:AS1000_PFD_SOFTKEYS_4", None), ("H:AS1000_PFD_SOFTKEYS_10", None)]
+    assert run(table["BARO_STD"], {"KOHLSMAN SETTING MB:1": 1003.0, "KOHLSMAN SETTING HG:1": 29.6189, kept: 0}) == [
+        *softkeys, (kept, 29.62), (standby, 29.92)]
+    assert run(table["BARO_STD"], {"KOHLSMAN SETTING MB:1": 1013.21, kept: 29.62}) == [
+        *softkeys, (standby, 29.62), (kept, 0)]
+    assert run(table["BARO_STD"], {"KOHLSMAN SETTING MB:1": 1013.21, kept: 31.75}) == [
+        *softkeys, (standby, 31.5), (kept, 0)]
+    assert run(table["BARO_STD"], {"KOHLSMAN SETTING MB:1": 1013.25, kept: 0}) == softkeys
 
 
 def test_the_kfc_150_rocker_steps_the_reference_of_the_mode():
