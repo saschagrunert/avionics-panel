@@ -339,6 +339,8 @@ SHEETS = {
     "black-square-bonanza": ({**RADIOS, **ALT_HDG, **KFC150, **KFC150_KNOB, **BENDIX_KING, **BONANZA_NAV,
                               **BONANZA}, BONANZA_UNIT2),
     "cows-da40": ({**RADIOS, **ALT_HDG, **GFC700, **G1000_COCKPIT, **G1000_NAV,
+                   "BARO": "PFD BARO knob and the standby",
+                   "STD": "STD on both; again: back (PFD Opt, STD Baro)",
                    "PANEL": "panel lights, 5 % steps", "FLOOD": "glareshield lights, 5 % steps",
                    "CABIN": "the three cabin lights"}, G1000_UNIT2),
     "carenado-c182t": ({**RADIOS, **ALT_HDG, **KAP140, **KAP140_KNOB, **G1000_COCKPIT, **G1000_NAV,

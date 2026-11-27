@@ -73,7 +73,7 @@ For another VFR code than 7000, as 1200 in the US, write the profile with that c
 | --- | --- | --- | --- |
 | COM1, COM2 | MHz / kHz of COM 1 / COM 2 | tap: flip-flop; let go after 0.7 s: COM 1 / COM 2 audio (listen; stays on while you talk on it); held 2 s: talk on COM 1 / COM 2, and listen | shift |
 | HDG (COM1 shifted) | heading bug 10° (ten 1° steps) / 1° | heading bug to the heading (in the Bonanza the HSI's course too); held, in the Bonanza: yaw damper | shift back |
-| BARO (COM2 shifted) | altimeter setting on both rings; in the Bonanza, of both altimeters | tap: STD; again: the setting before, where the panel does so (in the Bonanza both altimeters); hold: pitot heat | shift back |
+| BARO (COM2 shifted) | altimeter setting on both rings; in the Bonanza of both altimeters, in the DA40 of the PFD and the standby | tap: STD; again: the setting before, where the panel does so (in the Bonanza both altimeters, in the DA40 the PFD and the standby); hold: pitot heat | shift back |
 | NAV1, NAV2 | MHz / kHz of NAV 1 / NAV 2 | tap: flip-flop; hold: NAV 1 / NAV 2 audio (ident) | shift |
 | CRS1 (NAV1 shifted) | course 10° (ten 1° steps, in the G3X one 10° step) / 1°: in the G1000 NXi, DA40, C182T and G3X profiles the CDI's course, else NAV 1's | tap: the course to the VOR or LOC; hold: marker audio | shift back |
 | CRS2 (NAV2 shifted) | NAV 2 course 10° (ten 1° steps) / 1° | tap: NAV 2's course to the VOR or LOC; hold: DME audio | shift back |
@@ -151,7 +151,8 @@ For another VFR code than 7000, as 1200 in the US, write the profile with that c
   Inputs & Outputs" and the project the Bonanza is flown with set them. The fuel selector stays in the
   cockpit.
 - The COWS DA40 has its electric fuel pump on CDI held, the NG's fuel transfer pump on FPL held (the XLS
-  ignores it) and pitot heat on OBS held, in FMS1 and FMS2 alike. The Carenado C182T has its electric fuel
+  ignores it) and pitot heat on OBS held, in FMS1 and FMS2 alike. BARO's rings and ⇆ set the standby
+  altimeter with the PFD's, as the panel's BARO does. The Carenado C182T has its electric fuel
   pump on CDI held, in FMS1 and FMS2 alike, and its inner ring in XPDR with ⇆ held dims its two cabin lights,
   as on the panel.
 - The KAP 140's VS key leaves ALT hold for VS, as the panel's does; it has no hold.
@@ -244,7 +245,8 @@ selected altitude, without a distance from the GTN (no active waypoint), or at 3
   brings back: check the code after it. If it happens, the dimmers leave XPDR's ⇆ layer.
 - Fast spins: MobiFlight sends each detent of a report as its own command at once, so several may read the
   same value of the sim in one frame and step it once (BARO, the dimmers, the G3X's 10° course step); if the
-  fast spin above loses detents, those rings step from a value of their own instead.
+  fast spin above loses detents, those rings step from a value of their own instead. In the DA40, check that
+  the standby altimeter ends where the PFD does after a fast spin of BARO (on the panel's BARO knob too).
 - COM1 and COM2: ⇆ let go after 0.7 s and before 2 s turns only that radio's audio on or off, and held for 2 s
   picks only the radio to talk on, while still held, with nothing more on its release.
 - MODE: each ring takes the transponder to ALT clockwise and to standby counter-clockwise in every profile.

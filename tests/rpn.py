@@ -6,11 +6,13 @@ import re
 
 # a code's tokens: a variable, read as (A:NAME:INDEX, unit), (L:NAME, unit), (E:NAME, unit) (an environment variable,
 # as the sim's clock) or (B:NAME) (an input event's value), or set as (>X:NAME) or (>A:NAME:INDEX, unit), a number or
-# an operator
+# an operator. An L: name is letters, digits and _, or one an aircraft names otherwise (L_NAME: the COWS DA40's
+# standby altimeter, aircraft.py).
 TOKEN = re.compile(r"\([^()]*\)|[^\s()]+")
-READ = re.compile(r"\((?:(?:A:([A-Z0-9 ]+(?::[1-9])?)|(L:[A-Za-z0-9_]+)), [A-Za-z][A-Za-z0-9 ]*|(B:[A-Z0-9_]+)|"
+L_NAME = r"L:[A-Za-z0-9_]+|L:KOHLSMAN SETTING HG:2"
+READ = re.compile(r"\((?:(?:A:([A-Z0-9 ]+(?::[1-9])?)|(" + L_NAME + r")), [A-Za-z][A-Za-z0-9 ]*|(B:[A-Z0-9_]+)|"
                   r"(E:[A-Z ]+), [A-Za-z][A-Za-z0-9 ]*)\)")
-WRITE = re.compile(r"\(>(?:(K:(?:2:)?[A-Z0-9_]+|H:[A-Za-z0-9_-]+|L:[A-Za-z0-9_]+|B:[A-Za-z0-9_]+_(?:Set|Toggle))|"
+WRITE = re.compile(r"\(>(?:(K:(?:2:)?[A-Z0-9_]+|H:[A-Za-z0-9_-]+|" + L_NAME + r"|B:[A-Za-z0-9_]+_(?:Set|Toggle))|"
                    r"(A:[A-Z ]+:[1-9]), Enum)\)")
 REGISTER = re.compile(r"(sp|s|l)([0-9])")         # a register: store and pop, store, load
 NUMBER = re.compile(r"[0-9]+(?:\.[0-9]+)?|0x[0-9A-F]+")
