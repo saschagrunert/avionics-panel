@@ -181,7 +181,8 @@ def boxes_of(ifr1_profile):
             out[mode] = (title, rows)
     for key in RIGHT_KEYS:
         out[key] = (TITLES[key], [("FMS1", grid.key(f"Button_FMS1_{key}"), INK),
-                                   ("FMS2", grid.key(f"Button_FMS2_{key}"), INK)])
+                                   ("FMS2", grid.key(f"Button_FMS2_{key}"), INK),
+                                   ("other modes", html.escape(ifr1_grid.like_text()), INK)])
     for white, blue in BOTTOM:
         out[f"B_{white}"] = (f"{white} / {blue}", [
             ("other modes", grid.key(f"Button_AP_{white}"), INK),

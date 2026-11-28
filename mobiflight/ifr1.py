@@ -1,10 +1,10 @@
 """The Octavi IFR-1's MobiFlight profiles, made from the panel's (docs/using/ifr1.md): for every profile of
 families.FAMILIES, a project for the IFR-1 that sends what the panel's buttons send in that profile.
 
-MobiFlight reads the IFR-1 itself (src/MobiFlightConnector/MobiFlight/Joysticks/Octavi/ in its repository at 11.3.1:
+MobiFlight reads the IFR-1 itself (src/MobiFlightConnector/MobiFlight/Joysticks/Octavi/ in its repository at 11.3.1.5:
 OctaviHandler.cs, Octavi.cs, and Joysticks/octavi/octavi.joystick.json). The device keeps one of eight modes, which its
-mode keys select, and reports it with every input; MobiFlight turns each input into one of 96 named buttons (BUTTONS) by
-that mode and a shift of its own, which the knob push toggles in COM1, COM2, NAV1, NAV2 and XPDR and every change of
+mode keys select, and reports it with every input; MobiFlight turns each input into one of 140 named buttons (BUTTONS)
+by that mode and a shift of its own, which the knob push toggles in COM1, COM2, NAV1, NAV2 and XPDR and every change of
 mode ends (sending Button_UNSHIFT_SW). Its keys send a press and a release, and (MobiFlight 11.2 on) a release after a
 hold (onLongRelease) and a hold while still down (onHold), each after a delay of the item's; a knob sends one press per
 detent and nothing else. Its six AP lights each take 0 or 1 (LEDS): MobiFlight shifts the value into the lights' byte as
@@ -26,9 +26,14 @@ these rules over it:
   first at once and its second when let go after it.
 - MobiFlight sends a release to the button of the mode the IFR-1 is in by then, and Button_UNSHIFT_SW on every change
   of mode and on leaving shift. That button lets go of every ⇆ and every key with a hold (clear()), so one let go,
-  or still held, after a change of mode sends nothing, and a GTN key sends its key-up only from the button that sent
-  its key-down. Button_SHIFT_SW, on entering shift, lets go of ⇆ in the modes with a shift (clear(shifting=True)),
-  whose release reaches the shifted button, so a hold of COM1 or COM2 sends nothing in HDG or BARO.
+  or still held, after a change of mode sends nothing, and a GTN key sends its key-up only from a button of the key
+  that sent its key-down (the same, or a key on the right that shares its L: variable), so to no other unit.
+  Button_SHIFT_SW, on entering shift, lets go of ⇆ in the modes with a shift (clear(shifting=True)), whose release
+  reaches the shifted button, so a hold of COM1 or COM2 sends nothing in HDG or BARO.
+- The keys on the right (RIGHT_KEYS) in a mode other than FMS1 and FMS2, which MobiFlight reports from 11.3.1.5 on, do
+  what they do in FMS1, but in COM2, NAV2 and their shifted modes in FMS2 (like()): the FMS key's uses, and its L:
+  variable that keeps a key with a hold down, so clear() lets go of them with the FMS key's; each sets it to a number
+  of its own, which its hold tests (_key_mark()).
 - A panel button the profile leaves unmapped leaves the IFR-1's unmapped too, with the profile's reason.
 
 The layers: the AP rings set the selected altitude 1000 ft (outer) and 100 ft (inner), with ⇆ held the inner ring the
@@ -64,7 +69,7 @@ from mobiflight.families.rpn import k, lset
 
 BM = profile.BM
 
-# ---------------- the device, as MobiFlight 11.3.1 names it ----------------
+# ---------------- the device, as MobiFlight 11.3.1.5 names it ----------------
 NAME = "IFR1"                    # its DirectInput instance name, which MobiFlight binds a project's controller by
 # the serial Octavi's registry fix gives it (Octavi_GUID_fix.reg); MobiFlight 11's auto binder binds the project to
 # the one IFR-1 connected whatever its own (ControllerAutoBinder.cs), so the fix is not needed
@@ -74,17 +79,21 @@ SHIFTED = ("COM1", "COM2", "NAV1", "NAV2", "XPDR")    # the modes with a shift (
 KNOB = ("OI", "OD", "II", "ID")                       # outer ↻, outer ↺, inner ↻, inner ↺
 FMS_KEYS = ("DCT", "MENU", "CLR", "ENT", "CDI", "OBS", "MSG", "FPL", "VNAV", "PROC")
 AP_ROW = ("AP", "HDG", "NAV", "APR", "ALT", "VS")     # the bottom row, outside FMS1 and FMS2
+RIGHT_KEYS = FMS_KEYS[:4]                             # the keys on the right, in every mode
+UNIT2_MODES = ("COM2", "NAV2")                        # the modes whose keys on the right are FMS2's (like())
 # the AP lights, by their labels, which an output names as its Pin (Joystick.SetOutputDeviceState matches the label);
 # octavi.joystick.json's seventh, "Auto Blink Context", is MobiFlight's own: it writes its shift there
 LIGHTS = ("AP Master", "AP HDG", "AP NAV", "AP APR", "AP ALT", "AP VS")
 
 
 def buttons():
-    """The 96 buttons in MobiFlight's order, as OctaviHandler's constructor makes them: SHIFT_SW and UNSHIFT_SW; then
+    """The 140 buttons in MobiFlight's order, as OctaviHandler's constructor makes them: SHIFT_SW and UNSHIFT_SW; then
     each mode and each shifted mode (COM1^ and so on): its knob and ⇆ (TOG), its push (CRSR) where it has no shift,
-    FMS1's and FMS2's keys, AP's bottom row; the bottom row, already made, for every other mode"""
+    FMS1's and FMS2's keys, AP's bottom row; the bottom row, already made, for every other mode; last, added in 11.3.1.5
+    after the others, the keys on the right of every mode and shifted mode but FMS1 and FMS2"""
     out = ["Button_SHIFT_SW", "Button_UNSHIFT_SW"]
-    for name in (*MODES, *(f"{m}^" for m in SHIFTED)):
+    names = (*MODES, *(f"{m}^" for m in SHIFTED))
+    for name in names:
         out += [f"Button_{name}_{ring}" for ring in (*KNOB, "TOG")]
         if name.rstrip("^") not in SHIFTED:
             out.append(f"Button_{name}_CRSR")
@@ -92,6 +101,7 @@ def buttons():
             out += [f"Button_{name}_{key}" for key in FMS_KEYS]
         if name == "AP":
             out += [f"Button_AP_{key}" for key in AP_ROW]
+    out += [f"Button_{name}_{key}" for name in names if name not in ("FMS1", "FMS2") for key in RIGHT_KEYS]
     return tuple(out)
 
 
@@ -120,7 +130,7 @@ def _down(key):
     """the L: variable that keeps a key down (entry()), named by its mode and key alone, as clear() lets go of each by
     name in one message, "^" of a shifted mode spelt out (an L: variable's name takes letters, digits and _): a release
     that MobiFlight delivers to another mode, the one the user changed to with the key held, sends nothing there. A
-    key with a hold keeps it so, and a key of TDS's GTN, so its key-up goes only where its key-down went."""
+    key with a hold keeps it so, and a key of TDS's GTN, so its key-up goes only to the unit its key-down went to."""
     return f"{STATE}{key.replace('^', '_Shifted')}"
 
 
@@ -463,6 +473,10 @@ def uses(key):
     out["Button_SHIFT_SW"] = {"key": None}        # clear(shifting=True), likewise
     for (button, use), source in EXTRA.get(key, dict)().items():
         out[button][use] = source
+    # the keys on the right in every other mode: the FMS key's uses, the profile's own of EXTRA too (like())
+    for button in BUTTONS:
+        if fms := like(button):
+            out[button] = dict(out[fms])
     assert set(out) == set(BUTTONS), sorted(set(out) ^ set(BUTTONS))
     return {button: out[button] for button in BUTTONS}
 
@@ -620,6 +634,50 @@ def mode(button):
     row and SHIFT_SW and UNSHIFT_SW, which every mode shares"""
     match = _OF_A_MODE.fullmatch(button)
     return match[1] if match else None
+
+
+def like(button):
+    """The FMS key whose uses a key on the right has in a mode other than FMS1 and FMS2 ("Button_COM2^_CLR" ->
+    "Button_FMS2_CLR"): FMS2's in COM2, NAV2 and their shifted modes, as the second radios go with the second unit,
+    FMS1's in every other mode; None for any other button"""
+    name, key = mode(button), button.rsplit("_", 1)[1]
+    if name is None or name in ("FMS1", "FMS2") or key not in RIGHT_KEYS:
+        return None
+    return f"Button_{'FMS2' if name.rstrip('^') in UNIT2_MODES else 'FMS1'}_{key}"
+
+
+def _key_down(button):
+    """The L: variable that keeps an IFR-1 key down (_down()): a key on the right in another mode shares its FMS key's
+    (like()), as it does the same, so clear() lets go of both by one name and its message stays as long"""
+    return _down((like(button) or button).removeprefix("Button_"))
+
+
+def _key_mark(button):
+    """What a key's press sets its L: variable (_key_down()) to: 1, or for a key whose variable the keys on the right
+    of other modes share, a number of its own (the FMS key 1, the others 2 on, in BUTTONS' order), which its hold
+    tests (_went_down()). MobiFlight fires a hold on the button the key went down on HOLD_MS after the press, even
+    when its release went to another mode's button: a press of the key in another mode within HOLD_MS, after a change
+    of mode let go of the first, then takes no hold of the first press for its own."""
+    fms = like(button) or button
+    sharing = [b for b in BUTTONS if like(b) == fms]
+    return sharing.index(button) + 2 if button in sharing else 1
+
+
+def _shared(button):
+    """Whether a key's L: variable (_key_down()) is shared by the keys on the right of several modes"""
+    return bool(like(button)) or any(like(b) == button for b in BUTTONS)
+
+
+def _is_down(button):
+    """The read of a key's L: variable as a test that it is down: a flag, or the number of the button it went down on
+    where several share it (_key_mark())"""
+    return f"(L:{_key_down(button)}, {'Number' if _shared(button) else 'Bool'})"
+
+
+def _went_down(button):
+    """The test that the key went down on this button, for its hold (_key_mark()): its L: variable set, by this button
+    where others share it"""
+    return f"{_is_down(button)} {_key_mark(button)} ==" if _shared(button) else _is_down(button)
 
 
 def is_modifier(button):
@@ -796,10 +854,20 @@ def entry(button, used):
         return knob(name, turn_code, tapped(sent.get("held"))) if name in MODIFIED else turn_code
     plain, hold, longer = holds(used)
     if hold is not None:          # a tap on its release, a hold at once, each only if the key went down here
-        down = _down(button.removeprefix("Button_"))
+        down, mark, mine = _key_down(button), _key_mark(button), _went_down(button)
 
         def end(code):
-            return f"(L:{down}, Bool) if{{ {code} }} {lset(down, 0)}" if code else lset(down, 0)
+            """A release: code where the key is down (any release, as one after a shift goes to the shifted mode's
+            button), and the key let go"""
+            return f"{_is_down(button)} if{{ {code} }} {lset(down, 0)}" if code else lset(down, 0)
+
+        def at_hold(code):
+            """A hold: code where the key went down on this button, as MobiFlight sends it, and the key let go; where
+            the variable is shared, only then, so a late hold of a press let go of in another mode leaves a new
+            press of the key there alone (_key_mark())"""
+            if _shared(button):
+                return f"{mine} if{{ {' '.join(filter(None, (code, lset(down, 0))))} }}"
+            return end(code)
         two = used["hold"].entry if "hold" in used else None
         if longer is None and isinstance(two, dict) and set(two) == {"press", "release"}:
             # a hold of two steps (the KAP 140's VNV: VS and the rate, then the rate again a frame
@@ -808,21 +876,22 @@ def entry(button, used):
             # fired: with no long release a release is a release), its flag let go on a change of mode as the key's
             # (clear())
             again = f"{down}_Again"
-            return {"press": lset(down, 1),
+            return {"press": lset(down, mark),
                     "release": f"{end(plain)} (L:{again}, Bool) if{{ {two['release']} }} {lset(again, 0)}",
-                    "hold": f"(L:{down}, Bool) if{{ {two['press']} {lset(again, 1)} }} {lset(down, 0)}"}
+                    "hold": at_hold(f"{two['press']} {lset(again, 1)}")}
         if longer is None:
-            return {"press": lset(down, 1), "release": end(plain), "hold": end(hold)}
+            return {"press": lset(down, mark), "release": end(plain), "hold": at_hold(hold)}
         # ⇆ of COM1 and COM2: the hold when let go after HOLD_MS, the longer hold at once after TALK_MS
-        return {"press": lset(down, 1), "release": end(plain), "long": end(hold), "hold": end(longer)}
+        return {"press": lset(down, mark), "release": end(plain), "long": end(hold), "hold": at_hold(longer)}
     plain = sent.get("key")
     if isinstance(plain, dict) and "release" in plain and "long" not in plain:
-        # a key held as long as the panel's (TDS's GTN): its key-up only from the button that sent its key-down, so a
-        # release MobiFlight delivers to another mode reaches no other unit. clear() leaves the flag alone: the button's
-        # next press and release let go of what a key-up lost on a change of mode left down.
-        down = _down(button.removeprefix("Button_"))
+        # a key held as long as the panel's (TDS's GTN): its key-up only from a button that shares the flag of the one
+        # that sent its key-down (_key_down()), so a release MobiFlight delivers to another mode reaches no other unit.
+        # clear() leaves the flag alone: the button's next press and release let go of what a key-up lost on a change
+        # of mode left down.
+        down = _key_down(button)
         return {**plain, "press": " ".join(filter(None, (lset(down, 1), plain.get("press")))),
-                "release": f"(L:{down}, Bool) if{{ {plain['release']} }} {lset(down, 0)}"}
+                "release": f"{_is_down(button)} if{{ {plain['release']} }} {lset(down, 0)}"}
     return plain
 
 
@@ -846,7 +915,8 @@ def build(key, vfr=None):
                 if ring_button in device:
                     device[ring_button] = device[ring_button].removesuffix(f" {lset(_var(mode(button), True), 1)}")
         key_name = button.removeprefix("Button_")
-        if isinstance(sent, dict) and sent.get("press") == lset(_down(key_name), 1):     # a key with a hold
+        # a key with a hold; not a key on the right in another mode, whose FMS key's L: variable is let go of already
+        if isinstance(sent, dict) and sent.get("press") == lset(_down(key_name), 1):
             held_keys.append(key_name)
             if f"{_down(key_name)}_Again" in sent.get("hold", ""):                     # and a second step
                 held_keys.append(f"{key_name}_Again")

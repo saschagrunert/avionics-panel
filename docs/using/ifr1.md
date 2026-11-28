@@ -3,8 +3,9 @@
 The [ready profiles](mapping.md#generated-profiles) also come for the Octavi IFR-1, a desktop knob and key
 box with eight modes, in place of the panel. Each IFR-1 profile sends what the panel's profile of the same
 name sends, so a fix to a panel profile reaches its IFR-1 profile too. They are for MSFS 2024 with MobiFlight
-11.3 or newer on Windows. They are not yet tried on the device; the Black Square Bonanza, COWS DA40 and
-Carenado C182T will be tried first ([To check on the device](#to-check-on-the-device)).
+11.3 or newer on Windows (11.3.1.5 or newer for the keys on the right outside FMS1 and FMS2). They are not
+yet tried on the device; the Black Square Bonanza, COWS DA40 and Carenado C182T will be tried first
+([To check on the device](#to-check-on-the-device)).
 
 ## Downloads
 
@@ -30,7 +31,8 @@ one in a browser and print it on A4 in landscape (on Letter, scaled to fit the p
 
 ## Setting up
 
-1. Install MobiFlight 11.3 or newer (the profiles are made for 11.3.1). Every command goes through
+1. Install MobiFlight 11.3 or newer (the profiles are made for 11.3.1.5; before it, D→, MENU, CLR and ENT do
+   nothing outside FMS1 and FMS2, as MobiFlight reports them only there). Every command goes through
    MobiFlight's WASM module in the sim's Community folder: when MobiFlight offers it, choose Install Now with
    the sim closed.
 2. Quit Octavi's own plugin and keep it from starting with the sim. Only one program can open the IFR-1 at a
@@ -81,7 +83,7 @@ For another VFR code than 7000, as 1200 in the US, write the profile with that c
 | AP | selected altitude 1000 ft / 100 ft; ⇆ held: the inner ring is the panel's UP and DN (the held altitude, VS, IAS or pitch, by autopilot; on the GFC 700 and GFC 500 clockwise is a faster FLC, though the panel's UP, nose up, slows it), the outer ring five of them at once (500 ft/min in VS, 5 kt in FLC, five pitch steps in pitch hold, in ALT hold five altitude steps on the KAP 140 and KFC 150, in the Bonanza 500 ft of the altitude its UP and DN step, [to check](mapping.md#vnv-without-vnav)). For 5 s after VS engages with the autopilot or the flight director (on the KAP 140, which has none, the autopilot), or FLC on the GFC 700 and GFC 500, from any key or VNV, the other way round: the rings set the rate or speed without ⇆ (inner 100 ft/min or 1 kt, outer 500 ft/min or 5 kt) and the altitude to level off at with ⇆ held, in a climb too. Each turn restarts the 5 s, and so does ⇆ held; after them, or as soon as the mode ends, the rings set the altitude again | none: it only modifies the rings | tap, in VS or FLC: the rings on the rate or speed for 5 s, or back to the altitude; held: VNV |
 | XPDR | the squawk, a digit at a time, as on the panel: the outer ring selects the digit (1 to 4, stopping at both ends; every entry starts at digit 1), the inner ring steps it 0 … 7; ⇆ held: panel dimmer / flood dimmer (the C182T's cabin lights), where the profile knows the aircraft's | tap: VFR and back | shift: MODE |
 | MODE (XPDR shifted) | either ring: clockwise ALT (from standby or off), counter-clockwise standby | tap: VFR and back; hold: cabin light | shift back |
-| Every mode but FMS1 and FMS2 | | | AP, HDG (held: heading bug to the heading; in the Bonanza the HSI's course too), NAV (in the Bonanza held: GPSS), APR (held: BC; in the Bonanza GA), ALT (held: ARM), VS (held: FLC on the GFC 700 and GFC 500, FD on the KFC 150), each where the profile has it |
+| Every mode but FMS1 and FMS2 | | | D→, MENU, CLR, ENT: as in FMS1, but in COM2, NAV2, BARO and CRS2 as in FMS2; AP, HDG (held: heading bug to the heading; in the Bonanza the HSI's course too), NAV (in the Bonanza held: GPSS), APR (held: BC; in the Bonanza GA), ALT (held: ARM), VS (held: FLC on the GFC 700 and GFC 500, FD on the KFC 150), each where the profile has it |
 
 - ⇆ in FMS1, FMS2, AP and XPDR: held while turning a ring, the ring does what follows "⇆ held" and ⇆ sends
   nothing when let go. Otherwise ⇆ sends its tap when let go, however long it was held (in XPDR only within
@@ -171,11 +173,18 @@ For another VFR code than 7000, as 1200 in the US, write the profile with that c
   come back to XPDR.
 - The rings send one step per detent, without the panel's quick turn. MobiFlight passes on every detent of a
   fast spin; whether the sim keeps up is to check.
+- D→, MENU, CLR and ENT, the keys on the right, do in every other mode what they do in FMS1, but in COM2,
+  NAV2 and their shifted modes (BARO, CRS2) what they do in FMS2 (MobiFlight 11.3.1.5 reports them in every
+  mode). So both units' keys are at hand without a change of mode, the second unit's in the modes of the
+  second radios, and in the Bonanza, CLR and ENT are the EDM 800's in every mode but FMS2, COM2, NAV2, BARO
+  and CRS2.
 - MobiFlight sends a key's release to the mode the IFR-1 is in when the key comes up, and a hold to the button
   the key went down on. A change of mode, or leaving shift with the knob push, lets go of ⇆ and of every key
   with a hold, so one still held then sends nothing, neither held on nor let go; entering shift lets go of ⇆,
-  so a hold of COM1 or COM2 sends nothing in HDG or BARO. A key of TDS's GTN held in FMS1 or FMS2 while
-  changing mode stays down in the GTN until pressed again; its key-up never reaches the other GTN.
+  so a hold of COM1 or COM2 sends nothing in HDG or BARO. A key on the right does the same in a mode and its
+  shifted mode, so one held as the knob push enters shift sends its tap or hold as before. A key of TDS's GTN
+  held while changing mode stays down in the GTN until pressed again, but for D→, MENU, CLR and ENT let go in
+  a mode where they are the same GTN's keys; its key-up never reaches the other GTN.
 
 What the IFR-1 has no control for, of the panel's functions: in every profile the transponder's IDENT, 121.5
 and the ADF, including its ident audio, and the maps' pan and pointer; the COM volume in the GNS and Bonanza
@@ -214,6 +223,8 @@ selected altitude, without a distance from the GTN (no active waypoint), or at 3
 
 ## To check on the device
 
+- With MobiFlight 11.3.1.5 or newer, D→, MENU, CLR and ENT in COM1 do what they do in FMS1, and in COM2 what
+  they do in FMS2.
 - In COM1, a fast spin of 20 detents steps exactly 20 channels; so do HDG, CRS1 and CRS2's outer rings, which
   send ten 1° steps a detent (but CRS1's in the G3X), and the dimmers and the Bonanza's BARO rings, which read
   the sim's value and write a new one each detent. With firmware 1.2, the mode key flashes only while shifted.

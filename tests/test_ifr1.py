@@ -20,8 +20,9 @@ FAMILY = pytest.mark.parametrize("key", sorted(FAMILIES))
 PROFILES = {key: ifr1.build(key) for key in FAMILIES}
 EXTRA = {key: ifr1.EXTRA.get(key, dict)() for key in FAMILIES}       # each profile's uses over the panel's
 
-# the 96 buttons as MobiFlight 11.3.1's OctaviHandler makes them, in its order, written out from its constructor
-# (OctaviHandler.cs, octavi.joystick.json's five shifted modes), each "Button_" and this
+# the 140 buttons as MobiFlight 11.3.1.5's OctaviHandler makes them, in its order, written out from its constructor
+# (OctaviHandler.cs, octavi.joystick.json's five shifted modes), each "Button_" and this: the keys on the right of the
+# modes other than FMS1 and FMS2 last, as 11.3.1.5 adds them
 HANDLER = """
 SHIFT_SW UNSHIFT_SW COM1_OI COM1_OD COM1_II COM1_ID COM1_TOG COM2_OI COM2_OD COM2_II COM2_ID COM2_TOG NAV1_OI
 NAV1_OD NAV1_II NAV1_ID NAV1_TOG NAV2_OI NAV2_OD NAV2_II NAV2_ID NAV2_TOG FMS1_OI FMS1_OD FMS1_II FMS1_ID
@@ -30,7 +31,11 @@ FMS2_OI FMS2_OD FMS2_II FMS2_ID FMS2_TOG FMS2_CRSR FMS2_DCT FMS2_MENU FMS2_CLR F
 FMS2_MSG FMS2_FPL FMS2_VNAV FMS2_PROC AP_OI AP_OD AP_II AP_ID AP_TOG AP_CRSR AP_AP AP_HDG AP_NAV AP_APR AP_ALT
 AP_VS XPDR_OI XPDR_OD XPDR_II XPDR_ID XPDR_TOG COM1^_OI COM1^_OD COM1^_II COM1^_ID COM1^_TOG COM2^_OI COM2^_OD
 COM2^_II COM2^_ID COM2^_TOG NAV1^_OI NAV1^_OD NAV1^_II NAV1^_ID NAV1^_TOG NAV2^_OI NAV2^_OD NAV2^_II NAV2^_ID
-NAV2^_TOG XPDR^_OI XPDR^_OD XPDR^_II XPDR^_ID XPDR^_TOG
+NAV2^_TOG XPDR^_OI XPDR^_OD XPDR^_II XPDR^_ID XPDR^_TOG COM1_DCT COM1_MENU COM1_CLR COM1_ENT COM2_DCT COM2_MENU
+COM2_CLR COM2_ENT NAV1_DCT NAV1_MENU NAV1_CLR NAV1_ENT NAV2_DCT NAV2_MENU NAV2_CLR NAV2_ENT AP_DCT AP_MENU AP_CLR
+AP_ENT XPDR_DCT XPDR_MENU XPDR_CLR XPDR_ENT COM1^_DCT COM1^_MENU COM1^_CLR COM1^_ENT COM2^_DCT COM2^_MENU COM2^_CLR
+COM2^_ENT NAV1^_DCT NAV1^_MENU NAV1^_CLR NAV1^_ENT NAV2^_DCT NAV2^_MENU NAV2^_CLR NAV2^_ENT XPDR^_DCT XPDR^_MENU
+XPDR^_CLR XPDR^_ENT
 """
 
 
@@ -630,7 +635,7 @@ def test_a_key_held_sends_its_hold_at_once_and_nothing_when_let_go(key):
     for button, entry in p.DEVICE.items():
         if not isinstance(entry, dict) or "hold" not in entry or "long" in entry or "_Again" in entry["hold"]:
             continue
-        state, down = {}, f"L:{ifr1._down(button.removeprefix('Button_'))}"
+        state, down = {}, f"L:{ifr1._key_down(button)}"
         press(state, entry)
         press(state, entry, "hold", default=1)
         assert state[down] == 0 and press(state, entry, "release", default=1) == [], button
@@ -774,8 +779,12 @@ def test_a_held_key_sends_its_amber_function_and_ap_and_nav_send_on_press(key):
             assert ifr1.tapped(family.DEVICE[device][amber]) in hold, button
             if plain is not None:
                 assert ifr1.tapped(plain) in entry["release"], button
-            for code in (entry["release"], hold):
-                assert code.startswith(f"(L:{down}, Bool) if{{") and code.endswith(f"0 (>L:{down})"), button
+            # the hold where the key went down on this button, as keys on the right of other modes share FMS1's and
+            # FMS2's variable (ifr1._key_mark()); a release wherever
+            assert hold.startswith(f"{ifr1._went_down(button)} if{{"), button
+            assert hold.endswith((f" }} 0 (>L:{down})", f" 0 (>L:{down}) }}")), button      # let go, if its own
+            assert entry["release"].startswith(f"{ifr1._is_down(button)} if{{"), button
+            assert entry["release"].endswith(f" }} 0 (>L:{down})"), button
         else:
             assert entry == plain, button
     for button in ("Button_AP_AP", "Button_AP_NAV", "Button_AP_HDG"):         # but where it has a hold (VS, GPSS)
@@ -959,7 +968,7 @@ def test_the_command_line_writes_an_ifr1_project(tmp_path, capsys):
     assert project["Name"] == "Avionics Panel for the IFR-1: Carenado C182T (s)"
     assert "if{ 1200 sp0 " in out.read_text(encoding="utf-8")
     err = capsys.readouterr().err
-    assert "96 buttons mapped" in err and "unmapped XPDR" not in err
+    assert "140 buttons mapped" in err and "unmapped XPDR" not in err
     # a profile that leaves buttons unmapped lists them by reason, every one once (the G3X: its FMS keys and HOME)
     cli.main(["--ifr1", "g3x", "-o", str(out)])
     err = capsys.readouterr().err
@@ -1123,7 +1132,7 @@ def test_the_bonanzas_fms1_and_fms2_keys_send_no_tds_volume():
 
 def test_the_bonanzas_fms1_ent_says_the_edm_800():
     sheet = said("black-square-bonanza")
-    assert sheet["ENT"][1:] == ["FMS1: tap: EDM 800 LEAN FIND; hold: long press", "FMS2: ENT"]
+    assert sheet["ENT"][1:] == ["FMS1: tap: EDM 800 LEAN FIND; hold: long press", "FMS2: ENT", OTHER_MODES]
 
 
 def test_the_bonanzas_cockpit_functions_take_the_slots_that_send_nothing_in_every_selection():
@@ -1218,7 +1227,7 @@ def test_the_bonanzas_holds_in_fms1_and_fms2_run_as_the_cockpit():
 def test_the_bonanzas_sheet_says_what_the_merged_keys_do():
     sheet = said("black-square-bonanza")
     assert sheet["MENU"][1:] == ["FMS1: tap: MENU (KLN 90B: ALT); hold: MD41 APR ARM (unit 1)",
-                                 "FMS2: tap: MENU; hold: KFC 150 self-test, autopilot off only"]
+                                 "FMS2: tap: MENU; hold: KFC 150 self-test, autopilot off only", OTHER_MODES]
     assert sheet["CLR"][1] == "FMS1: tap: EDM 800 STEP; hold: long press"
     assert "FMS1 VNAV: to waypoint: sets VS, VS ENG" in sheet["B_ALT"]
     assert ("outer: navigator's outer right knob; ⇆ held: KLN 90B left outer knob; GNS 530 map range; GTN 750 volume"
@@ -1396,13 +1405,13 @@ def test_the_button_for_a_change_of_mode_lets_go_of_every_held_key_of_the_profil
     held = {button for button, entry in p.DEVICE.items() if isinstance(entry, dict) and "hold" in entry}
     want = [*(f"0 (>L:AvPanelIFR1_{m})" for m in ifr1.MODIFIED)]
     for b in ifr1.BUTTONS:
-        if b in held:
+        if b in held and not ifr1.like(b):              # a key on the right in another mode: its FMS key's flag
             down = ifr1._down(b.removeprefix("Button_"))
             want += [f"0 (>L:{down})", *([f"0 (>L:{down}_Again)"] if f"{down}_Again" in p.DEVICE[b]["hold"] else [])]
     want.append(f"0 (>L:{ifr1.SQUAWK_DIGIT})")                      # the squawk entry back at digit 1
     assert clear == " ".join(want) and len(clear.encode()) < 1000
     for button in held:
-        assert p.DEVICE[button]["press"] == f"1 (>L:{ifr1._down(button.removeprefix('Button_'))})", button
+        assert p.DEVICE[button]["press"] == f"{ifr1._key_mark(button)} (>L:{ifr1._key_down(button)})", button
 
 
 @pytest.mark.parametrize(("key", "button"), [("g1000", "NAV1_TOG"), ("gns", "NAV2^_TOG"), ("cows-da40", "FMS2_CDI"),
@@ -1414,6 +1423,115 @@ def test_a_hold_key_let_go_after_a_change_of_mode_sends_nothing(key, button):
         press(state, device[f"Button_{button}"])
         press(state, device["Button_UNSHIFT_SW"])                  # the mode changed with the key held
         assert press(state, device[f"Button_{button}"], event) == [], (button, event)
+
+
+RIGHT = [b for b in ifr1.BUTTONS if ifr1.like(b)]                 # the keys on the right outside FMS1 and FMS2
+OTHER_MODES = "other modes: as in FMS1, but in COM2, NAV2, BARO and CRS2 as in FMS2"
+
+
+@FAMILY
+def test_the_keys_on_the_right_do_in_every_other_mode_what_they_do_in_fms1_or_fms2(key):
+    # MobiFlight 11.3.1.5's 44 buttons, the last ones: COM2, NAV2 and their shifted modes FMS2's, the rest FMS1's,
+    # down to the entry and its reason, so the card and the cheat sheet can say it in one line
+    assert len(RIGHT) == 44 and ifr1.BUTTONS[-44:] == tuple(RIGHT)
+    p = PROFILES[key]
+    marks = {}
+    for button in RIGHT:
+        name = ifr1.mode(button).rstrip("^")
+        fms = ifr1.like(button)
+        assert fms == f"Button_{'FMS2' if name in ('COM2', 'NAV2') else 'FMS1'}_{button.rsplit('_', 1)[1]}"
+        assert p.USES[button] == p.USES[fms] and p.UNMAPPED.get(button) == p.UNMAPPED.get(fms), button
+        entry, theirs = p.DEVICE.get(button), p.DEVICE.get(fms)
+        if isinstance(entry, dict) and "hold" in entry:
+            # the same, but the number its press sets in the variable they share, which its hold tests
+            mark, down = ifr1._key_mark(button), ifr1._key_down(button)
+            assert ifr1._key_mark(fms) == 1 and mark > 1 and down == ifr1._key_down(fms)
+            assert entry["press"] == f"{mark} (>L:{down})" and theirs["press"] == f"1 (>L:{down})"
+            assert entry["release"] == theirs["release"]
+            test = ifr1._is_down(fms)
+            assert entry["hold"] == theirs["hold"].replace(f"{test} 1 ==", f"{test} {mark} ==")
+            marks.setdefault(fms, set()).add(mark)
+        else:
+            assert entry == theirs, button
+    assert all(len(m) == len([b for b in RIGHT if ifr1.like(b) == fms]) for fms, m in marks.items())   # one each
+    assert not any(ifr1.like(f"Button_{m}_{k}") for m in ("FMS1", "FMS2") for k in ifr1.FMS_KEYS)
+    assert not ifr1.like("Button_COM1_OI") and not ifr1.like("Button_AP_VS") and not ifr1.like("Button_SHIFT_SW")
+
+
+def test_a_key_on_the_right_held_through_a_change_of_mode_sends_nothing():
+    # the Bonanza's CLR in COM1 is FMS1's, the EDM 800's STEP with a long press: let go or held on after a change of
+    # mode, in the new mode or the old, it sends nothing, as clear() lets go of FMS1's CLR, whose flag it shares
+    device = BONANZA.DEVICE
+    tap = run(BONANZA.USES["Button_FMS1_CLR"]["key"].entry)
+    for there in ("Button_NAV1_CLR", "Button_FMS1_CLR"):        # MobiFlight's release goes to the new mode's button
+        state = {}
+        press(state, device["Button_COM1_CLR"])
+        press(state, device["Button_UNSHIFT_SW"])
+        assert press(state, device[there], "release") == [], there
+    state = {}                                                     # its hold goes to its own button
+    press(state, device["Button_COM1_CLR"])
+    press(state, device["Button_UNSHIFT_SW"])
+    assert press(state, device["Button_COM1_CLR"], "hold") == []
+    state = {}                                                     # and without a change of mode, its tap
+    press(state, device["Button_COM1_CLR"])
+    assert press(state, device["Button_COM1_CLR"], "release") == tap
+
+
+def test_a_key_on_the_right_held_through_entering_shift_sends_its_tap_or_hold():
+    # the knob push into HDG lets go of ⇆ alone: CLR held in COM1 is FMS1's in HDG too, so its release there sends its
+    # tap, and its hold, which MobiFlight sends to COM1's button, its long press
+    device = BONANZA.DEVICE
+    tap = run(BONANZA.USES["Button_FMS1_CLR"]["key"].entry)
+    long = run(BONANZA.USES["Button_FMS1_CLR"]["hold"].entry)
+    state = {}
+    press(state, device["Button_COM1_CLR"])
+    press(state, device["Button_SHIFT_SW"])
+    assert press(state, device["Button_COM1^_CLR"], "release") == tap
+    state = {}
+    press(state, device["Button_COM1_CLR"])
+    press(state, device["Button_SHIFT_SW"])
+    assert press(state, device["Button_COM1_CLR"], "hold") == long
+    assert press(state, device["Button_COM1^_CLR"], "release") == []      # nothing more after the hold
+
+
+def test_a_late_hold_of_a_key_let_go_in_another_mode_takes_no_new_press():
+    # MobiFlight fires COM1's hold 0.7 s after the press even though the release went to NAV1's button: CLR pressed
+    # again in NAV1 by then sends NAV1's tap, not COM1's long press; NAV1's own hold still sends its long press
+    device = BONANZA.DEVICE
+    tap = run(BONANZA.USES["Button_FMS1_CLR"]["key"].entry)
+    long = run(BONANZA.USES["Button_FMS1_CLR"]["hold"].entry)
+    for first, second in (("Button_COM1_CLR", "Button_NAV1_CLR"), ("Button_FMS1_CLR", "Button_COM1_CLR"),
+                          ("Button_COM1_CLR", "Button_FMS1_CLR")):
+        state = {}
+        press(state, device[first])
+        press(state, device["Button_UNSHIFT_SW"])
+        assert press(state, device[second], "release") == []
+        press(state, device[second])
+        assert press(state, device[first], "hold") == [], (first, second)
+        assert press(state, device[second], "release") == tap, (first, second)
+        press(state, device[second])
+        assert press(state, device[second], "hold") == long, (first, second)
+
+
+def test_a_gtn_key_on_the_right_sends_its_key_up_where_its_unit_went_down():
+    # TDS's GTN 750's D→ pressed in COM1 is FMS1's: its key-up comes from FMS1's D→ after a change of mode, as the
+    # same unit's, and not from FMS2's
+    p = PROFILES["gtn"]
+    device = p.DEVICE
+    assert ifr1._key_down("Button_COM1_DCT") == ifr1._key_down("Button_FMS1_DCT")
+    assert ifr1._key_down("Button_COM2_DCT") == ifr1._key_down("Button_FMS2_DCT") != ifr1._key_down("Button_FMS1_DCT")
+    state = {}
+    down = press(state, device["Button_COM1_DCT"])
+    press(state, device["Button_UNSHIFT_SW"])
+    assert down and press(state, device["Button_FMS2_DCT"], "release") == []
+    assert press(state, device["Button_FMS1_DCT"], "release") == run(p.USES["Button_FMS1_DCT"]["key"].entry["release"])
+
+
+def test_the_card_says_where_the_keys_on_the_right_do_what():
+    page = ifr1_card.page(PROFILES["gns"])
+    assert f'<td rowspan="4">{html.escape(ifr1_grid.like_text())}</td>' in page          # once, down their rows
+    assert page.count(html.escape(ifr1_grid.like_text())) == 1 and "only in FMS1 and FMS2" not in page
+    assert said("gns")["DCT"][-1] == OTHER_MODES
 
 
 def test_the_course_follows_the_heading_round_north():

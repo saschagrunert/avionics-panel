@@ -30,7 +30,8 @@ def hold_rules():
 MODES = (("COM1", "COM1"), ("COM2", "COM2"), ("NAV1", "NAV1"), ("NAV2", "NAV2"), ("FMS1", "FMS1"), ("FMS2", "FMS2"),
          ("AP", "AP"), ("XPDR", "XPDR"), ("COM1^", "HDG (COM1 shifted)"), ("COM2^", "BARO (COM2 shifted)"),
          ("NAV1^", "CRS1 (NAV1 shifted)"), ("NAV2^", "CRS2 (NAV2 shifted)"), ("XPDR^", "MODE (XPDR shifted)"))
-# the keys as rows: (title, FMS1's and FMS2's key, the bottom row's key in the other modes)
+# the keys as rows: (title, FMS1's and FMS2's key, the bottom row's key in the other modes, None for a key on the right,
+# which does there what it does in FMS1 or FMS2: like_text())
 KEYS = (("DCT", "DCT", None), ("MENU", "MENU", None), ("CLR", "CLR", None), ("ENT", "ENT", None),
         ("AP / CDI", "CDI", "AP"), ("HDG / OBS", "OBS", "HDG"), ("NAV / MSG", "MSG", "NAV"),
         ("APR / FPL", "FPL", "APR"), ("ALT / VNAV", "VNAV", "ALT"), ("VS / PROC", "PROC", "VS"))
@@ -43,6 +44,12 @@ UNIT_NAMES = {"navigator-g1000": {1: "MFD", 2: "PFD"}, "navigator-g3x": {1: "PFD
 UNIT2_WORDS = {"black-square-bonanza": {"CDI": "GNS 430 CDI: GPS or VLOC", "MENU": "MENU"}}
 # the course of the IFR-1's CRS1, by the cockpit part
 COURSE = {"g1000": "course of the CDI (PFD CRS knob)", "g3x": "course of the CDI", "bendix-king": "NAV 1 course"}
+
+
+def like_text():
+    """Where the keys on the right do what in the modes other than FMS1 and FMS2 (ifr1.like()), in words"""
+    unit2 = [title.split()[0] for mode, title in MODES if ifr1.like(f"Button_{mode}_DCT") == "Button_FMS2_DCT"]
+    return f"as in FMS1, but in {listed(unit2)} as in FMS2"
 
 
 def unit_name(family, unit):
@@ -184,10 +191,15 @@ class Grid(card.Reasons):
         return "\n".join(rows)
 
     def keys(self):
-        """The keys' rows, as HTML: in FMS1, in FMS2, and in every other mode"""
-        rows = []
-        for title, fms, other in KEYS:
-            cells = [self.key(f"Button_FMS1_{fms}"), self.key(f"Button_FMS2_{fms}"),
-                     self.key(f"Button_AP_{other}") if other else '<span class="off">only in FMS1 and FMS2</span>']
-            rows.append(f"<tr><th>{html.escape(title)}</th>" + "".join(f"<td>{c}</td>" for c in cells) + "</tr>")
+        """The keys' rows, as HTML: in FMS1, in FMS2, and in every other mode, the keys on the right there in one cell
+        down their rows (like_text())"""
+        rows, right = [], [i for i, (*_, other) in enumerate(KEYS) if other is None]
+        assert right == list(range(right[0], right[0] + len(right)))        # rows together, for one cell down them
+        for i, (title, fms, other) in enumerate(KEYS):
+            cells = [f"<td>{self.key(f'Button_FMS1_{fms}')}</td>", f"<td>{self.key(f'Button_FMS2_{fms}')}</td>"]
+            if other:
+                cells.append(f"<td>{self.key(f'Button_AP_{other}')}</td>")
+            elif i == right[0]:
+                cells.append(f'<td rowspan="{len(right)}">{html.escape(like_text())}</td>')
+            rows.append(f"<tr><th>{html.escape(title)}</th>" + "".join(cells) + "</tr>")
         return "\n".join(rows)
