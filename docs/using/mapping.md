@@ -351,14 +351,18 @@ same differences from the real units, and the DA40's lighting as a project it is
 dimmers are the panel lights (outer ring) and the glareshield lights (inner ring), in steps of 5 %, and the
 cabin light push turns the three cabin lights on or off.
 
-The BARO knob and its push (STD) set the standby altimeter along with the PFD's (in the real DA40 each has
-its own knob). A detent sets the standby 0.01 inHg up or down from the PFD's setting, as the NXi steps it with
-the PFD in inHg; on STD from the setting before STD, which the NXi leaves STD for. With the PFD in hPa the
-NXi steps 1 hPa, and the standby, which steps 0.01 inHg, can end up to 0.02 inHg (about 20 ft) off. STD sets
-the standby to 29.92 with the PFD and, pressed again, back to the PFD's setting before; on 29.92 (or 1013 hPa)
-with no setting kept, as after STD from the cockpit, it leaves the standby as it is. A push that cannot reach
-STD Baro (from another menu of the PFD's softkeys) sets the standby all the same, and the next detent sets it
-again. The standby is the aircraft's own variable (`L:KOHLSMAN SETTING HG:2`), not the sim's altimeter 2.
+The BARO knob and its push (STD) set the standby altimeter along with the PFD's (in the real DA40 each has its
+own knob). A detent sets the standby 0.01 inHg up or down from the PFD's setting, as the NXi steps it with the
+PFD in inHg; on STD from the setting before STD, which the NXi leaves STD for. With the PFD in hPa the NXi
+steps 1 hPa, and the standby, which steps 0.01 inHg, can end up to 0.025 inHg (about 25 ft) off. A detent
+never moves the standby against the knob by less than one hPa: when it is 0.02 or 0.03 inHg ahead of the PFD
+in the turn's direction (as a turn the other way leaves it), it stays, and the PFD catches up in up to three
+detents; further off, a detent sets it from the PFD's setting. A fast spin, whose detents may read the PFD's
+setting before the NXi has stepped it, can still leave it further off. STD sets the standby to 29.92 with the
+PFD and, pressed again, back to the PFD's setting before; on 29.92 (or 1013 hPa) with no setting kept, as
+after STD from the cockpit, it leaves the standby as it is. A push that cannot reach STD Baro (from another
+menu of the PFD's softkeys) sets the standby all the same, and the next detents set it again. The standby is
+the aircraft's own variable (`L:KOHLSMAN SETTING HG:2`), not the sim's altimeter 2.
 
 Does nothing in this profile: TEST, GPSS and ½ BANK (as in the G1000 NXi profile).
 
