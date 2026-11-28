@@ -717,9 +717,9 @@ SETS = {
         ADF_SWAP=K:ADF1_RADIO_SWAP ADF_SWAP@2=K:ADF1_RADIO_SWAP ALT=K:AP_ALT_HOLD ALT_1000_DN=1000,K:AP_ALT_VAR_DEC
         ALT_1000_UP=1000,K:AP_ALT_VAR_INC ALT_100_DN=K:AP_ALT_VAR_DEC ALT_100_UP=K:AP_ALT_VAR_INC AP=K:AP_MASTER
         APR=K:AP_APR_HOLD ARM=H:AS1000_PFD_SOFTKEYS_10
-        BARO_DN=H:AS1000_PFD_BARO_DEC,1013.23,-,0.1,100,2992,0,100,100,1,-,3150,2800,100,L:KOHLSMAN_SETTING_HG:2,0,L:AvionicsPanel_Standby_Baro
+        BARO_DN=H:AS1000_PFD_BARO_DEC,1013.23,-,0.1,100,2992,0,100,100,100,-,1,4,1,+,1,-,3150,2800,100,L:KOHLSMAN_SETTING_HG:2,0,L:AvionicsPanel_Standby_Baro
         BARO_STD=H:AS1000_PFD_SOFTKEYS_4,H:AS1000_PFD_SOFTKEYS_10,1013.23,-,0.1,0,100,3150,2800,100,L:KOHLSMAN_SETTING_HG:2,0,L:AvionicsPanel_Standby_Baro,100,100,L:AvionicsPanel_Standby_Baro,2992,3150,2800,100,L:KOHLSMAN_SETTING_HG:2
-        BARO_UP=H:AS1000_PFD_BARO_INC,1013.23,-,0.1,100,2992,0,100,100,1,+,3150,2800,100,L:KOHLSMAN_SETTING_HG:2,0,L:AvionicsPanel_Standby_Baro
+        BARO_UP=H:AS1000_PFD_BARO_INC,1013.23,-,0.1,100,2992,0,100,100,100,-,1,4,1,-,1,+,3150,2800,100,L:KOHLSMAN_SETTING_HG:2,0,L:AvionicsPanel_Standby_Baro
         BC=K:AP_BC_HOLD CABIN_LT=0,1,B:LIGHTING_CABIN_1_Set,B:LIGHTING_CABIN_2_Set,B:LIGHTING_CABIN_3_Set
         CDI=3,1,K:AP_NAV_SELECT_SET,1,2,K:AP_NAV_SELECT_SET,K:TOGGLE_GPS_DRIVES_NAV1
         CDI@2=3,1,K:AP_NAV_SELECT_SET,1,2,K:AP_NAV_SELECT_SET,K:TOGGLE_GPS_DRIVES_NAV1 CLR=H:AS1000_MFD_CLR
@@ -1075,6 +1075,37 @@ def test_the_da40s_standby_altimeter_follows_the_pfd():
     for turn, pfd, want in ((up, 29.951, 29.96), (down, 29.951, 29.94), (up, 30.1249, 30.13), (up, 31.5, 31.5),
                             (down, 28.0, 28.0), (down, 27.5, 28.0)):
         assert detent(turn, pfd, 29.5, 29.5) == want, (turn, pfd)
+    # turned back and forth with the NXi stepping 1 hPa, from whole hPa and from other settings, or 0.01 inHg: the
+    # standby never moves against the turn and ends within 0.025 inHg of the PFD's setting, the same with the PFD in
+    # inHg
+    for nxi_step, starts in ((1 / 33.8639, [hpa / 33.8639 for hpa in range(1005, 1013)] + [29.8, 29.805]),
+                             (0.01, (29.8, 30.12))):
+        for start in starts:
+            pfd, settled = start, round(start, 2)
+            for sign in (1, 1, -1, 1, -1, -1, -1, 1, 1, 1, -1, 1, -1, -1):
+                now = detent(up if sign > 0 else down, pfd, settled, 0)
+                pfd += sign * nxi_step
+                assert (now - settled) * sign >= 0 and abs(now - pfd) < 0.025, (nxi_step, start, now, pfd)
+                assert nxi_step > 0.01 or abs(now - pfd) < 1e-6
+                settled = now
+    # a standby 0.01 to 0.03 inHg ahead of the PFD's setting in the turn's direction stays (0.01: the step's own),
+    # one further off or behind takes the step from the PFD's
+    for turn, standby_before, want in ((up, 29.91, 29.91), (up, 29.92, 29.92), (up, 29.93, 29.93),
+                                       (up, 29.94, 29.91), (up, 29.88, 29.91), (down, 29.89, 29.89),
+                                       (down, 29.88, 29.88), (down, 29.87, 29.87), (down, 29.86, 29.89),
+                                       (down, 29.92, 29.89)):
+        assert detent(turn, 29.90, standby_before, 0) == want, (turn, standby_before)
+    # with the PFD in inHg, a standby off by up to 0.03 inHg (a STD push that missed STD Baro, its own knob) meets the
+    # PFD within three detents either way without moving against the turn, and stays on it
+    for turn, sign in ((up, 1), (down, -1)):
+        for gap in (-3, -2, -1, 1, 2, 3, 5):
+            pfd, settled = 29.90, round(29.90 + gap / 100, 2)
+            for n in range(6):
+                now = detent(turn, pfd, settled, 0)
+                pfd = round(pfd + sign / 100, 2)
+                assert (now - settled) * sign >= 0 or abs(gap) > 3, (turn, gap, n, now)
+                assert n < 3 or abs(now - pfd) < 1e-6, (turn, gap, n, now, pfd)
+                settled = now
     # on STD, from the setting the NXi leaves STD for: the one kept while the standby reads the panel's 29.92, else
     # the standby's own (STD from the cockpit; a QNH of 29.92)
     assert detent(up, 29.92, 29.92, 29.62) == 29.63

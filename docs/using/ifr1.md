@@ -246,7 +246,8 @@ selected altitude, without a distance from the GTN (no active waypoint), or at 3
 - Fast spins: MobiFlight sends each detent of a report as its own command at once, so several may read the
   same value of the sim in one frame and step it once (BARO, the dimmers, the G3X's 10° course step); if the
   fast spin above loses detents, those rings step from a value of their own instead. In the DA40, check that
-  the standby altimeter ends where the PFD does after a fast spin of BARO (on the panel's BARO knob too).
+  the standby altimeter ends where the PFD does after a fast spin of BARO and a few slow detents (with the PFD
+  in hPa within 0.025 inHg of it; on the panel's BARO knob too).
 - COM1 and COM2: ⇆ let go after 0.7 s and before 2 s turns only that radio's audio on or off, and held for 2 s
   picks only the radio to talk on, while still held, with nothing more on its release.
 - MODE: each ring takes the transponder to ALT clockwise and to standby counter-clockwise in every profile.

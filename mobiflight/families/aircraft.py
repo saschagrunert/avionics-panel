@@ -34,9 +34,15 @@ C182T_LIGHTS = {
 # behaviour code in the aircraft), not the sim's altimeter 2. The NXi sets its setting only with KOHLSMAN_SET from
 # its JS (Altimeter.tsx), which the sim applies after the panel's code has run, so the code reads the PFD's setting
 # before the H: event: the sim's altimeter 1, to 0.01 inHg as the NXi reads it. A detent steps the standby 0.01 inHg
-# from there, the NXi's step with the PFD in inHg (in hPa it steps 1 hPa, and the standby is then off by up to
-# 0.02 inHg, less than one hPa). The NXi steps its own copy of the setting, which follows the sim's a frame or so
-# later, so in a fast spin the two may step from different values; the next detent sets the standby again.
+# from there, the NXi's step with the PFD in inHg. In hPa it steps 1 hPa (0.0295 inHg), a unit only its own settings
+# know (baroHpa), so the standby trails the PFD by up to 0.025 inHg (0.005 of it the rounding), less than one hPa,
+# and a step from the PFD's setting after a turn the other way could move it against the turn. So a detent never
+# moves the standby against the turn by less than one hPa: it leaves it as it is when it is 0.02 or 0.03 inHg ahead
+# of the PFD's setting in the turn's direction (0.02 is what a turn the other way leaves, 0.03 what a quick turn
+# can), and the PFD catches up with it in up to three detents (0.01 ahead steps it to where it is). That holds in
+# inHg too, for a standby off by as much from another cause (its own knob, a missed STD); one further off a detent
+# sets from the PFD's setting. The NXi steps its own copy of the setting, which follows the sim's a frame or so
+# later, so in a fast spin the two may step from different values; a later detent sets the standby again.
 #
 # On STD a turn leaves STD for the setting before it and steps from that (onbaroKnobTurn, updateBaroStd), so on STD
 # a detent steps the standby from that setting: the one kept while the standby still reads the 29.92 the panel's
@@ -44,8 +50,8 @@ C182T_LIGHTS = {
 # the PFD: from another setting it keeps the PFD's setting, which the NXi returns to, in
 # L:AvionicsPanel_Standby_Baro and sets 29.92; on STD it sets the setting kept, once (parts.STD_TOGGLE's test), and
 # with none kept (STD from the cockpit, or a QNH of 29.92, which the push takes for STD) leaves the standby as it
-# is. A push that misses STD Baro, from another menu of the PFD's softkeys, sets the standby all the same; the next
-# detent sets it again. A detent forgets the setting kept, as the NXi leaves STD with it.
+# is. A push that misses STD Baro, from another menu of the PFD's softkeys, sets the standby all the same; the
+# next detents set it again, as above. A detent forgets the setting kept, as the NXi leaves STD with it.
 _STANDBY, _STANDBY_KEPT = "KOHLSMAN SETTING HG:2", "AvionicsPanel_Standby_Baro"
 _PFD_HUNDREDTHS = "(A:KOHLSMAN SETTING HG:1, inHg) 100 * near"
 _KEPT = f"(L:{_STANDBY_KEPT}, Number)"
@@ -58,14 +64,19 @@ def _standby(hundredths):
     return f"{hundredths} 3150 min 2800 max 100 / (>L:{_STANDBY})"
 
 
-def _standby_step(button, step):
-    base = f"{parts.BARO} {parts.AT_STD} if{{ {_ON_STD_FROM} }} els{{ {_PFD_HUNDREDTHS} }}"
+def _standby_step(button, step, back, ahead):
+    """A detent: the step from the setting the NXi leaves STD for, on STD, else from the PFD's setting (l1), or from
+    one hundredth back (the step undone) from the standby's (l2) when that is 2 or 3 hundredths ahead of the PFD's
+    in the turn's direction (ahead, of l1 and l2)"""
+    off_std = (f"{_PFD_HUNDREDTHS} sp1 (L:{_STANDBY}, Number) 100 * near sp2 {ahead} sp3 l3 1 > l3 4 < and "
+               f"if{{ l2 {back} }} els{{ l1 }}")
+    base = f"{parts.BARO} {parts.AT_STD} if{{ {_ON_STD_FROM} }} els{{ {off_std} }}"
     return f"{g1000.COCKPIT.DEVICE[1][button]} {_standby(f'{base} {step}')} {lset(_STANDBY_KEPT, 0)}"
 
 
 DA40_STANDBY = {
-    "BARO_UP": _standby_step("BARO_UP", "1 +"),
-    "BARO_DN": _standby_step("BARO_DN", "1 -"),
+    "BARO_UP": _standby_step("BARO_UP", "1 +", "1 -", "l2 l1 -"),
+    "BARO_DN": _standby_step("BARO_DN", "1 -", "1 +", "l1 l2 -"),
     "BARO_STD": (f"{g1000.COCKPIT.DEVICE[1]['BARO_STD']} {parts.BARO} {parts.AT_STD} if{{ {_KEPT} 0 > if{{ "
                  f"{_standby(f'{_KEPT} 100 * near')} {lset(_STANDBY_KEPT, 0)} }} }} "
                  f"els{{ {lset(_STANDBY_KEPT, f'{_PFD_HUNDREDTHS} 100 /')} {_standby(2992)} }}"),
